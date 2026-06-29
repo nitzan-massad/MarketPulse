@@ -185,3 +185,32 @@ footer a{color:var(--gold-soft)}
 
   footer{margin-top:24px}
 }
+
+/* ---- search clear (×) button ---- */
+.field:has(.clear) .search{padding-right:34px}
+.clear{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  width:20px; height:20px; padding:0; border:none; border-radius:50%;
+  background:var(--line); color:var(--muted);
+  font-size:15px; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; transition:.15s;
+}
+.clear:hover{background:#d8d3c4; color:var(--ink)}
+
+/* ---- resizable columns (table-layout:fixed makes th widths authoritative) ---- */
+table{table-layout:fixed}
+thead th, tbody td{overflow:hidden; text-overflow:ellipsis}
+.col-resize{
+  position:absolute; top:0; right:0; width:10px; height:100%;
+  cursor:col-resize; touch-action:none; z-index:4;
+}
+.col-resize::after{
+  content:""; position:absolute; right:3px; top:28%; height:44%; width:2px;
+  background:var(--line); border-radius:2px; opacity:0; transition:opacity .15s;
+}
+thead th:hover .col-resize::after{opacity:.6}
+.col-resize:hover::after{background:var(--gold-soft); opacity:1}
+
+/* ---- ticker opens Yahoo Finance ---- */
+.tk a.sym{cursor:pointer; text-decoration:none}
+.tk a.sym:hover{text-decoration:underline; text-decoration-color:var(--gold-soft); text-underline-offset:3px}

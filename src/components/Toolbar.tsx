@@ -37,6 +37,11 @@ export default function Toolbar({
           value={q}
           onChange={(e) => onQ(e.target.value)}
         />
+        {q && (
+          <button type="button" className="clear" aria-label="Clear search" onClick={() => onQ("")}>
+            ×
+          </button>
+        )}
       </label>
       <select id="sector" value={sector} onChange={(e) => onSector(e.target.value)}>
         <option value="">All sectors</option>
