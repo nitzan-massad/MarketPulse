@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="MarketPulse — Breakthrough">
+  <defs>
+    <linearGradient id="b4-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d201a"/>
+      <stop offset="1" stop-color="#101210"/>
+    </linearGradient>
+    <linearGradient id="b4-green" x1="0" y1="1" x2="0.4" y2="0">
+      <stop offset="0" stop-color="#157a42"/>
+      <stop offset="0.6" stop-color="#1f9152"/>
+      <stop offset="1" stop-color="#46c47e"/>
+    </linearGradient>
+    <radialGradient id="b4-glow" cx="0.66" cy="0.3" r="0.7">
+      <stop offset="0" stop-color="#1f9152" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#1f9152" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#b4-bg)"/>
+  <rect width="1024" height="1024" fill="url(#b4-glow)"/>
+
+  <!-- the gold "ceiling" / resistance line being broken -->
+  <g stroke="#b8860b" stroke-width="26" stroke-linecap="round" stroke-dasharray="6 60">
+    <line x1="178" y1="392" x2="846" y2="392"/>
+  </g>
+  <!-- solid segments of ceiling on either side of the break for a clean snap -->
+  <g stroke="#b8860b" stroke-width="30" stroke-linecap="round">
+    <line x1="178" y1="392" x2="392" y2="392"/>
+    <line x1="640" y1="392" x2="846" y2="392"/>
+  </g>
+
+  <!-- the sparkline climbing then bursting up through the ceiling -->
+  <g fill="none" stroke="url(#b4-green)" stroke-width="56" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 188 786
+             L 286 700
+             L 372 742
+             L 458 590
+             L 512 632
+             L 512 282"/>
+  </g>
+
+  <!-- arrowhead piercing above the ceiling -->
+  <path d="M 512 246 L 410 376 L 614 376 Z" fill="#46c47e"/>
+</svg>

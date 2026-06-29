@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="MarketPulse — Monogram M">
+  <defs>
+    <linearGradient id="m3-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1f211b"/>
+      <stop offset="1" stop-color="#121410"/>
+    </linearGradient>
+    <linearGradient id="m3-gold" x1="0" y1="1" x2="0.3" y2="0">
+      <stop offset="0" stop-color="#a06f09"/>
+      <stop offset="0.55" stop-color="#cf9b1f"/>
+      <stop offset="1" stop-color="#f2cf5e"/>
+    </linearGradient>
+    <radialGradient id="m3-glow" cx="0.5" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#d4a32a" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#d4a32a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#m3-bg)"/>
+  <rect width="1024" height="1024" fill="url(#m3-glow)"/>
+
+  <!-- The M: two outer legs + a center V that doubles as the valley of the M.
+       The center peak is replaced by an up-arrow rising above the M. -->
+  <g fill="none" stroke="url(#m3-gold)" stroke-width="74" stroke-linecap="round" stroke-linejoin="round">
+    <!-- left leg up, into center, out to right leg: classic M silhouette but middle apex extended -->
+    <path d="M 250 760
+             L 250 372
+             L 512 612
+             L 774 372
+             L 774 760"/>
+  </g>
+
+  <!-- the embedded up-arrow shooting out of the M's center vertex -->
+  <g fill="none" stroke="#f2cf5e" stroke-width="62" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="512" y1="612" x2="512" y2="262"/>
+  </g>
+  <path d="M 512 230 L 426 350 L 598 350 Z" fill="#f2cf5e"/>
+</svg>

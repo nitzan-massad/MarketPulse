@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="MarketPulse — Pulse Ascent">
+  <defs>
+    <linearGradient id="p1-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#23261f"/>
+      <stop offset="0.55" stop-color="#1b1d18"/>
+      <stop offset="1" stop-color="#141611"/>
+    </linearGradient>
+    <linearGradient id="p1-gold" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#9c6f08"/>
+      <stop offset="0.5" stop-color="#cf9b1f"/>
+      <stop offset="1" stop-color="#f1cb55"/>
+    </linearGradient>
+    <radialGradient id="p1-glow" cx="0.62" cy="0.38" r="0.8">
+      <stop offset="0" stop-color="#b8860b" stop-opacity="0.32"/>
+      <stop offset="0.55" stop-color="#b8860b" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#b8860b" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#p1-bg)"/>
+  <rect width="1024" height="1024" fill="url(#p1-glow)"/>
+
+  <!-- faint baseline grid for finance texture -->
+  <g stroke="#ffffff" stroke-opacity="0.05" stroke-width="2">
+    <line x1="160" y1="540" x2="864" y2="540"/>
+  </g>
+
+  <!-- the pulse: flat line, dip, spike, then breaks upward as a tick -->
+  <g fill="none" stroke="url(#p1-gold)" stroke-width="58" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 168 560
+             L 360 560
+             L 432 432
+             L 500 690
+             L 600 300
+             L 700 470
+             L 856 188"/>
+  </g>
+
+  <!-- arrowhead capping the upward break -->
+  <path d="M 856 188 L 742 214 L 818 300 Z" fill="#f1cb55"/>
+  <path d="M 856 188 L 742 214 L 818 300 Z" fill="none" stroke="#f1cb55" stroke-width="40" stroke-linejoin="round"/>
+</svg>
