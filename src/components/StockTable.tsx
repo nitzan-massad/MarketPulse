@@ -76,14 +76,14 @@ export default function StockTable({ rows, sort, dir, hl, onSort }: StockTablePr
                   className={isHl ? "hl" : ""}
                   style={{ animationDelay: `${Math.min(i, 40) * 14}ms` }}
                 >
-                  <td className="rank">{i + 1}</td>
+                  <td className="rank" data-label="Rank">{i + 1}</td>
                   <td className="tk">
                     <div className="sym">{s.t}</div>
                     <div className="co">{s.n || ""}</div>
                   </td>
-                  <td className="sec">{s.sec || "—"}</td>
-                  <td className="num">{fmtPx(s.px)}</td>
-                  <td>
+                  <td className="sec" data-label="Sector">{s.sec || "—"}</td>
+                  <td className="num" data-label="Price">{fmtPx(s.px)}</td>
+                  <td data-label="Day %">
                     {s.chg == null ? (
                       <span className="dash">—</span>
                     ) : (
@@ -93,20 +93,20 @@ export default function StockTable({ rows, sort, dir, hl, onSort }: StockTablePr
                       </span>
                     )}
                   </td>
-                  <td>
+                  <td data-label="Consensus">
                     <span className={`pill ${consClass(s.con)}`}>{consLabel(s.con)}</span>
                     <div className="dist">{s.b}·{s.h}·{s.s}</div>
                   </td>
-                  <td className="pt">
+                  <td className="pt" data-label="Price Target">
                     {s.pt == null ? <span className="dash">—</span> : "$" + s.pt.toFixed(2)}
                   </td>
-                  <td>
+                  <td data-label="Upside">
                     <UpBar up={s.up} />
                   </td>
-                  <td>
+                  <td data-label="Smart Score">
                     <Chip v={s.ss} max={10} />
                   </td>
-                  <td>
+                  <td data-label="AI Score">
                     <div className="ai-cell">
                       {s.ai == null ? (
                         <span className="dash">—</span>
@@ -126,7 +126,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort }: StockTablePr
                       )}
                     </div>
                   </td>
-                  <td className="num">{fmtMc(s.mc)}</td>
+                  <td className="num" data-label="Market Cap">{fmtMc(s.mc)}</td>
                 </tr>
               );
             })

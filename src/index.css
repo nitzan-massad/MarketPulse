@@ -144,4 +144,150 @@ footer{margin-top:30px; font-size:11px; color:var(--faint); line-height:1.7; max
 footer code{font-family:"JetBrains Mono",monospace; color:var(--muted); background:var(--panel-2); padding:1px 6px; border-radius:5px; font-size:10.5px}
 footer a{color:var(--gold-soft)}
 .empty{padding:60px; text-align:center; color:var(--muted); font-family:"Fraunces",serif; font-style:italic; font-size:18px}
-@media(max-width:640px){.wrap{padding:24px 14px 60px} .search{width:160px}}
+/* ============================================================
+   MOBILE  (≤640px) — table reflows into stacked cards
+   Desktop (≥900px) is untouched; everything below is gated.
+   ============================================================ */
+@media(max-width:640px){
+  .wrap{padding:22px 14px 56px}
+
+  /* masthead headline + meta */
+  h1{font-size:clamp(34px,12vw,52px)}
+  .dek{font-size:15px; max-width:none}
+  .metaline{gap:10px 18px; font-size:11.5px}
+
+  /* tabs: horizontal scroll, touch-friendly */
+  .tabs{
+    flex-wrap:nowrap; gap:6px; margin-top:22px;
+    overflow-x:auto; overflow-y:hidden;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none;
+    padding-bottom:1px; scroll-snap-type:x proximity;
+  }
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{
+    flex:0 0 auto; min-width:0; min-height:44px;
+    padding:9px 15px; border-radius:10px; scroll-snap-align:start;
+  }
+  .tab.on{border-bottom-color:var(--line)}
+
+  /* toolbar: stacked, full-width controls */
+  .toolbar{
+    border-radius:12px; padding:12px; gap:10px;
+    flex-direction:column; align-items:stretch;
+  }
+  .field{width:100%}
+  .search{width:100%; padding:12px 12px 12px 36px}
+  select{width:100%; padding:12px 30px 12px 12px}
+  .lbl{margin:2px 0 -2px; margin-right:0}
+  .seg{width:100%}
+  .seg button{flex:1; padding:12px 6px; min-height:44px; text-align:center}
+  .count{margin-left:0; text-align:right}
+
+  /* table -> cards */
+  .tablewrap{
+    margin-top:14px; border:none; border-radius:0;
+    background:none; overflow:visible;
+  }
+  table{min-width:0; width:100%; display:block}
+  thead{display:none}
+  tbody{display:block}
+
+  tbody tr{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px 14px;
+    align-items:start;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:14px 15px 15px;
+    margin-bottom:12px;
+    box-shadow:0 1px 2px rgba(27,29,24,.04);
+  }
+  tbody tr:last-child td{border-bottom:1px solid #efece1} /* re-enable inner separators */
+  tbody tr:hover{background:var(--panel)}
+  tbody tr.hl{
+    background:linear-gradient(180deg, rgba(184,134,11,.07), transparent 40%), var(--panel);
+    border-color:rgba(184,134,11,.45);
+  }
+
+  /* every cell becomes a labeled block, left-aligned by default */
+  tbody td{
+    display:flex; flex-direction:column; gap:3px;
+    padding:0; border:none; text-align:left; white-space:normal;
+    min-width:0;
+  }
+  tbody td::before{
+    content:attr(data-label);
+    font-size:9.5px; letter-spacing:.13em; text-transform:uppercase;
+    color:var(--faint); font-weight:700;
+  }
+
+  /* ---- header band: rank + ticker (left), upside (right) ---- */
+  tbody td.rank{
+    order:1; grid-column:1; width:auto;
+    flex-direction:row; align-items:center; gap:7px;
+    font-size:13px;
+  }
+  tbody td.rank::before{
+    content:"#"; color:var(--faint); font-size:13px; letter-spacing:0;
+    font-family:"JetBrains Mono",monospace; font-weight:700;
+  }
+  tbody td.tk{
+    order:2; grid-column:1; gap:1px; margin-top:-2px;
+  }
+  tbody td.tk::before{display:none}
+  .tk .sym{font-size:17px}
+  .tk .co{font-size:12px; max-width:none; white-space:normal; line-height:1.25}
+
+  tbody td[data-label="Upside"]{
+    order:3; grid-column:2; grid-row:1 / span 2;
+    align-items:flex-end; justify-content:flex-start; gap:6px;
+  }
+  tbody td[data-label="Upside"]::before{text-align:right}
+  .up-cell{flex-direction:column-reverse; align-items:flex-end; gap:6px; width:100%}
+  .up-val{font-size:21px; min-width:0}
+  .up-bar{width:100%; max-width:130px; height:6px}
+
+  /* separator under the header band */
+  tbody td[data-label="Upside"]{
+    border-bottom:1px solid #efece1; padding-bottom:11px;
+  }
+  tbody td.tk{
+    border-bottom:1px solid #efece1; padding-bottom:11px; margin-bottom:0;
+  }
+
+  /* ---- detail grid ---- */
+  tbody td[data-label="Consensus"]{order:4; grid-column:1; align-items:flex-start}
+  .pill{font-size:11px; padding:4px 10px}
+  .dist{margin-top:1px}
+
+  tbody td[data-label="Price"]{order:5; grid-column:2; align-items:flex-end}
+  tbody td[data-label="Price"]::before,
+  tbody td[data-label="Price Target"]::before{text-align:right}
+  tbody td[data-label="Price Target"]{order:6; grid-column:2; align-items:flex-end}
+  .pt{font-size:14px}
+  tbody td.num[data-label="Price"]{font-size:14px}
+
+  tbody td[data-label="Smart Score"]{order:7; grid-column:1}
+  tbody td[data-label="AI Score"]{order:8; grid-column:2}
+  tbody td[data-label="AI Score"]::before{text-align:left}
+  .ai-cell{flex-direction:row; align-items:baseline; gap:7px; font-size:15px}
+  .ai-rating{font-size:11px}
+
+  tbody td[data-label="Day %"]{order:9; grid-column:1}
+  .chg{font-size:14px; font-family:"JetBrains Mono",monospace}
+  tbody td[data-label="Market Cap"]{order:10; grid-column:2; align-items:flex-end}
+  tbody td[data-label="Market Cap"]::before{text-align:right}
+  tbody td.num[data-label="Market Cap"]{font-size:14px}
+  tbody td[data-label="Sector"]{order:11; grid-column:1 / -1}
+  .sec{font-size:12px}
+
+  /* empty-state cell shouldn't be a grid */
+  tbody tr:has(.empty){display:block; padding:0; border:none; background:none; box-shadow:none}
+  tbody tr:has(.empty) td{display:block; border:none}
+  tbody tr:has(.empty) td::before{display:none}
+  .empty{padding:48px 20px; border:1px solid var(--line); border-radius:14px; background:var(--panel)}
+
+  footer{margin-top:24px}
+}
