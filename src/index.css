@@ -214,3 +214,18 @@ thead th:hover .col-resize::after{opacity:.6}
 /* ---- ticker opens Yahoo Finance ---- */
 .tk a.sym{cursor:pointer; text-decoration:none}
 .tk a.sym:hover{text-decoration:underline; text-decoration-color:var(--gold-soft); text-underline-offset:3px}
+
+/* ---- live Day% badge + cell dot ---- */
+.livebadge{
+  font-family:inherit; font-size:11px; font-weight:600; cursor:pointer; letter-spacing:.01em;
+  border:1px solid var(--line); background:var(--panel); color:var(--muted);
+  padding:3px 11px; border-radius:999px; transition:.15s;
+}
+.livebadge:hover{border-color:var(--gold-soft); color:var(--ink)}
+.livebadge.live{color:var(--green); border-color:rgba(31,145,82,.4); background:rgba(31,145,82,.09)}
+.livebadge.closed{color:var(--gold-soft); border-color:rgba(184,134,11,.4); background:rgba(184,134,11,.09)}
+.livebadge.error{color:var(--red); border-color:rgba(207,75,48,.4); background:rgba(207,75,48,.09)}
+.chg.is-live::after{
+  content:""; display:inline-block; width:5px; height:5px; border-radius:50%;
+  background:currentColor; margin-left:6px; vertical-align:middle; animation:pulse 1.6s infinite;
+}

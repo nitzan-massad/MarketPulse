@@ -18,6 +18,7 @@ interface StockTableProps {
   dir: number;
   hl: string;
   onSort: (k: string) => void;
+  live?: Record<string, number>;
 }
 
 function Chip({ v, max }: { v: number | null; max: number }) {
@@ -49,7 +50,7 @@ function UpBar({ up }: { up: number | null }) {
   );
 }
 
-export default function StockTable({ rows, sort, dir, hl, onSort }: StockTableProps) {
+export default function StockTable({ rows, sort, dir, hl, onSort, live = {} }: StockTableProps) {
   const [widths, setWidths] = useState<Record<string, number>>(() => {
     try {
       return JSON.parse(localStorage.getItem("mp_colw") || "{}");
@@ -137,14 +138,19 @@ export default function StockTable({ rows, sort, dir, hl, onSort }: StockTablePr
                   <td className="sec" data-label="Sector">{s.sec || "—"}</td>
                   <td className="num" data-label="Price">{fmtPx(s.px)}</td>
                   <td data-label="Day %">
-                    {s.chg == null ? (
-                      <span className="dash">—</span>
-                    ) : (
-                      <span className={`chg ${s.chg > 0 ? "up" : s.chg < 0 ? "dn" : "flat"}`}>
-                        {s.chg > 0 ? "+" : ""}
-                        {s.chg.toFixed(2)}%
-                      </span>
-                    )}
+                    {(() => {
+                      const isLive = live[s.t] != null;
+                      const chg = isLive ? live[s.t] : s.chg;
+                      if (chg == null) return <span className="dash">—</span>;
+                      return (
+                        <span
+                          className={`chg ${chg > 0 ? "up" : chg < 0 ? "dn" : "flat"}${isLive ? " is-live" : ""}`}
+                        >
+                          {chg > 0 ? "+" : ""}
+                          {chg.toFixed(2)}%
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td data-label="Consensus">
                     <span className={`pill ${consClass(s.con)}`}>{consLabel(s.con)}</span>
