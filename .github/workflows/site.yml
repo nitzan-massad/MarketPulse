@@ -19,6 +19,11 @@ concurrency:
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
+    services:
+      flaresolverr:
+        image: ghcr.io/flaresolverr/flaresolverr:latest
+        ports:
+          - 8191:8191
     steps:
       - uses: actions/checkout@v4
 
@@ -33,16 +38,15 @@ jobs:
         with:
           enablement: true
 
-      # Pull a fresh TipRanks snapshot (skipped on plain code pushes).
-      # Cloudflare-blocked fetch fails this step but does NOT fail the run —
-      # the site still deploys with the last good data.
-      - name: Refresh TipRanks snapshot
+      # Pull a fresh TipRanks snapshot via FlareSolverr (solves Cloudflare from
+      # the runner's datacenter IP). Skipped on plain code pushes. A blocked
+      # fetch fails this step but NOT the run — the site still deploys last data.
+      - name: Refresh TipRanks snapshot (via FlareSolverr)
         if: github.event_name != 'push'
         continue-on-error: true
-        run: |
-          npm i --no-save playwright@1
-          npx playwright install --with-deps chromium
-          node scripts/refresh-data.mjs
+        env:
+          FLARESOLVERR_URL: http://localhost:8191/v1
+        run: node scripts/refresh-data-ci.mjs
 
       - name: Commit refreshed data
         if: github.event_name != 'push'
