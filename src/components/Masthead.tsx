@@ -1,3 +1,4 @@
+import meta from "../data/meta.json";
 import { VIEWS } from "../lib";
 import type { ViewId } from "../types";
 
@@ -5,6 +6,11 @@ interface MastheadProps {
   view: ViewId;
   poolN: number;
 }
+
+const SNAPSHOT = new Date(meta.generatedAt).toLocaleString("en-US", {
+  month: "short", day: "numeric", year: "numeric",
+  hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short",
+});
 
 export default function Masthead({ view, poolN }: MastheadProps) {
   const v = VIEWS[view];
@@ -19,10 +25,10 @@ export default function Masthead({ view, poolN }: MastheadProps) {
       </div>
       <div className="rule"></div>
       <div className="metaline">
-        <span>Universe <b>5,351</b> US stocks</span>
+        <span>Universe <b>{meta.universe.toLocaleString()}</b> US stocks</span>
         <span>Showing <b id="poolN">{poolN}</b> ranked names</span>
         <span>Source <b>top-analyst price targets</b></span>
-        <span className="live">Live snapshot · Jun 29, 2026</span>
+        <span className="live">Snapshot · {SNAPSHOT}</span>
       </div>
     </>
   );

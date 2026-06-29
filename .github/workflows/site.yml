@@ -1,0 +1,67 @@
+name: Refresh data & deploy
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # every 6 hours
+  workflow_dispatch:         # manual run button
+  push:
+    branches: [main]         # redeploy on code changes
+
+permissions:
+  contents: write   # commit refreshed data
+  pages: write      # deploy Pages
+  id-token: write   # Pages OIDC
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      # Pull a fresh TipRanks snapshot (skipped on plain code pushes).
+      # Cloudflare-blocked fetch fails this step but does NOT fail the run —
+      # the site still deploys with the last good data.
+      - name: Refresh TipRanks snapshot
+        if: github.event_name != 'push'
+        continue-on-error: true
+        run: |
+          npm i --no-save playwright@1
+          npx playwright install --with-deps chromium
+          node scripts/refresh-data.mjs
+
+      - name: Commit refreshed data
+        if: github.event_name != 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- src/data; then
+            echo "No data change."
+          else
+            git add src/data/stocks.json src/data/meta.json
+            git commit -m "chore: refresh TipRanks snapshot [skip ci]"
+            git push
+          fi
+
+      - run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
