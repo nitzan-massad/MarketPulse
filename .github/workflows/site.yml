@@ -61,7 +61,10 @@ jobs:
             git push
           fi
 
-      - run: npm run build
+      - name: Build
+        env:
+          VITE_FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+        run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
         with:

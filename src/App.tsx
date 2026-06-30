@@ -8,6 +8,9 @@ import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
 
 const STOCKS = stocksData as Stock[];
+// Baked-in Finnhub key (injected at build from the FINNHUB_KEY Actions secret),
+// so live Day% works for everyone with no key entry. localStorage can override.
+const BAKED_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
 
 export default function App() {
   const [view, setView] = useState<ViewId>("analyst");
@@ -18,9 +21,11 @@ export default function App() {
   // analyst tab defaults to Strong Buy to match the real page
   const [consensus, setConsensus] = useState("StrongBuy");
   const [cap, setCap] = useState(0);
-  const [liveKey, setLiveKey] = useState<string | null>(() => localStorage.getItem("mp_finnhub"));
+  const [liveKey, setLiveKey] = useState<string | null>(
+    () => localStorage.getItem("mp_finnhub") || BAKED_KEY || null,
+  );
   const [liveOn, setLiveOn] = useState<boolean>(
-    () => !!localStorage.getItem("mp_finnhub") && localStorage.getItem("mp_live") !== "0",
+    () => Boolean(localStorage.getItem("mp_finnhub") || BAKED_KEY) && localStorage.getItem("mp_live") !== "0",
   );
 
   const sectors = useMemo(
