@@ -35,7 +35,6 @@ export default function Masthead({ view, poolN, liveStatus, hasKey, onLive }: Ma
       </div>
       <div className="masthead">
         <h1 id="title" dangerouslySetInnerHTML={{ __html: v.title }} />
-        <div className="dek" id="dek">{v.dek}</div>
       </div>
       <div className="rule"></div>
       <div className="metaline">

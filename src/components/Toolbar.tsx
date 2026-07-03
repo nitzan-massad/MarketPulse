@@ -23,7 +23,12 @@ export default function Toolbar({
   onQ, onSector, onConsensus, onCap,
 }: ToolbarProps) {
   return (
-    <div className="toolbar">
+    <details className="filters">
+      <summary>
+        <span className="filters-title">Filters</span>
+        <span className="count"><b id="cnt">{count}</b> matches</span>
+      </summary>
+      <div className="toolbar">
       <label className="field">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
           <circle cx="11" cy="11" r="7" />
@@ -69,9 +74,7 @@ export default function Toolbar({
           </button>
         ))}
       </div>
-      <span className="count">
-        <b id="cnt">{count}</b> matches
-      </span>
-    </div>
+      </div>
+    </details>
   );
 }

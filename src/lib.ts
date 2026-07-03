@@ -25,11 +25,11 @@ export const COLS: Col[] = [
   { k: "px", l: "Price", sortable: true },
   { k: "chg", l: "Day %", sortable: true },
   { k: "con", l: "Consensus", cls: "l", sortable: true },
-  { k: "pt", l: "Price Target", sortable: true },
+  { k: "pt", l: "Target", sortable: true },
   { k: "up", l: "Upside", sortable: true },
   { k: "ss", l: "Smart Score", sortable: true },
   { k: "ai", l: "AI Score", sortable: true },
-  { k: "mc", l: "Market Cap", sortable: true },
+  { k: "mc", l: "Mkt Cap", sortable: true },
 ];
 
 export const fmtMc = (m: number | null): string =>

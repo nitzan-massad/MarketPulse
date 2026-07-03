@@ -8,8 +8,8 @@ const yahooUrl = (ticker: string) =>
 // default column widths (px) — table-layout:fixed makes these authoritative so
 // resizing can both grow AND shrink a column. User overrides live in `widths`.
 const DEFAULT_W: Record<string, number> = {
-  _rank: 50, _tk: 210, sec: 115, px: 85, chg: 92, con: 158,
-  pt: 140, up: 150, ss: 132, ai: 124, mc: 122,
+  _rank: 44, _tk: 168, sec: 104, px: 82, chg: 84, con: 130,
+  pt: 92, up: 128, ss: 128, ai: 100, mc: 92,
 };
 
 interface StockTableProps {
@@ -85,9 +85,13 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {} }: S
     window.addEventListener("pointerup", up);
   }
 
+  // total = sum of column widths → table sizes to its content, no stretch, and
+  // table-layout:fixed honors the per-column widths (so resize works).
+  const totalW = COLS.reduce((s, c) => s + (widths[c.k] ?? DEFAULT_W[c.k]), 0);
+
   return (
     <div className="tablewrap">
-      <table>
+      <table style={{ width: totalW }}>
         <thead>
           <tr id="head">
             {COLS.map((c) => {
@@ -101,7 +105,9 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {} }: S
                   onClick={c.sortable ? () => onSort(c.k) : undefined}
                 >
                   {c.l}
-                  <span className="ar">{sorted ? (dir < 0 ? "▼" : "▲") : "▾"}</span>
+                  {c.sortable && (
+                    <span className="ar">{sorted ? (dir < 0 ? "▼" : "▲") : "▾"}</span>
+                  )}
                   <span
                     className="col-resize"
                     onPointerDown={(e) => startResize(c.k, e)}

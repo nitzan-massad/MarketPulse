@@ -90,7 +90,7 @@ select:focus{outline:none; border-color:var(--gold-soft)}
 
 /* table */
 .tablewrap{margin-top:18px; overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--panel)}
-table{border-collapse:collapse; width:100%; min-width:1080px}
+table{border-collapse:collapse}
 thead th{
   position:sticky; top:0; z-index:3; background:#efeee6; text-align:right;
   font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:700;
@@ -155,6 +155,10 @@ footer a{color:var(--gold-soft)}
   h1{font-size:clamp(34px,12vw,52px)}
   .dek{font-size:15px; max-width:none}
   .metaline{gap:10px 18px; font-size:11.5px}
+
+  /* tighter rows on phones */
+  thead th{padding:9px 11px}
+  tbody td{padding:7px 11px}
 
   /* tabs: all three share the width, no scroll */
   .tabs{
@@ -229,3 +233,21 @@ thead th:hover .col-resize::after{opacity:.6}
   content:""; display:inline-block; width:5px; height:5px; border-radius:50%;
   background:currentColor; margin-left:6px; vertical-align:middle; animation:pulse 1.6s infinite;
 }
+
+/* ---- collapsible filters (collapsed by default) ---- */
+.filters{margin-top:0}
+.filters > summary{
+  list-style:none; cursor:pointer; user-select:none;
+  display:flex; align-items:center; gap:10px;
+  padding:11px 16px; background:var(--panel-2); border:1px solid var(--line);
+  border-radius:0 12px 12px 12px; font-size:13px; font-weight:600; color:var(--ink);
+}
+.filters > summary::-webkit-details-marker{display:none}
+.filters > summary::before{
+  content:"▸"; color:var(--gold-soft); font-size:11px; transition:transform .18s;
+}
+.filters[open] > summary::before{transform:rotate(90deg)}
+.filters[open] > summary{border-radius:0 12px 0 0; border-bottom-color:transparent}
+.filters .filters-title{flex:1}
+.filters .count{margin-left:0}
+.filters .toolbar{margin-top:0; border-radius:0 0 12px 12px}
