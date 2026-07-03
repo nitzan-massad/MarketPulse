@@ -78,7 +78,6 @@ export default function App() {
   return (
     <div className="wrap">
       <Masthead
-        view={view}
         poolN={STOCKS.length}
         liveStatus={liveStatus}
         hasKey={!!liveKey}

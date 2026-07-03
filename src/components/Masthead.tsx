@@ -1,10 +1,7 @@
 import meta from "../data/meta.json";
-import { VIEWS } from "../lib";
-import type { ViewId } from "../types";
 import type { LiveStatus } from "../useLiveQuotes";
 
 interface MastheadProps {
-  view: ViewId;
   poolN: number;
   liveStatus: LiveStatus;
   hasKey: boolean;
@@ -16,8 +13,7 @@ const SNAPSHOT = new Date(meta.generatedAt).toLocaleString("en-US", {
   hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short",
 });
 
-export default function Masthead({ view, poolN, liveStatus, hasKey, onLive }: MastheadProps) {
-  const v = VIEWS[view];
+export default function Masthead({ poolN, liveStatus, hasKey, onLive }: MastheadProps) {
   const liveLabel =
     liveStatus === "live"
       ? "● Live"
@@ -30,11 +26,8 @@ export default function Masthead({ view, poolN, liveStatus, hasKey, onLive }: Ma
             : "⚡ Go live";
   return (
     <>
-      <div className="kicker">
-        TipRanks <span className="dot">/</span> Unlocked View <span className="dot">/</span> No Paywall
-      </div>
       <div className="masthead">
-        <h1 id="title" dangerouslySetInnerHTML={{ __html: v.title }} />
+        <h1 id="title">Market <span className="em">Pulse</span></h1>
       </div>
       <div className="rule"></div>
       <div className="metaline">

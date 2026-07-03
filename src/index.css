@@ -89,7 +89,7 @@ select:focus{outline:none; border-color:var(--gold-soft)}
 .count b{color:var(--gold); font-weight:700}
 
 /* table */
-.tablewrap{margin-top:18px; overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--panel)}
+.tablewrap{margin:18px auto 0; width:max-content; max-width:100%; overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--panel)}
 table{border-collapse:collapse}
 thead th{
   position:sticky; top:0; z-index:3; background:#efeee6; text-align:right;

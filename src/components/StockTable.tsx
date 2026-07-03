@@ -9,7 +9,7 @@ const yahooUrl = (ticker: string) =>
 // resizing can both grow AND shrink a column. User overrides live in `widths`.
 const DEFAULT_W: Record<string, number> = {
   _rank: 44, _tk: 168, sec: 104, px: 82, chg: 84, con: 130,
-  pt: 92, up: 128, ss: 128, ai: 100, mc: 92,
+  pt: 152, up: 128, ss: 128, ai: 100, mc: 92,
 };
 
 interface StockTableProps {
@@ -141,7 +141,6 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {} }: S
                     </a>
                     <div className="co">{s.n || ""}</div>
                   </td>
-                  <td className="sec" data-label="Sector">{s.sec || "—"}</td>
                   <td className="num" data-label="Price">{fmtPx(s.px)}</td>
                   <td data-label="Day %">
                     {(() => {
@@ -162,7 +161,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {} }: S
                     <span className={`pill ${consClass(s.con)}`}>{consLabel(s.con)}</span>
                     <div className="dist">{s.b}·{s.h}·{s.s}</div>
                   </td>
-                  <td className="pt" data-label="Price Target">
+                  <td className="pt" data-label="Predicted Price">
                     {s.pt == null ? <span className="dash">—</span> : "$" + s.pt.toFixed(2)}
                   </td>
                   <td data-label="Upside">
@@ -191,6 +190,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {} }: S
                       )}
                     </div>
                   </td>
+                  <td className="sec" data-label="Sector">{s.sec || "—"}</td>
                   <td className="num" data-label="Market Cap">{fmtMc(s.mc)}</td>
                 </tr>
               );
