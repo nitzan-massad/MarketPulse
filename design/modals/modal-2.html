@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Stock Modal 2 — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,900;1,9..144,500&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ffffff; --panel:#faf9f5; --panel-2:#f3f2ea; --line:#e6e3d8;
+  --ink:#1b1d18; --muted:#6c7264; --faint:#a6ab9b;
+  --gold:#b8860b; --gold-soft:#9c7414;
+  --green:#1f9152; --green-2:#3da06a; --amber:#b8860b; --red:#cf4b30; --red-2:#b03a22; --teal:#1f8f8d;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Archivo",system-ui,sans-serif; font-size:14px; line-height:1.4;
+  -webkit-font-smoothing:antialiased; min-height:100vh;
+  display:flex; align-items:center; justify-content:center; padding:24px;
+}
+.backdrop{position:fixed; inset:0; overflow:hidden; z-index:0;
+  background-image:
+    radial-gradient(1200px 500px at 78% -8%, rgba(232,184,75,.10), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(86,194,192,.06), transparent 55%);}
+.faux{padding:36px 40px; filter:blur(3px) saturate(.9); opacity:.5}
+.faux .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+.faux h1{font-family:"Fraunces",serif; font-weight:900; font-size:64px; line-height:.92; letter-spacing:-.02em; margin:.1em 0 .3em}
+.faux h1 .em{font-style:italic; font-weight:500; color:var(--gold)}
+.faux .bar{height:44px; background:#efeee6; border:1px solid var(--line); border-radius:12px 12px 0 0; margin-top:24px}
+.faux .row{height:46px; border:1px solid var(--line); border-top:none; background:var(--panel)}
+.scrim{position:fixed; inset:0; background:rgba(27,29,24,.5); backdrop-filter:blur(2px); z-index:1}
+
+/* ================= MODAL ================= */
+.modal{
+  position:relative; z-index:2; width:min(720px, calc(100vw - 32px)); max-height:calc(100vh - 48px);
+  background:var(--panel); border:1px solid var(--line); border-radius:18px; overflow:hidden;
+  box-shadow:0 44px 100px -34px rgba(27,29,24,.55), 0 4px 14px rgba(27,29,24,.1);
+  display:flex; flex-direction:column; animation:pop .42s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes pop{from{opacity:0; transform:translateY(16px) scale(.985)}to{opacity:1; transform:none}}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes rise{from{height:0}}
+
+/* header */
+.head{padding:22px 24px; border-bottom:1px solid var(--line); position:relative;
+  background:linear-gradient(180deg,#fbfaf6,var(--panel)); display:flex; align-items:center; gap:16px}
+.badge{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:16px; color:#1a1500;
+  background:linear-gradient(135deg,var(--gold),#d8a52a); border-radius:12px; width:52px; height:52px;
+  display:flex; align-items:center; justify-content:center; flex:none; letter-spacing:-.03em;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 3px 8px rgba(184,134,11,.25)}
+.hd{flex:1; min-width:0}
+.hd .sym{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:20px}
+.hd .sym .sec{font:600 10px/1 "Archivo"; letter-spacing:.14em; text-transform:uppercase; color:var(--faint);
+  border:1px solid var(--line); padding:4px 8px; border-radius:6px; margin-left:10px; vertical-align:middle}
+.hd .co{font-size:12.5px; color:var(--muted); margin-top:4px}
+.priceblock{text-align:right; flex:none}
+.priceblock .px{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:24px; line-height:1}
+.priceblock .chg{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:13px; margin-top:4px}
+.chg.dn{color:var(--red)} .chg.up{color:var(--green)}
+.close{position:absolute; top:16px; right:16px; width:30px; height:30px; border-radius:9px; border:1px solid var(--line);
+  background:var(--bg); color:var(--muted); font-size:17px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:.15s}
+.close:hover{color:var(--ink); border-color:var(--gold-soft)}
+
+/* body scroll */
+.body{overflow-y:auto; padding:20px 24px 24px}
+.section-title{font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold-soft); font-weight:700; margin:0 0 12px}
+
+/* grid of panels */
+.grid{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.panel{background:var(--bg); border:1px solid var(--line); border-radius:14px; padding:16px 16px 18px}
+.panel.wide{grid-column:1 / -1}
+
+/* --- price target row (wide) --- */
+.pt-row{display:flex; align-items:center; gap:20px; flex-wrap:wrap}
+.pt-metric{flex:1; min-width:130px}
+.pt-metric .k{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.pt-metric .v{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:22px; margin-top:5px}
+.pt-metric .v.gold{color:var(--gold-soft)}
+.pt-track{flex:2 1 260px; min-width:220px}
+.pt-track .bar{height:10px; background:#ece9dc; border-radius:6px; overflow:hidden; position:relative}
+.pt-track .bar i{display:block; height:100%; width:49.7%; border-radius:6px;
+  background:linear-gradient(90deg,var(--gold-soft),var(--gold)); transform-origin:left; animation:grow .8s .2s both cubic-bezier(.2,.8,.2,1)}
+.pt-track .marks{display:flex; justify-content:space-between; margin-top:7px; font-family:"JetBrains Mono",monospace; font-size:10.5px; color:var(--muted)}
+.pt-up{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:22px; color:var(--gold-soft); text-align:right; min-width:90px}
+
+/* --- consensus B/H/S bar --- */
+.cons-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px}
+.pill{display:inline-block; font-size:11px; font-weight:700; letter-spacing:.03em; padding:5px 11px; border-radius:999px; border:1px solid;
+  color:#157a44; background:rgba(31,145,82,.12); border-color:rgba(31,145,82,.35)}
+.cons-count{font-size:11.5px; color:var(--muted)} .cons-count b{color:var(--ink); font-family:"JetBrains Mono",monospace}
+.bhs{display:flex; height:34px; border-radius:9px; overflow:hidden; border:1px solid var(--line)}
+.bhs span{display:flex; align-items:center; justify-content:center; font-family:"JetBrains Mono",monospace; font-weight:700;
+  font-size:12px; color:#fff; transform-origin:left; animation:grow .7s .3s both cubic-bezier(.2,.8,.2,1)}
+.bhs .buy{background:var(--green); flex:36} .bhs .hold{background:var(--amber); flex:1; min-width:26px} .bhs .sell{background:var(--red); flex:0}
+.bhs-key{display:flex; gap:16px; margin-top:11px; font-size:11px; color:var(--muted)}
+.bhs-key i{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; vertical-align:middle}
+
+/* --- smart score meter --- */
+.meter{display:flex; align-items:center; gap:16px}
+.meter .num{font-family:"Fraunces",serif; font-weight:900; font-size:46px; line-height:.85; color:hsl(119.2 64% 37%);
+  font-variant-numeric:tabular-nums}
+.meter .num small{font-size:18px; color:var(--faint); font-family:"JetBrains Mono",monospace; font-weight:400}
+.pips{flex:1; display:flex; gap:4px}
+.pips i{flex:1; height:26px; border-radius:4px; background:#ece9dc}
+.pips i.on{background:hsl(119.2 64% 37%); animation:rise .5s both}
+.pips i:nth-child(1).on{animation-delay:.20s}.pips i:nth-child(2).on{animation-delay:.25s}.pips i:nth-child(3).on{animation-delay:.30s}
+.pips i:nth-child(4).on{animation-delay:.35s}.pips i:nth-child(5).on{animation-delay:.40s}.pips i:nth-child(6).on{animation-delay:.45s}
+.pips i:nth-child(7).on{animation-delay:.50s}.pips i:nth-child(8).on{animation-delay:.55s}.pips i:nth-child(9).on{animation-delay:.60s}
+.meter-sub{font-size:11px; color:var(--muted); margin-top:12px}
+
+/* --- AI panel --- */
+.ai{display:flex; align-items:center; gap:18px}
+.ring{--p:88; --c:hsl(116.6 64% 37%); width:96px; height:96px; border-radius:50%; flex:none; display:grid; place-items:center; position:relative;
+  background:conic-gradient(var(--c) calc(var(--p)*1%), #ece9dc 0);}
+.ring::after{content:""; position:absolute; inset:9px; border-radius:50%; background:var(--bg)}
+.ring b{position:relative; z-index:1; font-family:"JetBrains Mono",monospace; font-weight:700; font-size:24px; color:hsl(116.6 64% 37%)}
+.ring b span{font-size:11px; color:var(--faint)}
+.ai-meta{flex:1}
+.ai-meta .rating{font-family:"Fraunces",serif; font-style:italic; font-weight:500; font-size:19px; color:var(--teal)}
+.ai-meta .aipt{font-size:12px; color:var(--muted); margin-top:6px}
+.ai-meta .aipt b{font-family:"JetBrains Mono",monospace; color:var(--ink); font-weight:700}
+
+/* footer */
+.foot{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 24px;
+  border-top:1px solid var(--line); background:var(--bg)}
+.foot .mc{font-size:11.5px; color:var(--muted)} .foot .mc b{font-family:"JetBrains Mono",monospace; color:var(--ink); font-weight:700}
+.yh{font-family:inherit; font-size:12.5px; font-weight:600; text-decoration:none; color:var(--gold-soft);
+  border:1px solid var(--line); padding:10px 16px; border-radius:10px; transition:.15s; background:var(--panel)}
+.yh:hover{border-color:var(--gold-soft); background:var(--panel-2)}
+
+.note{position:fixed; left:16px; bottom:16px; z-index:3; max-width:230px; font-size:11px; color:var(--muted);
+  background:var(--bg); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; line-height:1.45}
+.note b{color:var(--ink)}
+@media(max-width:640px){
+  .grid{grid-template-columns:1fr}
+  .modal{width:calc(100vw - 16px); max-height:calc(100vh - 24px)}
+  .pt-up{text-align:left; min-width:0}
+  .note{position:static; margin-top:14px}
+}
+</style>
+</head>
+<body>
+
+<div class="backdrop">
+  <div class="faux">
+    <div class="kicker">MarketPulse · Equity Intelligence</div>
+    <h1>Top <span class="em">Smart Score</span></h1>
+    <div class="bar"></div>
+    <div class="row"></div><div class="row"></div><div class="row"></div><div class="row"></div>
+  </div>
+</div>
+<div class="scrim"></div>
+
+<!-- ===================== MODAL ===================== -->
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="m2sym">
+  <div class="head">
+    <div class="badge">NV</div>
+    <div class="hd">
+      <div class="sym" id="m2sym">NVDA <span class="sec">Technology</span></div>
+      <div class="co">NVIDIA Corporation</div>
+    </div>
+    <div class="priceblock">
+      <div class="px">$194.83</div>
+      <div class="chg dn">▾ 1.39% today</div>
+    </div>
+    <button class="close" aria-label="Close">&times;</button>
+  </div>
+
+  <div class="body">
+    <!-- Price target -->
+    <p class="section-title">Analyst Price Target</p>
+    <div class="panel wide" style="margin-bottom:16px">
+      <div class="pt-row">
+        <div class="pt-metric">
+          <div class="k">Current</div><div class="v">$194.83</div>
+        </div>
+        <div class="pt-track">
+          <div class="bar"><i></i></div>
+          <div class="marks"><span>Now $194.83</span><span>Target $309.33</span></div>
+        </div>
+        <div class="pt-metric" style="text-align:right; flex:0 0 auto">
+          <div class="k">Upside</div><div class="pt-up">+56.6%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Consensus -->
+      <div class="panel">
+        <div class="cons-head">
+          <p class="section-title" style="margin:0">Analyst Consensus</p>
+          <span class="pill">Strong Buy</span>
+        </div>
+        <div class="bhs">
+          <span class="buy">36</span>
+          <span class="hold">1</span>
+        </div>
+        <div class="bhs-key">
+          <span><i style="background:var(--green)"></i>36 Buy</span>
+          <span><i style="background:var(--amber)"></i>1 Hold</span>
+          <span><i style="background:var(--red)"></i>0 Sell</span>
+        </div>
+      </div>
+
+      <!-- Smart Score -->
+      <div class="panel">
+        <p class="section-title">Smart Score</p>
+        <div class="meter">
+          <div class="num">9<small>/10</small></div>
+          <div class="pips">
+            <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+            <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i>
+          </div>
+        </div>
+        <div class="meter-sub">8-factor quant model — analysts, funds, insiders, technicals.</div>
+      </div>
+
+      <!-- AI Analyst -->
+      <div class="panel wide">
+        <p class="section-title">AI Analyst</p>
+        <div class="ai">
+          <div class="ring"><b>88<span>/100</span></b></div>
+          <div class="ai-meta">
+            <div class="rating">Outperform</div>
+            <div class="aipt">AI price target <b>$232.00</b> · scoring financials, earnings calls &amp; momentum from 0–100.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="mc">Market Cap <b>$4.71T</b> · 37 analysts covering</div>
+    <a class="yh" href="#">Open on Yahoo Finance ↗</a>
+  </div>
+</div>
+
+<div class="note"><b>Mobile:</b> the two-up panel grid collapses to a single column; header price block sits right of the ticker; body scrolls within <code style="font-family:'JetBrains Mono';font-size:10px">100vh−24px</code>. Footer stays pinned.</div>
+
+</body>
+</html>

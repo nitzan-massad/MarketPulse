@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Stock Modal 5 — Graphical (v2)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,900;1,9..144,500&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ffffff; --panel:#faf9f5; --panel-2:#f3f2ea; --line:#e6e3d8;
+  --ink:#1b1d18; --muted:#6c7264; --faint:#a6ab9b;
+  --gold:#b8860b; --gold-soft:#9c7414;
+  --green:#1f9152; --green-2:#3da06a; --amber:#b8860b; --red:#cf4b30; --teal:#1f8f8d;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Archivo",system-ui,sans-serif; font-size:14px; line-height:1.4;
+  -webkit-font-smoothing:antialiased; min-height:100vh;
+  display:flex; align-items:center; justify-content:center; padding:24px;
+}
+.backdrop{position:fixed; inset:0; overflow:hidden; z-index:0;
+  background-image:
+    radial-gradient(1200px 500px at 78% -8%, rgba(232,184,75,.10), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(86,194,192,.06), transparent 55%);}
+.faux{padding:36px 40px; filter:blur(3px) saturate(.9); opacity:.5}
+.faux .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+.faux h1{font-family:"Fraunces",serif; font-weight:900; font-size:64px; line-height:.92; letter-spacing:-.02em; margin:.1em 0 .3em}
+.faux h1 .em{font-style:italic; font-weight:500; color:var(--gold)}
+.faux .bar{height:44px; background:#efeee6; border:1px solid var(--line); border-radius:12px 12px 0 0; margin-top:24px}
+.faux .row{height:46px; border:1px solid var(--line); border-top:none; background:var(--panel)}
+.scrim{position:fixed; inset:0; background:rgba(27,29,24,.5); backdrop-filter:blur(2px); z-index:1}
+
+/* ================= MODAL ================= */
+.modal{
+  position:relative; z-index:2; width:min(720px, calc(100vw - 32px)); max-height:calc(100vh - 48px); overflow:auto;
+  background:var(--panel); border:1px solid var(--line); border-radius:20px;
+  box-shadow:0 46px 100px -34px rgba(27,29,24,.55), 0 4px 14px rgba(27,29,24,.1);
+  animation:pop .42s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes pop{from{opacity:0; transform:translateY(16px) scale(.985)}to{opacity:1; transform:none}}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes drawarea{to{opacity:1}}
+@keyframes drawline{to{stroke-dashoffset:0}}
+
+/* header */
+.head{padding:22px 26px 18px; display:flex; align-items:center; gap:16px; position:relative;
+  background:linear-gradient(180deg,#fbfaf6,var(--panel)); border-bottom:1px solid var(--line)}
+.badge{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:16px; color:#1a1500;
+  background:linear-gradient(135deg,var(--gold),#d8a52a); border-radius:14px; width:54px; height:54px;
+  display:flex; align-items:center; justify-content:center; flex:none; letter-spacing:-.03em;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 3px 8px rgba(184,134,11,.25)}
+.hd{flex:1; min-width:0}
+.hd .sym{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:20px}
+.hd .co{font-size:12.5px; color:var(--muted); margin-top:4px}
+.hd .sec{font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); font-weight:600; margin-top:6px}
+.pxb{text-align:right; flex:none}
+.pxb .px{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:24px; line-height:1}
+.pxb .chg{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:13px; margin-top:4px; color:var(--red)}
+.close{position:absolute; top:16px; right:16px; width:30px; height:30px; border-radius:9px; border:1px solid var(--line);
+  background:var(--bg); color:var(--muted); font-size:17px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:.15s}
+.close:hover{color:var(--ink); border-color:var(--gold-soft)}
+
+/* --- CHART HERO (big gradient area) --- */
+.charthero{padding:20px 26px 6px}
+.charthead{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; gap:10px; flex-wrap:wrap}
+.charthead .lbl{font-size:10px; letter-spacing:.15em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.charthead .lbl b{color:var(--ink); font-family:"JetBrains Mono",monospace; font-weight:700; font-size:12px; margin-left:6px; letter-spacing:0}
+.rangebar{display:flex; gap:4px; flex-wrap:wrap}
+.rangebar button{appearance:none; border:1px solid var(--line); background:var(--bg); color:var(--muted);
+  font-family:"JetBrains Mono",monospace; font-size:10.5px; font-weight:500; padding:6px 11px; border-radius:8px; cursor:pointer; transition:.15s}
+.rangebar button:hover{color:var(--ink)}
+.rangebar button.on{background:var(--gold); color:#1a1500; border-color:var(--gold-soft); font-weight:700}
+.chartcard{background:var(--bg); border:1px solid var(--line); border-radius:16px; padding:14px 6px 8px; position:relative; overflow:hidden}
+.chartcard svg{display:block; width:100%; height:auto}
+.chartarea{opacity:0; animation:drawarea .8s 1s forwards}
+.chartline{fill:none; stroke:url(#g5-grad); stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round;
+  stroke-dasharray:1900; stroke-dashoffset:1900; animation:drawline 1.6s .3s forwards cubic-bezier(.3,.7,.2,1)}
+.axlabel{fill:var(--faint); font-family:"JetBrains Mono",monospace; font-size:10px}
+.charthero .meta{display:flex; justify-content:space-between; padding:8px 8px 0; font-family:"JetBrains Mono",monospace; font-size:10.5px; color:var(--faint)}
+.charthero .meta b{color:var(--muted); font-weight:700}
+
+/* gauge trio (kept) */
+.gauges{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; padding:18px 26px 8px}
+.gcard{background:var(--bg); border:1px solid var(--line); border-radius:16px; padding:16px 10px 14px; text-align:center; position:relative}
+.gcard .glab{font-size:9.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--faint); font-weight:700; margin-bottom:4px}
+.gwrap{position:relative; width:120px; height:88px; margin:0 auto}
+.gwrap svg{display:block; width:100%; height:100%; overflow:visible}
+.garc{fill:none; stroke-width:13; stroke-linecap:round}
+.gtrack{stroke:#ece9dc}
+.gval{stroke-dasharray:var(--len); stroke-dashoffset:var(--len); animation:draw 1s .55s forwards cubic-bezier(.2,.8,.2,1)}
+@keyframes draw{to{stroke-dashoffset:var(--off)}}
+.gnum{position:absolute; left:0; right:0; bottom:10px; font-family:"JetBrains Mono",monospace; font-weight:700; font-size:24px; line-height:1}
+.gnum small{font-size:11px; color:var(--faint); font-weight:400}
+.gcap{font-size:11px; color:var(--muted); margin-top:8px} .gcap b{color:var(--ink); font-weight:700}
+.gcap .tag{font-family:"Fraunces",serif; font-style:italic; font-weight:500}
+
+/* consensus donut + target row (kept) */
+.lower{display:grid; grid-template-columns:auto 1fr; gap:22px; align-items:center; padding:4px 26px 18px}
+.donutwrap{position:relative; width:140px; height:140px; flex:none}
+.donutwrap svg{transform:rotate(-90deg); display:block}
+.dseg{fill:none; stroke-width:20}
+.dcenter{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center}
+.dcenter .pill{display:inline-block; font-size:11px; font-weight:700; letter-spacing:.03em; padding:5px 11px; border-radius:999px;
+  color:#157a44; background:rgba(31,145,82,.12); border:1px solid rgba(31,145,82,.35)}
+.dcenter .n{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:15px; margin-top:8px; color:var(--muted)}
+.consinfo{flex:1}
+.consinfo .keys{display:flex; flex-direction:column; gap:10px; margin-bottom:16px}
+.consinfo .kr{display:flex; align-items:center; gap:10px; font-size:12.5px}
+.consinfo .kr i{width:12px; height:12px; border-radius:3px; flex:none}
+.consinfo .kr .lab{color:var(--muted); flex:1}
+.consinfo .kr b{font-family:"JetBrains Mono",monospace; font-weight:700}
+.tgt{background:var(--bg); border:1px solid var(--line); border-radius:14px; padding:14px 16px}
+.tgt .row1{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:10px}
+.tgt .k{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.tgt .up{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:18px; color:var(--gold-soft)}
+.tgt .bar{height:9px; background:#ece9dc; border-radius:5px; overflow:hidden}
+.tgt .bar i{display:block; height:100%; width:49.7%; border-radius:5px; background:linear-gradient(90deg,var(--gold-soft),var(--gold));
+  transform-origin:left; animation:grow .8s .3s both cubic-bezier(.2,.8,.2,1)}
+.tgt .ends{display:flex; justify-content:space-between; margin-top:7px; font-family:"JetBrains Mono",monospace; font-size:10.5px; color:var(--muted)}
+
+/* --- STATS strip (new) : bar-chip statistics --- */
+.statstrip{padding:2px 26px 20px}
+.statstrip .lbl{font-size:10px; letter-spacing:.15em; text-transform:uppercase; color:var(--faint); font-weight:700; margin-bottom:12px}
+.chips{display:grid; grid-template-columns:repeat(5,1fr); gap:10px}
+.schip{background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:11px 12px}
+.schip .k{font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.schip .v{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:15px; margin-top:5px}
+.schip .v.up{color:var(--green)} .schip .v.dn{color:var(--red)} .schip .v.gold{color:var(--gold-soft)}
+/* 52-week range mini-bar spans full width */
+.rangechip{grid-column:1 / -1; background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px 16px}
+.rangechip .top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:9px}
+.rangechip .k{font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.rangechip .now{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:12px; color:var(--ink)}
+.rangechip .bar52{position:relative; height:7px; background:#ece9dc; border-radius:4px; overflow:visible}
+.rangechip .bar52 .fill{position:absolute; left:0; top:0; bottom:0; width:50%; border-radius:4px;
+  background:linear-gradient(90deg,rgba(207,75,48,.5),rgba(31,145,82,.5)); }
+/* marker at (194.83-152.97)/(236.54-152.97)=50.1% */
+.rangechip .bar52 .mk{position:absolute; top:50%; left:50.1%; transform:translate(-50%,-50%); width:12px; height:12px; border-radius:50%;
+  background:var(--gold); border:2px solid var(--bg); box-shadow:0 1px 4px rgba(184,134,11,.4)}
+.rangechip .ends{display:flex; justify-content:space-between; margin-top:8px; font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--muted)}
+
+/* footer */
+.foot{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 26px; border-top:1px solid var(--line); background:var(--bg)}
+.foot .mc{font-size:11.5px; color:var(--muted)} .foot .mc b{font-family:"JetBrains Mono",monospace; color:var(--ink); font-weight:700}
+.yh{font-family:inherit; font-size:12.5px; font-weight:600; text-decoration:none; color:var(--gold-soft);
+  border:1px solid var(--line); padding:10px 16px; border-radius:10px; transition:.15s; background:var(--panel)}
+.yh:hover{border-color:var(--gold-soft); background:var(--panel-2)}
+
+.note{position:fixed; left:16px; bottom:16px; z-index:3; max-width:236px; font-size:11px; color:var(--muted);
+  background:var(--bg); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; line-height:1.45}
+.note b{color:var(--ink)}
+@media(max-width:640px){
+  .gauges{grid-template-columns:1fr; gap:12px; padding:16px 18px 6px}
+  .gcard{display:flex; align-items:center; gap:16px; text-align:left; padding:14px 16px}
+  .gwrap{margin:0}
+  .lower{grid-template-columns:1fr; padding:0 18px 16px; justify-items:center}
+  .consinfo{width:100%}
+  .charthero{padding:16px 18px 4px}
+  .statstrip{padding:2px 18px 16px}
+  .chips{grid-template-columns:repeat(2,1fr)}
+  .modal{width:calc(100vw - 16px)}
+  .note{position:static; margin-top:14px}
+}
+@media(max-width:430px){
+  body{padding:10px}
+  .modal{width:calc(100vw - 20px); max-width:100%; max-height:92vh; overflow:auto}
+  .head{padding:16px 16px 14px; gap:12px}
+  .head .sym{font-size:18px}
+  .pxb .px{font-size:22px}
+  .close{top:12px; right:12px}
+  .charthero{padding:14px 16px 4px}
+  .gauges{grid-template-columns:1fr; gap:12px; padding:14px 16px 6px}
+  .gcard{display:flex; align-items:center; gap:16px; text-align:left; padding:14px 16px}
+  .gwrap{margin:0; flex:none}
+  .lower{grid-template-columns:1fr; padding:0 16px 16px; justify-items:stretch}
+  .consinfo{width:100%}
+  .statstrip{padding:2px 16px 16px}
+  .chips{grid-template-columns:repeat(2,1fr)}
+  .foot{flex-direction:column; align-items:flex-start; gap:12px}
+  .yh{align-self:stretch; text-align:center}
+  .note{position:static; margin:14px auto 0; max-width:calc(100vw - 20px)}
+  .note code{word-break:break-all}
+}
+</style>
+<style>.note{display:none!important}</style></head>
+<body>
+
+<div class="backdrop">
+  <div class="faux">
+    <div class="kicker">MarketPulse · Equity Intelligence</div>
+    <h1>Top <span class="em">Smart Score</span></h1>
+    <div class="bar"></div>
+    <div class="row"></div><div class="row"></div><div class="row"></div><div class="row"></div>
+  </div>
+</div>
+<div class="scrim"></div>
+
+<!-- ===================== MODAL ===================== -->
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="m5sym">
+  <div class="head">
+    <div class="badge">NV</div>
+    <div class="hd">
+      <div class="sym" id="m5sym">NVDA</div>
+      <div class="co">NVIDIA Corporation</div>
+      <div class="sec">Technology</div>
+    </div>
+    <div class="pxb">
+      <div class="px">$194.83</div>
+      <div class="chg">▾ 1.39%</div>
+    </div>
+    <button class="close" aria-label="Close">&times;</button>
+  </div>
+
+  <!-- CHART HERO -->
+  <div class="charthero">
+    <div class="charthead">
+      <div class="lbl">Price · 1 Month <b>$194.83</b></div>
+      <div class="rangebar">
+        <button>1D</button><button>1W</button><button class="on">1M</button>
+        <button>3M</button><button>6M</button><button>YTD</button><button>1Y</button>
+      </div>
+    </div>
+    <div class="chartcard">
+      <svg viewBox="0 0 620 170" preserveAspectRatio="none" aria-label="NVDA 1-month price chart">
+        <defs>
+          <linearGradient id="g5-grad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#9c7414"/><stop offset="1" stop-color="#b8860b"/>
+          </linearGradient>
+          <linearGradient id="g5-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="rgba(184,134,11,.22)"/><stop offset="1" stop-color="rgba(184,134,11,0)"/>
+          </linearGradient>
+        </defs>
+        <line x1="0" y1="42" x2="620" y2="42" stroke="#efece1" stroke-width="1"/>
+        <line x1="0" y1="82" x2="620" y2="82" stroke="#efece1" stroke-width="1"/>
+        <line x1="0" y1="122" x2="620" y2="122" stroke="#efece1" stroke-width="1"/>
+        <path class="chartarea" fill="url(#g5-fill)" d="M8.0 38.42 L28.83 32.27 L49.66 42.76 L70.48 60.84 L91.31 73.14 L112.14 92.31 L132.97 110.75 L153.79 127.39 L174.62 140.41 L195.45 148.0 L216.28 136.07 L237.1 124.49 L257.93 133.17 L278.76 112.92 L299.59 94.84 L320.41 82.54 L341.24 88.33 L362.07 70.25 L382.9 52.89 L403.72 36.98 L424.55 28.3 L445.38 40.59 L466.21 31.91 L487.03 16.0 L507.86 24.68 L528.69 35.53 L549.52 47.82 L570.34 58.67 L591.17 53.61 L612.0 62.8 L612.0 148 L8.0 148 Z"/>
+        <path class="chartline" d="M8.0 38.42 L28.83 32.27 L49.66 42.76 L70.48 60.84 L91.31 73.14 L112.14 92.31 L132.97 110.75 L153.79 127.39 L174.62 140.41 L195.45 148.0 L216.28 136.07 L237.1 124.49 L257.93 133.17 L278.76 112.92 L299.59 94.84 L320.41 82.54 L341.24 88.33 L362.07 70.25 L382.9 52.89 L403.72 36.98 L424.55 28.3 L445.38 40.59 L466.21 31.91 L487.03 16.0 L507.86 24.68 L528.69 35.53 L549.52 47.82 L570.34 58.67 L591.17 53.61 L612.0 62.8"/>
+        <circle cx="612" cy="62.8" r="4" fill="#b8860b" stroke="#fff" stroke-width="1.5"/>
+        <circle cx="195.45" cy="148" r="3" fill="none" stroke="var(--red)" stroke-width="1.5"/>
+      </svg>
+      <div class="meta"><span>30-day low <b>$183.05</b></span><span>30-day high <b>$201.30</b></span></div>
+    </div>
+  </div>
+
+  <!-- gauge trio: Upside / Smart Score / AI Score -->
+  <div class="gauges">
+    <div class="gcard">
+      <div class="glab">Upside</div>
+      <div class="gwrap">
+        <svg viewBox="0 0 132 82">
+          <path class="garc gtrack" d="M14 66 A52 52 0 0 1 118 66"/>
+          <path class="garc gval" d="M14 66 A52 52 0 0 1 118 66"
+                stroke="url(#gold5)" style="--len:163.4; --off:82.2"/>
+          <defs><linearGradient id="gold5" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#9c7414"/><stop offset="1" stop-color="#b8860b"/>
+          </linearGradient></defs>
+        </svg>
+        <div class="gnum" style="color:var(--gold-soft)">+56.6<small>%</small></div>
+      </div>
+      <div class="gcap">to target <b>$309.33</b></div>
+    </div>
+
+    <div class="gcard">
+      <div class="glab">Smart Score</div>
+      <div class="gwrap">
+        <svg viewBox="0 0 132 82">
+          <path class="garc gtrack" d="M14 66 A52 52 0 0 1 118 66"/>
+          <path class="garc gval" d="M14 66 A52 52 0 0 1 118 66"
+                stroke="hsl(119.2 64% 37%)" style="--len:163.4; --off:16.3"/>
+        </svg>
+        <div class="gnum" style="color:hsl(119.2 64% 37%)">9<small>/10</small></div>
+      </div>
+      <div class="gcap"><span class="tag">Excellent</span> · 8-factor quant</div>
+    </div>
+
+    <div class="gcard">
+      <div class="glab">AI Analyst</div>
+      <div class="gwrap">
+        <svg viewBox="0 0 132 82">
+          <path class="garc gtrack" d="M14 66 A52 52 0 0 1 118 66"/>
+          <path class="garc gval" d="M14 66 A52 52 0 0 1 118 66"
+                stroke="hsl(116.6 64% 37%)" style="--len:163.4; --off:19.6"/>
+        </svg>
+        <div class="gnum" style="color:hsl(116.6 64% 37%)">88<small>/100</small></div>
+      </div>
+      <div class="gcap tag" style="color:var(--teal)">Outperform · tgt $232</div>
+    </div>
+  </div>
+
+  <!-- consensus donut + target -->
+  <div class="lower">
+    <div class="donutwrap">
+      <svg viewBox="0 0 150 150" width="140" height="140">
+        <circle class="dseg" cx="75" cy="75" r="60" stroke="var(--green)"
+                stroke-dasharray="366.8 376.99" stroke-dashoffset="0"/>
+        <circle class="dseg" cx="75" cy="75" r="60" stroke="var(--amber)"
+                stroke-dasharray="10.2 376.99" stroke-dashoffset="-366.8"/>
+      </svg>
+      <div class="dcenter">
+        <span class="pill">Strong Buy</span>
+        <div class="n">37 analysts</div>
+      </div>
+    </div>
+    <div class="consinfo">
+      <div class="keys">
+        <div class="kr"><i style="background:var(--green)"></i><span class="lab">Buy</span><b>36 · 97.3%</b></div>
+        <div class="kr"><i style="background:var(--amber)"></i><span class="lab">Hold</span><b>1 · 2.7%</b></div>
+        <div class="kr"><i style="background:var(--red)"></i><span class="lab">Sell</span><b>0 · 0.0%</b></div>
+      </div>
+      <div class="tgt">
+        <div class="row1"><span class="k">Price → Target</span><span class="up">+56.6%</span></div>
+        <div class="bar"><i></i></div>
+        <div class="ends"><span>$194.83 now</span><span>$309.33 target</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS strip (new) -->
+  <div class="statstrip">
+    <div class="lbl">Key Statistics</div>
+    <div class="chips">
+      <div class="schip"><div class="k">Open</div><div class="v">$197.14</div></div>
+      <div class="schip"><div class="k">Day High</div><div class="v up">$200.06</div></div>
+      <div class="schip"><div class="k">Day Low</div><div class="v dn">$192.35</div></div>
+      <div class="schip"><div class="k">Prev Close</div><div class="v">$197.58</div></div>
+      <div class="schip"><div class="k">Avg Vol · 3M</div><div class="v">169.9M</div></div>
+      <div class="schip"><div class="k">P/E · TTM</div><div class="v">30.02</div></div>
+      <div class="schip"><div class="k">Beta</div><div class="v">2.24</div></div>
+      <div class="schip"><div class="k">Market Cap</div><div class="v gold">$4.71T</div></div>
+      <div class="schip"><div class="k">Analysts</div><div class="v">37</div></div>
+
+      <!-- 52-week range mini-bar (spans full row) -->
+      <div class="rangechip">
+        <div class="top"><span class="k">52-Week Range</span><span class="now">$194.83 now</span></div>
+        <div class="bar52"><span class="fill"></span><span class="mk"></span></div>
+        <div class="ends"><span>Low $152.97</span><span>High $236.54</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="mc">Market Cap <b>$4.71T</b> · Technology</div>
+    <a class="yh" href="#">Open on Yahoo Finance ↗</a>
+  </div>
+</div>
+
+<div class="note"><b>Mobile:</b> the big area chart keeps its full-width hero slot and scales via <code style="font-family:'JetBrains Mono';font-size:10px">preserveAspectRatio</code>; the three gauges stack into horizontal rows, the donut centers above the consensus keys, and the 5-wide stat chips reflow to 2-up (the 52-week range bar always spans full width). SVG line/area draw on open.</div>
+
+</body>
+</html>

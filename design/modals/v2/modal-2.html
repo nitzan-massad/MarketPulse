@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Stock Modal 2 — Dashboard (v2)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,900;1,9..144,500&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ffffff; --panel:#faf9f5; --panel-2:#f3f2ea; --line:#e6e3d8;
+  --ink:#1b1d18; --muted:#6c7264; --faint:#a6ab9b;
+  --gold:#b8860b; --gold-soft:#9c7414;
+  --green:#1f9152; --green-2:#3da06a; --amber:#b8860b; --red:#cf4b30; --red-2:#b03a22; --teal:#1f8f8d;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Archivo",system-ui,sans-serif; font-size:14px; line-height:1.4;
+  -webkit-font-smoothing:antialiased; min-height:100vh;
+  display:flex; align-items:center; justify-content:center; padding:24px;
+}
+.backdrop{position:fixed; inset:0; overflow:hidden; z-index:0;
+  background-image:
+    radial-gradient(1200px 500px at 78% -8%, rgba(232,184,75,.10), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(86,194,192,.06), transparent 55%);}
+.faux{padding:36px 40px; filter:blur(3px) saturate(.9); opacity:.5}
+.faux .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+.faux h1{font-family:"Fraunces",serif; font-weight:900; font-size:64px; line-height:.92; letter-spacing:-.02em; margin:.1em 0 .3em}
+.faux h1 .em{font-style:italic; font-weight:500; color:var(--gold)}
+.faux .bar{height:44px; background:#efeee6; border:1px solid var(--line); border-radius:12px 12px 0 0; margin-top:24px}
+.faux .row{height:46px; border:1px solid var(--line); border-top:none; background:var(--panel)}
+.scrim{position:fixed; inset:0; background:rgba(27,29,24,.5); backdrop-filter:blur(2px); z-index:1}
+
+/* ================= MODAL ================= */
+.modal{
+  position:relative; z-index:2; width:min(760px, calc(100vw - 32px)); max-height:calc(100vh - 48px);
+  background:var(--panel); border:1px solid var(--line); border-radius:18px; overflow:hidden;
+  box-shadow:0 44px 100px -34px rgba(27,29,24,.55), 0 4px 14px rgba(27,29,24,.1);
+  display:flex; flex-direction:column; animation:pop .42s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes pop{from{opacity:0; transform:translateY(16px) scale(.985)}to{opacity:1; transform:none}}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes rise{from{height:0}}
+@keyframes drawline{to{stroke-dashoffset:0}}
+
+/* header */
+.head{padding:22px 24px; border-bottom:1px solid var(--line); position:relative;
+  background:linear-gradient(180deg,#fbfaf6,var(--panel)); display:flex; align-items:center; gap:16px}
+.badge{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:16px; color:#1a1500;
+  background:linear-gradient(135deg,var(--gold),#d8a52a); border-radius:12px; width:52px; height:52px;
+  display:flex; align-items:center; justify-content:center; flex:none; letter-spacing:-.03em;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 3px 8px rgba(184,134,11,.25)}
+.hd{flex:1; min-width:0}
+.hd .sym{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:20px}
+.hd .sym .sec{font:600 10px/1 "Archivo"; letter-spacing:.14em; text-transform:uppercase; color:var(--faint);
+  border:1px solid var(--line); padding:4px 8px; border-radius:6px; margin-left:10px; vertical-align:middle}
+.hd .co{font-size:12.5px; color:var(--muted); margin-top:4px}
+.priceblock{text-align:right; flex:none}
+.priceblock .px{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:24px; line-height:1}
+.priceblock .chg{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:13px; margin-top:4px}
+.chg.dn{color:var(--red)} .chg.up{color:var(--green)}
+.close{position:absolute; top:16px; right:16px; width:30px; height:30px; border-radius:9px; border:1px solid var(--line);
+  background:var(--bg); color:var(--muted); font-size:17px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:.15s}
+.close:hover{color:var(--ink); border-color:var(--gold-soft)}
+
+/* body scroll */
+.body{overflow-y:auto; padding:20px 24px 24px}
+.section-title{font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold-soft); font-weight:700; margin:0 0 12px}
+
+/* grid of panels */
+.grid{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+.panel{background:var(--bg); border:1px solid var(--line); border-radius:14px; padding:16px 16px 18px}
+.panel.wide{grid-column:1 / -1}
+
+/* --- CHART panel (hero, wide) --- */
+.chart-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; gap:10px; flex-wrap:wrap}
+.chart-head .section-title{margin:0}
+.rangebar{display:flex; gap:4px; flex-wrap:wrap}
+.rangebar button{appearance:none; border:1px solid var(--line); background:var(--panel); color:var(--muted);
+  font-family:"JetBrains Mono",monospace; font-size:10.5px; font-weight:500; padding:5px 10px; border-radius:7px; cursor:pointer; transition:.15s}
+.rangebar button:hover{color:var(--ink)}
+.rangebar button.on{background:var(--gold); color:#1a1500; border-color:var(--gold-soft); font-weight:700}
+.chartsvg{display:block; width:100%; height:auto}
+.chartline{fill:none; stroke:url(#d2-grad); stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round;
+  stroke-dasharray:1800; stroke-dashoffset:1800; animation:drawline 1.5s .25s forwards cubic-bezier(.3,.7,.2,1)}
+.chart-meta{display:flex; justify-content:space-between; margin-top:8px; font-family:"JetBrains Mono",monospace; font-size:10.5px; color:var(--faint)}
+.chart-meta b{color:var(--muted); font-weight:700}
+
+/* --- price target row (wide) --- */
+.pt-row{display:flex; align-items:center; gap:20px; flex-wrap:wrap}
+.pt-metric{flex:1; min-width:130px}
+.pt-metric .k{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.pt-metric .v{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:22px; margin-top:5px}
+.pt-metric .v.gold{color:var(--gold-soft)}
+.pt-track{flex:2 1 260px; min-width:220px}
+.pt-track .bar{height:10px; background:#ece9dc; border-radius:6px; overflow:hidden; position:relative}
+.pt-track .bar i{display:block; height:100%; width:49.7%; border-radius:6px;
+  background:linear-gradient(90deg,var(--gold-soft),var(--gold)); transform-origin:left; animation:grow .8s .2s both cubic-bezier(.2,.8,.2,1)}
+.pt-track .marks{display:flex; justify-content:space-between; margin-top:7px; font-family:"JetBrains Mono",monospace; font-size:10.5px; color:var(--muted)}
+.pt-up{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:22px; color:var(--gold-soft); text-align:right; min-width:90px}
+
+/* --- consensus B/H/S bar --- */
+.cons-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px}
+.pill{display:inline-block; font-size:11px; font-weight:700; letter-spacing:.03em; padding:5px 11px; border-radius:999px; border:1px solid;
+  color:#157a44; background:rgba(31,145,82,.12); border-color:rgba(31,145,82,.35)}
+.cons-count{font-size:11.5px; color:var(--muted)} .cons-count b{color:var(--ink); font-family:"JetBrains Mono",monospace}
+.bhs{display:flex; height:34px; border-radius:9px; overflow:hidden; border:1px solid var(--line)}
+.bhs span{display:flex; align-items:center; justify-content:center; font-family:"JetBrains Mono",monospace; font-weight:700;
+  font-size:12px; color:#fff; transform-origin:left; animation:grow .7s .3s both cubic-bezier(.2,.8,.2,1)}
+.bhs .buy{background:var(--green); flex:36} .bhs .hold{background:var(--amber); flex:1; min-width:26px} .bhs .sell{background:var(--red); flex:0}
+.bhs-key{display:flex; gap:16px; margin-top:11px; font-size:11px; color:var(--muted)}
+.bhs-key i{display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:6px; vertical-align:middle}
+
+/* --- smart score meter --- */
+.meter{display:flex; align-items:center; gap:16px}
+.meter .num{font-family:"Fraunces",serif; font-weight:900; font-size:46px; line-height:.85; color:hsl(119.2 64% 37%);
+  font-variant-numeric:tabular-nums}
+.meter .num small{font-size:18px; color:var(--faint); font-family:"JetBrains Mono",monospace; font-weight:400}
+.pips{flex:1; display:flex; gap:4px}
+.pips i{flex:1; height:26px; border-radius:4px; background:#ece9dc}
+.pips i.on{background:hsl(119.2 64% 37%); animation:rise .5s both}
+.pips i:nth-child(1).on{animation-delay:.20s}.pips i:nth-child(2).on{animation-delay:.25s}.pips i:nth-child(3).on{animation-delay:.30s}
+.pips i:nth-child(4).on{animation-delay:.35s}.pips i:nth-child(5).on{animation-delay:.40s}.pips i:nth-child(6).on{animation-delay:.45s}
+.pips i:nth-child(7).on{animation-delay:.50s}.pips i:nth-child(8).on{animation-delay:.55s}.pips i:nth-child(9).on{animation-delay:.60s}
+.meter-sub{font-size:11px; color:var(--muted); margin-top:12px}
+
+/* --- AI panel --- */
+.ai{display:flex; align-items:center; gap:18px}
+.ring{--p:88; --c:hsl(116.6 64% 37%); width:88px; height:88px; border-radius:50%; flex:none; display:grid; place-items:center; position:relative;
+  background:conic-gradient(var(--c) calc(var(--p)*1%), #ece9dc 0);}
+.ring::after{content:""; position:absolute; inset:9px; border-radius:50%; background:var(--bg)}
+.ring b{position:relative; z-index:1; font-family:"JetBrains Mono",monospace; font-weight:700; font-size:22px; color:hsl(116.6 64% 37%)}
+.ring b span{font-size:11px; color:var(--faint)}
+.ai-meta{flex:1}
+.ai-meta .rating{font-family:"Fraunces",serif; font-style:italic; font-weight:500; font-size:19px; color:var(--teal)}
+.ai-meta .aipt{font-size:12px; color:var(--muted); margin-top:6px}
+.ai-meta .aipt b{font-family:"JetBrains Mono",monospace; color:var(--ink); font-weight:700}
+
+/* --- STATS strip (new, wide) --- */
+.stats{display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:11px; overflow:hidden}
+.stats .s{background:var(--bg); padding:12px 12px}
+.stats .s .k{font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.stats .s .v{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:15px; margin-top:6px}
+.stats .s .v.up{color:var(--green)} .stats .s .v.dn{color:var(--red)} .stats .s .v.gold{color:var(--gold-soft)}
+
+/* footer */
+.foot{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 24px;
+  border-top:1px solid var(--line); background:var(--bg)}
+.foot .mc{font-size:11.5px; color:var(--muted)} .foot .mc b{font-family:"JetBrains Mono",monospace; color:var(--ink); font-weight:700}
+.yh{font-family:inherit; font-size:12.5px; font-weight:600; text-decoration:none; color:var(--gold-soft);
+  border:1px solid var(--line); padding:10px 16px; border-radius:10px; transition:.15s; background:var(--panel)}
+.yh:hover{border-color:var(--gold-soft); background:var(--panel-2)}
+
+.note{position:fixed; left:16px; bottom:16px; z-index:3; max-width:230px; font-size:11px; color:var(--muted);
+  background:var(--bg); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; line-height:1.45}
+.note b{color:var(--ink)}
+@media(max-width:640px){
+  .grid{grid-template-columns:1fr}
+  .modal{width:calc(100vw - 16px); max-height:calc(100vh - 24px)}
+  .pt-up{text-align:left; min-width:0}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .note{position:static; margin-top:14px}
+}
+@media(max-width:430px){
+  body{padding:10px}
+  .modal{width:calc(100vw - 20px); max-width:100%; max-height:92vh}
+  .head{padding:18px 48px 18px 16px; gap:12px; flex-wrap:wrap}
+  .body{padding:16px 16px 20px}
+  .grid{grid-template-columns:1fr}
+  .priceblock{text-align:left}
+  .priceblock .px{font-size:22px}
+  .hd .sym{font-size:18px}
+  .close{top:12px; right:12px}
+  .pt-row{gap:12px}
+  .pt-metric{min-width:0}
+  .pt-track{flex:1 1 100%; min-width:0}
+  .pt-up{text-align:left; min-width:0}
+  .meter .num{font-size:40px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .foot{flex-direction:column; align-items:flex-start; padding:16px}
+  .yh{align-self:stretch; text-align:center}
+  .note{position:static; margin:14px auto 0; max-width:calc(100vw - 20px)}
+  .note code{word-break:break-all}
+}
+</style>
+<style>.note{display:none!important}</style></head>
+<body>
+
+<div class="backdrop">
+  <div class="faux">
+    <div class="kicker">MarketPulse · Equity Intelligence</div>
+    <h1>Top <span class="em">Smart Score</span></h1>
+    <div class="bar"></div>
+    <div class="row"></div><div class="row"></div><div class="row"></div><div class="row"></div>
+  </div>
+</div>
+<div class="scrim"></div>
+
+<!-- ===================== MODAL ===================== -->
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="m2sym">
+  <div class="head">
+    <div class="badge">NV</div>
+    <div class="hd">
+      <div class="sym" id="m2sym">NVDA <span class="sec">Technology</span></div>
+      <div class="co">NVIDIA Corporation</div>
+    </div>
+    <div class="priceblock">
+      <div class="px">$194.83</div>
+      <div class="chg dn">▾ 1.39% today</div>
+    </div>
+    <button class="close" aria-label="Close">&times;</button>
+  </div>
+
+  <div class="body">
+
+    <!-- CHART (hero panel) -->
+    <div class="panel wide" style="margin-bottom:16px">
+      <div class="chart-head">
+        <p class="section-title">Price · 1 Month</p>
+        <div class="rangebar">
+          <button>1D</button><button>1W</button><button class="on">1M</button>
+          <button>3M</button><button>6M</button><button>YTD</button><button>1Y</button>
+        </div>
+      </div>
+      <svg class="chartsvg" viewBox="0 0 560 150" preserveAspectRatio="none" aria-label="NVDA 1-month price chart">
+        <defs>
+          <linearGradient id="d2-grad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#9c7414"/><stop offset="1" stop-color="#b8860b"/>
+          </linearGradient>
+          <linearGradient id="d2-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="rgba(184,134,11,.18)"/><stop offset="1" stop-color="rgba(184,134,11,0)"/>
+          </linearGradient>
+        </defs>
+        <line x1="0" y1="37" x2="560" y2="37" stroke="#efece1" stroke-width="1"/>
+        <line x1="0" y1="75" x2="560" y2="75" stroke="#efece1" stroke-width="1"/>
+        <line x1="0" y1="113" x2="560" y2="113" stroke="#efece1" stroke-width="1"/>
+        <path fill="url(#d2-fill)" d="M6.0 34.04 L24.9 28.55 L43.79 37.92 L62.69 54.09 L81.59 65.08 L100.48 82.21 L119.38 98.7 L138.28 113.57 L157.17 125.21 L176.07 132.0 L194.97 121.33 L213.86 110.99 L232.76 118.75 L251.66 100.64 L270.55 84.48 L289.45 73.48 L308.34 78.66 L327.24 62.49 L346.14 46.98 L365.03 32.75 L383.93 24.99 L402.83 35.98 L421.72 28.22 L440.62 14.0 L459.52 21.76 L478.41 31.46 L497.31 42.45 L516.21 52.15 L535.1 47.62 L554.0 55.83 L554.0 132 L6.0 132 Z"/>
+        <path class="chartline" d="M6.0 34.04 L24.9 28.55 L43.79 37.92 L62.69 54.09 L81.59 65.08 L100.48 82.21 L119.38 98.7 L138.28 113.57 L157.17 125.21 L176.07 132.0 L194.97 121.33 L213.86 110.99 L232.76 118.75 L251.66 100.64 L270.55 84.48 L289.45 73.48 L308.34 78.66 L327.24 62.49 L346.14 46.98 L365.03 32.75 L383.93 24.99 L402.83 35.98 L421.72 28.22 L440.62 14.0 L459.52 21.76 L478.41 31.46 L497.31 42.45 L516.21 52.15 L535.1 47.62 L554.0 55.83"/>
+        <circle cx="554" cy="55.83" r="3.6" fill="#b8860b"/>
+      </svg>
+      <div class="chart-meta"><span>30-day range <b>$183.05 – $201.30</b></span><span>Last <b>$194.83</b></span></div>
+    </div>
+
+    <!-- Price target -->
+    <p class="section-title">Analyst Price Target</p>
+    <div class="panel wide" style="margin-bottom:16px">
+      <div class="pt-row">
+        <div class="pt-metric">
+          <div class="k">Current</div><div class="v">$194.83</div>
+        </div>
+        <div class="pt-track">
+          <div class="bar"><i></i></div>
+          <div class="marks"><span>Now $194.83</span><span>Target $309.33</span></div>
+        </div>
+        <div class="pt-metric" style="text-align:right; flex:0 0 auto">
+          <div class="k">Upside</div><div class="pt-up">+56.6%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Consensus -->
+      <div class="panel">
+        <div class="cons-head">
+          <p class="section-title" style="margin:0">Analyst Consensus</p>
+          <span class="pill">Strong Buy</span>
+        </div>
+        <div class="bhs">
+          <span class="buy">36</span>
+          <span class="hold">1</span>
+        </div>
+        <div class="bhs-key">
+          <span><i style="background:var(--green)"></i>36 Buy</span>
+          <span><i style="background:var(--amber)"></i>1 Hold</span>
+          <span><i style="background:var(--red)"></i>0 Sell</span>
+        </div>
+      </div>
+
+      <!-- Smart Score -->
+      <div class="panel">
+        <p class="section-title">Smart Score</p>
+        <div class="meter">
+          <div class="num">9<small>/10</small></div>
+          <div class="pips">
+            <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i>
+            <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i>
+          </div>
+        </div>
+        <div class="meter-sub">8-factor quant model — analysts, funds, insiders, technicals.</div>
+      </div>
+
+      <!-- AI Analyst -->
+      <div class="panel wide">
+        <p class="section-title">AI Analyst</p>
+        <div class="ai">
+          <div class="ring"><b>88<span>/100</span></b></div>
+          <div class="ai-meta">
+            <div class="rating">Outperform</div>
+            <div class="aipt">AI price target <b>$232.00</b> · scoring financials, earnings calls &amp; momentum from 0–100.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- STATS strip (new) -->
+      <div class="panel wide">
+        <p class="section-title">Key Statistics</p>
+        <div class="stats">
+          <div class="s"><div class="k">Open</div><div class="v">$197.14</div></div>
+          <div class="s"><div class="k">Day High</div><div class="v up">$200.06</div></div>
+          <div class="s"><div class="k">Day Low</div><div class="v dn">$192.35</div></div>
+          <div class="s"><div class="k">52W High</div><div class="v">$236.54</div></div>
+          <div class="s"><div class="k">52W Low</div><div class="v">$152.97</div></div>
+          <div class="s"><div class="k">Avg Vol · 3M</div><div class="v">169.9M</div></div>
+          <div class="s"><div class="k">P/E · TTM</div><div class="v">30.02</div></div>
+          <div class="s"><div class="k">Beta</div><div class="v">2.24</div></div>
+          <div class="s"><div class="k">Prev Close</div><div class="v">$197.58</div></div>
+          <div class="s"><div class="k">Market Cap</div><div class="v gold">$4.71T</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="mc">Market Cap <b>$4.71T</b> · 37 analysts covering</div>
+    <a class="yh" href="#">Open on Yahoo Finance ↗</a>
+  </div>
+</div>
+
+<div class="note"><b>Mobile:</b> the two-up panel grid collapses to one column and the 5-wide stats strip becomes 2-wide; the chart keeps its full-width hero slot and scales via <code style="font-family:'JetBrains Mono';font-size:10px">preserveAspectRatio</code>; body scrolls within <code style="font-family:'JetBrains Mono';font-size:10px">100vh−24px</code>, footer pinned.</div>
+
+</body>
+</html>

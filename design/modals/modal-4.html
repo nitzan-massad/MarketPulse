@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Stock Modal 4 — Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,900;1,9..144,500&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ffffff; --panel:#faf9f5; --line:#e6e3d8;
+  --ink:#1b1d18; --muted:#6c7264; --faint:#a6ab9b;
+  --gold:#b8860b; --gold-soft:#9c7414;
+  --green:#1f9152; --red:#cf4b30; --teal:#1f8f8d;
+  /* terminal palette (dark, but derived from the ink/gold brand) */
+  --t-bg:#191b16; --t-panel:#20221c; --t-line:#33362b; --t-line-2:#2a2c24;
+  --t-ink:#f2f0e6; --t-muted:#a6ab9b; --t-faint:#6c7264;
+  --t-gold:#e8c15b; --t-green:#57c98a; --t-red:#e56b52;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Archivo",system-ui,sans-serif; font-size:14px; line-height:1.4;
+  -webkit-font-smoothing:antialiased; min-height:100vh;
+  display:flex; align-items:center; justify-content:center; padding:24px;
+}
+.backdrop{position:fixed; inset:0; overflow:hidden; z-index:0;
+  background-image:
+    radial-gradient(1200px 500px at 78% -8%, rgba(232,184,75,.10), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(86,194,192,.06), transparent 55%);}
+.faux{padding:36px 40px; filter:blur(3px) saturate(.9); opacity:.5}
+.faux .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+.faux h1{font-family:"Fraunces",serif; font-weight:900; font-size:64px; line-height:.92; letter-spacing:-.02em; margin:.1em 0 .3em}
+.faux h1 .em{font-style:italic; font-weight:500; color:var(--gold)}
+.faux .bar{height:44px; background:#efeee6; border:1px solid var(--line); border-radius:12px 12px 0 0; margin-top:24px}
+.faux .row{height:46px; border:1px solid var(--line); border-top:none; background:var(--panel)}
+.scrim{position:fixed; inset:0; background:rgba(27,29,24,.55); backdrop-filter:blur(2px); z-index:1}
+
+/* ================= MODAL (terminal) ================= */
+.modal{
+  position:relative; z-index:2; width:min(640px, calc(100vw - 32px));
+  background:var(--t-bg); border:1px solid #000; border-radius:12px; overflow:hidden;
+  box-shadow:0 46px 100px -34px rgba(0,0,0,.7), 0 0 0 1px rgba(232,193,91,.14);
+  font-family:"JetBrains Mono",monospace; color:var(--t-ink);
+  animation:pop .4s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes pop{from{opacity:0; transform:translateY(14px) scale(.98)}to{opacity:1; transform:none}}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes blink{50%{opacity:.25}}
+
+/* title bar */
+.titlebar{display:flex; align-items:center; gap:10px; padding:10px 14px; background:#141610; border-bottom:1px solid var(--t-line);}
+.dots{display:flex; gap:6px} .dots i{width:10px; height:10px; border-radius:50%; display:block}
+.dots i:nth-child(1){background:#e56b52}.dots i:nth-child(2){background:#e8c15b}.dots i:nth-child(3){background:#57c98a}
+.titlebar .path{font-size:11px; color:var(--t-faint); letter-spacing:.04em}
+.titlebar .path b{color:var(--t-gold); font-weight:700}
+.titlebar .live{margin-left:auto; font-size:10px; color:var(--t-green); letter-spacing:.1em}
+.titlebar .live::before{content:"●"; margin-right:5px; animation:blink 1.6s infinite}
+.close{width:24px; height:24px; border-radius:6px; border:1px solid var(--t-line); background:none; color:var(--t-muted);
+  font-size:14px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-left:12px; transition:.15s}
+.close:hover{color:var(--t-ink); border-color:var(--t-gold)}
+
+/* head line */
+.head{padding:16px 18px 14px; border-bottom:1px solid var(--t-line-2); display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap}
+.head .sym{font-size:26px; font-weight:700; letter-spacing:.02em; color:var(--t-gold); line-height:1}
+.head .co{font-family:"Archivo",sans-serif; font-size:12px; color:var(--t-muted); align-self:center}
+.head .px{margin-left:auto; font-size:24px; font-weight:700; line-height:1}
+.head .chg{font-size:13px; font-weight:700; color:var(--t-red); align-self:center}
+
+/* metric matrix */
+.matrix{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--t-line-2); border-bottom:1px solid var(--t-line-2)}
+.cell{background:var(--t-bg); padding:12px 14px}
+.cell .k{font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--t-faint)}
+.cell .v{font-size:17px; font-weight:700; margin-top:6px; line-height:1}
+.cell .v.gold{color:var(--t-gold)} .cell .v.green{color:var(--t-green)} .cell .v.red{color:var(--t-red)}
+.cell .v small{font-size:10px; color:var(--t-faint); font-weight:400}
+
+/* two-panel readout */
+.readout{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--t-line-2)}
+.rp{background:var(--t-bg); padding:16px 18px}
+.rp .hdr{font-size:9px; letter-spacing:.16em; text-transform:uppercase; color:var(--t-gold); margin-bottom:12px}
+
+/* consensus ascii-ish bar */
+.bhs{display:flex; height:22px; border-radius:4px; overflow:hidden; border:1px solid var(--t-line)}
+.bhs span{transform-origin:left; animation:grow .7s .25s both cubic-bezier(.2,.8,.2,1); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#141610}
+.bhs .b{background:var(--t-green); flex:36} .bhs .h{background:var(--t-gold); flex:1; min-width:24px}
+.klist{margin-top:12px; display:flex; flex-direction:column; gap:7px; font-size:11px}
+.klist .kr{display:flex; justify-content:space-between; color:var(--t-muted)}
+.klist .kr b{color:var(--t-ink); font-weight:700}
+.klist .kr .g{color:var(--t-green)}
+
+/* target ladder */
+.ladder{display:flex; flex-direction:column; gap:9px; font-size:11px}
+.lr{display:flex; align-items:center; gap:9px}
+.lr .lab{width:52px; color:var(--t-faint); font-size:9px; letter-spacing:.08em; text-transform:uppercase}
+.lr .track{flex:1; height:8px; background:#141610; border:1px solid var(--t-line); border-radius:3px; overflow:hidden; position:relative}
+.lr .track i{position:absolute; left:0; top:0; bottom:0; border-radius:2px; transform-origin:left; animation:grow .7s .3s both cubic-bezier(.2,.8,.2,1)}
+.lr .track i.now{width:63%; background:var(--t-muted)}
+.lr .track i.aipt{width:75%; background:var(--t-teal, #4fb3b0)}
+.lr .track i.pt{width:100%; background:linear-gradient(90deg,var(--gold-soft),var(--t-gold))}
+.lr .n{width:64px; text-align:right; font-weight:700}
+.lr .n.gold{color:var(--t-gold)}
+
+/* footer log line */
+.foot{padding:12px 18px; border-top:1px solid var(--t-line); background:#141610; display:flex; align-items:center; justify-content:space-between; gap:12px}
+.foot .log{font-size:10.5px; color:var(--t-faint); letter-spacing:.02em}
+.foot .log b{color:var(--t-muted); font-weight:700}
+.foot .log .c{color:var(--t-gold)}
+.yh{font-family:"JetBrains Mono",monospace; font-size:11px; font-weight:700; color:#141610; background:var(--t-gold);
+  text-decoration:none; padding:8px 13px; border-radius:6px; transition:.15s; letter-spacing:.02em}
+.yh:hover{background:#f0cf72}
+
+.note{position:fixed; left:16px; bottom:16px; z-index:3; max-width:236px; font-family:"Archivo",sans-serif; font-size:11px; color:var(--muted);
+  background:var(--bg); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; line-height:1.45}
+.note b{color:var(--ink)}
+@media(max-width:640px){
+  .matrix{grid-template-columns:repeat(2,1fr)}
+  .readout{grid-template-columns:1fr}
+  .modal{width:calc(100vw - 16px)}
+  .head .px{margin-left:0}
+  .note{position:static; margin-top:14px; font-family:"Archivo",sans-serif}
+}
+</style>
+</head>
+<body>
+
+<div class="backdrop">
+  <div class="faux">
+    <div class="kicker">MarketPulse · Equity Intelligence</div>
+    <h1>AI Analyst <span class="em">Top</span></h1>
+    <div class="bar"></div>
+    <div class="row"></div><div class="row"></div><div class="row"></div><div class="row"></div>
+  </div>
+</div>
+<div class="scrim"></div>
+
+<!-- ===================== MODAL ===================== -->
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="m4sym">
+  <div class="titlebar">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="path">mktpulse:// quote / <b>NVDA</b></div>
+    <div class="live">LIVE</div>
+    <button class="close" aria-label="Close">&times;</button>
+  </div>
+
+  <div class="head">
+    <div class="sym" id="m4sym">NVDA</div>
+    <div class="co">NVIDIA Corporation · Technology</div>
+    <div class="px">$194.83</div>
+    <div class="chg">▾1.39%</div>
+  </div>
+
+  <!-- metric matrix -->
+  <div class="matrix">
+    <div class="cell"><div class="k">Prc Target</div><div class="v gold">$309.33</div></div>
+    <div class="cell"><div class="k">Upside</div><div class="v gold">+56.6%</div></div>
+    <div class="cell"><div class="k">Smart Score</div><div class="v green">9<small>/10</small></div></div>
+    <div class="cell"><div class="k">AI Score</div><div class="v green">88<small>/100</small></div></div>
+    <div class="cell"><div class="k">Consensus</div><div class="v green" style="font-size:14px">STRONG BUY</div></div>
+    <div class="cell"><div class="k">AI Rating</div><div class="v" style="font-size:14px; color:#4fb3b0">OUTPERFORM</div></div>
+    <div class="cell"><div class="k">AI Target</div><div class="v">$232.00</div></div>
+    <div class="cell"><div class="k">Mkt Cap</div><div class="v">$4.71T</div></div>
+  </div>
+
+  <!-- readout -->
+  <div class="readout">
+    <div class="rp">
+      <div class="hdr">Analyst Distribution · n=37</div>
+      <div class="bhs"><span class="b">36</span><span class="h">1</span></div>
+      <div class="klist">
+        <div class="kr"><span>Buy</span><b class="g">36 &nbsp;97.3%</b></div>
+        <div class="kr"><span>Hold</span><b>1 &nbsp;&nbsp;2.7%</b></div>
+        <div class="kr"><span>Sell</span><b>0 &nbsp;&nbsp;0.0%</b></div>
+      </div>
+    </div>
+    <div class="rp">
+      <div class="hdr">Target Ladder</div>
+      <div class="ladder">
+        <div class="lr"><span class="lab">Now</span><span class="track"><i class="now"></i></span><span class="n">$194.83</span></div>
+        <div class="lr"><span class="lab">AI tgt</span><span class="track"><i class="aipt" style="background:#4fb3b0"></i></span><span class="n" style="color:#4fb3b0">$232.00</span></div>
+        <div class="lr"><span class="lab">St tgt</span><span class="track"><i class="pt"></i></span><span class="n gold">$309.33</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="log"><span class="c">&gt;</span> <b>NVDA</b> resolved · 37 analysts · SS 9 · AI 88 <span class="c">Outperform</span></div>
+    <a class="yh" href="#">YAHOO ↗</a>
+  </div>
+</div>
+
+<div class="note"><b>Mobile:</b> the 4-wide metric matrix reflows to 2 columns and the two readout panels stack; the price/percent move under the ticker. A deliberate dark-terminal popover contrasting the light app — same brand hues, higher-contrast tints.</div>
+
+</body>
+</html>

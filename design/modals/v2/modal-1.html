@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Stock Modal 1 — Ticket (v2)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,900;1,9..144,500&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ffffff; --panel:#faf9f5; --panel-2:#f3f2ea; --line:#e6e3d8;
+  --ink:#1b1d18; --muted:#6c7264; --faint:#a6ab9b;
+  --gold:#b8860b; --gold-soft:#9c7414;
+  --green:#1f9152; --green-2:#3da06a; --amber:#b8860b; --red:#cf4b30; --red-2:#b03a22;
+  --teal:#1f8f8d;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Archivo",system-ui,sans-serif; font-size:14px; line-height:1.4;
+  -webkit-font-smoothing:antialiased; min-height:100vh;
+  display:flex; align-items:center; justify-content:center; padding:24px;
+}
+
+/* ---- faux app backdrop (dimmed + blurred) ---- */
+.backdrop{position:fixed; inset:0; overflow:hidden; z-index:0;
+  background-image:
+    radial-gradient(1200px 500px at 78% -8%, rgba(232,184,75,.10), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(86,194,192,.06), transparent 55%);}
+.faux{padding:36px 40px; filter:blur(3px) saturate(.9); opacity:.55; transform:scale(1.01)}
+.faux .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+.faux h1{font-family:"Fraunces",Georgia,serif; font-weight:900; font-size:64px; line-height:.92; letter-spacing:-.02em; margin:.1em 0 .3em}
+.faux h1 .em{font-style:italic; font-weight:500; color:var(--gold)}
+.faux .bar{height:44px; background:#efeee6; border:1px solid var(--line); border-radius:12px 12px 0 0; margin-top:24px}
+.faux .row{height:46px; border:1px solid var(--line); border-top:none; background:var(--panel); display:flex; align-items:center; padding:0 16px; gap:14px}
+.faux .row div{height:9px; border-radius:3px; background:#e0ddd0}
+.scrim{position:fixed; inset:0; background:rgba(27,29,24,.44); backdrop-filter:blur(2px); z-index:1}
+
+/* ================= MODAL ================= */
+.modal{
+  position:relative; z-index:2; width:min(460px, calc(100vw - 32px)); max-height:calc(100vh - 48px);
+  background:var(--panel); border:1px solid var(--line); border-radius:18px;
+  box-shadow:0 40px 90px -30px rgba(27,29,24,.5), 0 4px 14px rgba(27,29,24,.1);
+  overflow:hidden; animation:pop .4s cubic-bezier(.2,.8,.2,1);
+  display:flex; flex-direction:column;
+}
+@keyframes pop{from{opacity:0; transform:translateY(14px) scale(.98)}to{opacity:1; transform:none}}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes drawline{to{stroke-dashoffset:0}}
+
+/* header strip — the ticket stub */
+.top{display:flex; align-items:flex-start; gap:14px; padding:20px 20px 16px; position:relative;
+  background:linear-gradient(180deg, #fbfaf6, var(--panel));}
+.mono-badge{
+  font-family:"JetBrains Mono",monospace; font-weight:700; font-size:15px; color:#1a1500;
+  background:linear-gradient(135deg, var(--gold), #d8a52a); border-radius:12px;
+  width:56px; height:56px; display:flex; align-items:center; justify-content:center; flex:none;
+  letter-spacing:-.03em; box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 3px 8px rgba(184,134,11,.25);}
+.hd{flex:1; min-width:0}
+.sym{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:22px; letter-spacing:.01em; line-height:1}
+.co{font-size:12.5px; color:var(--muted); margin-top:5px}
+.sector{display:inline-block; margin-top:8px; font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--faint); font-weight:600}
+.close{position:absolute; top:16px; right:16px; width:30px; height:30px; border-radius:9px; border:1px solid var(--line);
+  background:var(--bg); color:var(--muted); font-size:17px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:.15s}
+.close:hover{color:var(--ink); border-color:var(--gold-soft); background:var(--panel-2)}
+
+/* price line */
+.priceline{display:flex; align-items:baseline; gap:12px; padding:2px 20px 14px}
+.px{font-family:"JetBrains Mono",monospace; font-size:30px; font-weight:700; letter-spacing:-.01em}
+.chg{font-family:"JetBrains Mono",monospace; font-size:14px; font-weight:700}
+.chg.dn{color:var(--red)} .chg.up{color:var(--green)}
+.chg .arw{margin-right:3px}
+
+/* perforation — the ticket tear line separating stub from body */
+.perf{position:relative; height:16px; margin:0 0 2px;
+  background:radial-gradient(circle at 8px 8px, transparent 0 5px, var(--line) 5px 6px, transparent 6px) repeat-x;
+  background-size:18px 16px;}
+.perf::before,.perf::after{content:""; position:absolute; top:0; width:16px; height:16px; border-radius:50%; background:var(--bg)}
+.perf::before{left:-8px} .perf::after{right:-8px}
+
+/* section tabs — boarding-pass segment selector */
+.segtabs{display:flex; gap:6px; padding:2px 20px 0}
+.segtab{flex:1; appearance:none; border:1px solid var(--line); background:var(--bg); color:var(--muted);
+  font-family:inherit; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+  padding:9px 6px; border-radius:9px 9px 0 0; cursor:pointer; transition:.16s; border-bottom:none; position:relative; top:1px}
+.segtab:hover{color:var(--ink)}
+.segtab[aria-selected="true"]{background:var(--panel-2); color:var(--gold-soft); box-shadow:inset 0 2px 0 var(--gold)}
+
+.scrollbody{overflow-y:auto; flex:1}
+.panelwrap{border-top:1px solid var(--line); background:var(--panel-2); margin:0 20px; border-radius:0 0 12px 12px; padding:16px}
+.tabpanel{display:none; animation:fade .3s both}
+.tabpanel.on{display:block}
+@keyframes fade{from{opacity:0; transform:translateY(4px)}to{opacity:1; transform:none}}
+
+/* ---- CHART panel ---- */
+.rangebar{display:flex; gap:4px; margin-bottom:12px; flex-wrap:wrap}
+.rangebar button{appearance:none; border:1px solid var(--line); background:var(--bg); color:var(--muted);
+  font-family:"JetBrains Mono",monospace; font-size:10.5px; font-weight:500; padding:5px 9px; border-radius:7px; cursor:pointer; transition:.15s}
+.rangebar button:hover{color:var(--ink)}
+.rangebar button.on{background:var(--gold); color:#1a1500; border-color:var(--gold-soft); font-weight:700}
+.chartcard{background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:10px 8px 6px; position:relative; overflow:hidden}
+.chartcard svg{display:block; width:100%; height:auto}
+.chartline{fill:none; stroke:url(#tk-grad); stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round;
+  stroke-dasharray:1400; stroke-dashoffset:1400; animation:drawline 1.4s .2s forwards cubic-bezier(.3,.7,.2,1)}
+.chartrange{display:flex; justify-content:space-between; margin-top:6px; padding:0 4px; font-family:"JetBrains Mono",monospace; font-size:10px; color:var(--faint)}
+.chartrange b{color:var(--muted); font-weight:700}
+
+/* ---- HERO metric : upside (kept from v1) ---- */
+.hero{margin:14px 0 0; padding:20px 20px 18px; border-radius:14px; position:relative; overflow:hidden;
+  background:radial-gradient(120% 140% at 100% 0%, rgba(184,134,11,.16), rgba(184,134,11,.05));
+  border:1px solid rgba(184,134,11,.3);}
+.hero::after{content:""; position:absolute; right:-40px; bottom:-40px; width:150px; height:150px; border-radius:50%;
+  background:radial-gradient(circle, rgba(184,134,11,.18), transparent 70%);}
+.hero .lbl{font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--gold-soft); font-weight:700}
+.hero .big{font-family:"Fraunces",serif; font-weight:900; font-size:50px; line-height:.9; color:var(--gold-soft);
+  margin:6px 0 2px; letter-spacing:-.02em; font-variant-numeric:tabular-nums;}
+.hero .sub{font-size:12px; color:var(--muted)}
+.hero .sub b{font-family:"JetBrains Mono",monospace; color:var(--ink); font-weight:700}
+.hero .track{height:8px; background:rgba(184,134,11,.15); border-radius:5px; margin-top:14px; overflow:hidden; position:relative; z-index:1}
+.hero .track i{display:block; height:100%; width:49.7%; border-radius:5px; background:linear-gradient(90deg,var(--gold-soft),var(--gold)); transform-origin:left; animation:grow .8s .3s both cubic-bezier(.2,.8,.2,1)}
+.hero .ends{display:flex; justify-content:space-between; margin-top:7px; font-family:"JetBrains Mono",monospace; font-size:10.5px; color:var(--muted)}
+
+/* ---- analyst trio (kept) ---- */
+.trio{display:grid; grid-template-columns:1fr 1fr 1fr; gap:1px; margin:14px 0 0; background:var(--line);
+  border:1px solid var(--line); border-radius:14px; overflow:hidden}
+.cell{background:var(--bg); padding:14px 10px; text-align:center}
+.cell .k{font-size:9.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.cell .v{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:18px; margin-top:6px}
+.pill{display:inline-block; font-size:10px; font-weight:700; letter-spacing:.03em; padding:4px 8px; border-radius:999px; border:1px solid;
+  color:#157a44; background:rgba(31,145,82,.12); border-color:rgba(31,145,82,.35); margin-top:6px}
+.chip{display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9px; margin-top:4px;
+  font-family:"JetBrains Mono",monospace; font-weight:700; font-size:15px; border:1px solid;
+  color:hsl(119.2 64% 37%); border-color:hsl(119.2 64% 37% / .27); background:hsl(119.2 64% 37% / .08)}
+.airow{margin-top:10px; font-size:11.5px; color:var(--muted); text-align:center}
+.airow b{color:var(--teal); font-family:"Fraunces",serif; font-style:italic; font-weight:500; font-size:13px}
+.airow .aipt{font-family:"JetBrains Mono",monospace; color:var(--ink); font-weight:700}
+
+/* ---- STATS panel : two-column ledger (boarding-pass detail rows) ---- */
+.statgrid{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:12px; overflow:hidden}
+.stat{background:var(--bg); padding:12px 13px}
+.stat .k{font-size:9px; letter-spacing:.13em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.stat .v{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:15px; margin-top:5px}
+.stat .v.up{color:var(--green)} .stat .v.dn{color:var(--red)}
+
+/* footer */
+.foot{display:flex; align-items:center; justify-content:space-between; padding:14px 20px 18px}
+.mc{font-size:11.5px; color:var(--muted)}
+.mc b{font-family:"JetBrains Mono",monospace; color:var(--ink); font-weight:700}
+.mc .k{font-size:9.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--faint); font-weight:700; display:block; margin-bottom:2px}
+.yh{font-family:inherit; font-size:12px; font-weight:600; text-decoration:none; color:var(--gold-soft);
+  border:1px solid var(--line); padding:9px 15px; border-radius:9px; transition:.15s; background:var(--bg)}
+.yh:hover{border-color:var(--gold-soft); background:var(--panel-2)}
+
+.note{position:fixed; left:16px; bottom:16px; z-index:3; max-width:230px; font-size:11px; color:var(--muted);
+  background:var(--bg); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; line-height:1.45}
+.note b{color:var(--ink)}
+@media(max-width:640px){
+  .modal{width:calc(100vw - 20px); border-radius:16px; max-height:calc(100vh - 24px)}
+  .hero .big{font-size:44px}
+  .note{position:static; margin-top:16px}
+}
+@media(max-width:430px){
+  body{padding:10px}
+  .modal{width:calc(100vw - 20px); max-width:100%; max-height:92vh}
+  .sym{font-size:20px}
+  .px{font-size:26px}
+  .hero{padding:16px 16px 16px}
+  .hero .big{font-size:40px}
+  .trio{grid-template-columns:1fr 1fr 1fr}
+  .statgrid{grid-template-columns:1fr 1fr}
+  .foot{flex-direction:column; align-items:flex-start; gap:12px}
+  .yh{align-self:stretch; text-align:center}
+  .note{position:static; margin:16px auto 0; max-width:calc(100vw - 20px)}
+  .note code{word-break:break-all}
+}
+</style>
+<style>.note{display:none!important}</style></head>
+<body>
+
+<div class="backdrop">
+  <div class="faux">
+    <div class="kicker">MarketPulse <span style="color:#a6ab9b">·</span> Equity Intelligence</div>
+    <h1>Analyst <span class="em">Top</span></h1>
+    <div class="bar"></div>
+    <div class="row"><div style="width:40px"></div><div style="width:120px"></div><div style="width:70px; margin-left:auto"></div><div style="width:90px"></div></div>
+    <div class="row"><div style="width:40px"></div><div style="width:150px"></div><div style="width:70px; margin-left:auto"></div><div style="width:90px"></div></div>
+    <div class="row"><div style="width:40px"></div><div style="width:110px"></div><div style="width:70px; margin-left:auto"></div><div style="width:90px"></div></div>
+    <div class="row"><div style="width:40px"></div><div style="width:130px"></div><div style="width:70px; margin-left:auto"></div><div style="width:90px"></div></div>
+  </div>
+</div>
+<div class="scrim"></div>
+
+<!-- ===================== MODAL ===================== -->
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="m1sym">
+  <div class="top">
+    <div class="mono-badge">NV</div>
+    <div class="hd">
+      <div class="sym" id="m1sym">NVDA</div>
+      <div class="co">NVIDIA Corporation</div>
+      <span class="sector">Technology</span>
+    </div>
+    <button class="close" aria-label="Close">&times;</button>
+  </div>
+
+  <div class="priceline">
+    <span class="px">$194.83</span>
+    <span class="chg dn"><span class="arw">▾</span>1.39%</span>
+    <span style="font-size:11px; color:var(--faint); margin-left:auto; align-self:center">Today</span>
+  </div>
+
+  <div class="perf"></div>
+
+  <!-- section tabs -->
+  <div class="segtabs" role="tablist">
+    <button class="segtab" role="tab" aria-selected="true" onclick="pick(this,'p-chart')">Chart</button>
+    <button class="segtab" role="tab" aria-selected="false" onclick="pick(this,'p-analyst')">Analysts</button>
+    <button class="segtab" role="tab" aria-selected="false" onclick="pick(this,'p-stats')">Stats</button>
+  </div>
+
+  <div class="scrollbody">
+    <div class="panelwrap">
+
+      <!-- CHART -->
+      <div class="tabpanel on" id="p-chart" role="tabpanel">
+        <div class="rangebar">
+          <button>1D</button><button>1W</button><button class="on">1M</button>
+          <button>3M</button><button>6M</button><button>YTD</button><button>1Y</button>
+        </div>
+        <div class="chartcard">
+          <svg viewBox="0 0 360 90" preserveAspectRatio="none" aria-label="NVDA 1-month price chart">
+            <defs>
+              <linearGradient id="tk-grad" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#9c7414"/><stop offset="1" stop-color="#b8860b"/>
+              </linearGradient>
+              <linearGradient id="tk-fill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="rgba(184,134,11,.20)"/><stop offset="1" stop-color="rgba(184,134,11,0)"/>
+              </linearGradient>
+            </defs>
+            <path fill="url(#tk-fill)" d="M4.0 20.23 L16.14 16.88 L28.28 22.6 L40.41 32.46 L52.55 39.17 L64.69 49.62 L76.83 59.68 L88.97 68.76 L101.1 75.86 L113.24 80.0 L125.38 73.49 L137.52 67.18 L149.66 71.91 L161.79 60.87 L173.93 51.0 L186.07 44.3 L198.21 47.45 L210.34 37.59 L222.48 28.12 L234.62 19.44 L246.76 14.71 L258.9 21.41 L271.03 16.68 L283.17 8.0 L295.31 12.73 L307.45 18.65 L319.59 25.36 L331.72 31.28 L343.86 28.52 L356.0 33.53 L356.0 80 L4.0 80 Z"/>
+            <path class="chartline" d="M4.0 20.23 L16.14 16.88 L28.28 22.6 L40.41 32.46 L52.55 39.17 L64.69 49.62 L76.83 59.68 L88.97 68.76 L101.1 75.86 L113.24 80.0 L125.38 73.49 L137.52 67.18 L149.66 71.91 L161.79 60.87 L173.93 51.0 L186.07 44.3 L198.21 47.45 L210.34 37.59 L222.48 28.12 L234.62 19.44 L246.76 14.71 L258.9 21.41 L271.03 16.68 L283.17 8.0 L295.31 12.73 L307.45 18.65 L319.59 25.36 L331.72 31.28 L343.86 28.52 L356.0 33.53"/>
+            <circle cx="356" cy="33.53" r="3.2" fill="#b8860b"/>
+          </svg>
+          <div class="chartrange"><span>1M low <b>$183.05</b></span><span>1M high <b>$201.30</b></span></div>
+        </div>
+      </div>
+
+      <!-- ANALYSTS (kept block, evolved into panel) -->
+      <div class="tabpanel" id="p-analyst" role="tabpanel">
+        <div class="hero">
+          <div class="lbl">Upside to Price Target</div>
+          <div class="big">+56.6%</div>
+          <div class="sub">Street target <b>$309.33</b> vs. price <b>$194.83</b></div>
+          <div class="track"><i></i></div>
+          <div class="ends"><span>$194.83</span><span>$309.33</span></div>
+        </div>
+        <div class="trio">
+          <div class="cell"><div class="k">Consensus</div><span class="pill">Strong Buy</span></div>
+          <div class="cell"><div class="k">Smart Score</div><span class="chip">9</span></div>
+          <div class="cell"><div class="k">AI Analyst</div><div class="v" style="color:hsl(116.6 64% 37%); font-size:20px">88</div></div>
+        </div>
+        <div class="airow">AI rating <b>Outperform</b> · AI target <span class="aipt">$232.00</span> · 37 analysts (36·1·0)</div>
+      </div>
+
+      <!-- STATS (new full strip) -->
+      <div class="tabpanel" id="p-stats" role="tabpanel">
+        <div class="statgrid">
+          <div class="stat"><div class="k">Open</div><div class="v">$197.14</div></div>
+          <div class="stat"><div class="k">Prev Close</div><div class="v">$197.58</div></div>
+          <div class="stat"><div class="k">Day High</div><div class="v up">$200.06</div></div>
+          <div class="stat"><div class="k">Day Low</div><div class="v dn">$192.35</div></div>
+          <div class="stat"><div class="k">52-Wk High</div><div class="v">$236.54</div></div>
+          <div class="stat"><div class="k">52-Wk Low</div><div class="v">$152.97</div></div>
+          <div class="stat"><div class="k">Avg Vol · 3M</div><div class="v">169.9M</div></div>
+          <div class="stat"><div class="k">P/E · TTM</div><div class="v">30.02</div></div>
+          <div class="stat"><div class="k">Beta</div><div class="v">2.24</div></div>
+          <div class="stat"><div class="k">Market Cap</div><div class="v" style="color:var(--gold-soft)">$4.71T</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="mc"><span class="k">Market Cap</span><b>$4.71T</b> · 37 analysts</div>
+    <a class="yh" href="#">View on Yahoo ↗</a>
+  </div>
+</div>
+
+<div class="note"><b>Mobile:</b> card drops to <code style="font-family:'JetBrains Mono';font-size:10px">calc(100vw − 20px)</code> and gains a max-height with internal scroll; the three section tabs stay full-width and equal; hero number shrinks to 44px. The stub / tear-perforation / segmented panel structure is unchanged.</div>
+
+<script>
+function pick(btn,id){
+  document.querySelectorAll('.segtab').forEach(t=>t.setAttribute('aria-selected','false'));
+  btn.setAttribute('aria-selected','true');
+  document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+}
+</script>
+</body>
+</html>

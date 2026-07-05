@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Stock Modal 1 — Ticket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,900;1,9..144,500&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#ffffff; --panel:#faf9f5; --panel-2:#f3f2ea; --line:#e6e3d8;
+  --ink:#1b1d18; --muted:#6c7264; --faint:#a6ab9b;
+  --gold:#b8860b; --gold-soft:#9c7414;
+  --green:#1f9152; --green-2:#3da06a; --amber:#b8860b; --red:#cf4b30; --red-2:#b03a22;
+  --teal:#1f8f8d;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Archivo",system-ui,sans-serif; font-size:14px; line-height:1.4;
+  -webkit-font-smoothing:antialiased; min-height:100vh;
+  display:flex; align-items:center; justify-content:center;
+}
+
+/* ---- faux app backdrop (dimmed + blurred) ---- */
+.backdrop{position:fixed; inset:0; overflow:hidden; z-index:0;
+  background-image:
+    radial-gradient(1200px 500px at 78% -8%, rgba(232,184,75,.10), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(86,194,192,.06), transparent 55%);}
+.faux{padding:36px 40px; filter:blur(3px) saturate(.9); opacity:.55; transform:scale(1.01)}
+.faux .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+.faux h1{font-family:"Fraunces",Georgia,serif; font-weight:900; font-size:64px; line-height:.92; letter-spacing:-.02em; margin:.1em 0 .3em}
+.faux h1 .em{font-style:italic; font-weight:500; color:var(--gold)}
+.faux .bar{height:44px; background:#efeee6; border:1px solid var(--line); border-radius:12px 12px 0 0; margin-top:24px}
+.faux .row{height:46px; border:1px solid var(--line); border-top:none; background:var(--panel); display:flex; align-items:center; padding:0 16px; gap:14px}
+.faux .row div{height:9px; border-radius:3px; background:#e0ddd0}
+.scrim{position:fixed; inset:0; background:rgba(27,29,24,.44); backdrop-filter:blur(2px); z-index:1}
+
+/* ================= MODAL ================= */
+.modal{
+  position:relative; z-index:2; width:min(440px, calc(100vw - 32px));
+  background:var(--panel); border:1px solid var(--line); border-radius:18px;
+  box-shadow:0 40px 90px -30px rgba(27,29,24,.5), 0 4px 14px rgba(27,29,24,.1);
+  overflow:hidden; animation:pop .4s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes pop{from{opacity:0; transform:translateY(14px) scale(.98)}to{opacity:1; transform:none}}
+
+/* header strip */
+.top{display:flex; align-items:flex-start; gap:14px; padding:20px 20px 16px; position:relative;
+  background:linear-gradient(180deg, #fbfaf6, var(--panel));}
+.mono-badge{
+  font-family:"JetBrains Mono",monospace; font-weight:700; font-size:15px; color:#1a1500;
+  background:linear-gradient(135deg, var(--gold), #d8a52a); border-radius:12px;
+  width:56px; height:56px; display:flex; align-items:center; justify-content:center; flex:none;
+  letter-spacing:-.03em; box-shadow:inset 0 1px 0 rgba(255,255,255,.4), 0 3px 8px rgba(184,134,11,.25);}
+.hd{flex:1; min-width:0}
+.sym{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:22px; letter-spacing:.01em; line-height:1}
+.co{font-size:12.5px; color:var(--muted); margin-top:5px}
+.sector{display:inline-block; margin-top:8px; font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--faint); font-weight:600}
+.close{position:absolute; top:16px; right:16px; width:30px; height:30px; border-radius:9px; border:1px solid var(--line);
+  background:var(--bg); color:var(--muted); font-size:17px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:.15s}
+.close:hover{color:var(--ink); border-color:var(--gold-soft); background:var(--panel-2)}
+
+/* price line */
+.priceline{display:flex; align-items:baseline; gap:12px; padding:2px 20px 16px}
+.px{font-family:"JetBrains Mono",monospace; font-size:30px; font-weight:700; letter-spacing:-.01em}
+.chg{font-family:"JetBrains Mono",monospace; font-size:14px; font-weight:700}
+.chg.dn{color:var(--red)} .chg.up{color:var(--green)}
+.chg .arw{margin-right:3px}
+
+/* ---- HERO metric : upside ---- */
+.hero{margin:0 20px; padding:22px 22px 20px; border-radius:14px; position:relative; overflow:hidden;
+  background:radial-gradient(120% 140% at 100% 0%, rgba(184,134,11,.16), rgba(184,134,11,.05));
+  border:1px solid rgba(184,134,11,.3);}
+.hero::after{content:""; position:absolute; right:-40px; bottom:-40px; width:150px; height:150px; border-radius:50%;
+  background:radial-gradient(circle, rgba(184,134,11,.18), transparent 70%);}
+.hero .lbl{font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--gold-soft); font-weight:700}
+.hero .big{font-family:"Fraunces",serif; font-weight:900; font-size:56px; line-height:.9; color:var(--gold-soft);
+  margin:6px 0 2px; letter-spacing:-.02em; font-variant-numeric:tabular-nums;}
+.hero .sub{font-size:12px; color:var(--muted)}
+.hero .sub b{font-family:"JetBrains Mono",monospace; color:var(--ink); font-weight:700}
+.hero .track{height:8px; background:rgba(184,134,11,.15); border-radius:5px; margin-top:16px; overflow:hidden; position:relative; z-index:1}
+.hero .track i{display:block; height:100%; width:49.7%; border-radius:5px; background:linear-gradient(90deg,var(--gold-soft),var(--gold))}
+.hero .ends{display:flex; justify-content:space-between; margin-top:7px; font-family:"JetBrains Mono",monospace; font-size:10.5px; color:var(--muted)}
+
+/* ---- quick stat trio ---- */
+.trio{display:grid; grid-template-columns:1fr 1fr 1fr; gap:1px; margin:18px 20px 0; background:var(--line);
+  border:1px solid var(--line); border-radius:14px; overflow:hidden}
+.cell{background:var(--panel); padding:14px 12px; text-align:center}
+.cell .k{font-size:9.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.cell .v{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:18px; margin-top:6px}
+.pill{display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.03em; padding:4px 9px; border-radius:999px; border:1px solid;
+  color:#157a44; background:rgba(31,145,82,.12); border-color:rgba(31,145,82,.35); margin-top:5px}
+.chip{display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9px; margin-top:4px;
+  font-family:"JetBrains Mono",monospace; font-weight:700; font-size:15px; border:1px solid;
+  color:hsl(119.2 64% 37%); border-color:hsl(119.2 64% 37% / .27); background:hsl(119.2 64% 37% / .08)}
+
+/* footer */
+.foot{display:flex; align-items:center; justify-content:space-between; padding:16px 20px 20px; margin-top:16px}
+.mc{font-size:11.5px; color:var(--muted)}
+.mc b{font-family:"JetBrains Mono",monospace; color:var(--ink); font-weight:700}
+.mc .k{font-size:9.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--faint); font-weight:700; display:block; margin-bottom:2px}
+.yh{font-family:inherit; font-size:12px; font-weight:600; text-decoration:none; color:var(--gold-soft);
+  border:1px solid var(--line); padding:9px 15px; border-radius:9px; transition:.15s; background:var(--bg)}
+.yh:hover{border-color:var(--gold-soft); background:var(--panel-2)}
+
+/* mobile note pinned bottom-left of viewport */
+.note{position:fixed; left:16px; bottom:16px; z-index:3; max-width:220px; font-size:11px; color:var(--muted);
+  background:var(--bg); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; line-height:1.45}
+.note b{color:var(--ink)}
+@media(max-width:640px){
+  .modal{width:calc(100vw - 20px); border-radius:16px}
+  .hero .big{font-size:46px}
+  .note{position:static; margin-top:16px}
+}
+</style>
+</head>
+<body>
+
+<div class="backdrop">
+  <div class="faux">
+    <div class="kicker">MarketPulse <span style="color:#a6ab9b">·</span> Equity Intelligence</div>
+    <h1>Analyst <span class="em">Top</span></h1>
+    <div class="bar"></div>
+    <div class="row"><div style="width:40px"></div><div style="width:120px"></div><div style="width:70px; margin-left:auto"></div><div style="width:90px"></div></div>
+    <div class="row"><div style="width:40px"></div><div style="width:150px"></div><div style="width:70px; margin-left:auto"></div><div style="width:90px"></div></div>
+    <div class="row"><div style="width:40px"></div><div style="width:110px"></div><div style="width:70px; margin-left:auto"></div><div style="width:90px"></div></div>
+    <div class="row"><div style="width:40px"></div><div style="width:130px"></div><div style="width:70px; margin-left:auto"></div><div style="width:90px"></div></div>
+  </div>
+</div>
+<div class="scrim"></div>
+
+<!-- ===================== MODAL ===================== -->
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="m1sym">
+  <div class="top">
+    <div class="mono-badge">NV</div>
+    <div class="hd">
+      <div class="sym" id="m1sym">NVDA</div>
+      <div class="co">NVIDIA Corporation</div>
+      <span class="sector">Technology</span>
+    </div>
+    <button class="close" aria-label="Close">&times;</button>
+  </div>
+
+  <div class="priceline">
+    <span class="px">$194.83</span>
+    <span class="chg dn"><span class="arw">▾</span>1.39%</span>
+    <span style="font-size:11px; color:var(--faint); margin-left:auto; align-self:center">Today</span>
+  </div>
+
+  <!-- HERO: upside to analyst target -->
+  <div class="hero">
+    <div class="lbl">Upside to Price Target</div>
+    <div class="big">+56.6%</div>
+    <div class="sub">Street target <b>$309.33</b> vs. price <b>$194.83</b></div>
+    <div class="track"><i></i></div>
+    <div class="ends"><span>$194.83</span><span>$309.33</span></div>
+  </div>
+
+  <!-- quick trio -->
+  <div class="trio">
+    <div class="cell">
+      <div class="k">Consensus</div>
+      <span class="pill">Strong Buy</span>
+    </div>
+    <div class="cell">
+      <div class="k">Smart Score</div>
+      <span class="chip">9</span>
+    </div>
+    <div class="cell">
+      <div class="k">AI Analyst</div>
+      <div class="v" style="color:hsl(116.6 64% 37%); font-size:20px">88</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div class="mc"><span class="k">Market Cap</span><b>$4.71T</b> · 37 analysts</div>
+    <a class="yh" href="#">View on Yahoo ↗</a>
+  </div>
+</div>
+
+<div class="note"><b>Mobile:</b> card drops to <code style="font-family:'JetBrains Mono';font-size:10px">calc(100vw − 20px)</code>, hero number shrinks to 46px, and the "View on Yahoo" row wraps below the market-cap. Everything else stacks unchanged.</div>
+
+</body>
+</html>
