@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
+import BestOfBest from "./components/BestOfBest";
 import Masthead from "./components/Masthead";
+import NavMenu, { type NavId } from "./components/NavMenu";
 import StockModal from "./components/StockModal";
 import StockTable from "./components/StockTable";
 import Toolbar from "./components/Toolbar";
@@ -14,6 +16,7 @@ const STOCKS = stocksData as Stock[];
 const BAKED_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
 
 export default function App() {
+  const [nav, setNav] = useState<NavId>("table");
   const [view, setView] = useState<ViewId>("analyst");
   const [sort, setSort] = useState<keyof Stock>("up");
   const [dir, setDir] = useState<number>(-1);
@@ -79,49 +82,57 @@ export default function App() {
 
   return (
     <div className="wrap">
-      <Masthead
-        poolN={STOCKS.length}
-        liveStatus={liveStatus}
-        hasKey={!!liveKey}
-        onLive={toggleLive}
-      />
+      <NavMenu nav={nav} onNav={setNav} />
 
-      <div className="tabs" id="tabs">
-        {(Object.entries(VIEWS) as [ViewId, (typeof VIEWS)[ViewId]][]).map(([id, v]) => (
-          <button
-            key={id}
-            className={`tab ${id === view ? "on" : ""}`}
-            data-v={id}
-            onClick={() => selectView(id)}
-          >
-            <span>{v.tab}</span>
-            <small>{v.sub}</small>
-          </button>
-        ))}
-      </div>
+      {nav === "table" ? (
+        <>
+          <Masthead
+            poolN={STOCKS.length}
+            liveStatus={liveStatus}
+            hasKey={!!liveKey}
+            onLive={toggleLive}
+          />
 
-      <Toolbar
-        q={q}
-        sector={sector}
-        consensus={consensus}
-        cap={cap}
-        sectors={sectors}
-        count={rows.length}
-        onQ={setQ}
-        onSector={setSector}
-        onConsensus={setConsensus}
-        onCap={setCap}
-      />
+          <div className="tabs" id="tabs">
+            {(Object.entries(VIEWS) as [ViewId, (typeof VIEWS)[ViewId]][]).map(([id, v]) => (
+              <button
+                key={id}
+                className={`tab ${id === view ? "on" : ""}`}
+                data-v={id}
+                onClick={() => selectView(id)}
+              >
+                <span>{v.tab}</span>
+                <small>{v.sub}</small>
+              </button>
+            ))}
+          </div>
 
-      <StockTable
-        rows={rows}
-        sort={sort}
-        dir={dir}
-        hl={VIEWS[view].hl}
-        onSort={handleSort}
-        live={live}
-        onOpen={setOpenStock}
-      />
+          <Toolbar
+            q={q}
+            sector={sector}
+            consensus={consensus}
+            cap={cap}
+            sectors={sectors}
+            count={rows.length}
+            onQ={setQ}
+            onSector={setSector}
+            onConsensus={setConsensus}
+            onCap={setCap}
+          />
+
+          <StockTable
+            rows={rows}
+            sort={sort}
+            dir={dir}
+            hl={VIEWS[view].hl}
+            onSort={handleSort}
+            live={live}
+            onOpen={setOpenStock}
+          />
+        </>
+      ) : (
+        <BestOfBest onOpen={setOpenStock} />
+      )}
 
       <footer>
         Data pulled from TipRanks' public screener API (<code>/api/apps/stock/screener</code>) — the

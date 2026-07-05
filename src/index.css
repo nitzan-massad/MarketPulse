@@ -27,12 +27,12 @@ body::before{
   content:""; position:fixed; inset:0; pointer-events:none; z-index:9; opacity:.045; mix-blend-mode:multiply;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-.wrap{max-width:1440px; margin:0 auto; padding:36px 28px 80px; position:relative; z-index:1}
+.wrap{max-width:1270px; margin:0 auto; padding:36px 28px 80px; position:relative; z-index:1}
 
 /* masthead */
 .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
 .kicker .dot{color:var(--faint); margin:0 .5em}
-.masthead{border-top:2px solid var(--ink); padding-top:14px; margin-top:10px}
+.masthead{padding-top:16px; margin-top:10px}
 h1{
   font-family:"Fraunces",Georgia,serif; font-weight:900; font-optical-sizing:auto;
   font-size:clamp(38px,7vw,82px); line-height:.92; letter-spacing:-.02em; margin:.12em 0 .18em;
@@ -404,4 +404,122 @@ td.px-open:hover{color:var(--gold-soft)}
   .mkm-modal, .mkm-bhs span, .mkm-ladder .track i, .mkm-chartline, .mkm-plot-msg.mkm-skel, .mkm-kv .v.skel{animation:none}
   .mkm-chartline{stroke-dasharray:none; stroke-dashoffset:0}
   .mkm-live::before{animation:none}
+}
+
+/* ============================================================
+   HAMBURGER NAV — fixed top-right, opens a small view switcher.
+   Scoped under .nav- so it never collides with tabs/toolbar.
+   ============================================================ */
+/* sit at the content column's left edge (next to the headline) when the screen is
+   wide enough; fall back to 18px from the edge on narrow screens. 607 = 1270/2 - 28pad */
+.nav-menu{position:fixed; top:18px; left:max(18px, calc(50vw - 607px)); z-index:40}
+.nav-burger{
+  appearance:none; width:42px; height:42px; border-radius:11px;
+  border:1px solid var(--line); background:var(--panel);
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:.16s; box-shadow:0 6px 20px -12px rgba(27,29,24,.4);
+}
+.nav-burger:hover{border-color:var(--gold-soft)}
+.nav-burger.on{border-color:var(--gold-soft); background:var(--panel-2)}
+.nav-burger:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px}
+.nav-bars{display:flex; flex-direction:column; gap:4px; width:18px}
+.nav-bars i{display:block; height:2px; border-radius:2px; background:var(--gold); transition:.18s}
+.nav-burger:hover .nav-bars i, .nav-burger.on .nav-bars i{background:var(--gold-soft)}
+.nav-bars i:nth-child(2){width:70%}
+
+.nav-pop{
+  position:absolute; top:50px; left:0; min-width:236px;
+  background:var(--panel); border:1px solid var(--line); border-radius:12px;
+  padding:6px; box-shadow:0 26px 60px -26px rgba(27,29,24,.55), 0 0 0 1px rgba(184,134,11,.06);
+  display:flex; flex-direction:column; gap:2px;
+  animation:nav-pop .16s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes nav-pop{from{opacity:0; transform:translateY(-6px)}to{opacity:1; transform:none}}
+.nav-item{
+  appearance:none; text-align:left; border:none; background:none; cursor:pointer;
+  font-family:inherit; padding:10px 12px; border-radius:9px;
+  display:flex; flex-direction:column; gap:2px; transition:.14s; color:var(--muted);
+}
+.nav-item-label{font-size:13.5px; font-weight:700; color:var(--ink)}
+.nav-item small{font-size:11px; color:var(--faint); font-weight:500}
+.nav-item:hover{background:var(--panel-2)}
+.nav-item:focus-visible{outline:2px solid var(--gold-soft); outline-offset:-2px}
+.nav-item.on{background:linear-gradient(90deg, rgba(184,134,11,.13), transparent 78%)}
+.nav-item.on .nav-item-label{color:var(--gold-soft)}
+.nav-item.on::after{
+  content:"●"; position:absolute; right:14px; align-self:center;
+  color:var(--gold); font-size:8px;
+}
+.nav-item{position:relative}
+
+/* ============================================================
+   BEST OF THE BEST — curated view. Scoped under .bob-.
+   ============================================================ */
+.bob{padding-top:8px}
+.bob-masthead{border-top:2px solid var(--ink); padding-top:14px; margin-top:10px; margin-right:56px}
+.bob-eyebrow{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+.bob-title{
+  font-family:"Fraunces",Georgia,serif; font-weight:900; font-optical-sizing:auto;
+  font-size:clamp(38px,7vw,72px); line-height:.92; letter-spacing:-.02em; margin:.1em 0 .16em;
+}
+.bob-title .em{font-style:italic; font-weight:500; color:var(--gold)}
+.bob-dek{font-family:"Fraunces",serif; font-style:italic; font-size:clamp(15px,2vw,20px); color:var(--muted); font-weight:500; margin:0 0 10px}
+.bob-dek .bob-thr{color:var(--faint); font-style:normal; font-family:"JetBrains Mono",monospace; font-size:.78em}
+.bob-counts{display:flex; gap:10px; align-items:baseline; font-size:12px; color:var(--muted); flex-wrap:wrap}
+.bob-counts b{color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums}
+.bob-counts .dot{color:var(--faint)}
+
+.bob-section{margin-top:30px}
+.bob-sechdr{margin-bottom:14px}
+.bob-sechdr h2{
+  font-family:"Fraunces",serif; font-size:22px; font-weight:800; letter-spacing:-.01em;
+  margin:0 0 3px; color:var(--ink); display:flex; align-items:center; gap:8px;
+}
+.bob-sechdr p{margin:0; font-size:12.5px; color:var(--muted)}
+.bob-star{color:var(--gold); font-size:.9em; line-height:1}
+.bob-empty{padding:34px; text-align:center; color:var(--muted); font-family:"Fraunces",serif; font-style:italic; font-size:16px; border:1px dashed var(--line); border-radius:12px; background:var(--panel)}
+
+.bob-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:14px}
+
+.bob-card{
+  appearance:none; text-align:left; cursor:pointer; font-family:inherit; color:inherit;
+  background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  padding:16px 16px 14px; transition:.16s; display:flex; flex-direction:column; gap:14px;
+}
+.bob-card:hover{border-color:var(--gold-soft); background:var(--panel-2); transform:translateY(-2px); box-shadow:0 18px 40px -26px rgba(27,29,24,.4)}
+.bob-card:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px}
+.crown-section .bob-card, .bob-card.crown{
+  background:linear-gradient(180deg, rgba(184,134,11,.06), var(--panel) 60%);
+  border-color:rgba(184,134,11,.4);
+}
+.bob-card.crown:hover{border-color:var(--gold); box-shadow:0 18px 44px -24px rgba(184,134,11,.5)}
+
+.bob-card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
+.bob-ident{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; min-width:0}
+.bob-ident .bob-star{align-self:center}
+.bob-tk{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:16px; color:var(--ink); letter-spacing:.01em}
+.bob-co{font-size:11.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px}
+.bob-sec{font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); white-space:nowrap; flex:none}
+
+.bob-metrics{display:grid; grid-template-columns:repeat(3,1fr); gap:12px 10px}
+.bob-m{display:flex; flex-direction:column; gap:6px; min-width:0}
+.bob-k{font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.bob-v{font-size:13px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.bob-v.mono{font-family:"JetBrains Mono",monospace; font-weight:700; font-variant-numeric:tabular-nums}
+.bob-dist{font-size:10px; color:var(--faint); font-family:"JetBrains Mono",monospace}
+.bob-ai{display:flex; flex-direction:column; line-height:1.1; font-family:"JetBrains Mono",monospace; font-weight:700; font-size:14px}
+.bob-ai small{font-size:9.5px; color:var(--faint); font-weight:500; font-family:"Archivo",sans-serif}
+
+.bob-up{display:flex; align-items:center; gap:8px}
+.bob-upbar{width:52px; height:5px; background:#ece9dc; border-radius:3px; overflow:hidden; flex:none}
+.bob-upbar i{display:block; height:100%; border-radius:3px; background:linear-gradient(90deg,var(--gold-soft),var(--gold))}
+.bob-upbar i.neg{background:linear-gradient(90deg,var(--red-2),var(--red))}
+.bob-upval{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:12.5px; color:var(--gold)}
+
+@media(max-width:640px){
+  .nav-menu{top:12px; left:12px}
+  .bob-masthead{margin-right:52px}
+  .bob-title{font-size:clamp(32px,12vw,48px)}
+  .bob-grid{grid-template-columns:1fr; gap:12px}
+  .bob-section{margin-top:24px}
 }
