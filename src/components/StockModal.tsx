@@ -6,8 +6,9 @@ import type { Stock } from "../types";
 const FINNHUB_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
 const TWELVEDATA_KEY = import.meta.env.VITE_TWELVEDATA_KEY ?? "";
 
-const yahooUrl = (ticker: string) =>
-  `https://finance.yahoo.com/quote/${ticker.replace(/\./g, "-")}`;
+// Apple Stocks universal link — opens the Stocks app on iOS/macOS, web elsewhere.
+const stocksUrl = (ticker: string) =>
+  `https://stocks.apple.com/symbol/${encodeURIComponent(ticker)}`;
 
 type RangeId = "1D" | "1W" | "1M" | "3M" | "6M" | "YTD" | "1Y";
 
@@ -54,6 +55,7 @@ interface Bar {
 
 interface Series {
   closes: number[];
+  stamps: string[]; // bar datetimes, parallel to closes (oldest-first)
   hi: number;
   lo: number;
   last: number;
@@ -74,6 +76,18 @@ const usd = (v: number | null | undefined, dp = 2): string =>
 
 const pct = (v: number | null | undefined): string =>
   v == null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "%";
+
+// classify a TipRanks signal name -> tone for coloring (check bear first so
+// "StrongSell" isn't caught by the buy rule)
+function sigTone(name: string | null | undefined): "bull" | "bear" | "neut" | "na" {
+  if (!name) return "na";
+  const s = name.toLowerCase();
+  if (/sell|bear|negative|decrease/.test(s)) return "bear";
+  if (/buy|bull|positive|increase/.test(s)) return "bull";
+  return "neut";
+}
+// "StrongBuy" -> "Strong Buy"
+const prettySig = (s: string) => s.replace(/([a-z])([A-Z])/g, "$1 $2");
 
 // compact volume: 169.9M / 4.7B
 function fmtVol(v: number | null | undefined): string {
@@ -149,12 +163,15 @@ async function fetchSeries(ticker: string, range: RangeId): Promise<Series> {
     })
     .reverse(); // -> oldest-first for plotting
 
-  const closes = bars.map((b) => b.c).filter((n) => isFinite(n));
-  if (closes.length === 0) throw new Error("no closes");
+  const clean = bars.filter((b) => isFinite(b.c));
+  if (clean.length === 0) throw new Error("no closes");
+  const closes = clean.map((b) => b.c);
+  const stamps = clean.map((b) => b.t);
 
-  const last = bars[bars.length - 1];
+  const last = clean[clean.length - 1];
   const series: Series = {
     closes,
+    stamps,
     hi: Math.max(...closes),
     lo: Math.min(...closes),
     last: closes[closes.length - 1],
@@ -164,24 +181,83 @@ async function fetchSeries(ticker: string, range: RangeId): Promise<Series> {
   return series;
 }
 
-// build the SVG path (line) + area path from closes, mapped into the 600x140 box
-function buildPaths(closes: number[]): { line: string; area: string; lastX: number; lastY: number } {
-  const W = 600;
-  const H = 140;
-  const padY = 12;
-  const n = closes.length;
-  const min = Math.min(...closes);
-  const max = Math.max(...closes);
-  const span = max - min || 1;
-  const x = (i: number) => (n === 1 ? W : (i / (n - 1)) * (W - 12) + 6);
-  const y = (v: number) => H - padY - ((v - min) / span) * (H - padY * 2);
+// Apple-Stocks-style chart geometry, in a fixed 600x140 SVG box (scales uniformly
+// via height:auto, so text drawn inside is undistorted). Right gutter holds price
+// labels; bottom strip holds date/time labels.
+const CW = 600;
+const CH = 140;
+const C_PAD = 12; // top breathing room
+const C_R = 44; // right gutter for price labels
+const C_B = 16; // bottom strip for date labels
 
-  const pts = closes.map((v, i) => `${x(i).toFixed(2)} ${y(v).toFixed(2)}`);
+interface ChartModel {
+  line: string;
+  area: string;
+  lastX: number;
+  lastY: number;
+  up: boolean;
+  baseY: number; // dashed reference line (range's opening price)
+  priceTicks: { y: number; label: string }[];
+  dateTicks: { x: number; label: string }[];
+}
+
+// "nice" round axis values within [lo,hi] (e.g. 134,136,138 — not 134.7)
+function niceTicks(lo: number, hi: number, count = 4): number[] {
+  const raw = (hi - lo || 1) / (count - 1);
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag;
+  const out: number[] = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(v);
+  return out;
+}
+
+// "YYYY-MM-DD" -> "M/D"; "YYYY-MM-DD HH:MM:SS" -> "HH:MM" (intraday). No Date() (tz-safe).
+function fmtStamp(s: string, intraday: boolean): string {
+  const [d, t] = s.split(" ");
+  if (intraday && t) return t.slice(0, 5);
+  const p = d.split("-");
+  return `${+p[1]}/${+p[2]}`;
+}
+
+function buildChart(closes: number[], stamps: string[], intraday: boolean): ChartModel {
+  const n = closes.length;
+  const lo = Math.min(...closes);
+  const hi = Math.max(...closes);
+  const span = hi - lo || 1;
+  const plotR = CW - C_R;
+  const plotB = CH - C_B;
+  const x = (i: number) => (n === 1 ? plotR : (i / (n - 1)) * (plotR - 6) + 6);
+  const y = (v: number) => C_PAD + (1 - (v - lo) / span) * (plotB - C_PAD);
+
+  const pts = closes.map((v, i) => `${x(i).toFixed(1)} ${y(v).toFixed(1)}`);
   const line = "M" + pts.join(" L");
   const lastX = x(n - 1);
   const lastY = y(closes[n - 1]);
-  const area = `${line} L${lastX.toFixed(2)} ${H} L${x(0).toFixed(2)} ${H} Z`;
-  return { line, area, lastX, lastY };
+  const area = `${line} L${lastX.toFixed(1)} ${plotB} L${x(0).toFixed(1)} ${plotB} Z`;
+
+  const dp = hi >= 100 ? 0 : hi >= 10 ? 1 : 2;
+  const priceTicks = niceTicks(lo, hi, 4)
+    .filter((v) => v >= lo && v <= hi)
+    .map((v) => ({ y: y(v), label: v.toFixed(dp) }));
+
+  const nLbl = Math.min(6, n);
+  const denom = Math.max(1, nLbl - 1);
+  const dateTicks = Array.from({ length: nLbl }, (_, k) => {
+    const i = Math.round((k / denom) * (n - 1));
+    return { x: x(i), label: fmtStamp(stamps[i] || "", intraday) };
+  });
+
+  return {
+    line,
+    area,
+    lastX,
+    lastY,
+    up: closes[n - 1] >= closes[0],
+    baseY: y(closes[0]),
+    priceTicks,
+    dateTicks,
+  };
 }
 
 interface StockModalProps {
@@ -288,12 +364,15 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
   const aiW = ((stock.aipt ?? 0) / ladderMax) * 100;
   const ptW = ((stock.pt ?? 0) / ladderMax) * 100;
 
-  const paths = useMemo(
-    () => (series && series.closes.length ? buildPaths(series.closes) : null),
-    [series],
+  const chart = useMemo(
+    () =>
+      series && series.closes.length
+        ? buildChart(series.closes, series.stamps, RANGE_CFG[range].interval.includes("min"))
+        : null,
+    [series, range],
   );
 
-  const chartAvailable = !seriesLoading && !seriesError && paths != null;
+  const chartAvailable = !seriesLoading && !seriesError && chart != null;
   const todayVol = series?.volume ?? null;
 
   return (
@@ -367,21 +446,50 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
                   aria-label={`${stock.t} ${range} price chart`}
                 >
                   <defs>
-                    <linearGradient id="mkm-grad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0" stopColor="#e8c15b" />
-                      <stop offset="1" stopColor="#f0cf72" />
+                    <linearGradient id="mkm-fill-up" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stopColor="rgba(50,215,75,.22)" />
+                      <stop offset="1" stopColor="rgba(50,215,75,0)" />
                     </linearGradient>
-                    <linearGradient id="mkm-fill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0" stopColor="rgba(232,193,91,.16)" />
-                      <stop offset="1" stopColor="rgba(232,193,91,0)" />
+                    <linearGradient id="mkm-fill-dn" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0" stopColor="rgba(255,69,58,.22)" />
+                      <stop offset="1" stopColor="rgba(255,69,58,0)" />
                     </linearGradient>
                   </defs>
-                  <line className="mkm-gridln" x1="0" y1="35" x2="600" y2="35" />
-                  <line className="mkm-gridln" x1="0" y1="70" x2="600" y2="70" />
-                  <line className="mkm-gridln" x1="0" y1="105" x2="600" y2="105" />
-                  <path fill="url(#mkm-fill)" d={paths!.area} />
-                  <path className="mkm-chartline" d={paths!.line} />
-                  <circle cx={paths!.lastX} cy={paths!.lastY} r="3" fill="#f0cf72" />
+                  {/* gridlines: horizontal at price ticks, vertical at date ticks */}
+                  {chart!.priceTicks.map((t, i) => (
+                    <line key={`h${i}`} className="mkm-gridln" x1="0" y1={t.y} x2={CW - C_R} y2={t.y} />
+                  ))}
+                  {chart!.dateTicks.map((t, i) => (
+                    <line key={`v${i}`} className="mkm-gridln" x1={t.x} y1={C_PAD} x2={t.x} y2={CH - C_B} />
+                  ))}
+                  {/* dashed reference line at the range's opening price */}
+                  <line className="mkm-baseln" x1="0" y1={chart!.baseY} x2={CW - C_R} y2={chart!.baseY} />
+                  <path fill={chart!.up ? "url(#mkm-fill-up)" : "url(#mkm-fill-dn)"} d={chart!.area} />
+                  <path className={`mkm-chartline ${chart!.up ? "up" : "dn"}`} d={chart!.line} />
+                  <circle
+                    cx={chart!.lastX}
+                    cy={chart!.lastY}
+                    r="3"
+                    fill={chart!.up ? "#32d74b" : "#ff453a"}
+                  />
+                  {/* price labels (right gutter) */}
+                  {chart!.priceTicks.map((t, i) => (
+                    <text key={`pt${i}`} className="mkm-axtx" x={CW - 3} y={t.y + 3} textAnchor="end">
+                      {t.label}
+                    </text>
+                  ))}
+                  {/* date labels (bottom strip) */}
+                  {chart!.dateTicks.map((t, i) => (
+                    <text
+                      key={`dt${i}`}
+                      className="mkm-axtx"
+                      x={t.x}
+                      y={CH - 4}
+                      textAnchor={i === 0 ? "start" : i === chart!.dateTicks.length - 1 ? "end" : "middle"}
+                    >
+                      {t.label}
+                    </text>
+                  ))}
                 </svg>
               )}
             </div>
@@ -441,6 +549,37 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
             <div className="mkm-cell">
               <div className="k">Mkt Cap</div>
               <div className="v">{fmtMc(stock.mc)}</div>
+            </div>
+          </div>
+
+          {/* stock analysis — bull / bear signals (from TipRanks screener) */}
+          <div className="mkm-sigs">
+            <div className="mkm-rphdr">Stock Analysis · Bull / Bear</div>
+            <div className="mkm-siggrid">
+              {(
+                [
+                  ["Analyst", stock.con || null],
+                  ["Bloggers", stock.sig?.bl ?? null],
+                  ["Hedge Funds", stock.sig?.hf ?? null],
+                  ["Insiders", stock.sig?.ins ?? null],
+                  ["News", stock.sig?.nw ?? null],
+                  [
+                    "Investors",
+                    stock.sig?.iv == null
+                      ? null
+                      : stock.sig.iv >= 0.55
+                        ? "Bullish"
+                        : stock.sig.iv <= 0.45
+                          ? "Bearish"
+                          : "Neutral",
+                  ],
+                ] as [string, string | null][]
+              ).map(([k, v]) => (
+                <div key={k} className={`mkm-sig ${sigTone(v)}`}>
+                  <div className="sk">{k}</div>
+                  <div className="sv">{v ? prettySig(v) : "—"}</div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -563,6 +702,14 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
             </div>
           </div>
 
+          {/* company description */}
+          {stock.desc && (
+            <div className="mkm-about">
+              <div className="mkm-rphdr">About {stock.n}</div>
+              <p className="mkm-desc">{stock.desc}</p>
+            </div>
+          )}
+
           {/* footer */}
           <div className="mkm-foot">
             <div className="mkm-flog">
@@ -572,11 +719,11 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
             </div>
             <a
               className="mkm-yh"
-              href={yahooUrl(stock.t)}
+              href={stocksUrl(stock.t)}
               target="_blank"
               rel="noopener noreferrer"
             >
-              YAHOO ↗
+              STOCKS ↗
             </a>
           </div>
         </div>

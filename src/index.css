@@ -319,12 +319,31 @@ td.px-open:hover{color:var(--gold-soft)}
 .mkm-plotbox{background:#141610; border:1px solid var(--t-line); border-radius:8px; padding:8px 8px 4px; position:relative; overflow:hidden; min-height:96px}
 .mkm-plotbox svg{display:block; width:100%; height:auto}
 .mkm-gridln{stroke:#242720; stroke-width:1}
-.mkm-chartline{fill:none; stroke:url(#mkm-grad); stroke-width:2; stroke-linecap:round; stroke-linejoin:round;
+.mkm-baseln{stroke:var(--t-faint); stroke-width:1; stroke-dasharray:3 3; opacity:.55}
+.mkm-axtx{fill:var(--t-faint); font-family:inherit; font-size:10px; letter-spacing:.02em}
+.mkm-chartline{fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;
   stroke-dasharray:1600; stroke-dashoffset:1600; animation:mkm-draw 1.5s .3s forwards cubic-bezier(.3,.7,.2,1)}
+.mkm-chartline.up{stroke:#32d74b}
+.mkm-chartline.dn{stroke:#ff453a}
 .mkm-plot-msg{display:flex; align-items:center; justify-content:center; min-height:112px; font-size:11px; color:var(--t-faint); letter-spacing:.06em}
 .mkm-plot-msg.mkm-skel{animation:mkm-skel 1.2s ease-in-out infinite}
 .mkm-chart-log{display:flex; justify-content:space-between; margin-top:8px; font-size:10px; color:var(--t-faint); letter-spacing:.02em; gap:8px; flex-wrap:wrap}
 .mkm-chart-log b{color:var(--t-muted); font-weight:700} .mkm-chart-log .g{color:var(--t-gold)}
+
+/* stock analysis — bull / bear signal tiles */
+.mkm-sigs{padding:14px 18px; border-bottom:1px solid var(--t-line-2)}
+.mkm-siggrid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px}
+.mkm-sig{background:#141610; border:1px solid var(--t-line); border-radius:7px; padding:8px 10px}
+.mkm-sig .sk{font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--t-faint)}
+.mkm-sig .sv{font-size:13px; font-weight:700; margin-top:3px; color:var(--t-muted)}
+.mkm-sig.bull .sv{color:#32d74b}
+.mkm-sig.bear .sv{color:#ff453a}
+.mkm-sig.neut .sv{color:var(--t-gold)}
+.mkm-sig.na .sv{color:var(--t-faint)}
+
+/* company description */
+.mkm-about{padding:14px 18px; border-bottom:1px solid var(--t-line-2)}
+.mkm-desc{margin:8px 0 0; font-size:12px; line-height:1.55; color:var(--t-muted)}
 
 /* metric matrix */
 .mkm-matrix{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--t-line-2); border-bottom:1px solid var(--t-line-2)}
@@ -392,9 +411,10 @@ td.px-open:hover{color:var(--gold-soft)}
   .mkm-head{padding:14px 16px 12px; gap:10px}
   .mkm-headsym{font-size:22px}
   .mkm-px{margin-left:0; font-size:20px}
-  .mkm-chartpane, .mkm-statblock{padding-left:14px; padding-right:14px}
+  .mkm-chartpane, .mkm-statblock, .mkm-sigs, .mkm-about{padding-left:14px; padding-right:14px}
   .mkm-rp{padding:14px 16px}
   .mkm-matrix{grid-template-columns:repeat(2,1fr)}
+  .mkm-siggrid{grid-template-columns:repeat(2,1fr)}
   .mkm-readout{grid-template-columns:1fr}
   .mkm-kv{grid-template-columns:repeat(2,1fr); gap:12px 14px}
   .mkm-foot{flex-direction:column; align-items:flex-start; gap:10px; padding:12px 16px}
