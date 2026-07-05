@@ -64,6 +64,7 @@ jobs:
       - name: Build
         env:
           VITE_FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+          VITE_TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }}
         run: npm run build
 
       - uses: actions/upload-pages-artifact@v3

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import Masthead from "./components/Masthead";
+import StockModal from "./components/StockModal";
 import StockTable from "./components/StockTable";
 import Toolbar from "./components/Toolbar";
 import stocksData from "./data/stocks.json";
@@ -21,6 +22,7 @@ export default function App() {
   // analyst tab defaults to Strong Buy to match the real page
   const [consensus, setConsensus] = useState("StrongBuy");
   const [cap, setCap] = useState(0);
+  const [openStock, setOpenStock] = useState<Stock | null>(null);
   const [liveKey, setLiveKey] = useState<string | null>(
     () => localStorage.getItem("mp_finnhub") || BAKED_KEY || null,
   );
@@ -111,7 +113,15 @@ export default function App() {
         onCap={setCap}
       />
 
-      <StockTable rows={rows} sort={sort} dir={dir} hl={VIEWS[view].hl} onSort={handleSort} live={live} />
+      <StockTable
+        rows={rows}
+        sort={sort}
+        dir={dir}
+        hl={VIEWS[view].hl}
+        onSort={handleSort}
+        live={live}
+        onOpen={setOpenStock}
+      />
 
       <footer>
         Data pulled from TipRanks' public screener API (<code>/api/apps/stock/screener</code>) — the
@@ -121,6 +131,8 @@ export default function App() {
         Snapshot is point-in-time and <b>not investment advice</b>. Many extreme-upside names are
         sub-$500M micro-caps — high upside, high risk. Use the Min-cap filter for liquid names.
       </footer>
+
+      {openStock && <StockModal stock={openStock} onClose={() => setOpenStock(null)} />}
     </div>
   );
 }

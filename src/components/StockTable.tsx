@@ -2,9 +2,6 @@ import { useState } from "react";
 import { COLS, consClass, consLabel, fmtMc, fmtPx, scoreColor } from "../lib";
 import type { Stock } from "../types";
 
-const yahooUrl = (ticker: string) =>
-  `https://finance.yahoo.com/quote/${ticker.replace(/\./g, "-")}`;
-
 // default column widths (px) — table-layout:fixed makes these authoritative so
 // resizing can both grow AND shrink a column. User overrides live in `widths`.
 const DEFAULT_W: Record<string, number> = {
@@ -19,6 +16,7 @@ interface StockTableProps {
   hl: string;
   onSort: (k: string) => void;
   live?: Record<string, number>;
+  onOpen: (s: Stock) => void;
 }
 
 function Chip({ v, max }: { v: number | null; max: number }) {
@@ -50,7 +48,7 @@ function UpBar({ up }: { up: number | null }) {
   );
 }
 
-export default function StockTable({ rows, sort, dir, hl, onSort, live = {} }: StockTableProps) {
+export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onOpen }: StockTableProps) {
   const [widths, setWidths] = useState<Record<string, number>>(() => {
     try {
       return JSON.parse(localStorage.getItem("mp_colw") || "{}");
@@ -136,12 +134,14 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {} }: S
                 >
                   <td className="rank" data-label="Rank">{i + 1}</td>
                   <td className="tk">
-                    <a className="sym" href={yahooUrl(s.t)} target="_blank" rel="noopener noreferrer">
+                    <button className="sym" type="button" onClick={() => onOpen(s)}>
                       {s.t}
-                    </a>
+                    </button>
                     <div className="co">{s.n || ""}</div>
                   </td>
-                  <td className="num" data-label="Price">{fmtPx(s.px)}</td>
+                  <td className="num px-open" data-label="Price" onClick={() => onOpen(s)}>
+                    {fmtPx(s.px)}
+                  </td>
                   <td data-label="Day %">
                     {(() => {
                       const isLive = live[s.t] != null;
