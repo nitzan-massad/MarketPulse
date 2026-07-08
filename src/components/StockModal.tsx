@@ -420,13 +420,8 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
       >
         {/* title bar */}
         <div className="mkm-titlebar">
-          <div className="mkm-dots">
-            <i />
-            <i />
-            <i />
-          </div>
           <div className="mkm-path">
-            mktpulse:// quote / <b>{stock.t}</b>
+            <b>{stock.t}</b>
           </div>
           <div className="mkm-live">LIVE</div>
           <button className="mkm-close" aria-label="Close" onClick={onClose}>
