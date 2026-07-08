@@ -38,13 +38,6 @@ async function pull(page) {
           air: (typeof ai.overallRating === "object" ? ai.overallRating?.name : ai.overallRating) ?? null,
           aipt: rnd(ai.priceTarget), mc: t.marketCap != null ? Math.round(t.marketCap / 1e6) : null,
           desc: t.description || null,
-          sig: {
-            bl: e.bloggersData?.bloggerConsensus?.name || null,
-            hf: e.hedgeFundsData?.hedgeFundSignal?.name || null,
-            ins: e.insidersData?.insiderSignal?.name || null,
-            nw: e.newsSentimentData?.newsSentiment?.name || null,
-            iv: rnd(e.investorSentimentData?.rawInvestorsSentimentScore, 2),
-          },
         });
       }
     }

@@ -33,14 +33,6 @@ export interface Stock {
   mc: number | null;
   /** Company description (from screener) */
   desc?: string | null;
-  /** Bull/bear signal labels: blogger, hedge fund, insider, news consensus + investor sentiment (0–1) */
-  sig?: {
-    bl: string | null;
-    hf: string | null;
-    ins: string | null;
-    nw: string | null;
-    iv: number | null;
-  };
 }
 
 export type ViewId = "analyst" | "smart" | "ai";

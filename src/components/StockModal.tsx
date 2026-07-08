@@ -66,6 +66,35 @@ interface Series {
 const quoteMetricCache = new Map<string, { quote: Quote; metric: Metric }>();
 const seriesCache = new Map<string, Series>();
 
+// Bulls Say / Bears Say — a static per-ticker snapshot scraped from TipRanks'
+// free preview (the full list is paywalled). Lazy-fetched from public/bullbear/,
+// so it survives CI data refreshes. Absent file -> panel shows "not available".
+interface BBPoint {
+  t: string; // point title
+  b: string; // point body
+}
+interface BullBear {
+  bull: BBPoint[];
+  bear: BBPoint[];
+}
+const bbCache = new Map<string, BullBear | null>();
+async function fetchBullBear(ticker: string): Promise<BullBear | null> {
+  if (bbCache.has(ticker)) return bbCache.get(ticker)!;
+  let val: BullBear | null = null;
+  try {
+    const r = await fetch(`${import.meta.env.BASE_URL}bullbear/${encodeURIComponent(ticker)}.json`);
+    if (r.ok) {
+      const j = await r.json();
+      if (j && ((j.bull && j.bull.length) || (j.bear && j.bear.length)))
+        val = { bull: j.bull || [], bear: j.bear || [] };
+    }
+  } catch {
+    /* missing / offline -> not available */
+  }
+  bbCache.set(ticker, val);
+  return val;
+}
+
 const num = (v: unknown): number | null => {
   const n = typeof v === "string" ? parseFloat(v) : (v as number);
   return typeof n === "number" && isFinite(n) ? n : null;
@@ -76,18 +105,6 @@ const usd = (v: number | null | undefined, dp = 2): string =>
 
 const pct = (v: number | null | undefined): string =>
   v == null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "%";
-
-// classify a TipRanks signal name -> tone for coloring (check bear first so
-// "StrongSell" isn't caught by the buy rule)
-function sigTone(name: string | null | undefined): "bull" | "bear" | "neut" | "na" {
-  if (!name) return "na";
-  const s = name.toLowerCase();
-  if (/sell|bear|negative|decrease/.test(s)) return "bear";
-  if (/buy|bull|positive|increase/.test(s)) return "bull";
-  return "neut";
-}
-// "StrongBuy" -> "Strong Buy"
-const prettySig = (s: string) => s.replace(/([a-z])([A-Z])/g, "$1 $2");
 
 // compact volume: 169.9M / 4.7B
 function fmtVol(v: number | null | undefined): string {
@@ -273,6 +290,9 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
   const [series, setSeries] = useState<Series | null>(null);
   const [seriesLoading, setSeriesLoading] = useState(true);
   const [seriesError, setSeriesError] = useState(false);
+  const [bb, setBb] = useState<BullBear | null>(null);
+  const [bbTab, setBbTab] = useState<"bull" | "bear">("bull");
+  const [descOpen, setDescOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // close on Escape
@@ -309,6 +329,20 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
       .finally(() => {
         if (!cancelled) setQmLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
+  }, [stock.t]);
+
+  // fetch Bulls Say / Bears Say snapshot + reset the panel/description on ticker change
+  useEffect(() => {
+    let cancelled = false;
+    setBb(null);
+    setBbTab("bull");
+    setDescOpen(false);
+    fetchBullBear(stock.t).then((r) => {
+      if (!cancelled) setBb(r);
+    });
     return () => {
       cancelled = true;
     };
@@ -552,37 +586,6 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
             </div>
           </div>
 
-          {/* stock analysis — bull / bear signals (from TipRanks screener) */}
-          <div className="mkm-sigs">
-            <div className="mkm-rphdr">Stock Analysis · Bull / Bear</div>
-            <div className="mkm-siggrid">
-              {(
-                [
-                  ["Analyst", stock.con || null],
-                  ["Bloggers", stock.sig?.bl ?? null],
-                  ["Hedge Funds", stock.sig?.hf ?? null],
-                  ["Insiders", stock.sig?.ins ?? null],
-                  ["News", stock.sig?.nw ?? null],
-                  [
-                    "Investors",
-                    stock.sig?.iv == null
-                      ? null
-                      : stock.sig.iv >= 0.55
-                        ? "Bullish"
-                        : stock.sig.iv <= 0.45
-                          ? "Bearish"
-                          : "Neutral",
-                  ],
-                ] as [string, string | null][]
-              ).map(([k, v]) => (
-                <div key={k} className={`mkm-sig ${sigTone(v)}`}>
-                  <div className="sk">{k}</div>
-                  <div className="sv">{v ? prettySig(v) : "—"}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           {/* readout */}
           <div className="mkm-readout">
             <div className="mkm-rp">
@@ -702,13 +705,55 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
             </div>
           </div>
 
-          {/* company description */}
+          {/* company description — collapsed by default */}
           {stock.desc && (
             <div className="mkm-about">
-              <div className="mkm-rphdr">About {stock.n}</div>
-              <p className="mkm-desc">{stock.desc}</p>
+              <button
+                type="button"
+                className="mkm-disc"
+                aria-expanded={descOpen}
+                onClick={() => setDescOpen((v) => !v)}
+              >
+                <span className="tw">{descOpen ? "▾" : "▸"}</span> About {stock.n}
+              </button>
+              {descOpen && <p className="mkm-desc">{stock.desc}</p>}
             </div>
           )}
+
+          {/* Bulls Say / Bears Say */}
+          <div className="mkm-bb">
+            <div className="mkm-bbhdr">Bulls Say, Bears Say</div>
+            {bb ? (
+              <>
+                <div className="mkm-bbtabs">
+                  <button
+                    type="button"
+                    className={bbTab === "bull" ? "on bull" : ""}
+                    onClick={() => setBbTab("bull")}
+                  >
+                    ▲ Bulls Say
+                  </button>
+                  <button
+                    type="button"
+                    className={bbTab === "bear" ? "on bear" : ""}
+                    onClick={() => setBbTab("bear")}
+                  >
+                    ▼ Bears Say
+                  </button>
+                </div>
+                <div className="mkm-bblist">
+                  {(bbTab === "bull" ? bb.bull : bb.bear).map((p, i) => (
+                    <div className="mkm-bbpt" key={i}>
+                      <div className={`t ${bbTab}`}>{p.t}</div>
+                      <div className="b">{p.b}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="mkm-bbna">Bull / bear analysis not available for this stock.</div>
+            )}
+          </div>
 
           {/* footer */}
           <div className="mkm-foot">
