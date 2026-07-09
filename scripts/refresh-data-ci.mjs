@@ -2,7 +2,7 @@
 // to solve Cloudflare's challenge from GitHub's datacenter IP, then returns the
 // page body. We request the screener API through it and parse the JSON out.
 // (Local manual refresh uses scripts/refresh-data.mjs with Playwright instead.)
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const API =
@@ -87,3 +87,14 @@ writeFileSync(
   JSON.stringify({ generatedAt: new Date().toISOString(), universe: total, shown: seen.size }, null, 2) + "\n",
 );
 console.log(`wrote ${seen.size} rows; universe ${total}`);
+
+// maintain the first-seen tracker: carry over known dates, stamp brand-new
+// tickers with today, and prune tickers that left the universe.
+let prevSeen = {};
+try { prevSeen = JSON.parse(readFileSync("src/data/seen.json", "utf8")); } catch { /* first run */ }
+const today = new Date().toISOString().slice(0, 10);
+const firstSeen = {};
+for (const t of seen.keys()) firstSeen[t] = prevSeen[t] || today;
+writeFileSync("src/data/seen.json", JSON.stringify(firstSeen));
+const freshCount = Object.values(firstSeen).filter((v) => v !== "baseline").length;
+console.log(`seen.json: ${Object.keys(firstSeen).length} tickers, ${freshCount} dated`);

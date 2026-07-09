@@ -56,7 +56,7 @@ jobs:
           if git diff --quiet -- src/data; then
             echo "No data change."
           else
-            git add src/data/stocks.json src/data/meta.json
+            git add src/data
             git commit -m "chore: refresh TipRanks snapshot [skip ci]"
             git push
           fi

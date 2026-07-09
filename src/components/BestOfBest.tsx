@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { consClass, consLabel, fmtMc, fmtPx, scoreColor } from "../lib";
 import stocksData from "../data/stocks.json";
 import type { Stock } from "../types";
@@ -43,7 +43,17 @@ function Chip({ v, max }: { v: number | null; max: number }) {
   );
 }
 
-function Card({ s, onOpen, crown }: { s: Stock; onOpen: (s: Stock) => void; crown?: boolean }) {
+export function Card({
+  s,
+  onOpen,
+  crown,
+  badge,
+}: {
+  s: Stock;
+  onOpen: (s: Stock) => void;
+  crown?: boolean;
+  badge?: ReactNode;
+}) {
   return (
     <button
       type="button"
@@ -55,6 +65,7 @@ function Card({ s, onOpen, crown }: { s: Stock; onOpen: (s: Stock) => void; crow
         <div className="bob-ident">
           {crown && <span className="bob-star" aria-hidden="true">★</span>}
           <span className="bob-tk">{s.t}</span>
+          {badge}
           <span className="bob-co">{s.n || ""}</span>
         </div>
         <span className="bob-sec">{s.sec ? consLabel(s.sec) : "—"}</span>

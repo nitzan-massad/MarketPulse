@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import BestOfBest from "./components/BestOfBest";
+import NewArrivals from "./components/NewArrivals";
 import Masthead from "./components/Masthead";
 import NavMenu, { type NavId } from "./components/NavMenu";
 import StockModal from "./components/StockModal";
@@ -130,8 +131,10 @@ export default function App() {
             onOpen={setOpenStock}
           />
         </>
-      ) : (
+      ) : nav === "best" ? (
         <BestOfBest onOpen={setOpenStock} />
+      ) : (
+        <NewArrivals onOpen={setOpenStock} />
       )}
 
       <footer>

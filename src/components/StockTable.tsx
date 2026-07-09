@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { COLS, consClass, consLabel, fmtMc, fmtPx, scoreColor } from "../lib";
+import { COLS, consClass, consLabel, fmtMc, fmtPx, isNew, scoreColor } from "../lib";
 import type { Stock } from "../types";
 
 // default column widths (px) — table-layout:fixed makes these authoritative so
@@ -19,7 +19,7 @@ interface StockTableProps {
   onOpen: (s: Stock) => void;
 }
 
-function Chip({ v, max }: { v: number | null; max: number }) {
+export function Chip({ v, max }: { v: number | null; max: number }) {
   if (v == null) return <span className="dash">—</span>;
   const c = scoreColor(v, max)!;
   const text = v % 1 ? v : v | 0;
@@ -30,7 +30,7 @@ function Chip({ v, max }: { v: number | null; max: number }) {
   );
 }
 
-function UpBar({ up }: { up: number | null }) {
+export function UpBar({ up }: { up: number | null }) {
   if (up == null) return <span className="dash">—</span>;
   const neg = up < 0;
   const w =
@@ -134,9 +134,14 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onO
                 >
                   <td className="rank" data-label="Rank">{i + 1}</td>
                   <td className="tk">
-                    <button className="sym" type="button" onClick={() => onOpen(s)}>
-                      {s.t}
-                    </button>
+                    <span className="tk-top">
+                      <button className="sym" type="button" onClick={() => onOpen(s)}>
+                        {s.t}
+                      </button>
+                      {isNew(s.t) && (
+                        <span className="newtag" title="Recently added to the lists">NEW</span>
+                      )}
+                    </span>
                     <div className="co">{s.n || ""}</div>
                   </td>
                   <td className="num px-open" data-label="Price" onClick={() => onOpen(s)}>

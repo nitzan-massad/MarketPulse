@@ -1,4 +1,5 @@
 import type { Col, Stock, View, ViewId } from "./types";
+import seenData from "./data/seen.json";
 
 export const VIEWS: Record<ViewId, View> = {
   analyst: {
@@ -82,6 +83,24 @@ export function passes(s: Stock, state: FilterState): boolean {
   }
   return true;
 }
+
+// ---- recently-added tracking ---------------------------------------------
+// first-seen dates: "baseline" = present before we started tracking; a date =
+// the day the ticker first appeared in the screener. Backfilled from git
+// history, maintained by the refresh scripts. "New" = added within the window.
+const SEEN = seenData as Record<string, string>;
+export const NEW_WINDOW_DAYS = 30;
+
+export function addedInfo(t: string): { date: string; daysAgo: number } | null {
+  const d = SEEN[t];
+  if (!d || d === "baseline") return null;
+  const days = Math.floor((Date.now() - new Date(d + "T00:00:00").getTime()) / 86400000);
+  if (days < 0 || days > NEW_WINDOW_DAYS) return null;
+  return { date: d, daysAgo: days };
+}
+export const isNew = (t: string): boolean => addedInfo(t) != null;
+export const agoLabel = (days: number): string =>
+  days <= 0 ? "today" : days === 1 ? "1d ago" : `${days}d ago`;
 
 export function sortRows(rows: Stock[], sort: keyof Stock, dir: number): Stock[] {
   return [...rows].sort((a, b) => {

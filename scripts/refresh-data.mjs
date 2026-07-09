@@ -2,7 +2,7 @@
 // Runs a real (headless) Chromium so it passes Cloudflare's JS challenge, then
 // does the same in-page fetch the app's data was originally pulled with.
 import { chromium } from "playwright";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -79,3 +79,11 @@ writeFileSync(
   JSON.stringify({ generatedAt: new Date().toISOString(), universe: data.total, shown: data.rows.length }, null, 2) + "\n",
 );
 console.log(`wrote ${data.rows.length} rows; universe ${data.total}`);
+
+// maintain the first-seen tracker (see refresh-data-ci.mjs for details)
+let prevSeen = {};
+try { prevSeen = JSON.parse(readFileSync("src/data/seen.json", "utf8")); } catch { /* first run */ }
+const today = new Date().toISOString().slice(0, 10);
+const firstSeen = {};
+for (const r of data.rows) firstSeen[r.t] = prevSeen[r.t] || today;
+writeFileSync("src/data/seen.json", JSON.stringify(firstSeen));

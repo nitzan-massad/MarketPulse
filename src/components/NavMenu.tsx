@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-export type NavId = "table" | "best";
+export type NavId = "table" | "best" | "new";
 
 interface NavMenuProps {
   nav: NavId;
@@ -10,6 +10,7 @@ interface NavMenuProps {
 const ITEMS: { id: NavId; label: string; sub: string }[] = [
   { id: "table", label: "Top Stocks", sub: "The ranked screener" },
   { id: "best", label: "Best of the Best", sub: "Curated highest conviction" },
+  { id: "new", label: "New Arrivals", sub: "Recently added to the lists" },
 ];
 
 export default function NavMenu({ nav, onNav }: NavMenuProps) {
