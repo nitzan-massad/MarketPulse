@@ -88,11 +88,20 @@ export function passes(s: Stock, state: FilterState): boolean {
 // first-seen dates: "baseline" = present before we started tracking; a date =
 // the day the ticker first appeared in the screener. Backfilled from git
 // history, maintained by the refresh scripts. "New" = added within the window.
-const SEEN = seenData as Record<string, string>;
+export interface SeenEntry {
+  d: string; // first-seen date "YYYY-MM-DD", or "baseline" (present before tracking)
+  ss?: number | null; // Smart Score at first sighting (baseline for the Changes column)
+  ai?: number | null; // AI score at first sighting
+  con?: string | null; // consensus at first sighting
+  l?: string[]; // which ranking(s) it entered on: "u" upside, "s" smart score, "m" market cap
+}
+// human labels for the entry lists (l)
+export const LIST_LABEL: Record<string, string> = { u: "Analyst", s: "Smart Score", a: "AI Top" };
+const SEEN = seenData as Record<string, SeenEntry>;
 export const NEW_WINDOW_DAYS = 30;
 
 export function addedInfo(t: string): { date: string; daysAgo: number } | null {
-  const d = SEEN[t];
+  const d = SEEN[t]?.d;
   if (!d || d === "baseline") return null;
   const days = Math.floor((Date.now() - new Date(d + "T00:00:00").getTime()) / 86400000);
   if (days < 0 || days > NEW_WINDOW_DAYS) return null;
@@ -101,6 +110,8 @@ export function addedInfo(t: string): { date: string; daysAgo: number } | null {
 export const isNew = (t: string): boolean => addedInfo(t) != null;
 export const agoLabel = (days: number): string =>
   days <= 0 ? "today" : days === 1 ? "1d ago" : `${days}d ago`;
+// baseline metrics captured when the ticker first appeared (for the Changes column)
+export const firstSeen = (t: string): SeenEntry | null => SEEN[t] ?? null;
 
 export function sortRows(rows: Stock[], sort: keyof Stock, dir: number): Stock[] {
   return [...rows].sort((a, b) => {

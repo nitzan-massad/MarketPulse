@@ -13,7 +13,9 @@ const API =
 async function pull(page) {
   return page.evaluate(async (base) => {
     const sorts = [5, 2, 3]; // upside, smart score, market cap
+    const SORT_KEY = { 5: "u", 2: "s" }; // mkt cap (3) still fetched for the universe, not tagged
     const seen = new Map();
+    const membership = {}; // ticker -> ranking(s) it appears in
     const rnd = (x, p = 2) => (x == null ? null : +Number(x).toFixed(p));
     let total = null;
     for (const sb of sorts) {
@@ -23,6 +25,9 @@ async function pull(page) {
       for (const it of j.items || []) {
         const t = it.tradingInformationData || {};
         const e = it.tipRanksEssentialData || {};
+        const k = SORT_KEY[sb];
+        if (t.ticker && k && !(membership[t.ticker] || []).includes(k))
+          (membership[t.ticker] ??= []).push(k);
         if (seen.has(t.ticker)) continue;
         const bpt = e.bestPriceTargetData || {};
         const bc = e.bestAnalystsConsensusData || {};
@@ -41,7 +46,11 @@ async function pull(page) {
         });
       }
     }
-    return { rows: [...seen.values()], total };
+    const rows = [...seen.values()];
+    const aiArr = rows.map((r) => r.ai).filter((x) => x != null).sort((a, b) => a - b);
+    const aiTop = aiArr.length ? aiArr[Math.ceil(0.9 * aiArr.length) - 1] : Infinity;
+    for (const r of rows) if (r.ai != null && r.ai >= aiTop) (membership[r.t] ??= []).push("a");
+    return { rows, total, membership };
   }, API);
 }
 
@@ -85,5 +94,5 @@ let prevSeen = {};
 try { prevSeen = JSON.parse(readFileSync("src/data/seen.json", "utf8")); } catch { /* first run */ }
 const today = new Date().toISOString().slice(0, 10);
 const firstSeen = {};
-for (const r of data.rows) firstSeen[r.t] = prevSeen[r.t] || today;
+for (const r of data.rows) firstSeen[r.t] = prevSeen[r.t] || { d: today, ss: r.ss, ai: r.ai, con: r.con, l: data.membership[r.t] || [] };
 writeFileSync("src/data/seen.json", JSON.stringify(firstSeen));

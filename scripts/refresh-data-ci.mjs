@@ -48,6 +48,8 @@ function extractJson(html) {
 }
 
 const seen = new Map();
+const SORT_KEY = { 5: "u", 2: "s" }; // upside / smart score (sortBy 3 = mkt cap still fetched for the universe, but not tagged as a list)
+const membership = {}; // ticker -> Set of ranking(s) it appears in
 let total = null;
 for (const sb of [5, 2, 3]) {
   const sol = await flareGet(API + "&sortBy=" + sb);
@@ -56,6 +58,7 @@ for (const sb of [5, 2, 3]) {
   for (const it of j.items || []) {
     const t = it.tradingInformationData || {};
     const e = it.tipRanksEssentialData || {};
+    if (t.ticker && SORT_KEY[sb]) (membership[t.ticker] ??= new Set()).add(SORT_KEY[sb]);
     if (seen.has(t.ticker)) continue;
     const bpt = e.bestPriceTargetData || {};
     const bc = e.bestAnalystsConsensusData || {};
@@ -94,7 +97,11 @@ let prevSeen = {};
 try { prevSeen = JSON.parse(readFileSync("src/data/seen.json", "utf8")); } catch { /* first run */ }
 const today = new Date().toISOString().slice(0, 10);
 const firstSeen = {};
-for (const t of seen.keys()) firstSeen[t] = prevSeen[t] || today;
+// AI "top 10%" flag — no screener sort exists for AI, so use the 90th-pct cut (as Best of the Best does)
+const aiArr = [...seen.values()].map((r) => r.ai).filter((x) => x != null).sort((a, b) => a - b);
+const aiTop = aiArr.length ? aiArr[Math.ceil(0.9 * aiArr.length) - 1] : Infinity;
+for (const [t, r] of seen) if (r.ai != null && r.ai >= aiTop) (membership[t] ??= new Set()).add("a");
+for (const [t, r] of seen) firstSeen[t] = prevSeen[t] || { d: today, ss: r.ss, ai: r.ai, con: r.con, l: [...(membership[t] || [])] };
 writeFileSync("src/data/seen.json", JSON.stringify(firstSeen));
-const freshCount = Object.values(firstSeen).filter((v) => v !== "baseline").length;
+const freshCount = Object.values(firstSeen).filter((v) => v.d !== "baseline").length;
 console.log(`seen.json: ${Object.keys(firstSeen).length} tickers, ${freshCount} dated`);
