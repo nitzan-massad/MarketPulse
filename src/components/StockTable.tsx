@@ -33,19 +33,8 @@ export function Chip({ v, max }: { v: number | null; max: number }) {
 export function UpBar({ up }: { up: number | null }) {
   if (up == null) return <span className="dash">—</span>;
   const neg = up < 0;
-  const w =
-    up <= 0
-      ? Math.min(100, (Math.abs(up) / 40) * 100)
-      : Math.min(100, (Math.log10(up + 1) / Math.log10(3500)) * 100);
   const val = (up > 0 ? "+" : "") + up.toFixed(up >= 100 ? 0 : 1) + "%";
-  return (
-    <div className="up-cell">
-      <span className="up-bar">
-        <i className={neg ? "neg" : ""} style={{ width: `${Math.max(3, w)}%` }} />
-      </span>
-      <span className={`up-val ${neg ? "neg" : "pos"}`}>{val}</span>
-    </div>
-  );
+  return <span className={`up-val ${neg ? "neg" : "pos"}`}>{val}</span>;
 }
 
 export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onOpen }: StockTableProps) {

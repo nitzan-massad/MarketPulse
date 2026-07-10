@@ -79,10 +79,10 @@ export default function NewArrivals({ onOpen }: NewArrivalsProps) {
               <tr>
                 <th className="l">Added</th>
                 <th className="l">Changes</th>
+                <th>Upside</th>
                 <th className="l">Ticker / Company</th>
                 <th>Price</th>
                 <th className="l">Consensus</th>
-                <th>Upside</th>
                 <th>Smart Score</th>
                 <th>AI Score</th>
                 <th>Mkt Cap</th>
@@ -123,6 +123,9 @@ export default function NewArrivals({ onOpen }: NewArrivalsProps) {
                         </div>
                       ))}
                     </td>
+                    <td className="na-up">
+                      <UpBar up={s.up} />
+                    </td>
                     <td className="tk">
                       <button className="sym" type="button" onClick={() => onOpen(s)}>
                         {s.t}
@@ -133,9 +136,6 @@ export default function NewArrivals({ onOpen }: NewArrivalsProps) {
                     <td className="l">
                       <span className={`pill ${consClass(s.con)}`}>{consLabel(s.con)}</span>
                       <div className="dist">{s.b}·{s.h}·{s.s}</div>
-                    </td>
-                    <td>
-                      <UpBar up={s.up} />
                     </td>
                     <td>
                       <Chip v={s.ss} max={10} />

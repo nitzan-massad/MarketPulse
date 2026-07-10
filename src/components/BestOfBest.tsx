@@ -15,16 +15,9 @@ function UpBar({ up }: { up: number | null }) {
   if (up == null) return <span className="dash">—</span>;
   const neg = up < 0;
   const c = scoreColor(up, 100) ?? undefined;
-  const w =
-    up <= 0
-      ? Math.min(100, (Math.abs(up) / 40) * 100)
-      : Math.min(100, (Math.log10(up + 1) / Math.log10(3500)) * 100);
   const val = (up > 0 ? "+" : "") + up.toFixed(up >= 100 ? 0 : 1) + "%";
   return (
     <div className="bob-up">
-      <span className="bob-upbar">
-        <i className={neg ? "neg" : ""} style={{ width: `${Math.max(4, w)}%` }} />
-      </span>
       <span className="bob-upval" style={neg ? undefined : { color: c }}>
         {val}
       </span>
