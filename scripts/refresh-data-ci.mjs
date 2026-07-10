@@ -95,7 +95,7 @@ console.log(`wrote ${seen.size} rows; universe ${total}`);
 // tickers with today, and prune tickers that left the universe.
 let prevSeen = {};
 try { prevSeen = JSON.parse(readFileSync("src/data/seen.json", "utf8")); } catch { /* first run */ }
-const today = new Date().toISOString().slice(0, 10);
+const today = new Date().toISOString(); // full timestamp so New Arrivals can show hours-ago for fresh names
 const firstSeen = {};
 // AI "top 10%" flag — no screener sort exists for AI, so use the 90th-pct cut (as Best of the Best does)
 const aiArr = [...seen.values()].map((r) => r.ai).filter((x) => x != null).sort((a, b) => a - b);

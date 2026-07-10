@@ -89,7 +89,7 @@ export function passes(s: Stock, state: FilterState): boolean {
 // the day the ticker first appeared in the screener. Backfilled from git
 // history, maintained by the refresh scripts. "New" = added within the window.
 export interface SeenEntry {
-  d: string; // first-seen date "YYYY-MM-DD", or "baseline" (present before tracking)
+  d: string; // first-seen: ISO timestamp (or legacy "YYYY-MM-DD"), or "baseline" (present before tracking)
   ss?: number | null; // Smart Score at first sighting (baseline for the Changes column)
   ai?: number | null; // AI score at first sighting
   con?: string | null; // consensus at first sighting
@@ -100,16 +100,25 @@ export const LIST_LABEL: Record<string, string> = { u: "Analyst", s: "Smart Scor
 const SEEN = seenData as Record<string, SeenEntry>;
 export const NEW_WINDOW_DAYS = 30;
 
-export function addedInfo(t: string): { date: string; daysAgo: number } | null {
+export function addedInfo(t: string): { date: string; daysAgo: number; hoursAgo: number } | null {
   const d = SEEN[t]?.d;
   if (!d || d === "baseline") return null;
-  const days = Math.floor((Date.now() - new Date(d + "T00:00:00").getTime()) / 86400000);
+  // d is either a date "YYYY-MM-DD" (legacy) or a full ISO timestamp (stamped since we track time)
+  const ms = Date.now() - new Date(d.includes("T") ? d : d + "T00:00:00").getTime();
+  const days = Math.floor(ms / 86400000);
   if (days < 0 || days > NEW_WINDOW_DAYS) return null;
-  return { date: d, daysAgo: days };
+  return { date: d.slice(0, 10), daysAgo: days, hoursAgo: Math.floor(ms / 3600000) };
 }
 export const isNew = (t: string): boolean => addedInfo(t) != null;
-export const agoLabel = (days: number): string =>
-  days <= 0 ? "today" : days === 1 ? "1d ago" : `${days}d ago`;
+// within 2 days we show hours (24–48h as "1d Nh"); older names fall back to whole days
+export const agoLabel = (days: number, hours: number): string => {
+  if (days >= 2) return `${days}d ago`;
+  if (days === 1) {
+    const h = hours - 24;
+    return h <= 0 ? "1d ago" : `1d ${h}h ago`;
+  }
+  return hours <= 0 ? "just now" : `${hours}h ago`;
+};
 // baseline metrics captured when the ticker first appeared (for the Changes column)
 export const firstSeen = (t: string): SeenEntry | null => SEEN[t] ?? null;
 

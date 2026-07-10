@@ -44,7 +44,7 @@ interface NewArrivalsProps {
 export default function NewArrivals({ onOpen }: NewArrivalsProps) {
   const items = useMemo(() => {
     return STOCKS.map((s) => ({ s, info: addedInfo(s.t) }))
-      .filter((x): x is { s: Stock; info: { date: string; daysAgo: number } } => x.info != null)
+      .filter((x): x is { s: Stock; info: NonNullable<ReturnType<typeof addedInfo>> } => x.info != null)
       .sort(
         (a, b) =>
           a.info.daysAgo - b.info.daysAgo ||
@@ -97,7 +97,7 @@ export default function NewArrivals({ onOpen }: NewArrivalsProps) {
                     <td className="na-added">
                       <span className={`na-pill ${info.daysAgo <= 2 ? "" : "old"}`}>
                         <span className="na-pd" aria-hidden="true" />
-                        <span className="na-pt">{agoLabel(info.daysAgo)}</span>
+                        <span className="na-pt">{agoLabel(info.daysAgo, info.hoursAgo)}</span>
                       </span>
                       <span className="na-date">{fmtDate(info.date)}</span>
                     </td>

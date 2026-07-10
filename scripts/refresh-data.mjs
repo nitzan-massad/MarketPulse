@@ -92,7 +92,7 @@ console.log(`wrote ${data.rows.length} rows; universe ${data.total}`);
 // maintain the first-seen tracker (see refresh-data-ci.mjs for details)
 let prevSeen = {};
 try { prevSeen = JSON.parse(readFileSync("src/data/seen.json", "utf8")); } catch { /* first run */ }
-const today = new Date().toISOString().slice(0, 10);
+const today = new Date().toISOString(); // full timestamp so New Arrivals can show hours-ago for fresh names
 const firstSeen = {};
 for (const r of data.rows) firstSeen[r.t] = prevSeen[r.t] || { d: today, ss: r.ss, ai: r.ai, con: r.con, l: data.membership[r.t] || [] };
 writeFileSync("src/data/seen.json", JSON.stringify(firstSeen));
