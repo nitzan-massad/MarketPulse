@@ -118,13 +118,14 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onO
               return (
                 <tr
                   key={s.t}
-                  className={isHl ? "hl" : ""}
+                  className={`row-open ${isHl ? "hl" : ""}`}
                   style={{ animationDelay: `${Math.min(i, 40) * 14}ms` }}
+                  onClick={() => onOpen(s)}
                 >
                   <td className="rank" data-label="Rank">{i + 1}</td>
                   <td className="tk">
                     <span className="tk-top">
-                      <button className="sym" type="button" onClick={() => onOpen(s)}>
+                      <button className="sym" type="button">
                         {s.t}
                       </button>
                       {isNew(s.t) && (
@@ -133,7 +134,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onO
                     </span>
                     <div className="co">{s.n || ""}</div>
                   </td>
-                  <td className="num px-open" data-label="Price" onClick={() => onOpen(s)}>
+                  <td className="num" data-label="Price">
                     {fmtPx(s.px)}
                   </td>
                   <td data-label="Day %">

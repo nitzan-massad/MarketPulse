@@ -95,6 +95,35 @@ async function fetchBullBear(ticker: string): Promise<BullBear | null> {
   return val;
 }
 
+// Analyst forecasts — per-ticker snapshot pulled from TipRanks' free getData
+// feed (name, firm, star rating, price target, prior target, position, date),
+// baked into public/forecasts/. Lazy-fetched; absent/empty -> no coverage.
+interface Forecast {
+  n: string | null; // analyst name
+  f: string | null; // firm
+  st: number | null; // TipRanks star rating 0–5
+  r: string | null; // position: Buy / Hold / Sell
+  pt: number; // price target
+  opt: number | null; // prior target (shows "old → new")
+  d: string; // rating date "YYYY-MM-DD"
+}
+const fcCache = new Map<string, Forecast[] | null>();
+async function fetchForecasts(ticker: string): Promise<Forecast[] | null> {
+  if (fcCache.has(ticker)) return fcCache.get(ticker)!;
+  let val: Forecast[] | null = null;
+  try {
+    const r = await fetch(`${import.meta.env.BASE_URL}forecasts/${encodeURIComponent(ticker)}.json`);
+    if (r.ok) {
+      const j = await r.json();
+      if (Array.isArray(j) && j.length) val = j;
+    }
+  } catch {
+    /* missing / offline -> no coverage */
+  }
+  fcCache.set(ticker, val);
+  return val;
+}
+
 const num = (v: unknown): number | null => {
   const n = typeof v === "string" ? parseFloat(v) : (v as number);
   return typeof n === "number" && isFinite(n) ? n : null;
@@ -293,6 +322,9 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
   const [bb, setBb] = useState<BullBear | null>(null);
   const [bbTab, setBbTab] = useState<"bull" | "bear">("bull");
   const [descOpen, setDescOpen] = useState(false);
+  const [bbOpen, setBbOpen] = useState(false);
+  const [forecasts, setForecasts] = useState<Forecast[] | null>(null);
+  const [fcOpen, setFcOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // close on Escape
@@ -339,9 +371,15 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
     let cancelled = false;
     setBb(null);
     setBbTab("bull");
+    setBbOpen(false);
     setDescOpen(false);
+    setForecasts(null);
+    setFcOpen(false);
     fetchBullBear(stock.t).then((r) => {
       if (!cancelled) setBb(r);
+    });
+    fetchForecasts(stock.t).then((r) => {
+      if (!cancelled) setForecasts(r);
     });
     return () => {
       cancelled = true;
@@ -392,11 +430,27 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
   const totalAnalysts = stock.b + stock.h + stock.s;
   const rowPct = (v: number) => (totalAnalysts > 0 ? (v / totalAnalysts) * 100 : 0);
 
-  // target ladder widths — normalize now / AI target / street target to the max
-  const ladderMax = Math.max(price ?? 0, stock.aipt ?? 0, stock.pt ?? 0, 1);
-  const nowW = ((price ?? 0) / ladderMax) * 100;
-  const aiW = ((stock.aipt ?? 0) / ladderMax) * 100;
-  const ptW = ((stock.pt ?? 0) / ladderMax) * 100;
+  // ---- analyst forecast helpers ----
+  const fcUsd = (v: number): string =>
+    "$" + (v >= 100 ? Math.round(v).toLocaleString() : v.toFixed(2));
+  const posClass = (r: string | null): string =>
+    r === "Buy" ? "buy" : r === "Sell" ? "sell" : "hold";
+  const fmtFcDate = (d: string): string => {
+    const [y, m, dd] = d.split("-");
+    return `${m}/${dd}/${y.slice(2)}`;
+  };
+  const fcUpside = (pt: number): number | null =>
+    price != null && price > 0 ? ((pt - price) / price) * 100 : null;
+  const starRow = (v: number | null) => {
+    const n = Math.round(v ?? 0);
+    return (
+      <span className="mkm-stars" title={v != null ? `${v.toFixed(1)}★` : undefined}>
+        {Array.from({ length: 5 }, (_, i) => (
+          <span key={i} className={i < n ? "on" : ""}>★</span>
+        ))}
+      </span>
+    );
+  };
 
   const chart = useMemo(
     () =>
@@ -618,34 +672,79 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
               </div>
             </div>
             <div className="mkm-rp">
-              <div className="mkm-rphdr">Target Ladder</div>
-              <div className="mkm-ladder">
-                <div className="lr">
-                  <span className="lab">Now</span>
-                  <span className="track">
-                    <i className="now" style={{ width: `${nowW}%` }} />
-                  </span>
-                  <span className="n">{usd(price)}</span>
-                </div>
-                <div className="lr">
-                  <span className="lab">AI tgt</span>
-                  <span className="track">
-                    <i className="aipt" style={{ width: `${aiW}%` }} />
-                  </span>
-                  <span className="n" style={{ color: "var(--t-teal)" }}>
-                    {usd(stock.aipt)}
-                  </span>
-                </div>
-                <div className="lr">
-                  <span className="lab">St tgt</span>
-                  <span className="track">
-                    <i className="pt" style={{ width: `${ptW}%` }} />
-                  </span>
-                  <span className="n gold">{usd(stock.pt)}</span>
-                </div>
+              <div className="mkm-fchdr">
+                <span className="mkm-rphdr" style={{ marginBottom: 0 }}>Analyst Forecasts</span>
+                {forecasts && (
+                  <button
+                    type="button"
+                    className="mkm-fcpill"
+                    aria-expanded={fcOpen}
+                    onClick={() => setFcOpen((v) => !v)}
+                  >
+                    {fcOpen ? "Hide" : `See all ${forecasts.length}`} →
+                  </button>
+                )}
               </div>
+              {forecasts ? (
+                <div className="mkm-fclist">
+                  {forecasts.slice(0, 3).map((f, i) => {
+                    const up = fcUpside(f.pt);
+                    return (
+                      <div className="mkm-fcrow" key={i}>
+                        <span className={`mkm-fcpos ${posClass(f.r)}`}>{(f.r || "—").toUpperCase()}</span>
+                        <span className="mkm-fctgt">
+                          {f.opt != null ? (
+                            <>{fcUsd(f.opt)}<span className="arw">→</span>{fcUsd(f.pt)}</>
+                          ) : (
+                            fcUsd(f.pt)
+                          )}
+                        </span>
+                        <span className={`mkm-fcup ${up != null && up < 0 ? "dn" : ""}`}>
+                          {up == null ? "" : pct(up)}
+                        </span>
+                        <span className="mkm-fcdate">{fmtFcDate(f.d)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mkm-bbna">No analyst forecasts for this stock.</div>
+              )}
             </div>
           </div>
+
+          {/* full analyst forecast list — opened via "See all" */}
+          {fcOpen && forecasts && (
+            <div className="mkm-fcfull">
+              <div className="mkm-rphdr">Detailed Analyst Forecasts · {forecasts.length}</div>
+              <div className="mkm-fctable">
+                {forecasts.map((f, i) => {
+                  const up = fcUpside(f.pt);
+                  return (
+                    <div className="mkm-fcfrow" key={i}>
+                      {starRow(f.st)}
+                      <span className="mkm-fcan">
+                        <b>{f.n || "—"}</b>
+                        <small>{f.f || ""}</small>
+                      </span>
+                      <span className={`mkm-fcpos ${posClass(f.r)}`}>{(f.r || "—").toUpperCase()}</span>
+                      <span className="mkm-fctgt">
+                        {f.opt != null ? (
+                          <>{fcUsd(f.opt)}<span className="arw">→</span>{fcUsd(f.pt)}</>
+                        ) : (
+                          fcUsd(f.pt)
+                        )}
+                      </span>
+                      <span className={`mkm-fcup ${up != null && up < 0 ? "dn" : ""}`}>
+                        {up == null ? "" : pct(up)}
+                      </span>
+                      <span className="mkm-fcdate">{fmtFcDate(f.d)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* stats block */}
           <div className="mkm-statblock">
@@ -700,18 +799,19 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
             </div>
           </div>
 
-          {/* company description — collapsed by default */}
+          {/* company description — first line shown, rest collapsed */}
           {stock.desc && (
             <div className="mkm-about">
+              <div className="mkm-abouthdr">About {stock.n}</div>
+              <p className={`mkm-desc ${descOpen ? "" : "mkm-clamp1"}`}>{stock.desc}</p>
               <button
                 type="button"
-                className="mkm-disc"
+                className="mkm-more"
                 aria-expanded={descOpen}
                 onClick={() => setDescOpen((v) => !v)}
               >
-                <span className="tw">{descOpen ? "▾" : "▸"}</span> About {stock.n}
+                {descOpen ? "Show less" : "Show more"}
               </button>
-              {descOpen && <p className="mkm-desc">{stock.desc}</p>}
             </div>
           )}
 
@@ -724,14 +824,14 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
                   <button
                     type="button"
                     className={bbTab === "bull" ? "on bull" : ""}
-                    onClick={() => setBbTab("bull")}
+                    onClick={() => { setBbTab("bull"); setBbOpen(false); }}
                   >
                     ▲ Bulls Say
                   </button>
                   <button
                     type="button"
                     className={bbTab === "bear" ? "on bear" : ""}
-                    onClick={() => setBbTab("bear")}
+                    onClick={() => { setBbTab("bear"); setBbOpen(false); }}
                   >
                     ▼ Bears Say
                   </button>
@@ -740,10 +840,20 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
                   {(bbTab === "bull" ? bb.bull : bb.bear).map((p, i) => (
                     <div className="mkm-bbpt" key={i}>
                       <div className={`t ${bbTab}`}>{p.t}</div>
-                      <div className="b">{p.b}</div>
+                      <div className={`b ${bbOpen ? "" : "mkm-clamp2"}`}>{p.b}</div>
                     </div>
                   ))}
                 </div>
+                {(bbTab === "bull" ? bb.bull : bb.bear).length > 0 && (
+                  <button
+                    type="button"
+                    className="mkm-more"
+                    aria-expanded={bbOpen}
+                    onClick={() => setBbOpen((v) => !v)}
+                  >
+                    {bbOpen ? "Show less" : "Show more"}
+                  </button>
+                )}
               </>
             ) : (
               <div className="mkm-bbna">Bull / bear analysis not available for this stock.</div>
@@ -752,11 +862,6 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
 
           {/* footer */}
           <div className="mkm-foot">
-            <div className="mkm-flog">
-              <span className="c">&gt;</span> <b>{stock.t}</b> resolved · {totalAnalysts} analysts ·
-              SS {stock.ss ?? "—"} · AI {stock.ai ?? "—"}{" "}
-              <span className="c">{stock.air || ""}</span>
-            </div>
             <a
               className="mkm-yh"
               href={stocksUrl(stock.t)}

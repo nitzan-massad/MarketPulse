@@ -83,7 +83,10 @@ export default function App() {
 
   return (
     <div className="wrap">
-      <NavMenu nav={nav} onNav={setNav} />
+      <header className="sitehead">
+        <h1 id="title">Market <span className="em">Pulse</span></h1>
+        <NavMenu nav={nav} onNav={setNav} />
+      </header>
 
       {nav === "table" ? (
         <>

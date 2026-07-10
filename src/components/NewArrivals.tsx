@@ -56,13 +56,9 @@ export default function NewArrivals({ onOpen }: NewArrivalsProps) {
     <div className="bob">
       <header className="bob-masthead">
         <div className="bob-eyebrow">New · last {NEW_WINDOW_DAYS} days</div>
-        <h1 className="bob-title">
+        <h2 className="bob-title">
           New <span className="em">Arrivals</span>
-        </h1>
-        <p className="bob-dek">
-          Tickers that entered the TipRanks lists recently — freshly added to the ranked universe,
-          newest first. The Changes column shows what's moved since each name was first tracked.
-        </p>
+        </h2>
         <div className="bob-counts">
           <span>
             <b>{items.length}</b> added in the last {NEW_WINDOW_DAYS} days
@@ -93,7 +89,7 @@ export default function NewArrivals({ onOpen }: NewArrivalsProps) {
                 const chg = changesFor(s);
                 const lists = firstSeen(s.t)?.l ?? [];
                 return (
-                  <tr key={s.t}>
+                  <tr key={s.t} className="row-open" onClick={() => onOpen(s)}>
                     <td className="na-added">
                       <span className={`na-pill ${info.daysAgo <= 2 ? "" : "old"}`}>
                         <span className="na-pd" aria-hidden="true" />
@@ -127,7 +123,7 @@ export default function NewArrivals({ onOpen }: NewArrivalsProps) {
                       <UpBar up={s.up} />
                     </td>
                     <td className="tk">
-                      <button className="sym" type="button" onClick={() => onOpen(s)}>
+                      <button className="sym" type="button">
                         {s.t}
                       </button>
                       <div className="co">{s.n || ""}</div>

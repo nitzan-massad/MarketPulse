@@ -132,10 +132,9 @@ export default function BestOfBest({ onOpen }: BestOfBestProps) {
   return (
     <div className="bob">
       <header className="bob-masthead">
-        <div className="bob-eyebrow">Curated · Highest conviction</div>
-        <h1 className="bob-title">
+        <h2 className="bob-title">
           Best of the <span className="em">Best</span>
-        </h1>
+        </h2>
         <p className="bob-dek">
           Strong Buy consensus · Smart Score 10 · AI Analyst in the top 10%
           <span className="bob-thr"> (AI ≥ {aiThreshold})</span>

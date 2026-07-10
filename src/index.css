@@ -32,7 +32,9 @@ body::before{
 /* masthead */
 .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
 .kicker .dot{color:var(--faint); margin:0 .5em}
-.masthead{padding-top:16px; margin-top:10px}
+.sitehead{display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:6px 0 16px; margin-bottom:20px; border-bottom:1px solid var(--line)}
+.sitehead #title{margin:0}
 h1{
   font-family:"Fraunces",Georgia,serif; font-weight:900; font-optical-sizing:auto;
   font-size:clamp(38px,7vw,82px); line-height:.92; letter-spacing:-.02em; margin:.12em 0 .18em;
@@ -109,6 +111,8 @@ tbody tr:last-child td{border-bottom:none}
 tbody tr{transition:background .12s}
 tbody tr:hover{background:#f5f3ec}
 tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 72%)}
+/* whole row opens the detail modal */
+.row-open{cursor:pointer}
 .rank{color:var(--faint); font-family:"JetBrains Mono",monospace; font-size:12px; text-align:right; width:48px}
 .tk-top{display:inline-flex; align-items:center; gap:6px}
 .newtag{display:inline-block; padding:1px 5px 0; border-radius:999px; font-family:"Archivo",sans-serif;
@@ -280,8 +284,6 @@ thead th:hover .col-resize::after{opacity:.6}
 }
 .tk button.sym:hover{text-decoration:underline; text-decoration-color:var(--gold-soft); text-underline-offset:3px}
 .tk button.sym:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px; border-radius:3px}
-td.px-open{cursor:pointer}
-td.px-open:hover{color:var(--gold-soft)}
 
 /* ---- live Day% badge + cell dot ---- */
 .livebadge{
@@ -328,7 +330,7 @@ td.px-open:hover{color:var(--gold-soft)}
   position:relative; width:min(660px, calc(100vw - 32px)); max-height:calc(100vh - 48px);
   background:var(--t-bg); border:1px solid var(--t-line); border-radius:14px; overflow:hidden;
   box-shadow:0 30px 72px -26px rgba(27,29,24,.30), 0 2px 8px rgba(27,29,24,.06);
-  font-family:"JetBrains Mono",monospace; color:var(--t-ink); font-size:14px; line-height:1.4;
+  font-family:Arial, "Helvetica Neue", Helvetica, sans-serif; color:var(--t-ink); font-size:14px; line-height:1.4;
   animation:mkm-pop .4s cubic-bezier(.2,.8,.2,1); display:flex; flex-direction:column;
 }
 @keyframes mkm-pop{from{opacity:0; transform:translateY(14px) scale(.98)}to{opacity:1; transform:none}}
@@ -356,7 +358,7 @@ td.px-open:hover{color:var(--gold-soft)}
 /* head line */
 .mkm-head{padding:16px 18px 14px; border-bottom:1px solid var(--t-line-2); display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap}
 .mkm-headsym{font-size:26px; font-weight:700; letter-spacing:.02em; color:var(--t-gold); line-height:1}
-.mkm-co{font-family:"Archivo",sans-serif; font-size:12px; color:var(--t-muted); align-self:center}
+.mkm-co{font-family:inherit; font-size:12px; color:var(--t-muted); align-self:center}
 .mkm-px{margin-left:auto; font-size:24px; font-weight:700; line-height:1}
 .mkm-chg{font-size:13px; font-weight:700; align-self:center}
 .mkm-chg.up{color:var(--t-green)} .mkm-chg.dn{color:var(--t-red)} .mkm-chg.flat{color:var(--t-faint)}
@@ -385,13 +387,16 @@ td.px-open:hover{color:var(--gold-soft)}
 .mkm-chart-log{display:flex; justify-content:space-between; margin-top:8px; font-size:10px; color:var(--t-faint); letter-spacing:.02em; gap:8px; flex-wrap:wrap}
 .mkm-chart-log b{color:var(--t-muted); font-weight:700} .mkm-chart-log .g{color:var(--t-gold)}
 
-/* company description (collapsible) */
+/* company description (first line shown, rest collapsed) */
 .mkm-about{padding:14px 18px; border-bottom:1px solid var(--t-line-2)}
-.mkm-disc{appearance:none; background:none; border:0; padding:0; cursor:pointer; display:flex; align-items:center; gap:7px;
-  font-family:inherit; font-size:11px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--t-faint); transition:.15s}
-.mkm-disc:hover{color:var(--t-muted)}
-.mkm-disc .tw{color:var(--t-gold); font-size:10px}
-.mkm-desc{margin:10px 0 0; font-family:"Archivo",system-ui,sans-serif; font-size:12.5px; line-height:1.62; color:var(--t-muted)}
+.mkm-abouthdr{font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--t-faint); font-weight:700; margin-bottom:9px}
+.mkm-desc{margin:0; font-family:inherit; font-size:12.5px; line-height:1.62; color:var(--t-muted)}
+.mkm-clamp1{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:1; line-clamp:1; overflow:hidden}
+.mkm-clamp2{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden}
+/* shared "show more/less" toggle for About + Bulls/Bears */
+.mkm-more{appearance:none; background:none; border:0; padding:0; margin-top:9px; cursor:pointer;
+  font-family:inherit; font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--t-gold); transition:.15s}
+.mkm-more:hover{color:var(--gold-soft)}
 
 /* bulls say / bears say */
 .mkm-bb{padding:14px 18px 16px; border-bottom:1px solid var(--t-line-2)}
@@ -403,10 +408,10 @@ td.px-open:hover{color:var(--gold-soft)}
 .mkm-bbtabs button.on.bull{background:#32d74b; color:#0e1a10}
 .mkm-bbtabs button.on.bear{background:#ff6a3d; color:#241008}
 .mkm-bblist{display:flex; flex-direction:column; gap:13px}
-.mkm-bbpt .t{font-family:"Archivo",system-ui,sans-serif; font-size:13.5px; font-weight:700; margin-bottom:4px; letter-spacing:0}
+.mkm-bbpt .t{font-family:inherit; font-size:13.5px; font-weight:700; margin-bottom:4px; letter-spacing:0}
 .mkm-bbpt .t.bull{color:var(--t-green)}
 .mkm-bbpt .t.bear{color:var(--t-red)}
-.mkm-bbpt .b{font-family:"Archivo",system-ui,sans-serif; font-size:12.5px; line-height:1.62; color:var(--t-muted)}
+.mkm-bbpt .b{font-family:inherit; font-size:12.5px; line-height:1.62; color:var(--t-muted)}
 .mkm-bbna{font-size:12px; color:var(--t-faint); letter-spacing:.02em}
 
 /* metric matrix */
@@ -433,17 +438,31 @@ td.px-open:hover{color:var(--gold-soft)}
 .mkm-klist .kr b{color:var(--t-ink); font-weight:700}
 .mkm-klist .kr .g{color:var(--t-green)}
 
-/* target ladder */
-.mkm-ladder{display:flex; flex-direction:column; gap:9px; font-size:11px}
-.mkm-ladder .lr{display:flex; align-items:center; gap:9px}
-.mkm-ladder .lab{width:52px; color:var(--t-faint); font-size:9px; letter-spacing:.08em; text-transform:uppercase}
-.mkm-ladder .track{flex:1; height:8px; background:var(--t-panel); border:1px solid var(--t-line); border-radius:3px; overflow:hidden; position:relative}
-.mkm-ladder .track i{position:absolute; left:0; top:0; bottom:0; border-radius:2px; transform-origin:left; animation:mkm-grow .7s .3s both cubic-bezier(.2,.8,.2,1)}
-.mkm-ladder .track i.now{background:var(--t-muted)}
-.mkm-ladder .track i.aipt{background:var(--t-teal)}
-.mkm-ladder .track i.pt{background:linear-gradient(90deg,var(--gold-soft),var(--t-gold))}
-.mkm-ladder .n{width:64px; text-align:right; font-weight:700}
-.mkm-ladder .n.gold{color:var(--t-gold)}
+/* analyst forecasts — compact box (latest 3) */
+.mkm-fchdr{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px}
+.mkm-fcpill{appearance:none; font-family:inherit; font-size:10px; font-weight:700; letter-spacing:.04em; color:var(--gold-soft);
+  border:1px solid color-mix(in srgb, var(--t-gold) 34%, transparent); background:var(--t-bg); border-radius:999px; padding:3px 9px; cursor:pointer; transition:.15s; white-space:nowrap}
+.mkm-fcpill:hover{background:color-mix(in srgb, var(--t-gold) 12%, transparent)}
+.mkm-fclist{display:flex; flex-direction:column; gap:9px; font-size:12px}
+.mkm-fcrow{display:flex; align-items:center; gap:9px}
+.mkm-fcpos{font-weight:700; font-size:10px; letter-spacing:.03em; min-width:34px; flex:none}
+.mkm-fcpos.buy{color:var(--t-green)} .mkm-fcpos.sell{color:var(--t-red)} .mkm-fcpos.hold{color:var(--t-gold)}
+.mkm-fctgt{font-weight:700; white-space:nowrap}
+.mkm-fctgt .arw{color:var(--t-faint); margin:0 3px; font-weight:400}
+.mkm-fcup{margin-left:auto; font-weight:700; color:var(--t-green); white-space:nowrap}
+.mkm-fcup.dn{color:var(--t-red)}
+.mkm-fcdate{color:var(--t-faint); font-size:10.5px; width:52px; text-align:right; flex:none}
+/* full detailed list (See all) */
+.mkm-fcfull{padding:14px 18px 16px; border-bottom:1px solid var(--t-line-2)}
+.mkm-fctable{display:flex; flex-direction:column; margin-top:2px}
+.mkm-fcfrow{display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--t-line-2); font-size:12px}
+.mkm-fcfrow:first-child{border-top:0}
+.mkm-stars{color:var(--t-line); font-size:10px; letter-spacing:1px; white-space:nowrap; flex:none; width:60px}
+.mkm-stars .on{color:var(--t-gold)}
+.mkm-fcan{display:flex; flex-direction:column; min-width:0; flex:1}
+.mkm-fcan b{font-weight:700; font-size:12px; color:var(--t-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.mkm-fcan small{font-size:10.5px; color:var(--t-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.mkm-fcfrow .mkm-fcup{min-width:58px; text-align:right}
 
 /* stats block */
 .mkm-statblock{padding:14px 18px 16px; border-top:1px solid var(--t-line-2)}
@@ -455,10 +474,8 @@ td.px-open:hover{color:var(--gold-soft)}
 .mkm-kv .v.skel{color:var(--t-faint); animation:mkm-skel 1.2s ease-in-out infinite}
 
 /* footer */
-.mkm-foot{padding:12px 18px; border-top:1px solid var(--t-line); background:var(--t-panel); display:flex; align-items:center; justify-content:space-between; gap:12px}
-.mkm-flog{font-size:10.5px; color:var(--t-faint); letter-spacing:.02em}
-.mkm-flog b{color:var(--t-muted); font-weight:700} .mkm-flog .c{color:var(--t-gold)}
-.mkm-yh{font-family:"JetBrains Mono",monospace; font-size:11px; font-weight:700; color:#fff; background:var(--t-gold);
+.mkm-foot{padding:12px 18px; border-top:1px solid var(--t-line); background:var(--t-panel); display:flex; align-items:center; justify-content:flex-end; gap:12px}
+.mkm-yh{font-family:inherit; font-size:11px; font-weight:700; color:#fff; background:var(--t-gold);
   text-decoration:none; padding:8px 13px; border-radius:6px; transition:.15s; letter-spacing:.02em; white-space:nowrap}
 .mkm-yh:hover{background:#a3760a}
 
@@ -495,7 +512,7 @@ td.px-open:hover{color:var(--gold-soft)}
    ============================================================ */
 /* sit at the content column's left edge (next to the headline) when the screen is
    wide enough; fall back to 18px from the edge on narrow screens. 607 = 1270/2 - 28pad */
-.nav-menu{position:relative; z-index:40; margin:0 0 14px}
+.nav-menu{position:relative; z-index:40; flex:none}
 .nav-burger{
   appearance:none; width:44px; height:44px; border-radius:12px;
   border:1px solid rgba(27,29,24,.10); background:rgba(255,255,255,.78);
@@ -511,7 +528,7 @@ td.px-open:hover{color:var(--gold-soft)}
 .nav-burger:hover .nav-bars i, .nav-burger.on .nav-bars i{background:var(--gold)}
 
 .nav-pop{
-  position:absolute; top:50px; left:0; min-width:236px;
+  position:absolute; top:50px; right:0; left:auto; min-width:236px;
   background:var(--panel); border:1px solid var(--line); border-radius:12px;
   padding:6px; box-shadow:0 26px 60px -26px rgba(27,29,24,.55), 0 0 0 1px rgba(184,134,11,.06);
   display:flex; flex-direction:column; gap:2px;
@@ -541,9 +558,10 @@ td.px-open:hover{color:var(--gold-soft)}
 .bob{padding-top:8px}
 .bob-masthead{padding-top:2px; margin-top:0; margin-right:0}
 .bob-eyebrow{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+/* view sub-headline — sits under the "Market Pulse" site headline */
 .bob-title{
-  font-family:"Fraunces",Georgia,serif; font-weight:900; font-optical-sizing:auto;
-  font-size:clamp(38px,7vw,72px); line-height:.92; letter-spacing:-.02em; margin:.1em 0 .16em;
+  font-family:"Fraunces",Georgia,serif; font-weight:800; font-optical-sizing:auto;
+  font-size:clamp(24px,4vw,40px); line-height:1; letter-spacing:-.015em; margin:.05em 0 .16em;
 }
 .bob-title .em{font-style:italic; font-weight:500; color:var(--gold)}
 .bob-dek{font-family:"Fraunces",serif; font-style:italic; font-size:clamp(15px,2vw,20px); color:var(--muted); font-weight:500; margin:0 0 10px}
@@ -597,9 +615,7 @@ td.px-open:hover{color:var(--gold-soft)}
 .bob-upval{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:12.5px; color:var(--gold); font-variant-numeric:tabular-nums}
 
 @media(max-width:640px){
-  .nav-menu{top:12px; left:12px}
-  .bob-masthead{margin-right:52px}
-  .bob-title{font-size:clamp(32px,12vw,48px)}
+  .bob-title{font-size:clamp(22px,7vw,32px)}
   .bob-grid{grid-template-columns:1fr; gap:12px}
   .bob-section{margin-top:24px}
 }
