@@ -125,11 +125,14 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 
 .na-wrap{margin:8px auto 0; width:max-content; max-width:100%; overflow-x:auto;
   border:1px solid var(--line); border-radius:14px; background:var(--panel)}
 .na-table{border-collapse:collapse; font-size:13px; min-width:880px}
-.na-table th{text-align:right; padding:12px 16px; font-family:"Archivo",sans-serif; font-size:10px; font-weight:700;
+.na-table th{text-align:right; padding:12px 11px; font-family:"Archivo",sans-serif; font-size:10px; font-weight:700;
   letter-spacing:.1em; text-transform:uppercase; color:var(--faint); white-space:nowrap;
   background:var(--panel-2); border-bottom:1px solid var(--line)}
 .na-table th.l{text-align:left}
-.na-table td{padding:11px 16px; text-align:right; border-bottom:1px solid var(--line); vertical-align:middle}
+.na-table td{padding:11px 11px; text-align:right; border-bottom:1px solid var(--line); vertical-align:middle}
+/* narrower ticker/company + changes columns */
+.na-table td.tk .co{max-width:132px}
+.na-table td.tk .sym{font-size:13px}
 .na-table tbody tr:last-child td{border-bottom:0}
 .na-table td.l, .na-table td.tk{text-align:left}
 .na-table tbody tr{transition:background .12s}
@@ -165,8 +168,8 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 
 .na-newdot{width:6px; height:6px; border-radius:50%; background:var(--green); flex:none}
 .na-chgrow{display:flex; align-items:center; gap:6px}
 .na-chgrow + .na-chgrow{margin-top:6px}
-.na-chgk{font-family:"Archivo",sans-serif; font-size:10px; font-weight:600; color:var(--muted); min-width:66px}
-.na-chip{font-family:"Archivo",sans-serif; font-weight:700; font-size:10.5px; min-width:22px; padding:2px 7px;
+.na-chgk{font-family:"Archivo",sans-serif; font-size:9.5px; font-weight:600; color:var(--muted); min-width:46px}
+.na-chip{font-family:"Archivo",sans-serif; font-weight:700; font-size:10px; min-width:18px; padding:2px 5px;
   display:inline-flex; align-items:center; justify-content:center; border-radius:7px; border:1px solid var(--line); color:var(--faint); background:transparent}
 .na-chip.n.up{color:var(--green); border-color:color-mix(in srgb, var(--green) 42%, transparent); background:color-mix(in srgb, var(--green) 9%, transparent)}
 .na-chip.n.down{color:var(--red); border-color:color-mix(in srgb, var(--red) 42%, transparent); background:color-mix(in srgb, var(--red) 9%, transparent)}
@@ -463,6 +466,10 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-fcan b{font-weight:700; font-size:12px; color:var(--t-ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .mkm-fcan small{font-size:10.5px; color:var(--t-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .mkm-fcfrow .mkm-fcup{min-width:58px; text-align:right}
+/* full list as a stacked modal on top of the detail modal */
+.mkm-scrim-top{z-index:60}
+.mkm-modal-fc{width:min(560px, calc(100vw - 32px))}
+.mkm-fcfull-modal{border-bottom:0; padding-top:8px}
 
 /* stats block */
 .mkm-statblock{padding:14px 18px 16px; border-top:1px solid var(--t-line-2)}
@@ -580,12 +587,12 @@ thead th:hover .col-resize::after{opacity:.6}
 .bob-star{color:var(--gold); font-size:.9em; line-height:1}
 .bob-empty{padding:34px; text-align:center; color:var(--muted); font-family:"Fraunces",serif; font-style:italic; font-size:16px; border:1px dashed var(--line); border-radius:12px; background:var(--panel)}
 
-.bob-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:14px}
+.bob-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(248px, 1fr)); gap:12px}
 
 .bob-card{
   appearance:none; text-align:left; cursor:pointer; font-family:inherit; color:inherit;
-  background:var(--panel); border:1px solid var(--line); border-radius:14px;
-  padding:16px 16px 14px; transition:.16s; display:flex; flex-direction:column; gap:14px;
+  background:var(--panel); border:1px solid var(--line); border-radius:13px;
+  padding:13px 13px 12px; transition:.16s; display:flex; flex-direction:column; gap:11px;
 }
 .bob-card:hover{border-color:var(--gold-soft); background:var(--panel-2); transform:translateY(-2px); box-shadow:0 18px 40px -26px rgba(27,29,24,.4)}
 .bob-card:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px}
@@ -602,7 +609,7 @@ thead th:hover .col-resize::after{opacity:.6}
 .bob-co{font-size:11.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px}
 .bob-sec{font-size:10px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); white-space:nowrap; flex:none}
 
-.bob-metrics{display:grid; grid-template-columns:repeat(3,1fr); gap:12px 10px}
+.bob-metrics{display:grid; grid-template-columns:repeat(3,1fr); gap:10px 9px}
 .bob-m{display:flex; flex-direction:column; gap:6px; min-width:0}
 .bob-k{font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:700}
 .bob-v{font-size:13px; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
@@ -616,6 +623,12 @@ thead th:hover .col-resize::after{opacity:.6}
 
 @media(max-width:640px){
   .bob-title{font-size:clamp(22px,7vw,32px)}
-  .bob-grid{grid-template-columns:1fr; gap:12px}
-  .bob-section{margin-top:24px}
+  /* two compact cards per row on phones */
+  .bob-grid{grid-template-columns:repeat(2, minmax(0,1fr)); gap:9px}
+  .bob-card{padding:11px 10px; gap:9px; border-radius:11px; min-width:0}
+  .bob-metrics{grid-template-columns:1fr 1fr; gap:9px 8px}
+  .bob-tk{font-size:14px}
+  .bob-co, .bob-sec{display:none}
+  .bob-v{font-size:12px}
+  .bob-section{margin-top:22px}
 }

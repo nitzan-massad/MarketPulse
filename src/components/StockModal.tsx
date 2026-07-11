@@ -330,11 +330,13 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
   // close on Escape
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key !== "Escape") return;
+      if (fcOpen) setFcOpen(false); // close the forecasts modal first
+      else onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, fcOpen]);
 
   // lock body scroll while open
   useEffect(() => {
@@ -464,6 +466,7 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
   const todayVol = series?.volume ?? null;
 
   return (
+    <>
     <div className="mkm-scrim" onMouseDown={onBackdrop}>
       <div
         className="mkm-modal"
@@ -678,10 +681,10 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
                   <button
                     type="button"
                     className="mkm-fcpill"
-                    aria-expanded={fcOpen}
-                    onClick={() => setFcOpen((v) => !v)}
+                    aria-haspopup="dialog"
+                    onClick={() => setFcOpen(true)}
                   >
-                    {fcOpen ? "Hide" : `See all ${forecasts.length}`} →
+                    See all {forecasts.length} →
                   </button>
                 )}
               </div>
@@ -712,39 +715,6 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
               )}
             </div>
           </div>
-
-          {/* full analyst forecast list — opened via "See all" */}
-          {fcOpen && forecasts && (
-            <div className="mkm-fcfull">
-              <div className="mkm-rphdr">Detailed Analyst Forecasts · {forecasts.length}</div>
-              <div className="mkm-fctable">
-                {forecasts.map((f, i) => {
-                  const up = fcUpside(f.pt);
-                  return (
-                    <div className="mkm-fcfrow" key={i}>
-                      {starRow(f.st)}
-                      <span className="mkm-fcan">
-                        <b>{f.n || "—"}</b>
-                        <small>{f.f || ""}</small>
-                      </span>
-                      <span className={`mkm-fcpos ${posClass(f.r)}`}>{(f.r || "—").toUpperCase()}</span>
-                      <span className="mkm-fctgt">
-                        {f.opt != null ? (
-                          <>{fcUsd(f.opt)}<span className="arw">→</span>{fcUsd(f.pt)}</>
-                        ) : (
-                          fcUsd(f.pt)
-                        )}
-                      </span>
-                      <span className={`mkm-fcup ${up != null && up < 0 ? "dn" : ""}`}>
-                        {up == null ? "" : pct(up)}
-                      </span>
-                      <span className="mkm-fcdate">{fmtFcDate(f.d)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* stats block */}
           <div className="mkm-statblock">
@@ -874,5 +844,61 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
         </div>
       </div>
     </div>
+
+    {/* full analyst forecast list — opens as a separate modal on top */}
+    {fcOpen && forecasts && (
+      <div
+        className="mkm-scrim mkm-scrim-top"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) setFcOpen(false);
+        }}
+      >
+        <div
+          className="mkm-modal mkm-modal-fc"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${stock.t} analyst forecasts`}
+        >
+          <div className="mkm-titlebar">
+            <div className="mkm-path"><b>{stock.t}</b> · Analyst Forecasts</div>
+            <button className="mkm-close" aria-label="Close" onClick={() => setFcOpen(false)}>
+              &times;
+            </button>
+          </div>
+          <div className="mkm-scroll">
+            <div className="mkm-fcfull mkm-fcfull-modal">
+              <div className="mkm-rphdr">Detailed Analyst Forecasts · {forecasts.length}</div>
+              <div className="mkm-fctable">
+                {forecasts.map((f, i) => {
+                  const up = fcUpside(f.pt);
+                  return (
+                    <div className="mkm-fcfrow" key={i}>
+                      {starRow(f.st)}
+                      <span className="mkm-fcan">
+                        <b>{f.n || "—"}</b>
+                        <small>{f.f || ""}</small>
+                      </span>
+                      <span className={`mkm-fcpos ${posClass(f.r)}`}>{(f.r || "—").toUpperCase()}</span>
+                      <span className="mkm-fctgt">
+                        {f.opt != null ? (
+                          <>{fcUsd(f.opt)}<span className="arw">→</span>{fcUsd(f.pt)}</>
+                        ) : (
+                          fcUsd(f.pt)
+                        )}
+                      </span>
+                      <span className={`mkm-fcup ${up != null && up < 0 ? "dn" : ""}`}>
+                        {up == null ? "" : pct(up)}
+                      </span>
+                      <span className="mkm-fcdate">{fmtFcDate(f.d)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
