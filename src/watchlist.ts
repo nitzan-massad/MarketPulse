@@ -82,7 +82,7 @@ export interface WatchlistApi {
   list: string[];
   toggle: (ticker: string) => void;
   user: User | null;
-  signIn: (providerId: string) => Promise<void>;
+  signIn: (providerId: string, extra?: string[]) => Promise<void>;
   signOut: () => void;
   ready: boolean; // firebase configured?
 }
@@ -123,17 +123,18 @@ export function useWatchlist(): WatchlistApi {
     [user],
   );
 
-  const signIn = useCallback(async (providerId: string) => {
+  const signIn = useCallback(async (providerId: string, extra: string[] = []) => {
     if (!auth || !db) return;
     const def = AUTH_PROVIDERS.find((p) => p.id === providerId);
     if (!def) return;
     const local = readLocal();
     const res = await signInWithPopup(auth, def.make());
-    // merge any device-local list into the account on first sign-in
+    // merge any device-local list + a pending star (clicked while signed out)
+    // into the account on sign-in
     const r = ref(db, `watchlist/${res.user.uid}`);
     const snap = await get(r);
     const remote = toList(snap.val());
-    const union = Array.from(new Set([...remote, ...local]));
+    const union = Array.from(new Set([...remote, ...local, ...extra]));
     if (union.length !== remote.length) await set(r, union);
   }, []);
 

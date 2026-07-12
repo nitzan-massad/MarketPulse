@@ -32,6 +32,18 @@ export default function App() {
   const [openStock, setOpenStock] = useState<Stock | null>(null);
   const { list: watchlist, toggle: toggleTrack, user, signIn, signOut, ready: syncReady } = useWatchlist();
   const [signInOpen, setSignInOpen] = useState(false);
+  const [pendingTrack, setPendingTrack] = useState<string | null>(null);
+
+  // Tracking requires an account (when sync is configured): a signed-out ★
+  // opens the sign-in modal and remembers the ticker to add on sign-in.
+  function requestToggle(ticker: string) {
+    if (syncReady && !user) {
+      setPendingTrack(ticker);
+      setSignInOpen(true);
+      return;
+    }
+    toggleTrack(ticker);
+  }
   const [liveKey, setLiveKey] = useState<string | null>(
     () => localStorage.getItem("mp_finnhub") || BAKED_KEY || null,
   );
@@ -162,7 +174,7 @@ export default function App() {
             live={live}
             onOpen={setOpenStock}
             watchlist={watchlist}
-            onToggleTrack={toggleTrack}
+            onToggleTrack={requestToggle}
           />
         </>
       ) : nav === "best" ? (
@@ -172,7 +184,7 @@ export default function App() {
       ) : (
         <Watchlist
           watchlist={watchlist}
-          onToggle={toggleTrack}
+          onToggle={requestToggle}
           onOpen={setOpenStock}
           user={user}
           syncReady={syncReady}
@@ -185,16 +197,19 @@ export default function App() {
           stock={openStock}
           onClose={() => setOpenStock(null)}
           tracked={watchlist.includes(openStock.t)}
-          onToggleTrack={() => toggleTrack(openStock.t)}
+          onToggleTrack={() => requestToggle(openStock.t)}
         />
       )}
 
       {signInOpen && syncReady && (
         <SignInModal
           user={user}
-          signIn={signIn}
+          signIn={(id) => signIn(id, pendingTrack ? [pendingTrack] : [])}
           signOut={signOut}
-          onClose={() => setSignInOpen(false)}
+          onClose={() => {
+            setSignInOpen(false);
+            setPendingTrack(null);
+          }}
         />
       )}
     </div>
