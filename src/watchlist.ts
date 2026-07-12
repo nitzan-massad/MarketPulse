@@ -88,7 +88,10 @@ export interface WatchlistApi {
 }
 
 export function useWatchlist(): WatchlistApi {
-  const [list, setList] = useState<string[]>(() => readLocal());
+  // With Firebase configured the list belongs to the account: empty until
+  // signed in, and cleared on sign-out (nothing left behind). Only the
+  // no-Firebase dev fallback uses localStorage.
+  const [list, setList] = useState<string[]>(() => (firebaseReady ? [] : readLocal()));
   const [user, setUser] = useState<User | null>(null);
 
   // track auth state
@@ -97,15 +100,15 @@ export function useWatchlist(): WatchlistApi {
     return onAuthStateChanged(auth, (u) => setUser(u));
   }, []);
 
-  // when signed in, subscribe to this user's list in realtime
+  // drive the list from auth: signed in -> realtime remote; signed out -> empty
   useEffect(() => {
-    if (!db || !user) return; // signed out -> localStorage only
+    if (!db) return; // no Firebase -> local-only mode, leave the list as-is
+    if (!user) {
+      setList([]); // signed out: clear so a previous account's list isn't left behind
+      return;
+    }
     const r = ref(db, `watchlist/${user.uid}`);
-    const unsub = onValue(r, (snap) => {
-      const arr = toList(snap.val());
-      setList(arr);
-      writeLocal(arr);
-    });
+    const unsub = onValue(r, (snap) => setList(toList(snap.val())));
     return () => unsub();
   }, [user]);
 
@@ -115,8 +118,11 @@ export function useWatchlist(): WatchlistApi {
         const next = prev.includes(ticker)
           ? prev.filter((t) => t !== ticker)
           : [...prev, ticker];
-        writeLocal(next);
-        if (db && user) void set(ref(db, `watchlist/${user.uid}`), next);
+        if (db) {
+          if (user) void set(ref(db, `watchlist/${user.uid}`), next);
+        } else {
+          writeLocal(next); // local-only when Firebase isn't configured
+        }
         return next;
       });
     },
@@ -127,14 +133,12 @@ export function useWatchlist(): WatchlistApi {
     if (!auth || !db) return;
     const def = AUTH_PROVIDERS.find((p) => p.id === providerId);
     if (!def) return;
-    const local = readLocal();
     const res = await signInWithPopup(auth, def.make());
-    // merge any device-local list + a pending star (clicked while signed out)
-    // into the account on sign-in
+    // merge a pending star (clicked while signed out) into the account
     const r = ref(db, `watchlist/${res.user.uid}`);
     const snap = await get(r);
     const remote = toList(snap.val());
-    const union = Array.from(new Set([...remote, ...local, ...extra]));
+    const union = Array.from(new Set([...remote, ...extra]));
     if (union.length !== remote.length) await set(r, union);
   }, []);
 

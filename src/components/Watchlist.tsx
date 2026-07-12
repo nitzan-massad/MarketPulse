@@ -44,7 +44,7 @@ export default function Watchlist({
             </span>
           ) : (
             <span className="wl-syncnote">
-              Saved on this device only.
+              Track stocks across your devices —
               <button type="button" className="wl-authbtn primary" onClick={onSignInClick}>
                 Sign in to sync
               </button>
