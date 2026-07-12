@@ -309,9 +309,11 @@ function buildChart(closes: number[], stamps: string[], intraday: boolean): Char
 interface StockModalProps {
   stock: Stock;
   onClose: () => void;
+  tracked: boolean;
+  onToggleTrack: () => void;
 }
 
-export default function StockModal({ stock, onClose }: StockModalProps) {
+export default function StockModal({ stock, onClose, tracked, onToggleTrack }: StockModalProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
@@ -480,6 +482,16 @@ export default function StockModal({ stock, onClose }: StockModalProps) {
           <div className="mkm-path">
             <b>{stock.t}</b>
           </div>
+          <button
+            type="button"
+            className={`mkm-star ${tracked ? "on" : ""}`}
+            title={tracked ? "Untrack" : "Track this stock"}
+            aria-label={tracked ? "Untrack" : "Track this stock"}
+            aria-pressed={tracked}
+            onClick={onToggleTrack}
+          >
+            {tracked ? "★" : "☆"}
+          </button>
           <div className="mkm-live">LIVE</div>
           <button className="mkm-close" aria-label="Close" onClick={onClose}>
             &times;

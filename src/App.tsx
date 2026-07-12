@@ -3,13 +3,16 @@ import BestOfBest from "./components/BestOfBest";
 import NewArrivals from "./components/NewArrivals";
 import Masthead from "./components/Masthead";
 import NavMenu, { type NavId } from "./components/NavMenu";
+import SignInModal from "./components/SignInModal";
 import StockModal from "./components/StockModal";
 import StockTable from "./components/StockTable";
 import Toolbar from "./components/Toolbar";
+import Watchlist from "./components/Watchlist";
 import stocksData from "./data/stocks.json";
 import { passes, sortRows, VIEWS } from "./lib";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
+import { useWatchlist } from "./watchlist";
 
 const STOCKS = stocksData as Stock[];
 // Baked-in Finnhub key (injected at build from the FINNHUB_KEY Actions secret),
@@ -27,6 +30,8 @@ export default function App() {
   const [consensus, setConsensus] = useState("StrongBuy");
   const [cap, setCap] = useState(0);
   const [openStock, setOpenStock] = useState<Stock | null>(null);
+  const { list: watchlist, toggle: toggleTrack, user, signIn, signOut, ready: syncReady } = useWatchlist();
+  const [signInOpen, setSignInOpen] = useState(false);
   const [liveKey, setLiveKey] = useState<string | null>(
     () => localStorage.getItem("mp_finnhub") || BAKED_KEY || null,
   );
@@ -85,7 +90,31 @@ export default function App() {
     <div className="wrap">
       <header className="sitehead">
         <h1 id="title">Market <span className="em">Pulse</span></h1>
-        <NavMenu nav={nav} onNav={setNav} />
+        <div className="site-right">
+          {syncReady &&
+            (user ? (
+              <button
+                className="acctchip"
+                type="button"
+                title="Account"
+                aria-label="Account"
+                onClick={() => setSignInOpen(true)}
+              >
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt="" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="acctini">
+                    {(user.email || user.displayName || "?").slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+              </button>
+            ) : (
+              <button className="acctbtn" type="button" onClick={() => setSignInOpen(true)}>
+                Sign in
+              </button>
+            ))}
+          <NavMenu nav={nav} onNav={setNav} />
+        </div>
       </header>
 
       {nav === "table" ? (
@@ -132,24 +161,42 @@ export default function App() {
             onSort={handleSort}
             live={live}
             onOpen={setOpenStock}
+            watchlist={watchlist}
+            onToggleTrack={toggleTrack}
           />
         </>
       ) : nav === "best" ? (
         <BestOfBest onOpen={setOpenStock} />
-      ) : (
+      ) : nav === "new" ? (
         <NewArrivals onOpen={setOpenStock} />
+      ) : (
+        <Watchlist
+          watchlist={watchlist}
+          onToggle={toggleTrack}
+          onOpen={setOpenStock}
+          user={user}
+          syncReady={syncReady}
+          onSignInClick={() => setSignInOpen(true)}
+        />
       )}
 
-      <footer>
-        Data pulled from TipRanks' public screener API (<code>/api/apps/stock/screener</code>) — the
-        same feed that powers the paywalled tables. Upside = top-analyst average price target vs.
-        last close. Smart Score is TipRanks' 1–10 quant rank; AI score is their AI Analyst model
-        (0–100). <br />
-        Snapshot is point-in-time and <b>not investment advice</b>. Many extreme-upside names are
-        sub-$500M micro-caps — high upside, high risk. Use the Min-cap filter for liquid names.
-      </footer>
+      {openStock && (
+        <StockModal
+          stock={openStock}
+          onClose={() => setOpenStock(null)}
+          tracked={watchlist.includes(openStock.t)}
+          onToggleTrack={() => toggleTrack(openStock.t)}
+        />
+      )}
 
-      {openStock && <StockModal stock={openStock} onClose={() => setOpenStock(null)} />}
+      {signInOpen && syncReady && (
+        <SignInModal
+          user={user}
+          signIn={signIn}
+          signOut={signOut}
+          onClose={() => setSignInOpen(false)}
+        />
+      )}
     </div>
   );
 }

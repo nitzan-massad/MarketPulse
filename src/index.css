@@ -115,6 +115,62 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 
 .row-open{cursor:pointer}
 .rank{color:var(--faint); font-family:"JetBrains Mono",monospace; font-size:12px; text-align:right; width:48px}
 .tk-top{display:inline-flex; align-items:center; gap:6px}
+/* watchlist star toggle (table rows + watchlist page) */
+.wl-star{appearance:none; background:none; border:0; cursor:pointer; padding:0 1px; line-height:1;
+  font-size:15px; color:var(--faint); transition:.14s; flex:none}
+.wl-star:hover{color:var(--gold-soft); transform:scale(1.12)}
+.wl-star.on{color:var(--gold)}
+.wl-starcell{width:30px; text-align:center; padding-right:0 !important; padding-left:12px !important}
+/* watchlist sync / sign-in bar */
+.wl-sync{margin-top:10px; font-size:12.5px; color:var(--muted)}
+.wl-syncnote{display:inline-flex; align-items:center; gap:8px; flex-wrap:wrap}
+.wl-syncnote b{color:var(--ink); font-weight:700}
+.wl-dot{width:7px; height:7px; border-radius:50%; background:var(--green); flex:none}
+.wl-authbtn{appearance:none; cursor:pointer; font-family:inherit; font-size:12px; font-weight:600;
+  padding:5px 12px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); transition:.14s}
+.wl-authbtn:hover{border-color:var(--gold-soft); color:var(--gold-soft)}
+.wl-authbtn.primary{background:var(--gold); border-color:var(--gold); color:#1a1500}
+.wl-authbtn.primary:hover{background:var(--gold-soft); color:#fff}
+
+/* header account chip / sign-in entry point */
+.site-right{display:flex; align-items:center; gap:10px}
+.acctbtn{appearance:none; cursor:pointer; font-family:"Archivo",sans-serif; font-weight:700; font-size:13px;
+  background:var(--gold); color:#1a1500; border:0; border-radius:999px; padding:9px 16px; transition:.15s; white-space:nowrap}
+.acctbtn:hover{background:var(--gold-soft); color:#fff}
+.acctchip{appearance:none; cursor:pointer; width:40px; height:40px; border-radius:50%; border:1px solid var(--line);
+  background:var(--panel); overflow:hidden; padding:0; display:flex; align-items:center; justify-content:center; transition:.15s; flex:none}
+.acctchip:hover{border-color:var(--gold-soft)}
+.acctchip img{width:100%; height:100%; object-fit:cover}
+.acctini{font-family:"Archivo",sans-serif; font-weight:800; font-size:15px; color:var(--gold-soft)}
+
+/* sign-in modal (opened from the header) */
+.si-scrim{position:fixed; inset:0; z-index:70; background:rgba(27,29,24,.5); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
+  display:flex; align-items:center; justify-content:center; padding:24px; animation:si-fade .18s ease}
+@keyframes si-fade{from{opacity:0}to{opacity:1}}
+.si-modal{position:relative; width:min(380px, calc(100vw - 32px)); background:var(--panel); color:var(--ink);
+  border:1px solid var(--line); border-radius:20px; padding:32px 28px 26px; text-align:center;
+  box-shadow:0 30px 72px -26px rgba(27,29,24,.5); animation:mkm-pop .3s cubic-bezier(.2,.8,.2,1)}
+.si-close{position:absolute; top:14px; right:14px; width:26px; height:26px; border-radius:7px; border:1px solid var(--line);
+  background:none; color:var(--muted); font-size:15px; line-height:1; cursor:pointer; transition:.15s}
+.si-close:hover{color:var(--ink); border-color:var(--gold-soft)}
+.si-badge{width:52px; height:52px; border-radius:50%; margin:0 auto 12px; display:flex; align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--gold) 14%, transparent); color:var(--gold); font-size:24px}
+.si-modal h3{font-family:"Fraunces",Georgia,serif; font-size:23px; font-weight:700; margin:0 0 6px; letter-spacing:-.01em}
+.si-modal p{color:var(--muted); font-size:13px; margin:0 0 20px; line-height:1.5}
+.si-provs{display:flex; flex-direction:column; gap:10px}
+.si-prov{display:flex; align-items:center; gap:12px; width:100%; background:#fff; border:1px solid var(--line);
+  border-radius:12px; padding:12px 16px; font-family:"Archivo",sans-serif; font-weight:600; font-size:14px; color:var(--ink);
+  cursor:pointer; transition:.15s; text-align:left}
+.si-prov:hover:not(:disabled){border-color:var(--gold-soft); box-shadow:0 6px 16px -10px rgba(27,29,24,.35)}
+.si-prov:disabled{opacity:.6; cursor:default}
+.si-ico{width:22px; display:flex; align-items:center; justify-content:center; flex:none}
+.si-mono{width:20px; height:20px; border-radius:5px; background:var(--panel-2); display:flex; align-items:center; justify-content:center;
+  font-weight:800; font-size:12px; color:var(--gold-soft)}
+.si-err{color:var(--red); font-size:12px; margin:14px 0 0}
+.si-fine{margin:16px 0 0; font-size:11px; color:var(--faint)}
+.si-out{appearance:none; cursor:pointer; font-family:"Archivo",sans-serif; font-weight:700; font-size:14px;
+  border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:12px; padding:11px 22px; transition:.15s}
+.si-out:hover{border-color:var(--red); color:var(--red)}
 .newtag{display:inline-block; padding:1px 5px 0; border-radius:999px; font-family:"Archivo",sans-serif;
   font-size:8px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; line-height:1.5;
   color:var(--green); background:color-mix(in srgb, var(--green) 12%, transparent);
@@ -351,6 +407,10 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-close{width:24px; height:24px; border-radius:6px; border:1px solid var(--t-line); background:none; color:var(--t-muted);
   font-size:14px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-left:12px; transition:.15s}
 .mkm-close:hover{color:var(--t-ink); border-color:var(--t-gold)}
+.mkm-star{appearance:none; background:none; border:0; cursor:pointer; font-size:17px; line-height:1;
+  color:var(--t-faint); transition:.14s; padding:0 4px}
+.mkm-star:hover{color:var(--t-gold-soft, var(--t-gold))}
+.mkm-star.on{color:var(--t-gold)}
 
 .mkm-scroll{overflow-y:auto; scrollbar-width:thin; scrollbar-color:#cfccbf transparent}
 .mkm-scroll::-webkit-scrollbar{width:12px}

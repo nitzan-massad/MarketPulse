@@ -17,6 +17,8 @@ interface StockTableProps {
   onSort: (k: string) => void;
   live?: Record<string, number>;
   onOpen: (s: Stock) => void;
+  watchlist: string[];
+  onToggleTrack: (t: string) => void;
 }
 
 export function Chip({ v, max }: { v: number | null; max: number }) {
@@ -37,7 +39,7 @@ export function UpBar({ up }: { up: number | null }) {
   return <span className={`up-val ${neg ? "neg" : "pos"}`}>{val}</span>;
 }
 
-export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onOpen }: StockTableProps) {
+export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onOpen, watchlist, onToggleTrack }: StockTableProps) {
   const [widths, setWidths] = useState<Record<string, number>>(() => {
     try {
       return JSON.parse(localStorage.getItem("mp_colw") || "{}");
@@ -125,6 +127,18 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onO
                   <td className="rank" data-label="Rank">{i + 1}</td>
                   <td className="tk">
                     <span className="tk-top">
+                      <button
+                        className={`wl-star ${watchlist.includes(s.t) ? "on" : ""}`}
+                        type="button"
+                        title={watchlist.includes(s.t) ? "Untrack" : "Track"}
+                        aria-label={watchlist.includes(s.t) ? `Untrack ${s.t}` : `Track ${s.t}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleTrack(s.t);
+                        }}
+                      >
+                        {watchlist.includes(s.t) ? "★" : "☆"}
+                      </button>
                       <button className="sym" type="button">
                         {s.t}
                       </button>
