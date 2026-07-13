@@ -125,7 +125,6 @@ export default function App() {
                 Sign in
               </button>
             ))}
-          <NavMenu nav={nav} onNav={setNav} />
         </div>
       </header>
 
@@ -212,6 +211,8 @@ export default function App() {
           }}
         />
       )}
+
+      <NavMenu nav={nav} onNav={setNav} />
     </div>
   );
 }

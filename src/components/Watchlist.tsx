@@ -55,14 +55,24 @@ export default function Watchlist({
 
       {watchlist.length === 0 ? (
         <div className="bob-empty">
-          No tracked stocks yet. Tap the ☆ on any row — or in a stock's detail view — to track it.
+          No tracked stocks yet. Tap the ☆ on any stock — in the table or its detail view — to track it.
         </div>
       ) : (
-        <div className="na-wrap">
-          <table className="na-table">
+        <div className="wl-wrap">
+          <table className="wl-table">
+            <colgroup>
+              <col style={{ width: "42px" }} />
+              <col />
+              <col style={{ width: "96px" }} />
+              <col style={{ width: "92px" }} />
+              <col style={{ width: "136px" }} />
+              <col style={{ width: "104px" }} />
+              <col style={{ width: "100px" }} />
+              <col style={{ width: "104px" }} />
+            </colgroup>
             <thead>
               <tr>
-                <th className="l" aria-label="Tracked" />
+                <th aria-label="Tracked" />
                 <th className="l">Ticker / Company</th>
                 <th>Price</th>
                 <th>Upside</th>
@@ -75,7 +85,7 @@ export default function Watchlist({
             <tbody>
               {rows.map((s) => (
                 <tr key={s.t} className="row-open" onClick={() => onOpen(s)}>
-                  <td className="wl-starcell">
+                  <td className="wl-st">
                     <button
                       className="wl-star on"
                       type="button"
@@ -94,16 +104,16 @@ export default function Watchlist({
                     <div className="co">{s.n || ""}</div>
                   </td>
                   <td className="num">{fmtPx(s.px)}</td>
-                  <td>
+                  <td className="num">
                     <UpBar up={s.up} />
                   </td>
                   <td className="l">
                     <span className={`pill ${consClass(s.con)}`}>{consLabel(s.con)}</span>
                   </td>
-                  <td>
+                  <td className="ctr">
                     <Chip v={s.ss} max={10} />
                   </td>
-                  <td>
+                  <td className="num">
                     {s.ai == null ? (
                       <span className="dash">—</span>
                     ) : (
@@ -116,35 +126,24 @@ export default function Watchlist({
                   <td className="num">{fmtMc(s.mc)}</td>
                 </tr>
               ))}
-              {missing.map((t) => (
-                <tr key={t}>
-                  <td className="wl-starcell">
-                    <button
-                      className="wl-star on"
-                      type="button"
-                      title="Untrack"
-                      aria-label={`Untrack ${t}`}
-                      onClick={() => onToggle(t)}
-                    >
-                      ★
-                    </button>
-                  </td>
-                  <td className="tk">
-                    <span className="sym">{t}</span>
-                    <div className="co" style={{ color: "var(--faint)" }}>
-                      not in the current ranked universe
-                    </div>
-                  </td>
-                  <td className="num">—</td>
-                  <td>—</td>
-                  <td className="l">—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td className="num">—</td>
-                </tr>
-              ))}
             </tbody>
           </table>
+          {missing.length > 0 && (
+            <div className="wl-missing">
+              <span>Also tracking (not in the current ranked list):</span>
+              {missing.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className="wl-misschip"
+                  title={`Untrack ${t}`}
+                  onClick={() => onToggle(t)}
+                >
+                  {t} ✕
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

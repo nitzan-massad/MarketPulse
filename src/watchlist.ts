@@ -71,12 +71,6 @@ function writeLocal(list: string[]): void {
     /* ignore */
   }
 }
-// RTDB may hand back an array or an object of keys; normalise to string[]
-function toList(v: unknown): string[] {
-  if (Array.isArray(v)) return v as string[];
-  if (v && typeof v === "object") return Object.keys(v as Record<string, unknown>);
-  return [];
-}
 
 export interface WatchlistApi {
   list: string[];
@@ -108,18 +102,30 @@ export function useWatchlist(): WatchlistApi {
       return;
     }
     const r = ref(db, `watchlist/${user.uid}`);
-    const unsub = onValue(r, (snap) => setList(toList(snap.val())));
+    const unsub = onValue(r, (snap) => {
+      const v = snap.val();
+      if (Array.isArray(v)) {
+        // migrate legacy array -> { ticker: addedAt }
+        const now = Date.now();
+        const obj: Record<string, number> = {};
+        for (const t of v) if (t) obj[t] = now;
+        void set(r, obj); // re-fires onValue with the object form
+        return;
+      }
+      setList(v ? Object.keys(v) : []);
+    });
     return () => unsub();
   }, [user]);
 
   const toggle = useCallback(
     (ticker: string) => {
       setList((prev) => {
-        const next = prev.includes(ticker)
-          ? prev.filter((t) => t !== ticker)
-          : [...prev, ticker];
+        const has = prev.includes(ticker);
+        const next = has ? prev.filter((t) => t !== ticker) : [...prev, ticker];
         if (db) {
-          if (user) void set(ref(db, `watchlist/${user.uid}`), next);
+          // per-ticker write storing the date it was added (null removes it) —
+          // kept for a future "added on" feature, and avoids clobbering the map
+          if (user) void set(ref(db, `watchlist/${user.uid}/${ticker}`), has ? null : Date.now());
         } else {
           writeLocal(next); // local-only when Firebase isn't configured
         }
@@ -134,12 +140,25 @@ export function useWatchlist(): WatchlistApi {
     const def = AUTH_PROVIDERS.find((p) => p.id === providerId);
     if (!def) return;
     const res = await signInWithPopup(auth, def.make());
-    // merge a pending star (clicked while signed out) into the account
+    // merge a pending star (clicked while signed out); also normalise a legacy
+    // array to the { ticker: addedAt } map
     const r = ref(db, `watchlist/${res.user.uid}`);
-    const snap = await get(r);
-    const remote = toList(snap.val());
-    const union = Array.from(new Set([...remote, ...extra]));
-    if (union.length !== remote.length) await set(r, union);
+    const v = (await get(r)).val();
+    const now = Date.now();
+    const map: Record<string, number> = {};
+    if (Array.isArray(v)) {
+      for (const t of v) if (t) map[t] = now;
+    } else if (v && typeof v === "object") {
+      for (const [t, ts] of Object.entries(v)) map[t] = typeof ts === "number" ? ts : now;
+    }
+    let changed = Array.isArray(v);
+    for (const t of extra) {
+      if (!(t in map)) {
+        map[t] = now;
+        changed = true;
+      }
+    }
+    if (changed) await set(r, map);
   }, []);
 
   const signOut = useCallback(() => {

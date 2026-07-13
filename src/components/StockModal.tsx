@@ -517,8 +517,6 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack }: S
           {/* CHART pane */}
           <div className="mkm-chartpane">
             <div className="mkm-cmdline">
-              <span className="mkm-prompt">&gt;</span>
-              <span className="mkm-cmd">plot {stock.t} --range</span>
               <span className="mkm-ranges">
                 {RANGES.map((r) => (
                   <button
@@ -590,17 +588,6 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack }: S
                   ))}
                 </svg>
               )}
-            </div>
-
-            <div className="mkm-chart-log">
-              <span>
-                hi <b className="g">{chartAvailable ? usd(series!.hi) : "—"}</b> · lo{" "}
-                <b>{chartAvailable ? usd(series!.lo) : "—"}</b> · n={range}
-              </span>
-              <span>
-                last <b className="g">{chartAvailable ? usd(series!.last) : usd(price)}</b> ·{" "}
-                Δ {pct(dayPct)}
-              </span>
             </div>
           </div>
 
