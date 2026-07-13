@@ -3,6 +3,7 @@ import BestOfBest from "./components/BestOfBest";
 import NewArrivals from "./components/NewArrivals";
 import Masthead from "./components/Masthead";
 import NavMenu, { type NavId } from "./components/NavMenu";
+import Search from "./components/Search";
 import SignInModal from "./components/SignInModal";
 import StockModal from "./components/StockModal";
 import StockTable from "./components/StockTable";
@@ -51,6 +52,15 @@ export default function App() {
   function handleNav(id: NavId) {
     track("select_section", { section: id });
     setNav(id);
+  }
+  // off-universe ticker from search -> synthetic stock; the modal shows live
+  // price/chart and marks the TipRanks metrics as unavailable
+  function handleOpenTicker(ticker: string) {
+    track("search_open_ticker", { ticker });
+    setOpenStock({
+      t: ticker, n: "", sec: "", px: null, chg: null, pt: null, up: null, con: "",
+      b: 0, h: 0, s: 0, ss: null, ai: null, air: null, aipt: null, mc: null, desc: null,
+    });
   }
 
   // Tracking requires an account (when sync is configured): a signed-out ★
@@ -125,6 +135,7 @@ export default function App() {
       <header className="sitehead">
         <h1 id="title">Market <span className="em">Pulse</span></h1>
         <div className="site-right">
+          <Search onOpen={handleOpen} onOpenTicker={handleOpenTicker} />
           {syncReady &&
             (user ? (
               <button
@@ -219,6 +230,7 @@ export default function App() {
           onClose={() => setOpenStock(null)}
           tracked={watchlist.includes(openStock.t)}
           onToggleTrack={() => requestToggle(openStock.t)}
+          covered={STOCKS.some((s) => s.t === openStock.t)}
         />
       )}
 

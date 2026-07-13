@@ -34,9 +34,38 @@ body::before{
 /* masthead */
 .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
 .kicker .dot{color:var(--faint); margin:0 .5em}
-.sitehead{display:flex; align-items:center; justify-content:space-between; gap:16px;
+.sitehead{position:relative; display:flex; align-items:center; justify-content:space-between; gap:16px;
   padding:6px 0 16px; margin-bottom:20px; border-bottom:1px solid var(--line)}
 .sitehead #title{margin:0}
+/* ticker search — header icon that expands inline into a compact panel.
+   (root class is hdr-search, NOT .search, to avoid the Toolbar .search field styles) */
+.hdr-search{position:relative; display:flex; align-items:center; width:38px; height:38px}
+.search-ico{appearance:none; width:38px; height:38px; border-radius:9px; border:0; background:none;
+  display:flex; align-items:center; justify-content:center; color:var(--muted); cursor:pointer; transition:.15s}
+.search-ico:hover{color:var(--gold-soft)}
+/* compact panel that grows out of the magnifier (top-right origin) */
+.search-open{position:absolute; top:-3px; right:0; width:min(360px, calc(100vw - 36px)); z-index:30;
+  transform-origin:top right; animation:search-in .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes search-in{from{opacity:0; transform:scale(.5)}to{opacity:1; transform:scale(1)}}
+.search-field{display:flex; align-items:center; gap:9px; border:1px solid var(--gold-soft); border-radius:11px;
+  padding:9px 12px; background:var(--bg); box-shadow:0 10px 26px -14px rgba(27,29,24,.4), 0 0 0 3px color-mix(in srgb, var(--gold) 11%, transparent)}
+.search-field svg{color:var(--gold-soft); flex:none}
+.search-field input{flex:1; min-width:0; border:0; background:none; outline:none; font-family:"Archivo",sans-serif; font-size:14px; color:var(--ink)}
+.search-x{appearance:none; border:0; background:none; cursor:pointer; color:var(--faint); font-size:20px; line-height:1; padding:0 2px}
+.search-x:hover{color:var(--ink)}
+.search-results{margin-top:8px; border:1px solid var(--line); border-radius:12px; background:var(--bg);
+  overflow:hidden; box-shadow:0 26px 60px -26px rgba(27,29,24,.5)}
+.search-res{display:flex; align-items:center; gap:10px; width:100%; text-align:left; appearance:none; border:0;
+  background:none; cursor:pointer; padding:10px 14px; border-bottom:1px solid var(--panel-2); font-family:"Archivo",sans-serif}
+.search-res:last-child{border-bottom:0}
+.search-res:hover{background:var(--panel-2)}
+.search-tk{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:13px; color:var(--ink); flex:none; min-width:54px}
+.search-co{font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1}
+.search-con{font-size:10px; font-weight:700; flex:none; white-space:nowrap}
+.search-con.sb, .search-con.b{color:var(--green)} .search-con.h{color:var(--gold-soft)} .search-con.s, .search-con.ss{color:var(--red)}
+.search-px{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:12px; flex:none; width:58px; text-align:right}
+.search-res.off .search-co{color:var(--gold-soft); flex:1}
+.search-empty{padding:14px; font-size:12px; color:var(--faint)}
 h1{
   font-family:"Fraunces",Georgia,serif; font-weight:900; font-optical-sizing:auto;
   font-size:clamp(38px,7vw,82px); line-height:.92; letter-spacing:-.02em; margin:.12em 0 .18em;
@@ -502,8 +531,14 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-bbna{font-size:12px; color:var(--t-faint); letter-spacing:.02em}
 
 /* metric matrix */
+/* ultra-short banner + locked metric grid for stocks we don't fully cover */
+.mkm-lim{font-family:var(--t-head); font-size:11px; font-weight:600; letter-spacing:.02em; color:var(--gold-soft);
+  background:color-mix(in srgb, var(--t-gold) 12%, transparent);
+  border-bottom:1px solid color-mix(in srgb, var(--t-gold) 26%, transparent); padding:7px 18px}
 .mkm-matrix{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--t-line-2); border-bottom:1px solid var(--t-line-2)}
 .mkm-cell{background:var(--t-bg); padding:12px 14px}
+.mkm-matrix.uncovered .mkm-cell{background:repeating-linear-gradient(135deg, var(--t-bg), var(--t-bg) 6px, #f4f2ec 6px, #f4f2ec 12px)}
+.mkm-matrix.uncovered .mkm-cell .v{color:#c3c1b6}
 .mkm-cell .k{font-family:var(--t-head); font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--t-muted)}
 .mkm-cell .v{font-size:17px; font-weight:700; margin-top:6px; line-height:1}
 .mkm-cell .v.gold{color:var(--t-gold)} .mkm-cell .v.green{color:var(--t-green)} .mkm-cell .v.red{color:var(--t-red)}
@@ -606,7 +641,7 @@ thead th:hover .col-resize::after{opacity:.6}
    hamburger). Fixed to the viewport bottom; one tap, no menu.
    ============================================================ */
 .nav-bottom{
-  position:fixed; left:0; right:0; bottom:0; z-index:50;
+  position:fixed; left:0; right:0; bottom:0; z-index:40;
   background:rgba(255,255,255,.9);
   -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3);
   border-top:1px solid var(--line); box-shadow:0 -10px 30px -22px rgba(27,29,24,.5);

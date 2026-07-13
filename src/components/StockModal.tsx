@@ -311,9 +311,10 @@ interface StockModalProps {
   onClose: () => void;
   tracked: boolean;
   onToggleTrack: () => void;
+  covered?: boolean; // in the TipRanks ranked set? false => live data only
 }
 
-export default function StockModal({ stock, onClose, tracked, onToggleTrack }: StockModalProps) {
+export default function StockModal({ stock, onClose, tracked, onToggleTrack, covered = true }: StockModalProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
@@ -499,6 +500,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack }: S
         </div>
 
         <div className="mkm-scroll">
+          {!covered && <div className="mkm-lim">Limited data — not in the ranked set</div>}
           {/* head line */}
           <div className="mkm-head">
             <div className="mkm-headsym" id="mkm-sym">
@@ -592,7 +594,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack }: S
           </div>
 
           {/* metric matrix */}
-          <div className="mkm-matrix">
+          <div className={`mkm-matrix ${covered ? "" : "uncovered"}`}>
             <div className="mkm-cell">
               <div className="k">Prc Target</div>
               <div className="v gold">{usd(stock.pt)}</div>
