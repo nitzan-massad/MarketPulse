@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import BestOfBest from "./components/BestOfBest";
 import NewArrivals from "./components/NewArrivals";
 import Masthead from "./components/Masthead";
@@ -13,6 +13,7 @@ import { passes, sortRows, VIEWS } from "./lib";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
 import { useWatchlist } from "./watchlist";
+import { initAnalytics, track, trackUser } from "./analytics";
 
 const STOCKS = stocksData as Stock[];
 // Baked-in Finnhub key (injected at build from the FINNHUB_KEY Actions secret),
@@ -34,9 +35,30 @@ export default function App() {
   const [signInOpen, setSignInOpen] = useState(false);
   const [pendingTrack, setPendingTrack] = useState<string | null>(null);
 
+  // usage analytics (Firebase/GA4): init once, then attribute events to the
+  // signed-in user when available
+  useEffect(() => {
+    if (import.meta.env.PROD) void initAnalytics(); // don't pollute GA with local dev
+  }, []);
+  useEffect(() => {
+    trackUser(user?.uid ?? null);
+  }, [user]);
+
+  function handleOpen(s: Stock) {
+    track("open_stock", { ticker: s.t, section: nav });
+    setOpenStock(s);
+  }
+  function handleNav(id: NavId) {
+    track("select_section", { section: id });
+    setNav(id);
+  }
+
   // Tracking requires an account (when sync is configured): a signed-out ★
   // opens the sign-in modal and remembers the ticker to add on sign-in.
   function requestToggle(ticker: string) {
+    if (syncReady && user) {
+      track(watchlist.includes(ticker) ? "untrack_ticker" : "track_ticker", { ticker });
+    }
     if (syncReady && !user) {
       setPendingTrack(ticker);
       setSignInOpen(true);
@@ -171,20 +193,20 @@ export default function App() {
             hl={VIEWS[view].hl}
             onSort={handleSort}
             live={live}
-            onOpen={setOpenStock}
+            onOpen={handleOpen}
             watchlist={watchlist}
             onToggleTrack={requestToggle}
           />
         </>
       ) : nav === "best" ? (
-        <BestOfBest onOpen={setOpenStock} />
+        <BestOfBest onOpen={handleOpen} />
       ) : nav === "new" ? (
-        <NewArrivals onOpen={setOpenStock} />
+        <NewArrivals onOpen={handleOpen} />
       ) : (
         <Watchlist
           watchlist={watchlist}
           onToggle={requestToggle}
-          onOpen={setOpenStock}
+          onOpen={handleOpen}
           user={user}
           syncReady={syncReady}
           onSignInClick={() => setSignInOpen(true)}
@@ -203,7 +225,11 @@ export default function App() {
       {signInOpen && syncReady && (
         <SignInModal
           user={user}
-          signIn={(id) => signIn(id, pendingTrack ? [pendingTrack] : [])}
+          signIn={(id) =>
+            signIn(id, pendingTrack ? [pendingTrack] : []).then(() =>
+              track("sign_in", { provider: id }),
+            )
+          }
           signOut={signOut}
           onClose={() => {
             setSignInOpen(false);
@@ -212,7 +238,7 @@ export default function App() {
         />
       )}
 
-      <NavMenu nav={nav} onNav={setNav} />
+      <NavMenu nav={nav} onNav={handleNav} />
     </div>
   );
 }

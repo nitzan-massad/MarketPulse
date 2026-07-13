@@ -31,11 +31,12 @@ const firebaseConfig = {
   databaseURL: "https://marketpulse-df5d9-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "marketpulse-df5d9",
   appId: "1:340522045483:web:e1138ff66c1b388aeb1a6e",
+  measurementId: "G-D9EJ7NZDEL",
 };
 export const firebaseReady: boolean =
   firebaseConfig.apiKey.length > 0 && firebaseConfig.databaseURL.length > 0;
 
-const app: FirebaseApp | null = firebaseReady ? initializeApp(firebaseConfig) : null;
+export const app: FirebaseApp | null = firebaseReady ? initializeApp(firebaseConfig) : null;
 const auth: Auth | null = app ? getAuth(app) : null;
 const db: Database | null = app ? getDatabase(app) : null;
 
