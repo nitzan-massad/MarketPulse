@@ -62,9 +62,9 @@ export function scoreColor(v: number | null, max: number): string | null {
 
 export interface FilterState {
   q: string;
-  sector: string;
-  sectorNot: boolean; // true = exclude the chosen sector instead of only-showing it
-  consensus: string;
+  sectors: string[]; // selected sectors (empty = all)
+  sectorNot: boolean; // true = exclude the selected sectors instead of only-showing them
+  consensuses: string[]; // selected consensus ratings (empty = all)
   cap: number;
 }
 
@@ -73,15 +73,9 @@ export function passes(s: Stock, state: FilterState): boolean {
     const q = state.q.toLowerCase();
     if (!((s.t || "").toLowerCase().includes(q) || (s.n || "").toLowerCase().includes(q))) return false;
   }
-  if (state.sector && (s.sec === state.sector) === state.sectorNot) return false;
+  if (state.sectors.length && state.sectors.includes(s.sec) === state.sectorNot) return false;
   if (state.cap && (s.mc == null || s.mc < state.cap)) return false;
-  const c = (s.con || "").toLowerCase();
-  switch (state.consensus) {
-    case "StrongBuy": if (!c.includes("strongbuy")) return false; break;
-    case "buyplus": if (!c.includes("buy")) return false; break;
-    case "Hold": if (c.includes("buy") || c.includes("sell")) return false; break;
-    case "sellany": if (!c.includes("sell")) return false; break;
-  }
+  if (state.consensuses.length && !state.consensuses.includes(s.con || "")) return false;
   return true;
 }
 

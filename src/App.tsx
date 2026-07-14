@@ -22,16 +22,26 @@ const STOCKS = stocksData as Stock[];
 // so live Day% works for everyone with no key entry. localStorage can override.
 const BAKED_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
 
+// map a legacy single-select consensus bucket to the new discrete-rating list
+function bucketToList(b: string | undefined): string[] {
+  switch (b) {
+    case "StrongBuy": return ["StrongBuy"];
+    case "buyplus": return ["StrongBuy", "Buy"];
+    case "Hold": return ["Neutral"];
+    default: return []; // sellany / "" / undefined -> all
+  }
+}
+
 export default function App() {
   const [nav, setNav] = useState<NavId>("table");
   const [view, setView] = useState<ViewId>("analyst");
   const [sort, setSort] = useState<keyof Stock>("up");
   const [dir, setDir] = useState<number>(-1);
   const [q, setQ] = useState("");
-  const [sector, setSector] = useState("");
+  const [sectors, setSectors] = useState<string[]>([]);
   const [sectorNot, setSectorNot] = useState(false);
   // analyst tab defaults to Strong Buy to match the real page
-  const [consensus, setConsensus] = useState("StrongBuy");
+  const [consensuses, setConsensuses] = useState<string[]>(["StrongBuy"]);
   const [cap, setCap] = useState(0);
   const [openStock, setOpenStock] = useState<Stock | null>(null);
   const { list: watchlist, toggle: toggleTrack, user, signIn, signOut, ready: syncReady } = useWatchlist();
@@ -85,43 +95,52 @@ export default function App() {
     () => Boolean(localStorage.getItem("mp_finnhub") || BAKED_KEY) && localStorage.getItem("mp_live") !== "0",
   );
 
-  const sectors = useMemo(
+  const sectorOptions = useMemo(
     () => [...new Set(STOCKS.map((s) => s.sec).filter(Boolean))].sort(),
     [],
   );
+  // distinct consensus ratings present in the data, ranked buy→sell
+  const consensusOptions = useMemo(() => {
+    const order = ["StrongBuy", "Buy", "ModerateBuy", "Neutral", "Hold", "ModerateSell", "Sell", "StrongSell"];
+    const rank = (c: string) => (order.indexOf(c) < 0 ? 99 : order.indexOf(c));
+    return [...new Set(STOCKS.map((s) => s.con).filter(Boolean) as string[])].sort((a, b) => rank(a) - rank(b));
+  }, []);
 
   const rows = useMemo(() => {
-    const filtered = STOCKS.filter((s) => passes(s, { q, sector, sectorNot, consensus, cap }));
+    const filtered = STOCKS.filter((s) => passes(s, { q, sectors, sectorNot, consensuses, cap }));
     return sortRows(filtered, sort, dir);
-  }, [q, sector, sectorNot, consensus, cap, sort, dir]);
+  }, [q, sectors, sectorNot, consensuses, cap, sort, dir]);
 
   // "clean" filter state = the view's own default (analyst view starts on Strong Buy)
-  const consensusDefault = view === "analyst" ? "StrongBuy" : "";
+  const consensusDefault = useMemo(() => (view === "analyst" ? ["StrongBuy"] : []), [view]);
+  const sameSet = (a: string[], b: string[]) =>
+    a.length === b.length && [...a].sort().join("|") === [...b].sort().join("|");
   const activeCount =
     (q !== "" ? 1 : 0) +
-    (sector !== "" ? 1 : 0) +
-    (consensus !== consensusDefault ? 1 : 0) +
+    (sectors.length ? 1 : 0) +
+    (sameSet(consensuses, consensusDefault) ? 0 : 1) +
     (cap !== 0 ? 1 : 0);
   const filtersActive = activeCount > 0;
   function resetFilters() {
     setQ("");
-    setSector("");
+    setSectors([]);
     setSectorNot(false);
     setCap(0);
-    setConsensus(consensusDefault);
+    setConsensuses(consensusDefault);
   }
 
   // filters follow the user across sessions/devices (DB when signed in, else
   // localStorage). Restored on load; written on every change.
   const filters = useMemo<SavedFilters>(
-    () => ({ q, sector, sectorNot, consensus, cap }),
-    [q, sector, sectorNot, consensus, cap],
+    () => ({ q, sectors, sectorNot, consensuses, cap }),
+    [q, sectors, sectorNot, consensuses, cap],
   );
   const applyFilters = useCallback((f: SavedFilters) => {
     setQ(f.q ?? "");
-    setSector(f.sector ?? "");
+    // migrate the older single-select shape (sector / consensus strings)
+    setSectors(f.sectors ?? (f.sector ? [f.sector] : []));
     setSectorNot(!!f.sectorNot);
-    setConsensus(f.consensus ?? "");
+    setConsensuses(f.consensuses ?? bucketToList(f.consensus));
     setCap(f.cap ?? 0);
   }, []);
   useSavedFilters(user, filters, applyFilters);
@@ -134,7 +153,7 @@ export default function App() {
     setView(id);
     setSort(v.sort);
     setDir(v.dir);
-    setConsensus(id === "analyst" ? "StrongBuy" : "");
+    setConsensuses(id === "analyst" ? ["StrongBuy"] : []);
   }
 
   function handleSort(k: string) {
@@ -219,19 +238,20 @@ export default function App() {
 
           <Toolbar
             q={q}
-            sector={sector}
-            consensus={consensus}
-            cap={cap}
             sectors={sectors}
-            count={rows.length}
+            sectorOptions={sectorOptions}
             sectorNot={sectorNot}
+            consensuses={consensuses}
+            consensusOptions={consensusOptions}
+            cap={cap}
+            count={rows.length}
             activeCount={activeCount}
             canReset={filtersActive}
             onReset={resetFilters}
             onQ={setQ}
-            onSector={setSector}
+            onSectors={setSectors}
             onSectorNot={setSectorNot}
-            onConsensus={setConsensus}
+            onConsensuses={setConsensuses}
             onCap={setCap}
           />
 

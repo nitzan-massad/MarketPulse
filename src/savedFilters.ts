@@ -9,12 +9,17 @@ import { app } from "./watchlist";
 //   "filters": { "$uid": {
 //       ".read":  "auth != null && auth.uid === $uid",
 //       ".write": "auth != null && auth.uid === $uid" } }
+// Older single-select shape may still be in a user's localStorage/DB; App's
+// applyFilters migrates it. Both key sets are optional here so a stale record
+// still deserializes without throwing.
 export interface SavedFilters {
   q: string;
-  sector: string;
+  sectors?: string[];
   sectorNot: boolean;
-  consensus: string;
+  consensuses?: string[];
   cap: number;
+  sector?: string; // legacy
+  consensus?: string; // legacy
 }
 
 const db = app ? getDatabase(app) : null;

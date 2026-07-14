@@ -113,6 +113,26 @@ select{
   background-repeat:no-repeat; background-position:right 12px center;
 }
 select:focus{outline:none; border-color:var(--gold-soft)}
+/* multi-select dropdown (sector + ratings) — closed control mirrors <select> */
+.ms{position:relative; display:inline-flex}
+.ms-btn{appearance:none; background:var(--panel); border:1px solid var(--line); border-radius:9px; color:var(--ink);
+  font-family:inherit; font-size:13px; padding:10px 30px 10px 12px; cursor:pointer; transition:.18s; text-align:left; white-space:nowrap;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%238b9485' stroke-width='1.6'%3E%3Cpath d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 12px center}
+.ms-btn.ph{color:var(--muted)}
+.ms-btn:hover{border-color:var(--gold-soft)}
+.ms-btn.on{border-color:color-mix(in srgb, var(--gold) 45%, var(--line)); font-weight:600}
+.ms-menu{position:absolute; top:calc(100% + 6px); left:0; z-index:20; min-width:200px; max-height:280px; overflow:auto;
+  background:var(--bg); border:1px solid var(--line); border-radius:11px; box-shadow:0 20px 44px -22px rgba(27,29,24,.5); padding:6px}
+.ms-opt{display:flex; align-items:center; gap:9px; width:100%; text-align:left; appearance:none; background:none; border:0;
+  font-family:inherit; font-size:13px; color:var(--ink); padding:8px 10px; border-radius:7px; cursor:pointer}
+.ms-opt:hover{background:var(--panel)}
+.ms-ck{width:16px; height:16px; border:1.5px solid var(--faint); border-radius:5px; flex:none; position:relative}
+.ms-ck.on{background:var(--gold); border-color:var(--gold)}
+.ms-ck.on::after{content:""; position:absolute; left:4.5px; top:1px; width:4px; height:8px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg)}
+.ms-clear{width:100%; appearance:none; background:none; border:0; border-top:1px solid var(--line); margin-top:4px; padding:8px 0 4px;
+  font-family:inherit; font-size:11px; font-weight:600; color:var(--faint); cursor:pointer}
+.ms-clear:hover{color:var(--red)}
 .seg{display:inline-flex; background:var(--panel); border:1px solid var(--line); border-radius:9px; overflow:hidden}
 .seg button{
   appearance:none; background:none; border:none; color:var(--muted); font-family:inherit;
@@ -365,6 +385,9 @@ footer a{color:var(--gold-soft)}
   .field{width:100%}
   .search{width:100%; padding:12px 12px 12px 36px}
   select{width:100%; padding:12px 30px 12px 12px}
+  .ms{width:100%}
+  .ms-btn{width:100%; padding:12px 30px 12px 12px}
+  .ms-menu{left:0; right:0}
   .lbl{margin:2px 0 -2px; margin-right:0}
   .seg, .mode{width:100%}
   .seg button, .mode button{flex:1; padding:12px 6px; min-height:44px; text-align:center}
