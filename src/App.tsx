@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import BestOfBest from "./components/BestOfBest";
 import NewArrivals from "./components/NewArrivals";
 import Masthead from "./components/Masthead";
@@ -14,6 +14,7 @@ import { passes, sortRows, VIEWS } from "./lib";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
 import { useWatchlist } from "./watchlist";
+import { useSavedFilters, type SavedFilters } from "./savedFilters";
 import { initAnalytics, track, trackUser } from "./analytics";
 
 const STOCKS = stocksData as Stock[];
@@ -93,6 +94,37 @@ export default function App() {
     const filtered = STOCKS.filter((s) => passes(s, { q, sector, sectorNot, consensus, cap }));
     return sortRows(filtered, sort, dir);
   }, [q, sector, sectorNot, consensus, cap, sort, dir]);
+
+  // "clean" filter state = the view's own default (analyst view starts on Strong Buy)
+  const consensusDefault = view === "analyst" ? "StrongBuy" : "";
+  const activeCount =
+    (q !== "" ? 1 : 0) +
+    (sector !== "" ? 1 : 0) +
+    (consensus !== consensusDefault ? 1 : 0) +
+    (cap !== 0 ? 1 : 0);
+  const filtersActive = activeCount > 0;
+  function resetFilters() {
+    setQ("");
+    setSector("");
+    setSectorNot(false);
+    setCap(0);
+    setConsensus(consensusDefault);
+  }
+
+  // filters follow the user across sessions/devices (DB when signed in, else
+  // localStorage). Restored on load; written on every change.
+  const filters = useMemo<SavedFilters>(
+    () => ({ q, sector, sectorNot, consensus, cap }),
+    [q, sector, sectorNot, consensus, cap],
+  );
+  const applyFilters = useCallback((f: SavedFilters) => {
+    setQ(f.q ?? "");
+    setSector(f.sector ?? "");
+    setSectorNot(!!f.sectorNot);
+    setConsensus(f.consensus ?? "");
+    setCap(f.cap ?? 0);
+  }, []);
+  useSavedFilters(user, filters, applyFilters);
 
   const tickers = useMemo(() => rows.map((r) => r.t), [rows]);
   const { live, status: liveStatus } = useLiveQuotes(tickers, liveKey, liveOn);
@@ -193,6 +225,9 @@ export default function App() {
             sectors={sectors}
             count={rows.length}
             sectorNot={sectorNot}
+            activeCount={activeCount}
+            canReset={filtersActive}
+            onReset={resetFilters}
             onQ={setQ}
             onSector={setSector}
             onSectorNot={setSectorNot}

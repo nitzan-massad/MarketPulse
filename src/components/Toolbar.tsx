@@ -6,6 +6,9 @@ interface ToolbarProps {
   cap: number;
   sectors: string[];
   count: number;
+  activeCount: number;
+  canReset: boolean;
+  onReset: () => void;
   onQ: (v: string) => void;
   onSector: (v: string) => void;
   onSectorNot: (v: boolean) => void;
@@ -21,13 +24,18 @@ const CAPS = [
 ];
 
 export default function Toolbar({
-  q, sector, sectorNot, consensus, cap, sectors, count,
-  onQ, onSector, onSectorNot, onConsensus, onCap,
+  q, sector, sectorNot, consensus, cap, sectors, count, activeCount, canReset,
+  onReset, onQ, onSector, onSectorNot, onConsensus, onCap,
 }: ToolbarProps) {
   return (
     <details className="filters">
       <summary>
         <span className="filters-title">Filters</span>
+        {activeCount > 0 && (
+          <span className="filters-badge" title={`${activeCount} active filter${activeCount > 1 ? "s" : ""}`}>
+            {activeCount}
+          </span>
+        )}
         <span className="count"><b id="cnt">{count}</b> matches</span>
       </summary>
       <div className="toolbar">
@@ -94,6 +102,15 @@ export default function Toolbar({
           </button>
         ))}
       </div>
+      <button
+        type="button"
+        className="filter-reset"
+        onClick={onReset}
+        disabled={!canReset}
+        title="Reset all filters"
+      >
+        ↺ Reset
+      </button>
       </div>
     </details>
   );

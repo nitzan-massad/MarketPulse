@@ -13,7 +13,7 @@ const stocksUrl = (ticker: string) =>
 type RangeId = "1D" | "1W" | "1M" | "3M" | "6M" | "YTD" | "1Y";
 
 const RANGES: RangeId[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"];
-const DEFAULT_RANGE: RangeId = "1M";
+const DEFAULT_RANGE: RangeId = "1D";
 
 // range -> Twelve Data interval + outputsize
 const RANGE_CFG: Record<RangeId, { interval: string; outputsize: number }> = {
@@ -424,8 +424,17 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   // ---- derived display values (live extras layered over the snapshot row) ----
   const price = quote?.c ?? stock.px;
   const dayPct = quote?.dp ?? stock.chg;
-  const dir = dayPct == null ? "flat" : dayPct > 0 ? "up" : dayPct < 0 ? "dn" : "flat";
-  const arrow = dayPct == null ? "" : dayPct > 0 ? "▴" : dayPct < 0 ? "▾" : "•";
+  // the % beside the price tracks the selected chart range: 1D uses the true
+  // day move (vs prev close); other ranges use the series' first→last change
+  const rangePct =
+    range === "1D"
+      ? dayPct
+      : series && series.closes.length > 1 && series.closes[0]
+        ? ((series.last - series.closes[0]) / series.closes[0]) * 100
+        : null;
+  const pctLoading = range === "1D" ? qmLoading && quote == null : seriesLoading;
+  const dir = rangePct == null ? "flat" : rangePct > 0 ? "up" : rangePct < 0 ? "dn" : "flat";
+  const arrow = rangePct == null ? "" : rangePct > 0 ? "▴" : rangePct < 0 ? "▾" : "•";
 
   const upside =
     stock.up != null ? stock.up : price != null && stock.pt != null && price > 0
@@ -512,7 +521,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
             </div>
             <div className="mkm-px">{usd(price)}</div>
             <div className={`mkm-chg ${dir}`}>
-              {qmLoading && quote == null ? "…" : `${arrow}${pct(dayPct).replace(/^[+-]/, "")}`}
+              {pctLoading ? "…" : rangePct == null ? "—" : `${arrow}${pct(rangePct).replace(/^[+-]/, "")}`}
             </div>
           </div>
 
