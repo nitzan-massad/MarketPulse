@@ -63,6 +63,7 @@ export function scoreColor(v: number | null, max: number): string | null {
 export interface FilterState {
   q: string;
   sector: string;
+  sectorNot: boolean; // true = exclude the chosen sector instead of only-showing it
   consensus: string;
   cap: number;
 }
@@ -72,7 +73,7 @@ export function passes(s: Stock, state: FilterState): boolean {
     const q = state.q.toLowerCase();
     if (!((s.t || "").toLowerCase().includes(q) || (s.n || "").toLowerCase().includes(q))) return false;
   }
-  if (state.sector && s.sec !== state.sector) return false;
+  if (state.sector && (s.sec === state.sector) === state.sectorNot) return false;
   if (state.cap && (s.mc == null || s.mc < state.cap)) return false;
   const c = (s.con || "").toLowerCase();
   switch (state.consensus) {

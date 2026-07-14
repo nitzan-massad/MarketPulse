@@ -28,6 +28,7 @@ export default function App() {
   const [dir, setDir] = useState<number>(-1);
   const [q, setQ] = useState("");
   const [sector, setSector] = useState("");
+  const [sectorNot, setSectorNot] = useState(false);
   // analyst tab defaults to Strong Buy to match the real page
   const [consensus, setConsensus] = useState("StrongBuy");
   const [cap, setCap] = useState(0);
@@ -89,9 +90,9 @@ export default function App() {
   );
 
   const rows = useMemo(() => {
-    const filtered = STOCKS.filter((s) => passes(s, { q, sector, consensus, cap }));
+    const filtered = STOCKS.filter((s) => passes(s, { q, sector, sectorNot, consensus, cap }));
     return sortRows(filtered, sort, dir);
-  }, [q, sector, consensus, cap, sort, dir]);
+  }, [q, sector, sectorNot, consensus, cap, sort, dir]);
 
   const tickers = useMemo(() => rows.map((r) => r.t), [rows]);
   const { live, status: liveStatus } = useLiveQuotes(tickers, liveKey, liveOn);
@@ -191,8 +192,10 @@ export default function App() {
             cap={cap}
             sectors={sectors}
             count={rows.length}
+            sectorNot={sectorNot}
             onQ={setQ}
             onSector={setSector}
+            onSectorNot={setSectorNot}
             onConsensus={setConsensus}
             onCap={setCap}
           />

@@ -1,12 +1,14 @@
 interface ToolbarProps {
   q: string;
   sector: string;
+  sectorNot: boolean;
   consensus: string;
   cap: number;
   sectors: string[];
   count: number;
   onQ: (v: string) => void;
   onSector: (v: string) => void;
+  onSectorNot: (v: boolean) => void;
   onConsensus: (v: string) => void;
   onCap: (v: number) => void;
 }
@@ -19,8 +21,8 @@ const CAPS = [
 ];
 
 export default function Toolbar({
-  q, sector, consensus, cap, sectors, count,
-  onQ, onSector, onConsensus, onCap,
+  q, sector, sectorNot, consensus, cap, sectors, count,
+  onQ, onSector, onSectorNot, onConsensus, onCap,
 }: ToolbarProps) {
   return (
     <details className="filters">
@@ -48,6 +50,24 @@ export default function Toolbar({
           </button>
         )}
       </label>
+      <div className="mode" role="group" aria-label="Sector match mode">
+        <button
+          type="button"
+          className={sectorNot ? "" : "inc"}
+          disabled={!sector}
+          onClick={() => onSectorNot(false)}
+        >
+          Only
+        </button>
+        <button
+          type="button"
+          className={sectorNot ? "exc" : ""}
+          disabled={!sector}
+          onClick={() => onSectorNot(true)}
+        >
+          Not
+        </button>
+      </div>
       <select id="sector" value={sector} onChange={(e) => onSector(e.target.value)}>
         <option value="">All sectors</option>
         {sectors.map((s) => (

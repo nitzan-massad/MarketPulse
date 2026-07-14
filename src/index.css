@@ -122,6 +122,13 @@ select:focus{outline:none; border-color:var(--gold-soft)}
 .seg button.on{background:var(--gold); color:#1a1500}
 .seg button:not(.on):hover{color:var(--ink)}
 .lbl{font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin-right:-4px; font-weight:600}
+.mode{display:inline-flex; background:var(--panel); border:1px solid var(--line); border-radius:9px; overflow:hidden}
+.mode button{appearance:none; background:none; border:none; border-right:1px solid var(--line); color:var(--muted);
+  font-family:inherit; font-size:11px; font-weight:700; letter-spacing:.03em; padding:10px 12px; cursor:pointer; transition:.15s}
+.mode button:last-child{border-right:none}
+.mode button.inc{background:var(--green); color:#fff}
+.mode button.exc{background:var(--red); color:#fff}
+.mode button:disabled{opacity:.45; cursor:not-allowed}
 .count{margin-left:auto; font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
 .count b{color:var(--gold); font-weight:700}
 
