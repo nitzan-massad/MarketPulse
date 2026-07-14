@@ -5,6 +5,9 @@ import type { Stock } from "../types";
 // Keys come from build-time env (same pattern App uses for Finnhub). Never hardcoded.
 const FINNHUB_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
 const TWELVEDATA_KEY = import.meta.env.VITE_TWELVEDATA_KEY ?? "";
+// FMP powers the live company description ONLY for tickers missing from the
+// scraped DB (hybrid: DB desc wins). Optional — absent key just skips it.
+const FMP_KEY = import.meta.env.VITE_FMP_KEY ?? "";
 
 // Apple Stocks universal link — opens the Stocks app on iOS/macOS, web elsewhere.
 const stocksUrl = (ticker: string) =>
@@ -44,6 +47,14 @@ interface Metric {
   avgVol10D: number | null;
 }
 
+// live company profile (name / industry / market cap) — replaces the scraped
+// DB fields so these are current for any ticker, ranked or not
+interface Profile {
+  name: string | null;
+  sector: string | null;
+  mktCap: number | null; // $ millions (same unit as the DB `mc`)
+}
+
 interface Bar {
   t: string; // datetime
   o: number;
@@ -63,7 +74,7 @@ interface Series {
 }
 
 // module-level caches so reopening / re-selecting ranges never refetches
-const quoteMetricCache = new Map<string, { quote: Quote; metric: Metric }>();
+const quoteMetricCache = new Map<string, { quote: Quote; metric: Metric; profile: Profile }>();
 const seriesCache = new Map<string, Series>();
 
 // Bulls Say / Bears Say — a static per-ticker snapshot scraped from TipRanks'
@@ -124,6 +135,43 @@ async function fetchForecasts(ticker: string): Promise<Forecast[] | null> {
   return val;
 }
 
+// Company description for off-universe tickers (those with no scraped DB desc).
+// Source order: (1) baked public/desc.json — hand-scraped from TipRanks for the
+// bull/bear set, no key needed; (2) FMP live, if a key is configured.
+const descCache = new Map<string, string | null>();
+let descMap: Record<string, string> | null = null;
+async function loadDescMap(): Promise<Record<string, string>> {
+  if (descMap) return descMap;
+  try {
+    const r = await fetch(`${import.meta.env.BASE_URL}desc.json`);
+    descMap = r.ok ? await r.json() : {};
+  } catch {
+    descMap = {};
+  }
+  return descMap!;
+}
+async function fetchDescription(ticker: string): Promise<string | null> {
+  if (descCache.has(ticker)) return descCache.get(ticker)!;
+  const map = await loadDescMap();
+  let val: string | null = map[ticker] || null;
+  if (!val && FMP_KEY) {
+    try {
+      const r = await fetch(
+        `https://financialmodelingprep.com/api/v3/profile/${encodeURIComponent(ticker)}?apikey=${FMP_KEY}`,
+      );
+      if (r.ok) {
+        const j = await r.json();
+        const d = Array.isArray(j) && j[0] && typeof j[0].description === "string" ? j[0].description.trim() : "";
+        if (d) val = d;
+      }
+    } catch {
+      /* offline / blocked -> no description */
+    }
+  }
+  descCache.set(ticker, val);
+  return val;
+}
+
 const num = (v: unknown): number | null => {
   const n = typeof v === "string" ? parseFloat(v) : (v as number);
   return typeof n === "number" && isFinite(n) ? n : null;
@@ -144,17 +192,15 @@ function fmtVol(v: number | null | undefined): string {
   return String(Math.round(v));
 }
 
-async function fetchQuoteMetric(ticker: string): Promise<{ quote: Quote; metric: Metric }> {
+async function fetchQuoteMetric(ticker: string): Promise<{ quote: Quote; metric: Metric; profile: Profile }> {
   const cached = quoteMetricCache.get(ticker);
   if (cached) return cached;
 
-  const [qRes, mRes] = await Promise.all([
-    fetch(
-      `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(ticker)}&token=${FINNHUB_KEY}`,
-    ).then((r) => r.json()),
-    fetch(
-      `https://finnhub.io/api/v1/stock/metric?symbol=${encodeURIComponent(ticker)}&metric=all&token=${FINNHUB_KEY}`,
-    ).then((r) => r.json()),
+  const enc = encodeURIComponent(ticker);
+  const [qRes, mRes, pRes] = await Promise.all([
+    fetch(`https://finnhub.io/api/v1/quote?symbol=${enc}&token=${FINNHUB_KEY}`).then((r) => r.json()),
+    fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${enc}&metric=all&token=${FINNHUB_KEY}`).then((r) => r.json()),
+    fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${enc}&token=${FINNHUB_KEY}`).then((r) => r.json()),
   ]);
 
   const m = (mRes && mRes.metric) || {};
@@ -174,6 +220,11 @@ async function fetchQuoteMetric(ticker: string): Promise<{ quote: Quote; metric:
       beta: num(m.beta),
       avgVol3M: num(m["3MonthAverageTradingVolume"]),
       avgVol10D: num(m["10DayAverageTradingVolume"]),
+    },
+    profile: {
+      name: typeof pRes?.name === "string" && pRes.name ? pRes.name : null,
+      sector: typeof pRes?.finnhubIndustry === "string" && pRes.finnhubIndustry ? pRes.finnhubIndustry : null,
+      mktCap: num(pRes?.marketCapitalization),
     },
   };
   quoteMetricCache.set(ticker, result);
@@ -318,6 +369,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [qmLoading, setQmLoading] = useState(true);
   const [series, setSeries] = useState<Series | null>(null);
   const [seriesLoading, setSeriesLoading] = useState(true);
@@ -328,6 +380,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   const [bbOpen, setBbOpen] = useState(false);
   const [forecasts, setForecasts] = useState<Forecast[] | null>(null);
   const [fcOpen, setFcOpen] = useState(false);
+  const [liveDesc, setLiveDesc] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // close on Escape
@@ -359,6 +412,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
         if (cancelled) return;
         setQuote(r.quote);
         setMetric(r.metric);
+        setProfile(r.profile);
       })
       .catch(() => {
         /* keep snapshot values */
@@ -380,16 +434,23 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
     setDescOpen(false);
     setForecasts(null);
     setFcOpen(false);
+    setLiveDesc(null);
     fetchBullBear(stock.t).then((r) => {
       if (!cancelled) setBb(r);
     });
     fetchForecasts(stock.t).then((r) => {
       if (!cancelled) setForecasts(r);
     });
+    // hybrid description: DB desc wins; fetch live only when it's missing
+    if (!stock.desc) {
+      fetchDescription(stock.t).then((d) => {
+        if (!cancelled) setLiveDesc(d);
+      });
+    }
     return () => {
       cancelled = true;
     };
-  }, [stock.t]);
+  }, [stock.t, stock.desc]);
 
   // fetch series for the active range (default 1M on open; others on tab click)
   useEffect(() => {
@@ -424,6 +485,11 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   // ---- derived display values (live extras layered over the snapshot row) ----
   const price = quote?.c ?? stock.px;
   const dayPct = quote?.dp ?? stock.chg;
+  // prefer live profile (Finnhub) over the scraped DB row for these fields
+  const name = profile?.name ?? stock.n;
+  const sector = profile?.sector ?? stock.sec;
+  const mktCap = profile?.mktCap ?? stock.mc;
+  const desc = stock.desc || liveDesc; // scraped DB desc wins; live FMP fallback
   // the % beside the price tracks the selected chart range: 1D uses the true
   // day move (vs prev close); other ranges use the series' first→last change
   const rangePct =
@@ -477,6 +543,14 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   const chartAvailable = !seriesLoading && !seriesError && chart != null;
   const todayVol = series?.volume ?? null;
 
+  // off-universe tickers have no scraped DB row, so while their live data is in
+  // flight show a spinner (not the empty template); once settled, either the
+  // full modal or, if nothing came back, a clear "not found" state.
+  const loadingUncovered = !covered && (qmLoading || seriesLoading);
+  const noData =
+    !covered && !qmLoading && !seriesLoading && (price == null || price === 0) && !chartAvailable;
+  const chromeOff = noData || loadingUncovered; // hide star/LIVE until we know
+
   return (
     <>
     <div className="mkm-scrim" onMouseDown={onBackdrop}>
@@ -492,23 +566,41 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
           <div className="mkm-path">
             <b>{stock.t}</b>
           </div>
-          <button
-            type="button"
-            className={`mkm-star ${tracked ? "on" : ""}`}
-            title={tracked ? "Untrack" : "Track this stock"}
-            aria-label={tracked ? "Untrack" : "Track this stock"}
-            aria-pressed={tracked}
-            onClick={onToggleTrack}
-          >
-            {tracked ? "★" : "☆"}
-          </button>
-          <div className="mkm-live">LIVE</div>
+          {!chromeOff && (
+            <button
+              type="button"
+              className={`mkm-star ${tracked ? "on" : ""}`}
+              title={tracked ? "Untrack" : "Track this stock"}
+              aria-label={tracked ? "Untrack" : "Track this stock"}
+              aria-pressed={tracked}
+              onClick={onToggleTrack}
+            >
+              {tracked ? "★" : "☆"}
+            </button>
+          )}
+          {!chromeOff && <div className="mkm-live">LIVE</div>}
           <button className="mkm-close" aria-label="Close" onClick={onClose}>
             &times;
           </button>
         </div>
 
         <div className="mkm-scroll">
+          {loadingUncovered ? (
+            <div className="mkm-loading" role="status" aria-label="Loading">
+              <span className="mkm-spinner" />
+            </div>
+          ) : noData ? (
+            <div className="mkm-empty">
+              <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M20 20l-3.6-3.6" />
+                <path d="M8.5 11h5" />
+              </svg>
+              <div className="mkm-empty-t">No data for “{stock.t}”</div>
+              <div className="mkm-empty-s">We couldn’t find market data for this symbol.</div>
+            </div>
+          ) : (
+          <>
           {!covered && <div className="mkm-lim">Limited data — not in the ranked set</div>}
           {/* head line */}
           <div className="mkm-head">
@@ -516,8 +608,8 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
               {stock.t}
             </div>
             <div className="mkm-co">
-              {stock.n}
-              {stock.sec ? " · " + consLabel(stock.sec) : ""}
+              {name}
+              {sector ? " · " + consLabel(sector) : ""}
             </div>
             <div className="mkm-px">{usd(price)}</div>
             <div className={`mkm-chg ${dir}`}>
@@ -642,9 +734,9 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
               <div className="k">AI Target</div>
               <div className="v">{usd(stock.aipt)}</div>
             </div>
-            <div className="mkm-cell">
+            <div className="mkm-cell mkm-cell-live">
               <div className="k">Mkt Cap</div>
-              <div className="v">{fmtMc(stock.mc)}</div>
+              <div className="v">{fmtMc(mktCap)}</div>
             </div>
           </div>
 
@@ -780,10 +872,10 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
           </div>
 
           {/* company description — first line shown, rest collapsed */}
-          {stock.desc && (
+          {desc && (
             <div className="mkm-about">
-              <div className="mkm-abouthdr">About {stock.n}</div>
-              <p className={`mkm-desc ${descOpen ? "" : "mkm-clamp1"}`}>{stock.desc}</p>
+              <div className="mkm-abouthdr">About {name}</div>
+              <p className={`mkm-desc ${descOpen ? "" : "mkm-clamp1"}`}>{desc}</p>
               <button
                 type="button"
                 className="mkm-more"
@@ -851,6 +943,8 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
               STOCKS ↗
             </a>
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>
