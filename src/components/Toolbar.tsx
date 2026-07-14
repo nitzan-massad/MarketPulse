@@ -41,6 +41,21 @@ export default function Toolbar({
           </span>
         )}
         <span className="count"><b id="cnt">{count}</b> matches</span>
+        {canReset && (
+          <button
+            type="button"
+            className="filter-reset"
+            title="Reset all filters"
+            // don't let the click toggle the <details> open/closed
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onReset();
+            }}
+          >
+            ↺ Reset
+          </button>
+        )}
       </summary>
       <div className="toolbar">
         <label className="field">
@@ -113,15 +128,6 @@ export default function Toolbar({
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          className="filter-reset"
-          onClick={onReset}
-          disabled={!canReset}
-          title="Reset all filters"
-        >
-          ↺ Reset
-        </button>
       </div>
     </details>
   );
