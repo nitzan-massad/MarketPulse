@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { COLS, consClass, consLabel, fmtMc, fmtPx, isNew, scoreColor } from "../lib";
 import type { Stock } from "../types";
+import type { Mark, MarkEntry } from "../watchlist";
+import ThumbMark from "./ThumbMark";
 
 // default column widths (px) — table-layout:fixed makes these authoritative so
 // resizing can both grow AND shrink a column. User overrides live in `widths`.
@@ -19,6 +21,8 @@ interface StockTableProps {
   onOpen: (s: Stock) => void;
   watchlist: string[];
   onToggleTrack: (t: string) => void;
+  marks: Record<string, MarkEntry>;
+  onMark: (t: string, v: Mark) => void;
 }
 
 export function Chip({ v, max }: { v: number | null; max: number }) {
@@ -39,7 +43,7 @@ export function UpBar({ up }: { up: number | null }) {
   return <span className={`up-val ${neg ? "neg" : "pos"}`}>{val}</span>;
 }
 
-export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onOpen, watchlist, onToggleTrack }: StockTableProps) {
+export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onOpen, watchlist, onToggleTrack, marks, onMark }: StockTableProps) {
   const [widths, setWidths] = useState<Record<string, number>>(() => {
     try {
       return JSON.parse(localStorage.getItem("mp_colw") || "{}");
@@ -139,12 +143,16 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onO
                       >
                         {watchlist.includes(s.t) ? "★" : "☆"}
                       </button>
-                      <button className="sym" type="button">
+                      <button
+                        className={`sym ${marks[s.t]?.v === "up" ? "mk-up" : marks[s.t]?.v === "down" ? "mk-down" : ""}`}
+                        type="button"
+                      >
                         {s.t}
                       </button>
                       {isNew(s.t) && (
                         <span className="newtag" title="Recently added to the lists">NEW</span>
                       )}
+                      <ThumbMark mark={marks[s.t]} onMark={(v) => onMark(s.t, v)} />
                     </span>
                     <div className="co">{s.n || ""}</div>
                   </td>

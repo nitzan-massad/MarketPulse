@@ -13,9 +13,11 @@ import stocksData from "./data/stocks.json";
 import { passes, sortRows, VIEWS } from "./lib";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
-import { useWatchlist } from "./watchlist";
+import { useWatchlist, type Mark } from "./watchlist";
 import { useSavedFilters, type SavedFilters } from "./savedFilters";
 import { initAnalytics, track, trackUser } from "./analytics";
+
+export type MarkFilter = "all" | "up" | "down" | "reviewed" | "unseen";
 
 const STOCKS = stocksData as Stock[];
 // Baked-in Finnhub key (injected at build from the FINNHUB_KEY Actions secret),
@@ -44,9 +46,11 @@ export default function App() {
   const [consensuses, setConsensuses] = useState<string[]>(["StrongBuy"]);
   const [cap, setCap] = useState(0);
   const [openStock, setOpenStock] = useState<Stock | null>(null);
-  const { list: watchlist, toggle: toggleTrack, user, signIn, signOut, ready: syncReady } = useWatchlist();
+  const { list: watchlist, toggle: toggleTrack, marks, toggleMark, user, authReady, signIn, signOut, ready: syncReady } = useWatchlist();
   const [signInOpen, setSignInOpen] = useState(false);
   const [pendingTrack, setPendingTrack] = useState<string | null>(null);
+  const [pendingMark, setPendingMark] = useState<{ ticker: string; v: Mark } | null>(null);
+  const [markFilter, setMarkFilter] = useState<MarkFilter>("all");
 
   // usage analytics (Firebase/GA4): init once, then attribute events to the
   // signed-in user when available
@@ -88,6 +92,23 @@ export default function App() {
     }
     toggleTrack(ticker);
   }
+
+  // Thumbs also require an account: a signed-out press opens sign-in and
+  // remembers the mark to apply once authenticated.
+  function requestMark(ticker: string, v: Mark) {
+    if (syncReady && !user) {
+      setPendingMark({ ticker, v });
+      setSignInOpen(true);
+      return;
+    }
+    track(marks[ticker]?.v === v ? "unmark" : "mark", { ticker, v });
+    toggleMark(ticker, v);
+  }
+
+  // marks are cleared on sign-out, so drop any mark-based filter too
+  useEffect(() => {
+    if (!user) setMarkFilter("all");
+  }, [user]);
   const [liveKey, setLiveKey] = useState<string | null>(
     () => localStorage.getItem("mp_finnhub") || BAKED_KEY || null,
   );
@@ -107,9 +128,18 @@ export default function App() {
   }, []);
 
   const rows = useMemo(() => {
-    const filtered = STOCKS.filter((s) => passes(s, { q, sectors, sectorNot, consensuses, cap }));
+    let filtered = STOCKS.filter((s) => passes(s, { q, sectors, sectorNot, consensuses, cap }));
+    if (markFilter !== "all") {
+      filtered = filtered.filter((s) => {
+        const m = marks[s.t]?.v;
+        if (markFilter === "up") return m === "up";
+        if (markFilter === "down") return m === "down";
+        if (markFilter === "reviewed") return !!m;
+        return !m; // "unseen"
+      });
+    }
     return sortRows(filtered, sort, dir);
-  }, [q, sectors, sectorNot, consensuses, cap, sort, dir]);
+  }, [q, sectors, sectorNot, consensuses, cap, sort, dir, markFilter, marks]);
 
   // "clean" filter state = the view's own default (analyst view starts on Strong Buy)
   const consensusDefault = useMemo(() => (view === "analyst" ? ["StrongBuy"] : []), [view]);
@@ -188,7 +218,7 @@ export default function App() {
         <h1 id="title">Market <span className="em">Pulse</span></h1>
         <div className="site-right">
           <Search onOpen={handleOpen} onOpenTicker={handleOpenTicker} />
-          {syncReady &&
+          {syncReady && authReady &&
             (user ? (
               <button
                 className="acctchip"
@@ -253,6 +283,9 @@ export default function App() {
             onSectorNot={setSectorNot}
             onConsensuses={setConsensuses}
             onCap={setCap}
+            markFilter={markFilter}
+            onMarkFilter={setMarkFilter}
+            showMarkFilter={!!user}
           />
 
           <StockTable
@@ -265,6 +298,8 @@ export default function App() {
             onOpen={handleOpen}
             watchlist={watchlist}
             onToggleTrack={requestToggle}
+            marks={marks}
+            onMark={requestMark}
           />
         </>
       ) : nav === "best" ? (
@@ -289,6 +324,8 @@ export default function App() {
           tracked={watchlist.includes(openStock.t)}
           onToggleTrack={() => requestToggle(openStock.t)}
           covered={STOCKS.some((s) => s.t === openStock.t)}
+          mark={marks[openStock.t]}
+          onMark={(v) => requestMark(openStock.t, v)}
         />
       )}
 
@@ -296,7 +333,7 @@ export default function App() {
         <SignInModal
           user={user}
           signIn={(id) =>
-            signIn(id, pendingTrack ? [pendingTrack] : []).then(() =>
+            signIn(id, pendingTrack ? [pendingTrack] : [], pendingMark ?? undefined).then(() =>
               track("sign_in", { provider: id }),
             )
           }
@@ -304,6 +341,7 @@ export default function App() {
           onClose={() => {
             setSignInOpen(false);
             setPendingTrack(null);
+            setPendingMark(null);
           }}
         />
       )}

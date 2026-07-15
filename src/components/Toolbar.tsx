@@ -1,5 +1,6 @@
 import { consLabel } from "../lib";
 import MultiSelect from "./MultiSelect";
+import type { MarkFilter } from "../App";
 
 interface ToolbarProps {
   q: string;
@@ -18,7 +19,18 @@ interface ToolbarProps {
   onSectorNot: (v: boolean) => void;
   onConsensuses: (v: string[]) => void;
   onCap: (v: number) => void;
+  markFilter: MarkFilter;
+  onMarkFilter: (v: MarkFilter) => void;
+  showMarkFilter: boolean;
 }
+
+const MARK_OPTS: { v: MarkFilter; label: string }[] = [
+  { v: "all", label: "All" },
+  { v: "up", label: "👍 Liked" },
+  { v: "down", label: "👎 Disliked" },
+  { v: "reviewed", label: "Reviewed" },
+  { v: "unseen", label: "Not seen" },
+];
 
 const CAPS = [
   { c: 0, label: "All" },
@@ -30,6 +42,7 @@ const CAPS = [
 export default function Toolbar({
   q, sectors, sectorOptions, sectorNot, consensuses, consensusOptions, cap, count, activeCount, canReset,
   onReset, onQ, onSectors, onSectorNot, onConsensuses, onCap,
+  markFilter, onMarkFilter, showMarkFilter,
 }: ToolbarProps) {
   return (
     <details className="filters">
@@ -128,6 +141,23 @@ export default function Toolbar({
             </button>
           ))}
         </div>
+
+        {showMarkFilter && (
+          <>
+            <span className="lbl">My marks</span>
+            <div className="seg" id="marks">
+              {MARK_OPTS.map((o) => (
+                <button
+                  key={o.v}
+                  className={markFilter === o.v ? "on" : ""}
+                  onClick={() => onMarkFilter(o.v)}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </details>
   );

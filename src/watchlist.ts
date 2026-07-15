@@ -12,7 +12,7 @@ import {
   type User,
 } from "firebase/auth";
 import { get, getDatabase, onValue, ref, set, type Database } from "firebase/database";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Cross-device watchlist — Firebase (Google sign-in + Realtime Database).
@@ -73,11 +73,21 @@ function writeLocal(list: string[]): void {
   }
 }
 
+// ---- read/liked marks: thumbs up/down a user leaves on a stock ----
+export type Mark = "up" | "down";
+export interface MarkEntry {
+  v: Mark;
+  d: number; // marked-at, ms epoch
+}
+
 export interface WatchlistApi {
   list: string[];
   toggle: (ticker: string) => void;
+  marks: Record<string, MarkEntry>;
+  toggleMark: (ticker: string, v: Mark) => void; // same v again clears it
   user: User | null;
-  signIn: (providerId: string, extra?: string[]) => Promise<void>;
+  authReady: boolean; // has Firebase resolved the persisted session yet?
+  signIn: (providerId: string, extra?: string[], mark?: { ticker: string; v: Mark }) => Promise<void>;
   signOut: () => void;
   ready: boolean; // firebase configured?
 }
@@ -88,12 +98,42 @@ export function useWatchlist(): WatchlistApi {
   // no-Firebase dev fallback uses localStorage.
   const [list, setList] = useState<string[]>(() => (firebaseReady ? [] : readLocal()));
   const [user, setUser] = useState<User | null>(null);
+  // false until Firebase reports the first auth state — lets the UI avoid the
+  // "Sign in" flash before a persisted session is restored
+  const [authReady, setAuthReady] = useState<boolean>(!auth);
+  const [marks, setMarks] = useState<Record<string, MarkEntry>>({});
+  const marksRef = useRef(marks);
+  marksRef.current = marks;
 
   // track auth state
   useEffect(() => {
     if (!auth) return;
-    return onAuthStateChanged(auth, (u) => setUser(u));
+    return onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setAuthReady(true);
+    });
   }, []);
+
+  // read/liked marks: live remote when signed in, empty when signed out
+  useEffect(() => {
+    if (!db) return;
+    if (!user) {
+      setMarks({});
+      return;
+    }
+    const r = ref(db, `marks/${user.uid}`);
+    return onValue(r, (snap) => setMarks((snap.val() as Record<string, MarkEntry>) || {}));
+  }, [user]);
+
+  // pressing a thumb: same value again clears it, otherwise set it with today's date
+  const toggleMark = useCallback(
+    (ticker: string, v: Mark) => {
+      if (!db || !user) return; // marks require an account
+      const cur = marksRef.current[ticker];
+      void set(ref(db, `marks/${user.uid}/${ticker}`), cur?.v === v ? null : { v, d: Date.now() });
+    },
+    [user],
+  );
 
   // drive the list from auth: signed in -> realtime remote; signed out -> empty
   useEffect(() => {
@@ -136,11 +176,15 @@ export function useWatchlist(): WatchlistApi {
     [user],
   );
 
-  const signIn = useCallback(async (providerId: string, extra: string[] = []) => {
+  const signIn = useCallback(
+    async (providerId: string, extra: string[] = [], mark?: { ticker: string; v: Mark }) => {
     if (!auth || !db) return;
     const def = AUTH_PROVIDERS.find((p) => p.id === providerId);
     if (!def) return;
     const res = await signInWithPopup(auth, def.make());
+    // apply a thumb pressed while signed out (write against the resolved uid so
+    // it doesn't race the auth-state / marks subscription)
+    if (mark) await set(ref(db, `marks/${res.user.uid}/${mark.ticker}`), { v: mark.v, d: Date.now() });
     // merge a pending star (clicked while signed out); also normalise a legacy
     // array to the { ticker: addedAt } map
     const r = ref(db, `watchlist/${res.user.uid}`);
@@ -166,5 +210,5 @@ export function useWatchlist(): WatchlistApi {
     if (auth) void fbSignOut(auth);
   }, []);
 
-  return { list, toggle, user, signIn, signOut, ready: firebaseReady };
+  return { list, toggle, marks, toggleMark, user, authReady, signIn, signOut, ready: firebaseReady };
 }

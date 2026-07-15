@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { consClass, consLabel, fmtMc } from "../lib";
 import type { Stock } from "../types";
+import type { Mark, MarkEntry } from "../watchlist";
+import ThumbMark from "./ThumbMark";
 
 // Keys come from build-time env (same pattern App uses for Finnhub). Never hardcoded.
 const FINNHUB_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
@@ -363,9 +365,11 @@ interface StockModalProps {
   tracked: boolean;
   onToggleTrack: () => void;
   covered?: boolean; // in the TipRanks ranked set? false => live data only
+  mark?: MarkEntry;
+  onMark: (v: Mark) => void;
 }
 
-export default function StockModal({ stock, onClose, tracked, onToggleTrack, covered = true }: StockModalProps) {
+export default function StockModal({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark }: StockModalProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
@@ -578,6 +582,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
               {tracked ? "★" : "☆"}
             </button>
           )}
+          {!chromeOff && <ThumbMark mark={mark} onMark={onMark} both />}
           {!chromeOff && <div className="mkm-live">LIVE</div>}
           <button className="mkm-close" aria-label="Close" onClick={onClose}>
             &times;
