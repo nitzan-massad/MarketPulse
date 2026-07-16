@@ -1,7 +1,7 @@
 import type { User } from "firebase/auth";
 import { getDatabase, onValue, ref, set } from "firebase/database";
 import { useEffect, useRef } from "react";
-import { app } from "./watchlist";
+import { app, DEV_AUTH } from "./watchlist";
 
 // The toolbar filter state that follows a user around. Signed in -> Realtime
 // DB at /filters/<uid> (syncs across devices, same as the watchlist); signed
@@ -22,7 +22,8 @@ export interface SavedFilters {
   consensus?: string; // legacy
 }
 
-const db = app ? getDatabase(app) : null;
+// Firebase only when signed in for real; dev/localhost stays on localStorage.
+const db = app && !DEV_AUTH ? getDatabase(app) : null;
 const LS_KEY = "mp_filters";
 
 function readLocal(): SavedFilters | null {

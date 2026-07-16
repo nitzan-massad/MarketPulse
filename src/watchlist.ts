@@ -40,6 +40,16 @@ export const app: FirebaseApp | null = firebaseReady ? initializeApp(firebaseCon
 const auth: Auth | null = app ? getAuth(app) : null;
 const db: Database | null = app ? getDatabase(app) : null;
 
+// Local dev convenience: on localhost, sign in / out as a throwaway user with no
+// real auth and no Firebase writes — watchlist / marks / filters live in
+// localStorage instead. Never active on the deployed site.
+export const DEV_AUTH =
+  typeof location !== "undefined" && /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const DEV_USER = {
+  uid: "dev-local", email: "dev@localhost", displayName: "Dev User", photoURL: null,
+} as unknown as User;
+const DEV_FLAG = "mp_dev_signedin";
+
 // Single source of truth for sign-in providers. Add one line here and its
 // button + sign-in flow appear automatically (icon falls back to a monogram if
 // none is registered in SignInModal). NOTE: Firebase gives the browser no way
@@ -80,6 +90,23 @@ export interface MarkEntry {
   d: number; // marked-at, ms epoch
 }
 
+const MARKS_LS = "mp_marks"; // dev / local-only mirror of the marks map
+function readMarks(): Record<string, MarkEntry> {
+  try {
+    const v = JSON.parse(localStorage.getItem(MARKS_LS) || "{}");
+    return v && typeof v === "object" ? v : {};
+  } catch {
+    return {};
+  }
+}
+function writeMarks(m: Record<string, MarkEntry>): void {
+  try {
+    localStorage.setItem(MARKS_LS, JSON.stringify(m));
+  } catch {
+    /* ignore */
+  }
+}
+
 export interface WatchlistApi {
   list: string[];
   toggle: (ticker: string) => void;
@@ -94,28 +121,35 @@ export interface WatchlistApi {
 
 export function useWatchlist(): WatchlistApi {
   // With Firebase configured the list belongs to the account: empty until
-  // signed in, and cleared on sign-out (nothing left behind). Only the
-  // no-Firebase dev fallback uses localStorage.
-  const [list, setList] = useState<string[]>(() => (firebaseReady ? [] : readLocal()));
-  const [user, setUser] = useState<User | null>(null);
+  // signed in, and cleared on sign-out (nothing left behind).
+  const [list, setList] = useState<string[]>([]);
+  const [fbUser, setFbUser] = useState<User | null>(null);
+  const [devUser, setDevUser] = useState<User | null>(
+    () => (DEV_AUTH && localStorage.getItem(DEV_FLAG) === "1" ? DEV_USER : null),
+  );
+  const user = DEV_AUTH ? devUser : fbUser;
   // false until Firebase reports the first auth state — lets the UI avoid the
-  // "Sign in" flash before a persisted session is restored
-  const [authReady, setAuthReady] = useState<boolean>(!auth);
+  // "Sign in" flash before a persisted session is restored (dev resolves at once)
+  const [authReady, setAuthReady] = useState<boolean>(DEV_AUTH || !auth);
   const [marks, setMarks] = useState<Record<string, MarkEntry>>({});
   const marksRef = useRef(marks);
   marksRef.current = marks;
 
-  // track auth state
+  // track auth state (real auth only; dev uses the localStorage flag above)
   useEffect(() => {
-    if (!auth) return;
+    if (DEV_AUTH || !auth) return;
     return onAuthStateChanged(auth, (u) => {
-      setUser(u);
+      setFbUser(u);
       setAuthReady(true);
     });
   }, []);
 
   // read/liked marks: live remote when signed in, empty when signed out
   useEffect(() => {
+    if (DEV_AUTH) {
+      setMarks(user ? readMarks() : {});
+      return;
+    }
     if (!db) return;
     if (!user) {
       setMarks({});
@@ -128,8 +162,17 @@ export function useWatchlist(): WatchlistApi {
   // pressing a thumb: same value again clears it, otherwise set it with today's date
   const toggleMark = useCallback(
     (ticker: string, v: Mark) => {
-      if (!db || !user) return; // marks require an account
+      if (!user) return; // marks require an account
       const cur = marksRef.current[ticker];
+      if (DEV_AUTH) {
+        const next = { ...marksRef.current };
+        if (cur?.v === v) delete next[ticker];
+        else next[ticker] = { v, d: Date.now() };
+        writeMarks(next);
+        setMarks(next);
+        return;
+      }
+      if (!db) return;
       void set(ref(db, `marks/${user.uid}/${ticker}`), cur?.v === v ? null : { v, d: Date.now() });
     },
     [user],
@@ -137,7 +180,11 @@ export function useWatchlist(): WatchlistApi {
 
   // drive the list from auth: signed in -> realtime remote; signed out -> empty
   useEffect(() => {
-    if (!db) return; // no Firebase -> local-only mode, leave the list as-is
+    if (DEV_AUTH) {
+      setList(user ? readLocal() : []);
+      return;
+    }
+    if (!db) return;
     if (!user) {
       setList([]); // signed out: clear so a previous account's list isn't left behind
       return;
@@ -163,7 +210,9 @@ export function useWatchlist(): WatchlistApi {
       setList((prev) => {
         const has = prev.includes(ticker);
         const next = has ? prev.filter((t) => t !== ticker) : [...prev, ticker];
-        if (db) {
+        if (DEV_AUTH) {
+          if (user) writeLocal(next);
+        } else if (db) {
           // per-ticker write storing the date it was added (null removes it) —
           // kept for a future "added on" feature, and avoids clobbering the map
           if (user) void set(ref(db, `watchlist/${user.uid}/${ticker}`), has ? null : Date.now());
@@ -178,35 +227,59 @@ export function useWatchlist(): WatchlistApi {
 
   const signIn = useCallback(
     async (providerId: string, extra: string[] = [], mark?: { ticker: string; v: Mark }) => {
-    if (!auth || !db) return;
-    const def = AUTH_PROVIDERS.find((p) => p.id === providerId);
-    if (!def) return;
-    const res = await signInWithPopup(auth, def.make());
-    // apply a thumb pressed while signed out (write against the resolved uid so
-    // it doesn't race the auth-state / marks subscription)
-    if (mark) await set(ref(db, `marks/${res.user.uid}/${mark.ticker}`), { v: mark.v, d: Date.now() });
-    // merge a pending star (clicked while signed out); also normalise a legacy
-    // array to the { ticker: addedAt } map
-    const r = ref(db, `watchlist/${res.user.uid}`);
-    const v = (await get(r)).val();
-    const now = Date.now();
-    const map: Record<string, number> = {};
-    if (Array.isArray(v)) {
-      for (const t of v) if (t) map[t] = now;
-    } else if (v && typeof v === "object") {
-      for (const [t, ts] of Object.entries(v)) map[t] = typeof ts === "number" ? ts : now;
-    }
-    let changed = Array.isArray(v);
-    for (const t of extra) {
-      if (!(t in map)) {
-        map[t] = now;
-        changed = true;
+      // Dev: become the throwaway user, no popup. Persist any pending mark/tracks
+      // to localStorage first so the effects load them when devUser flips on.
+      if (DEV_AUTH) {
+        if (mark) {
+          const m = readMarks();
+          m[mark.ticker] = { v: mark.v, d: Date.now() };
+          writeMarks(m);
+        }
+        if (extra.length) {
+          const l = readLocal();
+          for (const t of extra) if (!l.includes(t)) l.push(t);
+          writeLocal(l);
+        }
+        localStorage.setItem(DEV_FLAG, "1");
+        setDevUser(DEV_USER);
+        return;
       }
-    }
-    if (changed) await set(r, map);
-  }, []);
+      if (!auth || !db) return;
+      const def = AUTH_PROVIDERS.find((p) => p.id === providerId);
+      if (!def) return;
+      const res = await signInWithPopup(auth, def.make());
+      // apply a thumb pressed while signed out (write against the resolved uid so
+      // it doesn't race the auth-state / marks subscription)
+      if (mark) await set(ref(db, `marks/${res.user.uid}/${mark.ticker}`), { v: mark.v, d: Date.now() });
+      // merge a pending star (clicked while signed out); also normalise a legacy
+      // array to the { ticker: addedAt } map
+      const r = ref(db, `watchlist/${res.user.uid}`);
+      const v = (await get(r)).val();
+      const now = Date.now();
+      const map: Record<string, number> = {};
+      if (Array.isArray(v)) {
+        for (const t of v) if (t) map[t] = now;
+      } else if (v && typeof v === "object") {
+        for (const [t, ts] of Object.entries(v)) map[t] = typeof ts === "number" ? ts : now;
+      }
+      let changed = Array.isArray(v);
+      for (const t of extra) {
+        if (!(t in map)) {
+          map[t] = now;
+          changed = true;
+        }
+      }
+      if (changed) await set(r, map);
+    },
+    [],
+  );
 
   const signOut = useCallback(() => {
+    if (DEV_AUTH) {
+      localStorage.removeItem(DEV_FLAG);
+      setDevUser(null);
+      return;
+    }
     if (auth) void fbSignOut(auth);
   }, []);
 
