@@ -2,6 +2,8 @@ import { useMemo, type ReactNode } from "react";
 import { consClass, consLabel, fmtMc, fmtPx, scoreColor } from "../lib";
 import stocksData from "../data/stocks.json";
 import type { Stock } from "../types";
+import type { Mark, MarkEntry } from "../watchlist";
+import ThumbMark from "./ThumbMark";
 
 const STOCKS = stocksData as Stock[];
 
@@ -9,6 +11,8 @@ const isStrongBuy = (r: Stock): boolean => (r.con || "").toLowerCase() === "stro
 
 interface BestOfBestProps {
   onOpen: (s: Stock) => void;
+  marks: Record<string, MarkEntry>;
+  onMark: (t: string, v: Mark) => void;
 }
 
 function UpBar({ up }: { up: number | null }) {
@@ -41,25 +45,39 @@ export function Card({
   onOpen,
   crown,
   badge,
+  marks,
+  onMark,
 }: {
   s: Stock;
   onOpen: (s: Stock) => void;
   crown?: boolean;
   badge?: ReactNode;
+  marks: Record<string, MarkEntry>;
+  onMark: (t: string, v: Mark) => void;
 }) {
+  const mv = marks[s.t]?.v;
   return (
-    <button
-      type="button"
+    // a div (not button) so the thumb buttons can nest inside; still fully clickable
+    <div
+      role="button"
+      tabIndex={0}
       className={`bob-card ${crown ? "crown" : ""}`}
       onClick={() => onOpen(s)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen(s);
+        }
+      }}
       aria-label={`Open ${s.t} — ${s.n} detail`}
     >
       <div className="bob-card-head">
         <div className="bob-ident">
           {crown && <span className="bob-star" aria-hidden="true">★</span>}
-          <span className="bob-tk">{s.t}</span>
+          <span className={`bob-tk ${mv === "up" ? "mk-up" : mv === "down" ? "mk-down" : ""}`}>{s.t}</span>
           {badge}
           <span className="bob-co">{s.n || ""}</span>
+          <ThumbMark mark={marks[s.t]} onMark={(v) => onMark(s.t, v)} />
         </div>
         <span className="bob-sec">{s.sec ? consLabel(s.sec) : "—"}</span>
       </div>
@@ -106,11 +124,11 @@ export function Card({
           <span className="bob-v mono">{fmtMc(s.mc)}</span>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
-export default function BestOfBest({ onOpen }: BestOfBestProps) {
+export default function BestOfBest({ onOpen, marks, onMark }: BestOfBestProps) {
   const { crown, alsoSs10, aiThreshold } = useMemo(() => {
     const ai = STOCKS.map((r) => r.ai)
       .filter((x): x is number => x != null)
@@ -162,7 +180,7 @@ export default function BestOfBest({ onOpen }: BestOfBestProps) {
         ) : (
           <div className="bob-grid">
             {crown.map((s) => (
-              <Card key={s.t} s={s} onOpen={onOpen} crown />
+              <Card key={s.t} s={s} onOpen={onOpen} crown marks={marks} onMark={onMark} />
             ))}
           </div>
         )}
@@ -178,7 +196,7 @@ export default function BestOfBest({ onOpen }: BestOfBestProps) {
         ) : (
           <div className="bob-grid">
             {alsoSs10.map((s) => (
-              <Card key={s.t} s={s} onOpen={onOpen} />
+              <Card key={s.t} s={s} onOpen={onOpen} marks={marks} onMark={onMark} />
             ))}
           </div>
         )}

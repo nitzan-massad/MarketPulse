@@ -47,6 +47,12 @@ body::before{
 .search-open{position:absolute; top:-3px; right:0; width:min(360px, calc(100vw - 36px)); z-index:30;
   transform-origin:top right; animation:search-in .32s cubic-bezier(.2,.8,.2,1)}
 @keyframes search-in{from{opacity:0; transform:scale(.5)}to{opacity:1; transform:scale(1)}}
+/* phones: the 360px panel overflows off-screen anchored to the header icon, so
+   pin it as a full-width bar at the top instead (and 16px input to stop iOS zoom) */
+@media(max-width:640px){
+  .search-open{position:fixed; top:10px; left:10px; right:10px; width:auto; transform-origin:top center}
+  .search-field input{font-size:16px}
+}
 .search-field{display:flex; align-items:center; gap:9px; border:1px solid var(--gold-soft); border-radius:11px;
   padding:9px 12px; background:var(--bg); box-shadow:0 10px 26px -14px rgba(27,29,24,.4), 0 0 0 3px color-mix(in srgb, var(--gold) 11%, transparent)}
 .search-field svg{color:var(--gold-soft); flex:none}
@@ -180,17 +186,25 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 
 /* thumbs "read & liked" mark — colored ticker (option 10) + thumb right of it */
 .tk .sym.mk-up{color:var(--green)}
 .tk .sym.mk-down{color:var(--red)}
-.tmk{display:inline-flex; align-items:flex-start; gap:3px; margin-left:auto; flex:none}
-.tmk-c{display:flex; flex-direction:column; align-items:center; gap:0}
+/* left-anchored right after the ticker; date sits out of flow (absolute) inside
+   the reserved padding so pressing never changes the control's size/position */
+.tmk{display:inline-flex; align-items:flex-start; gap:3px; flex:none; position:relative; padding-bottom:11px; margin-left:2px}
+.tmk-c{position:relative; display:flex; flex-direction:column; align-items:center; gap:0}
+.tmk-hidden{visibility:hidden} /* reserve the slot but hide the unpicked thumb (no shift) */
 .tmk-b{appearance:none; background:none; border:0; cursor:pointer; padding:2px; border-radius:6px; color:var(--faint);
   display:flex; align-items:center; justify-content:center; transition:.14s}
 .tmk-b svg{width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linejoin:round; stroke-linecap:round}
 .tmk-b:hover{color:var(--muted); background:var(--panel)}
 .tmk-b.up.on{color:var(--green)} .tmk-b.down.on{color:var(--red)}
-.tmk-d{font-size:8.5px; font-family:"JetBrains Mono",monospace; white-space:nowrap; margin-top:-1px; font-style:normal}
+/* date sits absolutely centered under its thumb (out of flow → no size change) */
+.tmk-d{position:absolute; top:100%; left:50%; transform:translateX(-50%); font-size:8.5px;
+  font-family:"JetBrains Mono",monospace; white-space:nowrap; line-height:1.2; font-style:normal; pointer-events:none}
 .tmk-d.up{color:var(--green)} .tmk-d.down{color:var(--red)}
+/* best-of-best cards: colour the ticker, thumbs next to it on the identity line */
+.bob-tk.mk-up{color:var(--green)} .bob-tk.mk-down{color:var(--red)}
+.bob-ident .tmk{align-self:center}
 /* modal variant: both thumbs always visible, in the title bar next to the star */
-.mkm-titlebar .tmk{margin-left:0; gap:6px; align-items:center}
+.mkm-titlebar .tmk{margin-left:0; gap:6px; align-items:flex-start}
 .mkm-titlebar .tmk-b{width:27px; height:27px; border:1px solid var(--t-line); background:var(--t-panel); border-radius:7px; color:var(--t-muted); padding:0}
 .mkm-titlebar .tmk-b svg{width:15px; height:15px}
 .mkm-titlebar .tmk-b:hover{border-color:var(--t-gold)}

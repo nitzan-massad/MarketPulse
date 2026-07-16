@@ -3,6 +3,12 @@ import stocksData from "../data/stocks.json";
 import type { Stock } from "../types";
 import { addedInfo, agoLabel, consClass, consLabel, firstSeen, fmtMc, fmtPx, LIST_LABEL, NEW_WINDOW_DAYS, scoreColor } from "../lib";
 import { Chip, UpBar } from "./StockTable";
+import type { Mark, MarkEntry } from "../watchlist";
+import ThumbMark from "./ThumbMark";
+
+function symMark(v?: Mark): string {
+  return v === "up" ? "mk-up" : v === "down" ? "mk-down" : "";
+}
 
 const STOCKS = stocksData as Stock[];
 
@@ -39,9 +45,11 @@ function changesFor(s: Stock): Change[] {
 
 interface NewArrivalsProps {
   onOpen: (s: Stock) => void;
+  marks: Record<string, MarkEntry>;
+  onMark: (t: string, v: Mark) => void;
 }
 
-export default function NewArrivals({ onOpen }: NewArrivalsProps) {
+export default function NewArrivals({ onOpen, marks, onMark }: NewArrivalsProps) {
   const items = useMemo(() => {
     return STOCKS.map((s) => ({ s, info: addedInfo(s.t) }))
       .filter((x): x is { s: Stock; info: NonNullable<ReturnType<typeof addedInfo>> } => x.info != null)
@@ -123,9 +131,12 @@ export default function NewArrivals({ onOpen }: NewArrivalsProps) {
                       <UpBar up={s.up} />
                     </td>
                     <td className="tk">
-                      <button className="sym" type="button">
-                        {s.t}
-                      </button>
+                      <span className="tk-top">
+                        <button className={`sym ${symMark(marks[s.t]?.v)}`} type="button">
+                          {s.t}
+                        </button>
+                        <ThumbMark mark={marks[s.t]} onMark={(v) => onMark(s.t, v)} />
+                      </span>
                       <div className="co">{s.n || ""}</div>
                     </td>
                     <td className="num">{fmtPx(s.px)}</td>

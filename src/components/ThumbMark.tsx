@@ -20,48 +20,37 @@ const DOWN = (
 interface Props {
   mark?: MarkEntry;
   onMark: (v: Mark) => void;
-  /** modal: always show both thumbs. table: only the chosen thumb once set. */
+  /** modal: keep both thumbs visible. table/rows: hide the unpicked one (but
+   *  still reserve its space) once a choice is made. */
   both?: boolean;
 }
 
-// Thumbs-up/down "read & liked it" control. Row variant hides the unpicked
-// thumb once a choice is made; modal variant always shows both. The chosen one
-// is coloured with the date under it. Clicks never bubble to the row.
+// Thumbs-up/down "read & liked it" control. Both thumb slots and a date line are
+// ALWAYS rendered (the unpicked thumb is only made invisible in row mode, never
+// removed), so pressing colours + dates in place without any layout jump.
 export default function ThumbMark({ mark, onMark, both }: Props) {
   const v = mark?.v;
-  const showUp = both || !v || v === "up";
-  const showDown = both || !v || v === "down";
-  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  const col = (which: Mark, icon: React.ReactNode) => {
+    const hidden = !both && !!v && v !== which; // row: reserve space but hide the other
+    return (
+      <span className={`tmk-c ${hidden ? "tmk-hidden" : ""}`}>
+        <button
+          type="button"
+          className={`tmk-b ${which} ${v === which ? "on" : ""}`}
+          aria-label={which === "up" ? "Read it — liked" : "Read it — disliked"}
+          aria-pressed={v === which}
+          onClick={() => onMark(which)}
+        >
+          {icon}
+        </button>
+        <i className={`tmk-d ${which}`}>{v === which && mark ? fmtMarkDate(mark.d) : ""}</i>
+      </span>
+    );
+  };
   return (
-    <span className={`tmk ${v ? "set" : ""} ${both ? "both" : ""}`} onClick={stop}>
-      {showUp && (
-        <span className="tmk-c">
-          <button
-            type="button"
-            className={`tmk-b up ${v === "up" ? "on" : ""}`}
-            aria-label="Read it — liked"
-            aria-pressed={v === "up"}
-            onClick={() => onMark("up")}
-          >
-            {UP}
-          </button>
-          {v === "up" && <i className="tmk-d up">{fmtMarkDate(mark!.d)}</i>}
-        </span>
-      )}
-      {showDown && (
-        <span className="tmk-c">
-          <button
-            type="button"
-            className={`tmk-b down ${v === "down" ? "on" : ""}`}
-            aria-label="Read it — disliked"
-            aria-pressed={v === "down"}
-            onClick={() => onMark("down")}
-          >
-            {DOWN}
-          </button>
-          {v === "down" && <i className="tmk-d down">{fmtMarkDate(mark!.d)}</i>}
-        </span>
-      )}
+    <span className={`tmk ${v ? "set" : ""} ${both ? "both" : ""}`} onClick={(e) => e.stopPropagation()}>
+      {col("up", UP)}
+      {col("down", DOWN)}
     </span>
   );
 }

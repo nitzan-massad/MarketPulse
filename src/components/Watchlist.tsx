@@ -3,6 +3,8 @@ import stocksData from "../data/stocks.json";
 import type { Stock } from "../types";
 import { consClass, consLabel, fmtMc, fmtPx, scoreColor } from "../lib";
 import { Chip, UpBar } from "./StockTable";
+import type { Mark, MarkEntry } from "../watchlist";
+import ThumbMark from "./ThumbMark";
 
 const STOCKS = stocksData as Stock[];
 
@@ -13,6 +15,8 @@ interface WatchlistProps {
   user: User | null;
   syncReady: boolean;
   onSignInClick: () => void;
+  marks: Record<string, MarkEntry>;
+  onMark: (t: string, v: Mark) => void;
 }
 
 export default function Watchlist({
@@ -22,6 +26,8 @@ export default function Watchlist({
   user,
   syncReady,
   onSignInClick,
+  marks,
+  onMark,
 }: WatchlistProps) {
   const rows = STOCKS.filter((s) => watchlist.includes(s.t));
   // tracked tickers that have dropped out of the ranked universe
@@ -100,7 +106,10 @@ export default function Watchlist({
                     </button>
                   </td>
                   <td className="tk">
-                    <button className="sym" type="button">{s.t}</button>
+                    <span className="tk-top">
+                      <button className={`sym ${marks[s.t]?.v === "up" ? "mk-up" : marks[s.t]?.v === "down" ? "mk-down" : ""}`} type="button">{s.t}</button>
+                      <ThumbMark mark={marks[s.t]} onMark={(v) => onMark(s.t, v)} />
+                    </span>
                     <div className="co">{s.n || ""}</div>
                   </td>
                   <td className="num">{fmtPx(s.px)}</td>

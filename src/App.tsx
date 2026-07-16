@@ -309,9 +309,9 @@ export default function App() {
           />
         </>
       ) : nav === "best" ? (
-        <BestOfBest onOpen={handleOpen} />
+        <BestOfBest onOpen={handleOpen} marks={marks} onMark={requestMark} />
       ) : nav === "new" ? (
-        <NewArrivals onOpen={handleOpen} />
+        <NewArrivals onOpen={handleOpen} marks={marks} onMark={requestMark} />
       ) : (
         <Watchlist
           watchlist={watchlist}
@@ -320,6 +320,8 @@ export default function App() {
           user={user}
           syncReady={syncReady}
           onSignInClick={() => setSignInOpen(true)}
+          marks={marks}
+          onMark={requestMark}
         />
       )}
 
