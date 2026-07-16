@@ -218,28 +218,34 @@ export default function App() {
         <h1 id="title">Market <span className="em">Pulse</span></h1>
         <div className="site-right">
           <Search onOpen={handleOpen} onOpenTicker={handleOpenTicker} />
-          {syncReady && authReady &&
-            (user ? (
-              <button
-                className="acctchip"
-                type="button"
-                title="Account"
-                aria-label="Account"
-                onClick={() => setSignInOpen(true)}
-              >
-                {user.photoURL ? (
-                  <img src={user.photoURL} alt="" referrerPolicy="no-referrer" />
+          {syncReady && (
+            // fixed-width slot reserved up-front so the account control fades in
+            // without reflowing the header once auth resolves (~1–2s)
+            <div className="acctslot">
+              {authReady &&
+                (user ? (
+                  <button
+                    className="acctchip"
+                    type="button"
+                    title="Account"
+                    aria-label="Account"
+                    onClick={() => setSignInOpen(true)}
+                  >
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt="" referrerPolicy="no-referrer" />
+                    ) : (
+                      <span className="acctini">
+                        {(user.email || user.displayName || "?").slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                  </button>
                 ) : (
-                  <span className="acctini">
-                    {(user.email || user.displayName || "?").slice(0, 1).toUpperCase()}
-                  </span>
-                )}
-              </button>
-            ) : (
-              <button className="acctbtn" type="button" onClick={() => setSignInOpen(true)}>
-                Sign in
-              </button>
-            ))}
+                  <button className="acctbtn" type="button" onClick={() => setSignInOpen(true)}>
+                    Sign in
+                  </button>
+                ))}
+            </div>
+          )}
         </div>
       </header>
 
