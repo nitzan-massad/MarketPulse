@@ -217,9 +217,15 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 
 .wl-star:hover{color:var(--gold-soft); transform:scale(1.12)}
 .wl-star.on{color:var(--gold)}
 /* watchlist — aligned, contained table */
-.wl-wrap{margin:8px auto 0; width:100%; max-width:820px; overflow-x:auto; overflow-y:hidden;
+.wl-wrap{margin:8px auto 0; width:100%; max-width:824px; overflow-x:auto; overflow-y:hidden;
   border:1px solid var(--line); border-radius:14px; background:var(--panel)}
-.wl-table{width:100%; table-layout:fixed; border-collapse:collapse; font-size:13px}
+/* content-width so the fixed columns can't squeeze the ticker to 0 — the wrap
+   scrolls instead; ★ + Ticker stay pinned left */
+.wl-table{width:max-content; min-width:100%; table-layout:fixed; border-collapse:collapse; font-size:13px}
+.wl-table td.wl-st, .wl-table td.tk{position:sticky; z-index:2; background:var(--panel)}
+.wl-table th:nth-child(1), .wl-table th:nth-child(2){position:sticky; z-index:2; background:var(--panel-2)}
+.wl-table td.wl-st, .wl-table th:nth-child(1){left:0}
+.wl-table td.tk, .wl-table th:nth-child(2){left:42px}
 .wl-table th{padding:11px 10px; font-family:"Archivo",sans-serif; font-size:9.5px; font-weight:700;
   letter-spacing:.04em; text-transform:uppercase; color:var(--muted); text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   background:var(--panel-2); border-bottom:1px solid var(--line)}

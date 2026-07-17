@@ -68,7 +68,7 @@ export default function Watchlist({
           <table className="wl-table">
             <colgroup>
               <col style={{ width: "42px" }} />
-              <col />
+              <col style={{ width: "150px" }} />
               <col style={{ width: "96px" }} />
               <col style={{ width: "92px" }} />
               <col style={{ width: "136px" }} />
