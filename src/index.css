@@ -188,7 +188,7 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 
 .tk .sym.mk-down{color:var(--red)}
 /* left-anchored right after the ticker; date sits out of flow (absolute) inside
    the reserved padding so pressing never changes the control's size/position */
-.tmk{display:inline-flex; align-items:flex-start; gap:3px; flex:none; position:relative; padding-bottom:11px; margin-left:2px}
+.tmk{display:inline-flex; align-items:flex-start; gap:3px; flex:none; position:relative; padding-bottom:11px; margin-left:auto}
 .tmk-c{position:relative; display:flex; flex-direction:column; align-items:center; gap:0}
 .tmk-hidden{visibility:hidden} /* reserve the slot but hide the unpicked thumb (no shift) */
 .tmk-b{appearance:none; background:none; border:0; cursor:pointer; padding:2px; border-radius:6px; color:var(--faint);
@@ -202,7 +202,7 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 
 .tmk-d.up{color:var(--green)} .tmk-d.down{color:var(--red)}
 /* best-of-best cards: colour the ticker, thumbs next to it on the identity line */
 .bob-tk.mk-up{color:var(--green)} .bob-tk.mk-down{color:var(--red)}
-.bob-ident .tmk{align-self:center}
+.bob-ident .tmk{align-self:center; margin-left:auto}
 /* modal variant: both thumbs always visible, in the title bar next to the star */
 .mkm-titlebar .tmk{margin-left:0; gap:6px; align-items:flex-start}
 .mkm-titlebar .tmk-b{width:27px; height:27px; border:1px solid var(--t-line); background:var(--t-panel); border-radius:7px; color:var(--t-muted); padding:0}
@@ -257,6 +257,11 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 
 .acctslot{min-width:40px; height:40px; flex:none; display:flex; align-items:center; justify-content:flex-end}
 .acctslot > *{animation:acct-in .2s ease}
 @keyframes acct-in{from{opacity:0} to{opacity:1}}
+/* spinner shown until Firebase resolves the session, then the chip/button fades in */
+.acct-spin{width:18px; height:18px; border:2px solid var(--line); border-top-color:var(--gold-soft);
+  border-radius:50%; animation:acct-spin .7s linear infinite}
+@keyframes acct-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.acct-spin{animation-duration:2s}}
 .acctbtn{appearance:none; cursor:pointer; font-family:"Archivo",sans-serif; font-weight:700; font-size:13px;
   background:var(--gold); color:#1a1500; border:0; border-radius:999px; padding:9px 16px; transition:.15s; white-space:nowrap}
 .acctbtn:hover{background:var(--gold-soft); color:#fff}
