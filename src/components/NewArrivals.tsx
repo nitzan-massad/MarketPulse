@@ -83,8 +83,9 @@ export default function NewArrivals({ onOpen, marks, onMark }: NewArrivalsProps)
               <tr>
                 <th className="l">Added</th>
                 <th className="l">Changes</th>
-                <th>Upside</th>
                 <th className="l">Ticker / Company</th>
+                <th className="l">Sector</th>
+                <th>Upside</th>
                 <th>Price</th>
                 <th className="l">Consensus</th>
                 <th>Smart Score</th>
@@ -127,9 +128,6 @@ export default function NewArrivals({ onOpen, marks, onMark }: NewArrivalsProps)
                         </div>
                       ))}
                     </td>
-                    <td className="na-up">
-                      <UpBar up={s.up} />
-                    </td>
                     <td className="tk">
                       <span className="tk-top">
                         <button className={`sym ${symMark(marks[s.t]?.v)}`} type="button">
@@ -138,6 +136,10 @@ export default function NewArrivals({ onOpen, marks, onMark }: NewArrivalsProps)
                         <ThumbMark mark={marks[s.t]} onMark={(v) => onMark(s.t, v)} />
                       </span>
                       <div className="co">{s.n || ""}</div>
+                    </td>
+                    <td className="na-sec l">{s.sec || "—"}</td>
+                    <td className="na-up">
+                      <UpBar up={s.up} />
                     </td>
                     <td className="num">{fmtPx(s.px)}</td>
                     <td className="l">
