@@ -28,34 +28,27 @@ FlareSolverr) — a dev tool, not part of CI.
 3. That's it — the next scheduled run, or a manual **Actions → Run workflow**, uses the new code.
    **Never** edit the workflow through the GitHub web UI; the repo is the source of truth.
 
-## Not yet automated: bull/bear & analyst forecasts
+## Analyst forecasts — automated ✅
 
-`public/bullbear/<TICKER>.json` and `public/forecasts/<TICKER>.json` power the modal's
-"Bulls Say / Bears Say" and "Analyst Forecasts" panels. **They are static, hand-baked
-TipRanks scrapes — no script here regenerates them.** So newly-ranked tickers appear in
-the lists immediately but have no bull/bear or forecast files until a manual re-scrape,
-which is why New Arrivals are disproportionately missing those panels.
+`ci/scrape-forecasts.mjs` refreshes `public/forecasts/<TICKER>.json` from TipRanks'
+`getData` feed via FlareSolverr. `site.yml` runs it right after the data refresh (for
+tickers **missing** a file; `LIMIT` caps per-run count, `ALL=1` re-scrapes everyone),
+and the commit step now also stages `public/forecasts`.
 
-### To automate it (planned `ci/scrape-analysis.mjs`)
+- **Source (verified):** `https://www.tipranks.com/api/stocks/getData/?name=<T>` → `experts[]`.
+  Mapping: `name`, `firm`, `rankings[].stars` (0–5), newest `ratings[0]` → `ratingId` 1/2/3 =
+  Buy/Hold/Sell, `convertedPriceTarget` (→ `pt`), `convertedOldPriceTarget` (→ `opt`), `date` (→ `d`).
+- **Output:** `[{ "n": analyst, "f": firm, "st": stars, "r": "Buy|Hold|Sell", "pt": target, "opt": prior|null, "d": "YYYY-MM-DD" }, …]`
+- **Failure-tolerant:** per-ticker try/catch, only writes valid non-empty results, `continue-on-error`
+  in CI — it can never break the main refresh. Tiny tickers with no ranked analysts simply get no file.
 
-For each ticker in `stocks.json` that is **missing** a file (batch-capped per run so
-runtime stays bounded), fetch from TipRanks via the existing FlareSolverr helper and write:
+## Bulls Say / Bears Say — still manual ⚠️
 
-- `public/bullbear/<T>.json` → `{ "bull": [{ "t": "title", "b": "body" }, …], "bear": [ … ] }`
-- `public/forecasts/<T>.json` → `[{ "n": analyst, "f": firm, "st": stars 0–5, "r": "Buy|Hold|Sell", "pt": target, "opt": prior target|null, "d": "YYYY-MM-DD" }, …]`
-
-Then in `site.yml`: run this step after `refresh-data-ci.mjs`, and extend the commit step's
-`git add` / `git diff` to also include `public/bullbear public/forecasts`.
-
-**Hard requirement:** the scrape must be strictly additive and per-ticker failure-tolerant
-(wrapped in try/catch, validate JSON before writing) so it can **never** break the main
-stocks/seen/meta refresh.
-
-### Missing info needed to build it
-
-- The exact **TipRanks endpoint URL + a sample JSON response** for **Bulls Say / Bears Say**
-  (no known free endpoint — this was originally a manual/paywalled-preview scrape).
-- Confirmation of the **forecasts** endpoint. Best guess: `https://www.tipranks.com/api/stocks/getData/?name=<TICKER>`
-  → `experts[]` (name, firm, `rankings[].stars`, `ratings[]` with date/rating/priceTarget) — **unverified**.
-
-Provide those (or say "best-effort, validate on CI") and the scraper can be written and wired in.
+`public/bullbear/<TICKER>.json` is a **static, hand-baked** scrape. The AI "Bulls Say /
+Bears Say" prose is **not in TipRanks' free page HTML** (verified: the exact titles/bodies
+aren't served on the free stock/stock-analysis pages) — it's a premium/GPT feature, so
+there's no free endpoint to automate against. New tickers therefore still show
+"not available" for this panel until a premium-access re-scrape. Options if we want it:
+scrape with an authenticated TipRanks session, use a paid data source, or generate the
+pros/cons ourselves from fundamentals. Shape to match:
+`{ "bull": [{ "t": "title", "b": "body" }, …], "bear": [ … ] }`.
