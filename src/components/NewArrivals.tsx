@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import stocksData from "../data/stocks.json";
 import type { Stock } from "../types";
-import { addedInfo, agoLabel, consClass, consLabel, firstSeen, fmtMc, fmtPx, LIST_LABEL, NEW_WINDOW_DAYS, scoreColor } from "../lib";
+import { addedInfo, agoLabel, consClass, consLabel, DATE_LOCALE, firstSeen, fmtMc, fmtPx, LIST_LABEL, NEW_WINDOW_DAYS, scoreColor } from "../lib";
 import { Chip, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
@@ -12,8 +12,10 @@ function symMark(v?: Mark): string {
 
 const STOCKS = stocksData as Stock[];
 
-const fmtDate = (iso: string): string =>
-  new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const fmtDate = (iso: string): string => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(DATE_LOCALE, { month: "short", day: "numeric" });
+};
 
 const CONS_RANK: Record<string, number> = { StrongSell: 1, Sell: 2, Hold: 3, Buy: 4, StrongBuy: 5 };
 

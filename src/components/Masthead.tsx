@@ -1,4 +1,5 @@
 import meta from "../data/meta.json";
+import { DATE_LOCALE } from "../lib";
 import type { LiveStatus } from "../useLiveQuotes";
 
 interface MastheadProps {
@@ -8,7 +9,7 @@ interface MastheadProps {
   onLive: () => void;
 }
 
-const SNAPSHOT = new Date(meta.generatedAt).toLocaleString("en-US", {
+const SNAPSHOT = new Date(meta.generatedAt).toLocaleString(DATE_LOCALE, {
   month: "short", day: "numeric", year: "numeric",
   hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short",
 });

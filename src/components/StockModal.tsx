@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { consClass, consLabel, fmtMc } from "../lib";
+import { consClass, consLabel, DATE_LOCALE, fmtMc } from "../lib";
 import type { Stock } from "../types";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
@@ -44,6 +44,7 @@ interface Metric {
   hi52: number | null;
   lo52: number | null;
   pe: number | null;
+  epsTtm: number | null; // trailing EPS — for the live price/EPS P/E (Apple Stocks style)
   beta: number | null;
   avgVol3M: number | null;
   avgVol10D: number | null;
@@ -219,6 +220,7 @@ async function fetchQuoteMetric(ticker: string): Promise<{ quote: Quote; metric:
       hi52: num(m["52WeekHigh"]),
       lo52: num(m["52WeekLow"]),
       pe: num(m.peTTM) ?? num(m.peBasicExclExtraTTM),
+      epsTtm: num(m.epsTTM) ?? num(m.epsBasicExclExtraTTM),
       beta: num(m.beta),
       avgVol3M: num(m["3MonthAverageTradingVolume"]),
       avgVol10D: num(m["10DayAverageTradingVolume"]),
@@ -387,19 +389,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   const [forecasts, setForecasts] = useState<Forecast[] | null>(null);
   const [fcOpen, setFcOpen] = useState(false);
   const [liveDesc, setLiveDesc] = useState<string | null>(null);
-  const [burst, setBurst] = useState<{ dir: Mark; k: number } | null>(null); // big thumb press animation
   const dialogRef = useRef<HTMLDivElement>(null);
-
-  // persist the thumb (via onMark) and fire the big bounce+ring+fade — only when
-  // setting a mark, not when clearing it
-  const react = useCallback(
-    (v: Mark) => {
-      const setting = mark?.v !== v;
-      onMark(v);
-      if (setting) setBurst((b) => ({ dir: v, k: (b?.k ?? 0) + 1 }));
-    },
-    [mark, onMark],
-  );
 
   // close on Escape
   useEffect(() => {
@@ -458,7 +448,6 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
     setForecasts(null);
     setFcOpen(false);
     setLiveDesc(null);
-    setBurst(null);
     fetchBullBear(stock.t).then((r) => {
       if (!cancelled) setBb(r);
     });
@@ -509,6 +498,12 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   // ---- derived display values (live extras layered over the snapshot row) ----
   const price = quote?.c ?? stock.px;
   const dayPct = quote?.dp ?? stock.chg;
+  // Apple Stocks shows a live trailing P/E = current price / trailing EPS. Recompute
+  // it that way so it tracks the shown price; fall back to Finnhub's peTTM if no EPS.
+  const peLive =
+    metric?.epsTtm != null && metric.epsTtm > 0 && price != null
+      ? price / metric.epsTtm
+      : metric?.pe ?? null;
   // prefer live profile (Finnhub) over the scraped DB row for these fields
   const name = profile?.name ?? stock.n;
   const sector = profile?.sector ?? stock.sec;
@@ -540,8 +535,8 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   const posClass = (r: string | null): string =>
     r === "Buy" ? "buy" : r === "Sell" ? "sell" : "hold";
   const fmtFcDate = (d: string): string => {
-    const [y, m, dd] = d.split("-");
-    return `${m}/${dd}/${y.slice(2)}`;
+    const [y, m, dd] = d.split("-").map(Number);
+    return new Date(y, m - 1, dd).toLocaleDateString(DATE_LOCALE, { day: "2-digit", month: "2-digit", year: "2-digit" });
   };
   const fcUpside = (pt: number): number | null =>
     price != null && price > 0 ? ((pt - price) / price) * 100 : null;
@@ -606,26 +601,12 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
               {tracked ? "★" : "☆"}
             </button>
           )}
-          {!chromeOff && <ThumbMark mark={mark} onMark={react} both />}
+          {!chromeOff && <ThumbMark mark={mark} onMark={onMark} both />}
           {!chromeOff && <div className="mkm-live">LIVE</div>}
           <button className="mkm-close" aria-label="Close" onClick={onClose}>
             &times;
           </button>
         </div>
-
-        {/* big thumb press animation (bounce + ring + fade) */}
-        {burst && (
-          <div className="mkm-burst" aria-hidden="true">
-            <span key={burst.k} className={`mkm-burst-ring ${burst.dir}`} />
-            <span
-              key={`t${burst.k}`}
-              className="mkm-burst-thumb"
-              onAnimationEnd={() => setBurst(null)}
-            >
-              {burst.dir === "up" ? "👍" : "👎"}
-            </span>
-          </div>
-        )}
 
         <div className="mkm-scroll">
           {loadingUncovered ? (
@@ -882,9 +863,9 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
                 </div>
               </div>
               <div className="row">
-                <div className="k">P/E TTM</div>
+                <div className="k">P/E</div>
                 <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>
-                  {metric?.pe == null ? "—" : metric.pe.toFixed(2)}
+                  {peLive == null || peLive <= 0 ? "—" : peLive.toFixed(2)}
                 </div>
               </div>
               <div className="row">

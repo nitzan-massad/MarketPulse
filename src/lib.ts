@@ -33,6 +33,12 @@ export const COLS: Col[] = [
   { k: "mc", l: "Mkt Cap", sortable: true },
 ];
 
+// dates follow the device locale; fall back to en-GB (dd/mm/yy) when unknown
+export const DATE_LOCALE: string[] =
+  typeof navigator !== "undefined" && navigator.languages?.length
+    ? [...navigator.languages, "en-GB"]
+    : ["en-GB"];
+
 export const fmtMc = (m: number | null): string =>
   m == null ? "—" : m >= 1e6 ? "$" + (m / 1e6).toFixed(2) + "T" : m >= 1e3 ? "$" + (m / 1e3).toFixed(1) + "B" : "$" + Math.round(m) + "M";
 

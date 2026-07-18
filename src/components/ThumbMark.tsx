@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Mark, MarkEntry } from "../watchlist";
+import { DATE_LOCALE } from "../lib";
 
-const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 export function fmtMarkDate(ms: number): string {
-  const d = new Date(ms);
-  return `${MON[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  return new Date(ms).toLocaleDateString(DATE_LOCALE, { year: "numeric", month: "short", day: "numeric" });
 }
 
 const UP = (
@@ -142,7 +141,10 @@ export default function ThumbMark({ mark, onMark, both }: Props) {
   }, [burst?.k]);
 
   function press(which: Mark, e: React.MouseEvent<HTMLButtonElement>) {
+    // pressing the already-picked thumb clears the colour — no animation for that
+    const setting = v !== which;
     onMark(which);
+    if (!setting) return;
     const r = e.currentTarget.getBoundingClientRect();
     let n = Math.floor(Math.random() * ANIMS.length);
     if (n === lastAnim) n = (n + 1) % ANIMS.length; // never the same one twice in a row
