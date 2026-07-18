@@ -176,7 +176,11 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onO
                   </td>
                   <td data-label="Consensus">
                     <span className={`pill ${consClass(s.con)}`}>{consLabel(s.con)}</span>
-                    <div className="dist">{s.b}·{s.h}·{s.s}</div>
+                    <div className="dist" title={`${s.b} buy · ${s.h} hold · ${s.s} sell`}>
+                      <span className="d-b">▲{s.b}</span>
+                      <span className="d-h">●{s.h}</span>
+                      <span className="d-s">▼{s.s}</span>
+                    </div>
                   </td>
                   <td className="pt" data-label="Predicted Price">
                     {s.pt == null ? <span className="dash">—</span> : "$" + s.pt.toFixed(2)}

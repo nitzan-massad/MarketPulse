@@ -367,9 +367,11 @@ interface StockModalProps {
   covered?: boolean; // in the TipRanks ranked set? false => live data only
   mark?: MarkEntry;
   onMark: (v: Mark) => void;
+  onPrev?: () => void; // page to previous stock in the list (undefined = none)
+  onNext?: () => void; // page to next stock
 }
 
-export default function StockModal({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark }: StockModalProps) {
+export default function StockModal({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext }: StockModalProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
@@ -381,22 +383,39 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   const [bb, setBb] = useState<BullBear | null>(null);
   const [bbTab, setBbTab] = useState<"bull" | "bear">("bull");
   const [descOpen, setDescOpen] = useState(false);
-  const [bbOpen, setBbOpen] = useState(false);
+  const [bbOpen, setBbOpen] = useState<Set<number>>(() => new Set()); // per-topic expanded indices
   const [forecasts, setForecasts] = useState<Forecast[] | null>(null);
   const [fcOpen, setFcOpen] = useState(false);
   const [liveDesc, setLiveDesc] = useState<string | null>(null);
+  const [burst, setBurst] = useState<{ dir: Mark; k: number } | null>(null); // big thumb press animation
   const dialogRef = useRef<HTMLDivElement>(null);
+
+  // persist the thumb (via onMark) and fire the big bounce+ring+fade — only when
+  // setting a mark, not when clearing it
+  const react = useCallback(
+    (v: Mark) => {
+      const setting = mark?.v !== v;
+      onMark(v);
+      if (setting) setBurst((b) => ({ dir: v, k: (b?.k ?? 0) + 1 }));
+    },
+    [mark, onMark],
+  );
 
   // close on Escape
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      if (fcOpen) setFcOpen(false); // close the forecasts modal first
-      else onClose();
+      if (e.key === "Escape") {
+        if (fcOpen) setFcOpen(false); // close the forecasts modal first
+        else onClose();
+        return;
+      }
+      if (fcOpen) return; // don't page the underlying stock while forecasts is up
+      if (e.key === "ArrowLeft" && onPrev) onPrev();
+      else if (e.key === "ArrowRight" && onNext) onNext();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, fcOpen]);
+  }, [onClose, fcOpen, onPrev, onNext]);
 
   // lock body scroll while open
   useEffect(() => {
@@ -434,11 +453,12 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
     let cancelled = false;
     setBb(null);
     setBbTab("bull");
-    setBbOpen(false);
+    setBbOpen(new Set());
     setDescOpen(false);
     setForecasts(null);
     setFcOpen(false);
     setLiveDesc(null);
+    setBurst(null);
     fetchBullBear(stock.t).then((r) => {
       if (!cancelled) setBb(r);
     });
@@ -558,6 +578,12 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   return (
     <>
     <div className="mkm-scrim" onMouseDown={onBackdrop}>
+      <div className="mkm-stage">
+        {onPrev && (
+          <button type="button" className="mkm-nav prev" aria-label="Previous stock" onClick={onPrev}>
+            ‹
+          </button>
+        )}
       <div
         className="mkm-modal"
         role="dialog"
@@ -565,11 +591,9 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
         aria-labelledby="mkm-sym"
         ref={dialogRef}
       >
-        {/* title bar */}
+        {/* title bar — one aligned row: ticker · star · thumbs · LIVE · close */}
         <div className="mkm-titlebar">
-          <div className="mkm-path">
-            <b>{stock.t}</b>
-          </div>
+          <div className="mkm-tbtk" id="mkm-sym">{stock.t}</div>
           {!chromeOff && (
             <button
               type="button"
@@ -582,12 +606,26 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
               {tracked ? "★" : "☆"}
             </button>
           )}
-          {!chromeOff && <ThumbMark mark={mark} onMark={onMark} both />}
+          {!chromeOff && <ThumbMark mark={mark} onMark={react} both />}
           {!chromeOff && <div className="mkm-live">LIVE</div>}
           <button className="mkm-close" aria-label="Close" onClick={onClose}>
             &times;
           </button>
         </div>
+
+        {/* big thumb press animation (bounce + ring + fade) */}
+        {burst && (
+          <div className="mkm-burst" aria-hidden="true">
+            <span key={burst.k} className={`mkm-burst-ring ${burst.dir}`} />
+            <span
+              key={`t${burst.k}`}
+              className="mkm-burst-thumb"
+              onAnimationEnd={() => setBurst(null)}
+            >
+              {burst.dir === "up" ? "👍" : "👎"}
+            </span>
+          </div>
+        )}
 
         <div className="mkm-scroll">
           {loadingUncovered ? (
@@ -607,11 +645,8 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
           ) : (
           <>
           {!covered && <div className="mkm-lim">Limited data — not in the ranked set</div>}
-          {/* head line */}
+          {/* head line — ticker now lives in the title bar; company + price here */}
           <div className="mkm-head">
-            <div className="mkm-headsym" id="mkm-sym">
-              {stock.t}
-            </div>
             <div className="mkm-co">
               {name}
               {sector ? " · " + consLabel(sector) : ""}
@@ -760,25 +795,10 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
                   {stock.s || ""}
                 </span>
               </div>
-              <div className="mkm-klist">
-                <div className="kr">
-                  <span>Buy</span>
-                  <b className="g">
-                    {stock.b} &nbsp;{rowPct(stock.b).toFixed(1)}%
-                  </b>
-                </div>
-                <div className="kr">
-                  <span>Hold</span>
-                  <b>
-                    {stock.h} &nbsp;{rowPct(stock.h).toFixed(1)}%
-                  </b>
-                </div>
-                <div className="kr">
-                  <span>Sell</span>
-                  <b>
-                    {stock.s} &nbsp;{rowPct(stock.s).toFixed(1)}%
-                  </b>
-                </div>
+              <div className="mkm-dchips">
+                <span className="mkm-dchip b">Buy <b>{stock.b}</b> · {Math.round(rowPct(stock.b))}%</span>
+                <span className="mkm-dchip h">Hold <b>{stock.h}</b> · {Math.round(rowPct(stock.h))}%</span>
+                <span className="mkm-dchip s">Sell <b>{stock.s}</b> · {Math.round(rowPct(stock.s))}%</span>
               </div>
             </div>
             <div className="mkm-rp">
@@ -901,36 +921,43 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
                   <button
                     type="button"
                     className={bbTab === "bull" ? "on bull" : ""}
-                    onClick={() => { setBbTab("bull"); setBbOpen(false); }}
+                    onClick={() => { setBbTab("bull"); setBbOpen(new Set()); }}
                   >
                     ▲ Bulls Say
                   </button>
                   <button
                     type="button"
                     className={bbTab === "bear" ? "on bear" : ""}
-                    onClick={() => { setBbTab("bear"); setBbOpen(false); }}
+                    onClick={() => { setBbTab("bear"); setBbOpen(new Set()); }}
                   >
                     ▼ Bears Say
                   </button>
                 </div>
                 <div className="mkm-bblist">
-                  {(bbTab === "bull" ? bb.bull : bb.bear).map((p, i) => (
-                    <div className="mkm-bbpt" key={i}>
-                      <div className={`t ${bbTab}`}>{p.t}</div>
-                      <div className={`b ${bbOpen ? "" : "mkm-clamp2"}`}>{p.b}</div>
-                    </div>
-                  ))}
+                  {(bbTab === "bull" ? bb.bull : bb.bear).map((p, i) => {
+                    const open = bbOpen.has(i);
+                    return (
+                      <button
+                        type="button"
+                        className={`mkm-bbpt ${open ? "open" : ""}`}
+                        key={i}
+                        aria-expanded={open}
+                        onClick={() =>
+                          setBbOpen((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(i)) next.delete(i);
+                            else next.add(i);
+                            return next;
+                          })
+                        }
+                      >
+                        <span className={`t ${bbTab}`}>{p.t}</span>
+                        <span className={`b ${open ? "" : "mkm-clamp2"}`}>{p.b}</span>
+                        <span className="mkm-bbtog">{open ? "Show less" : "Show more"}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-                {(bbTab === "bull" ? bb.bull : bb.bear).length > 0 && (
-                  <button
-                    type="button"
-                    className="mkm-more"
-                    aria-expanded={bbOpen}
-                    onClick={() => setBbOpen((v) => !v)}
-                  >
-                    {bbOpen ? "Show less" : "Show more"}
-                  </button>
-                )}
               </>
             ) : (
               <div className="mkm-bbna">Bull / bear analysis not available for this stock.</div>
@@ -951,6 +978,12 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
           </>
           )}
         </div>
+      </div>
+        {onNext && (
+          <button type="button" className="mkm-nav next" aria-label="Next stock" onClick={onNext}>
+            ›
+          </button>
+        )}
       </div>
     </div>
 
@@ -976,8 +1009,15 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
           </div>
           <div className="mkm-scroll">
             <div className="mkm-fcfull mkm-fcfull-modal">
-              <div className="mkm-rphdr">Detailed Analyst Forecasts · {forecasts.length}</div>
               <div className="mkm-fctable">
+                <div className="mkm-fchead">
+                  <span className="ctr" title="TipRanks analyst star rating">★</span>
+                  <span>Analyst / Firm</span>
+                  <span className="ar">Rating</span>
+                  <span className="ar">Price Target</span>
+                  <span className="ar">Upside</span>
+                  <span className="ar">Date</span>
+                </div>
                 {forecasts.map((f, i) => {
                   const up = fcUpside(f.pt);
                   return (

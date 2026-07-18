@@ -1,13 +1,15 @@
 :root{
-  --bg:#ffffff; --panel:#faf9f5; --panel-2:#f3f2ea; --line:#e6e3d8;
-  --ink:#1b1d18; --muted:#6c7264; --faint:#a6ab9b;
-  --gold:#b8860b; --gold-soft:#9c7414;
-  --green:#1f9152; --green-2:#3da06a; --amber:#b8860b; --red:#cf4b30; --red-2:#b03a22;
-  --teal:#1f8f8d;
-  /* light palette used by the stock detail modal (echoes the main app) */
-  --t-bg:#ffffff; --t-panel:#f5f4ef; --t-line:#e6e3d8; --t-line-2:#efeee6;
-  --t-ink:#1b1d18; --t-muted:#40433a; --t-faint:#63675b;
-  --t-gold:#b8860b; --t-green:#1f9152; --t-red:#cf4b30; --t-teal:#1f8f8d;
+  /* Steel Navy palette (design review round 2, option #5). --gold is the app's
+     accent token throughout, now navy; buy/hold/sell keep green/accent/red. */
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  /* stock detail modal — echoes the steel palette */
+  --t-bg:#ffffff; --t-panel:#eef1f5; --t-line:#d3dae3; --t-line-2:#e9edf2;
+  --t-ink:#131a24; --t-muted:#3a4453; --t-faint:#5c6675;
+  --t-gold:#1b3f73; --t-green:#17864f; --t-red:#c73a2b; --t-teal:#147c86;
   /* Inter — most legible for the small, uppercase, tracked modal headlines */
   --t-head:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
 }
@@ -19,8 +21,8 @@ body{
   font-size:14px; line-height:1.4;
   -webkit-font-smoothing:antialiased;
   background-image:
-    radial-gradient(1200px 500px at 78% -8%, rgba(232,184,75,.10), transparent 60%),
-    radial-gradient(900px 600px at 0% 110%, rgba(86,194,192,.06), transparent 55%);
+    radial-gradient(1200px 500px at 78% -8%, rgba(27,63,115,.08), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(20,124,134,.05), transparent 55%);
   background-attachment:fixed;
   min-height:100vh;
 }
@@ -94,7 +96,7 @@ h1 .em{font-style:italic; font-weight:500; color:var(--gold)}
   display:flex; flex-direction:column; gap:2px; line-height:1.15; min-width:150px;
 }
 .tab small{font-size:10.5px; font-weight:500; color:var(--faint); letter-spacing:.02em}
-.tab:hover{color:var(--ink); border-color:#33402a}
+.tab:hover{color:var(--ink); border-color:#33415a}
 .tab.on{background:var(--panel-2); color:var(--ink); border-color:var(--line); border-bottom-color:var(--panel-2)}
 .tab.on{box-shadow:inset 0 2px 0 var(--gold)}
 .tab.on small{color:var(--gold-soft)}
@@ -109,7 +111,7 @@ h1 .em{font-style:italic; font-weight:500; color:var(--gold)}
   background:var(--panel); border:1px solid var(--line); border-radius:9px; color:var(--ink);
   font-family:inherit; font-size:13px; padding:10px 12px 10px 34px; width:240px; transition:.18s;
 }
-.search:focus{outline:none; border-color:var(--gold-soft); box-shadow:0 0 0 3px rgba(232,184,75,.12)}
+.search:focus{outline:none; border-color:var(--gold-soft); box-shadow:0 0 0 3px rgba(27,63,115,.14)}
 .field svg{position:absolute; left:11px; width:15px; height:15px; color:var(--faint); pointer-events:none}
 select{
   background:var(--panel); border:1px solid var(--line); border-radius:9px; color:var(--ink);
@@ -145,7 +147,7 @@ select:focus{outline:none; border-color:var(--gold-soft)}
   font-size:12px; font-weight:600; padding:10px 13px; cursor:pointer; transition:.15s; border-right:1px solid var(--line);
 }
 .seg button:last-child{border-right:none}
-.seg button.on{background:var(--gold); color:#1a1500}
+.seg button.on{background:var(--gold); color:#fff}
 .seg button:not(.on):hover{color:var(--ink)}
 .lbl{font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin-right:-4px; font-weight:600}
 .mode{display:inline-flex; background:var(--panel); border:1px solid var(--line); border-radius:9px; overflow:hidden}
@@ -166,7 +168,7 @@ select:focus{outline:none; border-color:var(--gold-soft)}
 .tablewrap{margin:18px auto 0; width:max-content; max-width:100%; overflow-x:auto; border:1px solid var(--line); border-radius:12px; background:var(--panel)}
 table{border-collapse:collapse}
 thead th{
-  position:sticky; top:0; z-index:3; background:#efeee6; text-align:right;
+  position:sticky; top:0; z-index:3; background:#e2e8ef; text-align:right;
   font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:700;
   padding:13px 14px; border-bottom:1px solid var(--line); white-space:nowrap; cursor:pointer; user-select:none;
 }
@@ -174,11 +176,11 @@ thead th.l{text-align:left}
 thead th:hover{color:var(--ink)}
 thead th .ar{color:var(--gold); margin-left:5px; opacity:0; font-size:9px}
 thead th.sorted .ar{opacity:1}
-tbody td{padding:13px 14px; border-bottom:1px solid #efece1; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums}
+tbody td{padding:13px 14px; border-bottom:1px solid #dde3ea; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums}
 tbody tr:last-child td{border-bottom:none}
 tbody tr{transition:background .12s}
-tbody tr:hover{background:#f5f3ec}
-tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 72%)}
+tbody tr:hover{background:#e6ebf2}
+tbody tr.hl{background:linear-gradient(90deg, rgba(27,63,115,.09), transparent 72%)}
 /* whole row opens the detail modal */
 .row-open{cursor:pointer}
 .rank{color:var(--faint); font-family:"JetBrains Mono",monospace; font-size:12px; text-align:right; width:48px}
@@ -253,7 +255,7 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 
 .wl-authbtn{appearance:none; cursor:pointer; font-family:inherit; font-size:12px; font-weight:600;
   padding:5px 12px; border-radius:8px; border:1px solid var(--line); background:var(--panel); color:var(--ink); transition:.14s}
 .wl-authbtn:hover{border-color:var(--gold-soft); color:var(--gold-soft)}
-.wl-authbtn.primary{background:var(--gold); border-color:var(--gold); color:#1a1500}
+.wl-authbtn.primary{background:var(--gold); border-color:var(--gold); color:#fff}
 .wl-authbtn.primary:hover{background:var(--gold-soft); color:#fff}
 
 /* header account chip / sign-in entry point */
@@ -269,7 +271,7 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 
 @keyframes acct-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.acct-spin{animation-duration:2s}}
 .acctbtn{appearance:none; cursor:pointer; font-family:"Archivo",sans-serif; font-weight:700; font-size:13px;
-  background:var(--gold); color:#1a1500; border:0; border-radius:999px; padding:9px 16px; transition:.15s; white-space:nowrap}
+  background:var(--gold); color:#fff; border:0; border-radius:999px; padding:9px 16px; transition:.15s; white-space:nowrap}
 .acctbtn:hover{background:var(--gold-soft); color:#fff}
 .acctchip{appearance:none; cursor:pointer; width:40px; height:40px; border-radius:50%; border:1px solid var(--line);
   background:var(--panel); overflow:hidden; padding:0; display:flex; align-items:center; justify-content:center; transition:.15s; flex:none}
@@ -385,7 +387,9 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(184,134,11,.10), transparent 
 .pill.h{color:#9a7212; background:rgba(184,134,11,.13); border-color:rgba(184,134,11,.34)}
 .pill.s{color:#c0492f; background:rgba(207,75,48,.12); border-color:rgba(207,75,48,.34)}
 .pill.ss{color:#fff; background:#cf4b30; border-color:#b03a22}
-.dist{font-size:10px; color:var(--faint); font-family:"JetBrains Mono",monospace; margin-top:3px}
+/* consensus breakdown — directional glyphs + counts, colour-coded buy/hold/sell */
+.dist{display:flex; gap:8px; font-size:10.5px; font-weight:700; font-family:"JetBrains Mono",monospace; margin-top:4px}
+.dist .d-b{color:var(--green)} .dist .d-h{color:var(--gold-soft)} .dist .d-s{color:var(--red)}
 
 /* score chips */
 .chip{display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:8px; font-family:"JetBrains Mono",monospace; font-weight:700; font-size:13px; border:1px solid}
@@ -458,7 +462,7 @@ footer a{color:var(--gold-soft)}
   font-size:15px; line-height:1; cursor:pointer;
   display:flex; align-items:center; justify-content:center; transition:.15s;
 }
-.clear:hover{background:#d8d3c4; color:var(--ink)}
+.clear:hover{background:#c9d2dc; color:var(--ink)}
 
 /* ---- resizable columns (table-layout:fixed makes th widths authoritative) ---- */
 table{table-layout:fixed}
@@ -491,7 +495,7 @@ thead th:hover .col-resize::after{opacity:.6}
 }
 .livebadge:hover{border-color:var(--gold-soft); color:var(--ink)}
 .livebadge.live{color:var(--green); border-color:rgba(31,145,82,.4); background:rgba(31,145,82,.09)}
-.livebadge.closed{color:var(--gold-soft); border-color:rgba(184,134,11,.4); background:rgba(184,134,11,.09)}
+.livebadge.closed{color:#9a7212; border-color:rgba(184,134,11,.4); background:rgba(184,134,11,.09)}
 .livebadge.error{color:var(--red); border-color:rgba(207,75,48,.4); background:rgba(207,75,48,.09)}
 .chg.is-live::after{
   content:""; display:inline-block; width:5px; height:5px; border-radius:50%;
@@ -555,12 +559,44 @@ thead th:hover .col-resize::after{opacity:.6}
   color:var(--t-faint); transition:.14s; padding:0 4px}
 .mkm-star:hover{color:var(--t-gold-soft, var(--t-gold))}
 .mkm-star.on{color:var(--t-gold)}
+/* consolidated header: big ticker + star + thumbs aligned on one row */
+.mkm-tbtk{font-size:22px; font-weight:700; letter-spacing:.02em; color:var(--t-gold); line-height:1}
+.mkm-thumbs{display:inline-flex; align-items:center; gap:1px}
+.mkm-thumb{appearance:none; background:none; border:0; cursor:pointer; font-size:14px; line-height:1;
+  padding:3px 4px; border-radius:7px; opacity:.45; filter:grayscale(1); transition:.14s}
+.mkm-thumb:hover{opacity:.9; filter:grayscale(.25); transform:translateY(-1px)}
+.mkm-thumb:active{transform:scale(.84)}
+.mkm-thumb.on{opacity:1; filter:none; transform:scale(1.1)}
+.mkm-thumb:focus-visible{outline:2px solid var(--t-gold); outline-offset:1px}
 
-.mkm-scroll{overflow-y:auto; scrollbar-width:thin; scrollbar-color:#cfccbf transparent}
+/* prev/next side rails (float just outside the modal; overlay inside on narrow screens) */
+.mkm-stage{position:relative; display:flex; align-items:center; justify-content:center; max-width:100%}
+.mkm-nav{position:absolute; top:50%; transform:translateY(-50%); z-index:55; width:46px; height:46px; border-radius:50%;
+  border:1px solid var(--t-line); background:var(--t-bg); color:var(--t-ink); font-size:24px; line-height:1; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; box-shadow:0 12px 28px -12px rgba(27,29,24,.55); transition:.15s}
+.mkm-nav:hover{border-color:var(--t-gold); color:var(--t-gold); transform:translateY(-50%) scale(1.07)}
+.mkm-nav:focus-visible{outline:2px solid var(--t-gold); outline-offset:2px}
+.mkm-nav.prev{left:-62px} .mkm-nav.next{right:-62px}
+@media(max-width:860px){
+  .mkm-nav{width:38px; height:38px; font-size:20px; background:rgba(255,255,255,.9); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px)}
+  .mkm-nav.prev{left:7px} .mkm-nav.next{right:7px}
+}
+
+/* big thumb press animation — bounce + ring + fade */
+.mkm-burst{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:70}
+.mkm-burst-thumb{position:absolute; font-size:72px; line-height:1; animation:mkm-thumbpop .95s cubic-bezier(.28,.84,.42,1) forwards}
+.mkm-burst-ring{position:absolute; width:74px; height:74px; border-radius:50%; border:4px solid var(--t-green);
+  animation:mkm-thumbring .8s ease-out forwards}
+.mkm-burst-ring.down{border-color:var(--t-red)}
+@keyframes mkm-thumbpop{0%{opacity:0; transform:scale(.3)}22%{opacity:1; transform:scale(1.35)}40%{transform:scale(.9)}
+  55%{transform:scale(1.12)}70%{transform:scale(.98)}82%{opacity:1; transform:scale(1.04)}100%{opacity:0; transform:scale(1.1)}}
+@keyframes mkm-thumbring{0%{opacity:.85; transform:scale(.5)}100%{opacity:0; transform:scale(2.9)}}
+
+.mkm-scroll{overflow-y:auto; scrollbar-width:thin; scrollbar-color:#c2c9d3 transparent}
 .mkm-scroll::-webkit-scrollbar{width:12px}
 .mkm-scroll::-webkit-scrollbar-track{background:transparent}
-.mkm-scroll::-webkit-scrollbar-thumb{background:#d6d3c6; border-radius:10px; border:3px solid var(--t-bg); background-clip:padding-box}
-.mkm-scroll::-webkit-scrollbar-thumb:hover{background:#c0bdad; background-clip:padding-box}
+.mkm-scroll::-webkit-scrollbar-thumb{background:#d0d7e0; border-radius:10px; border:3px solid var(--t-bg); background-clip:padding-box}
+.mkm-scroll::-webkit-scrollbar-thumb:hover{background:#b3bcc8; background-clip:padding-box}
 
 /* head line */
 .mkm-head{padding:16px 18px 14px; border-bottom:1px solid var(--t-line-2); display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap}
@@ -614,11 +650,21 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-bbtabs button:hover{color:var(--t-muted)}
 .mkm-bbtabs button.on.bull{background:#32d74b; color:#0e1a10}
 .mkm-bbtabs button.on.bear{background:#ff6a3d; color:#241008}
-.mkm-bblist{display:flex; flex-direction:column; gap:13px}
-.mkm-bbpt .t{font-family:inherit; font-size:13.5px; font-weight:700; margin-bottom:4px; letter-spacing:0}
+.mkm-bblist{display:flex; flex-direction:column; gap:10px}
+/* each topic is its own click-to-expand card (whole card is the toggle) */
+.mkm-bbpt{appearance:none; width:100%; text-align:left; cursor:pointer; font:inherit; color:inherit;
+  background:none; border:1px solid var(--t-line); border-radius:10px; padding:11px 13px; transition:.14s}
+.mkm-bbpt:hover{border-color:var(--t-muted); background:var(--t-panel)}
+.mkm-bbpt:focus-visible{outline:2px solid var(--t-gold); outline-offset:2px}
+.mkm-bbpt .t{display:block; font-family:inherit; font-size:13.5px; font-weight:700; margin-bottom:4px; letter-spacing:0}
 .mkm-bbpt .t.bull{color:var(--t-green)}
 .mkm-bbpt .t.bear{color:var(--t-red)}
-.mkm-bbpt .b{font-family:inherit; font-size:12.5px; line-height:1.62; color:var(--t-muted)}
+.mkm-bbpt .b{display:block; font-family:inherit; font-size:12.5px; line-height:1.62; color:var(--t-muted)}
+/* out-specify the block above so the collapsed 2-line clamp still applies */
+.mkm-bbpt .b.mkm-clamp2{display:-webkit-box}
+.mkm-bbtog{display:block; margin-top:8px; font-family:var(--t-head); font-size:9.5px; font-weight:700;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--t-gold)}
+.mkm-bbpt:hover .mkm-bbtog{color:var(--gold-soft)}
 .mkm-bbna{font-size:12px; color:var(--t-faint); letter-spacing:.02em}
 
 /* metric matrix */
@@ -638,7 +684,7 @@ thead th:hover .col-resize::after{opacity:.6}
 @media (prefers-reduced-motion:reduce){.mkm-spinner{animation-duration:2s}}
 .mkm-matrix{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--t-line-2); border-bottom:1px solid var(--t-line-2)}
 .mkm-cell{background:var(--t-bg); padding:12px 14px}
-.mkm-matrix.uncovered .mkm-cell{background:repeating-linear-gradient(135deg, var(--t-bg), var(--t-bg) 6px, #f4f2ec 6px, #f4f2ec 12px)}
+.mkm-matrix.uncovered .mkm-cell{background:repeating-linear-gradient(135deg, var(--t-bg), var(--t-bg) 6px, #e9edf2 6px, #e9edf2 12px)}
 .mkm-matrix.uncovered .mkm-cell .v{color:#c3c1b6}
 /* Mkt Cap is live (Finnhub), not a TipRanks ranking metric — keep it readable even when uncovered */
 .mkm-matrix.uncovered .mkm-cell.mkm-cell-live{background:var(--t-bg)}
@@ -659,10 +705,13 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-bhs{display:flex; height:22px; border-radius:4px; overflow:hidden; border:1px solid var(--t-line)}
 .mkm-bhs span{transform-origin:left; animation:mkm-grow .7s .25s both cubic-bezier(.2,.8,.2,1); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; overflow:hidden}
 .mkm-bhs .b{background:var(--t-green)} .mkm-bhs .h{background:var(--t-gold)} .mkm-bhs .s{background:var(--t-red)}
-.mkm-klist{margin-top:12px; display:flex; flex-direction:column; gap:7px; font-size:11px}
-.mkm-klist .kr{display:flex; justify-content:space-between; color:var(--t-muted)}
-.mkm-klist .kr b{color:var(--t-ink); font-weight:700}
-.mkm-klist .kr .g{color:var(--t-green)}
+/* distribution as inline chips — rating + count + % fused on one line */
+.mkm-dchips{margin-top:12px; display:flex; flex-wrap:wrap; gap:7px}
+.mkm-dchip{font-size:11px; font-weight:700; letter-spacing:.01em; padding:5px 11px; border-radius:999px; white-space:nowrap}
+.mkm-dchip b{font-weight:800}
+.mkm-dchip.b{color:var(--t-green); background:color-mix(in srgb,var(--t-green) 12%,transparent); border:1px solid color-mix(in srgb,var(--t-green) 32%,transparent)}
+.mkm-dchip.h{color:var(--t-gold); background:color-mix(in srgb,var(--t-gold) 14%,transparent); border:1px solid color-mix(in srgb,var(--t-gold) 32%,transparent)}
+.mkm-dchip.s{color:var(--t-red); background:color-mix(in srgb,var(--t-red) 12%,transparent); border:1px solid color-mix(in srgb,var(--t-red) 32%,transparent)}
 
 /* analyst forecasts — compact box (latest 3) */
 .mkm-fchdr{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px}
@@ -681,6 +730,12 @@ thead th:hover .col-resize::after{opacity:.6}
 /* full detailed list (See all) */
 .mkm-fcfull{padding:14px 18px 16px; border-bottom:1px solid var(--t-line-2)}
 .mkm-fctable{display:flex; flex-direction:column; margin-top:2px}
+/* column-name header — shares the row grid so labels sit over their columns */
+.mkm-fchead{display:grid; grid-template-columns:58px minmax(0,1fr) 42px 128px 66px 46px;
+  align-items:center; column-gap:10px; padding:0 0 9px; margin-bottom:2px; border-bottom:1px solid var(--t-line);
+  font-family:var(--t-head); font-size:9.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--t-faint)}
+.mkm-fchead .ar{text-align:right}
+.mkm-fchead .ctr{text-align:center; color:var(--t-gold); font-size:11px}
 /* aligned columns: stars · analyst/firm · position · target · upside · date */
 .mkm-fcfrow{display:grid; grid-template-columns:58px minmax(0,1fr) 42px 128px 66px 46px;
   align-items:center; column-gap:10px; padding:9px 0; border-top:1px solid var(--t-line-2); font-size:12px}
@@ -697,6 +752,26 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-scrim-top{z-index:60}
 .mkm-modal-fc{width:min(560px, calc(100vw - 32px))}
 .mkm-fcfull-modal{border-bottom:0; padding-top:8px}
+/* phones: the 6-col grid crushes the analyst name to an ellipsis — reflow to a
+   2-row card so name + firm get full width (stacked, smaller) and never clip */
+@media(max-width:560px){
+  .mkm-fchead{display:none}
+  .mkm-fcfrow{
+    grid-template-columns:auto 1fr auto;
+    grid-template-areas:
+      "stars analyst up"
+      "pos   tgt     date";
+    row-gap:7px; column-gap:10px; align-items:center; padding:12px 0;
+  }
+  .mkm-fcfrow .mkm-stars{grid-area:stars; align-self:start; margin-top:3px}
+  .mkm-fcfrow .mkm-fcan{grid-area:analyst; min-width:0}
+  .mkm-fcfrow .mkm-fcan b{white-space:normal; font-size:12.5px; line-height:1.25}
+  .mkm-fcfrow .mkm-fcan small{white-space:normal; font-size:10.5px; line-height:1.3; margin-top:1px}
+  .mkm-fcfrow .mkm-fcpos{grid-area:pos; text-align:left; min-width:0}
+  .mkm-fcfrow .mkm-fctgt{grid-area:tgt; text-align:left; font-size:12px}
+  .mkm-fcfrow .mkm-fcup{grid-area:up; margin-left:0; text-align:right; align-self:start}
+  .mkm-fcfrow .mkm-fcdate{grid-area:date; width:auto; text-align:right}
+}
 
 /* stats block */
 .mkm-statblock{padding:14px 18px 16px; border-top:1px solid var(--t-line-2)}
@@ -711,7 +786,7 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-foot{padding:12px 18px; border-top:1px solid var(--t-line); background:var(--t-panel); display:flex; align-items:center; justify-content:flex-end; gap:12px}
 .mkm-yh{font-family:inherit; font-size:11px; font-weight:700; color:#fff; background:var(--t-gold);
   text-decoration:none; padding:8px 13px; border-radius:6px; transition:.15s; letter-spacing:.02em; white-space:nowrap}
-.mkm-yh:hover{background:#a3760a}
+.mkm-yh:hover{background:#163257}
 
 @media(max-width:640px){
   .mkm-matrix{grid-template-columns:repeat(2,1fr)}
@@ -724,6 +799,7 @@ thead th:hover .col-resize::after{opacity:.6}
   .mkm-scrim{padding:10px}
   .mkm-modal{width:calc(100vw - 20px); max-width:100%; max-height:92vh}
   .mkm-head{padding:14px 16px 12px; gap:10px}
+  .mkm-tbtk{font-size:20px}
   .mkm-headsym{font-size:22px}
   .mkm-px{margin-left:0; font-size:20px}
   .mkm-chartpane, .mkm-statblock, .mkm-about, .mkm-bb{padding-left:14px; padding-right:14px}
@@ -738,6 +814,7 @@ thead th:hover .col-resize::after{opacity:.6}
   .mkm-modal, .mkm-bhs span, .mkm-ladder .track i, .mkm-chartline, .mkm-plot-msg.mkm-skel, .mkm-kv .v.skel{animation:none}
   .mkm-chartline{stroke-dasharray:none; stroke-dashoffset:0}
   .mkm-live::before{animation:none}
+  .mkm-burst-thumb, .mkm-burst-ring{animation-duration:.01ms}
 }
 
 /* ============================================================
@@ -802,10 +879,10 @@ thead th:hover .col-resize::after{opacity:.6}
 .bob-card:hover{border-color:var(--gold-soft); background:var(--panel-2); transform:translateY(-2px); box-shadow:0 18px 40px -26px rgba(27,29,24,.4)}
 .bob-card:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px}
 .crown-section .bob-card, .bob-card.crown{
-  background:linear-gradient(180deg, rgba(184,134,11,.06), var(--panel) 60%);
-  border-color:rgba(184,134,11,.4);
+  background:linear-gradient(180deg, rgba(27,63,115,.06), var(--panel) 60%);
+  border-color:rgba(27,63,115,.4);
 }
-.bob-card.crown:hover{border-color:var(--gold); box-shadow:0 18px 44px -24px rgba(184,134,11,.5)}
+.bob-card.crown:hover{border-color:var(--gold); box-shadow:0 18px 44px -24px rgba(27,63,115,.5)}
 
 .bob-card-head{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
 .bob-ident{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; min-width:0}

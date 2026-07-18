@@ -46,6 +46,8 @@ export default function App() {
   const [consensuses, setConsensuses] = useState<string[]>(["StrongBuy"]);
   const [cap, setCap] = useState(0);
   const [openStock, setOpenStock] = useState<Stock | null>(null);
+  // the list the modal was opened from, so ‹ › can page prev/next in place
+  const [openList, setOpenList] = useState<Stock[]>([]);
   const { list: watchlist, toggle: toggleTrack, marks, toggleMark, user, authReady, signIn, signOut, ready: syncReady } = useWatchlist();
   const [signInOpen, setSignInOpen] = useState(false);
   const [pendingTrack, setPendingTrack] = useState<string | null>(null);
@@ -61,9 +63,10 @@ export default function App() {
     trackUser(user?.uid ?? null);
   }, [user]);
 
-  function handleOpen(s: Stock) {
+  function handleOpen(s: Stock, list: Stock[] = []) {
     track("open_stock", { ticker: s.t, section: nav });
     setOpenStock(s);
+    setOpenList(list);
   }
   function handleNav(id: NavId) {
     track("select_section", { section: id });
@@ -73,6 +76,7 @@ export default function App() {
   // price/chart and marks the TipRanks metrics as unavailable
   function handleOpenTicker(ticker: string) {
     track("search_open_ticker", { ticker });
+    setOpenList([]); // off-universe search result has no sibling list to page
     setOpenStock({
       t: ticker, n: "", sec: "", px: null, chg: null, pt: null, up: null, con: "",
       b: 0, h: 0, s: 0, ss: null, ai: null, air: null, aipt: null, mc: null, desc: null,
@@ -302,7 +306,7 @@ export default function App() {
             hl={VIEWS[view].hl}
             onSort={handleSort}
             live={live}
-            onOpen={handleOpen}
+            onOpen={(s) => handleOpen(s, rows)}
             watchlist={watchlist}
             onToggleTrack={requestToggle}
             marks={marks}
@@ -326,17 +330,22 @@ export default function App() {
         />
       )}
 
-      {openStock && (
-        <StockModal
-          stock={openStock}
-          onClose={() => setOpenStock(null)}
-          tracked={watchlist.includes(openStock.t)}
-          onToggleTrack={() => requestToggle(openStock.t)}
-          covered={STOCKS.some((s) => s.t === openStock.t)}
-          mark={marks[openStock.t]}
-          onMark={(v) => requestMark(openStock.t, v)}
-        />
-      )}
+      {openStock && (() => {
+        const i = openList.findIndex((x) => x.t === openStock.t);
+        return (
+          <StockModal
+            stock={openStock}
+            onClose={() => setOpenStock(null)}
+            tracked={watchlist.includes(openStock.t)}
+            onToggleTrack={() => requestToggle(openStock.t)}
+            covered={STOCKS.some((s) => s.t === openStock.t)}
+            mark={marks[openStock.t]}
+            onMark={(v) => requestMark(openStock.t, v)}
+            onPrev={i > 0 ? () => setOpenStock(openList[i - 1]) : undefined}
+            onNext={i >= 0 && i < openList.length - 1 ? () => setOpenStock(openList[i + 1]) : undefined}
+          />
+        );
+      })()}
 
       {signInOpen && syncReady && (
         <SignInModal
