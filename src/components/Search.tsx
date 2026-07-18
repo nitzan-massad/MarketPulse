@@ -6,7 +6,7 @@ import { consClass, consLabel, fmtPx } from "../lib";
 const STOCKS = stocksData as Stock[];
 
 interface SearchProps {
-  onOpen: (s: Stock) => void;
+  onOpen: (s: Stock, list?: Stock[]) => void;
   onOpenTicker: (ticker: string) => void; // off-universe ticker -> partial modal
 }
 
@@ -57,7 +57,7 @@ export default function Search({ onOpen, onOpenTicker }: SearchProps) {
   const offUniverse = query.length > 0 && /^[A-Za-z.]{1,6}$/.test(query) && !exact;
 
   const pick = (s: Stock) => {
-    onOpen(s);
+    onOpen(s, results);
     close();
   };
   const pickTicker = (t: string) => {

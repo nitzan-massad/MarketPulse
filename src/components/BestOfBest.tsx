@@ -10,7 +10,7 @@ const STOCKS = stocksData as Stock[];
 const isStrongBuy = (r: Stock): boolean => (r.con || "").toLowerCase() === "strongbuy";
 
 interface BestOfBestProps {
-  onOpen: (s: Stock) => void;
+  onOpen: (s: Stock, list?: Stock[]) => void;
   marks: Record<string, MarkEntry>;
   onMark: (t: string, v: Mark) => void;
 }
@@ -146,6 +146,8 @@ export default function BestOfBest({ onOpen, marks, onMark }: BestOfBestProps) {
 
     return { crown, alsoSs10, aiThreshold };
   }, []);
+  // order the modal's ‹ › arrows page through: crown first, then the also-10 grid
+  const navList = [...crown, ...alsoSs10];
 
   return (
     <div className="bob">
@@ -180,7 +182,7 @@ export default function BestOfBest({ onOpen, marks, onMark }: BestOfBestProps) {
         ) : (
           <div className="bob-grid">
             {crown.map((s) => (
-              <Card key={s.t} s={s} onOpen={onOpen} crown marks={marks} onMark={onMark} />
+              <Card key={s.t} s={s} onOpen={(st) => onOpen(st, navList)} crown marks={marks} onMark={onMark} />
             ))}
           </div>
         )}
@@ -196,7 +198,7 @@ export default function BestOfBest({ onOpen, marks, onMark }: BestOfBestProps) {
         ) : (
           <div className="bob-grid">
             {alsoSs10.map((s) => (
-              <Card key={s.t} s={s} onOpen={onOpen} marks={marks} onMark={onMark} />
+              <Card key={s.t} s={s} onOpen={(st) => onOpen(st, navList)} marks={marks} onMark={onMark} />
             ))}
           </div>
         )}

@@ -46,7 +46,7 @@ function changesFor(s: Stock): Change[] {
 }
 
 interface NewArrivalsProps {
-  onOpen: (s: Stock) => void;
+  onOpen: (s: Stock, list?: Stock[]) => void;
   marks: Record<string, MarkEntry>;
   onMark: (t: string, v: Mark) => void;
 }
@@ -100,7 +100,7 @@ export default function NewArrivals({ onOpen, marks, onMark }: NewArrivalsProps)
                 const chg = changesFor(s);
                 const lists = firstSeen(s.t)?.l ?? [];
                 return (
-                  <tr key={s.t} className="row-open" onClick={() => onOpen(s)}>
+                  <tr key={s.t} className="row-open" onClick={() => onOpen(s, items.map((x) => x.s))}>
                     <td className="na-added">
                       <span className={`na-pill ${info.daysAgo <= 2 ? "" : "old"}`}>
                         <span className="na-pd" aria-hidden="true" />

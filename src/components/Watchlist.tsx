@@ -11,7 +11,7 @@ const STOCKS = stocksData as Stock[];
 interface WatchlistProps {
   watchlist: string[];
   onToggle: (t: string) => void;
-  onOpen: (s: Stock) => void;
+  onOpen: (s: Stock, list?: Stock[]) => void;
   user: User | null;
   syncReady: boolean;
   onSignInClick: () => void;
@@ -90,7 +90,7 @@ export default function Watchlist({
             </thead>
             <tbody>
               {rows.map((s) => (
-                <tr key={s.t} className="row-open" onClick={() => onOpen(s)}>
+                <tr key={s.t} className="row-open" onClick={() => onOpen(s, rows)}>
                   <td className="wl-st">
                     <button
                       className="wl-star on"
