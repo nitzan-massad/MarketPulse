@@ -154,9 +154,9 @@ export default function ThumbMark({ mark, onMark, both }: Props) {
   }
 
   const col = (which: Mark, icon: React.ReactNode) => {
-    const hidden = !both && !!v && v !== which; // row: reserve space but hide the other
+    const hidden = !both && !!v && v !== which; // row: fade out the unpicked one
     return (
-      <span className={`tmk-c ${hidden ? "tmk-hidden" : ""}`}>
+      <span className={`tmk-c ${which} ${hidden ? "tmk-hidden" : ""}`}>
         <button
           type="button"
           className={`tmk-b ${which} ${v === which ? "on" : ""}`}

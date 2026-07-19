@@ -106,11 +106,15 @@ export default function Watchlist({
                     </button>
                   </td>
                   <td className="tk">
-                    <span className="tk-top">
-                      <button className={`sym ${marks[s.t]?.v === "up" ? "mk-up" : marks[s.t]?.v === "down" ? "mk-down" : ""}`} type="button">{s.t}</button>
+                    <div className="tk-inner">
+                      <div className="tk-main">
+                        <span className="tk-top">
+                          <button className={`sym ${marks[s.t]?.v === "up" ? "mk-up" : marks[s.t]?.v === "down" ? "mk-down" : ""}`} type="button">{s.t}</button>
+                        </span>
+                        <div className="co">{s.n || ""}</div>
+                      </div>
                       <ThumbMark mark={marks[s.t]} onMark={(v) => onMark(s.t, v)} />
-                    </span>
-                    <div className="co">{s.n || ""}</div>
+                    </div>
                   </td>
                   <td className="num">{fmtPx(s.px)}</td>
                   <td className="num">

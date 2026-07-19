@@ -41,9 +41,16 @@ const ITEMS: { id: NavId; label: string }[] = [
 ];
 
 export default function NavMenu({ nav, onNav }: NavMenuProps) {
+  const activeIdx = Math.max(0, ITEMS.findIndex((it) => it.id === nav));
   return (
     <nav className="nav-bottom" aria-label="Sections">
       <div className="nav-bottom-inner">
+        {/* sliding indicator: centred over the active tab (each tab = 25% wide) */}
+        <span
+          className="nav-ind"
+          aria-hidden="true"
+          style={{ left: `calc(${activeIdx * 25 + 12.5}% - 14px)` }}
+        />
         {ITEMS.map((it) => (
           <button
             key={it.id}

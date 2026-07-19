@@ -89,7 +89,7 @@ export default function NewArrivals({ onOpen, marks, onMark }: NewArrivalsProps)
                 <th className="l">Sector</th>
                 <th>Upside</th>
                 <th>Price</th>
-                <th className="l">Consensus</th>
+                <th className="c">Consensus</th>
                 <th>Smart Score</th>
                 <th>AI Score</th>
                 <th>Mkt Cap</th>
@@ -131,20 +131,24 @@ export default function NewArrivals({ onOpen, marks, onMark }: NewArrivalsProps)
                       ))}
                     </td>
                     <td className="tk">
-                      <span className="tk-top">
-                        <button className={`sym ${symMark(marks[s.t]?.v)}`} type="button">
-                          {s.t}
-                        </button>
+                      <div className="tk-inner">
+                        <div className="tk-main">
+                          <span className="tk-top">
+                            <button className={`sym ${symMark(marks[s.t]?.v)}`} type="button">
+                              {s.t}
+                            </button>
+                          </span>
+                          <div className="co">{s.n || ""}</div>
+                        </div>
                         <ThumbMark mark={marks[s.t]} onMark={(v) => onMark(s.t, v)} />
-                      </span>
-                      <div className="co">{s.n || ""}</div>
+                      </div>
                     </td>
                     <td className="na-sec l">{s.sec || "—"}</td>
                     <td className="na-up">
                       <UpBar up={s.up} />
                     </td>
                     <td className="num">{fmtPx(s.px)}</td>
-                    <td className="l">
+                    <td className="con-cell">
                       <span className={`pill ${consClass(s.con)}`}>{consLabel(s.con)}</span>
                       <div className="dist">{s.b}·{s.h}·{s.s}</div>
                     </td>

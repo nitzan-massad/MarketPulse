@@ -882,7 +882,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
           {desc && (
             <div className="mkm-about">
               <div className="mkm-abouthdr">About {name}</div>
-              <p className={`mkm-desc ${descOpen ? "" : "mkm-clamp1"}`}>{desc}</p>
+              <p className={`mkm-desc ${descOpen ? "" : "mkm-clamp2"}`}>{desc}</p>
               <button
                 type="button"
                 className="mkm-more"
@@ -993,12 +993,12 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
             <div className="mkm-fcfull mkm-fcfull-modal">
               <div className="mkm-fctable">
                 <div className="mkm-fchead">
-                  <span className="ctr" title="TipRanks analyst star rating">★</span>
-                  <span>Analyst / Firm</span>
-                  <span className="ar">Rating</span>
-                  <span className="ar">Price Target</span>
-                  <span className="ar">Upside</span>
-                  <span className="ar">Date</span>
+                  <span title="TipRanks analyst star rating">Analyst Rank</span>
+                  <span>Analyst · Firm</span>
+                  <span className="ar">Recommendation</span>
+                  <span className="ar">12-mo Target</span>
+                  <span className="ar">Potential</span>
+                  <span className="ar">Rating Date</span>
                 </div>
                 {forecasts.map((f, i) => {
                   const up = fcUpside(f.pt);

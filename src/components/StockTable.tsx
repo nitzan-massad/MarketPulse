@@ -130,31 +130,35 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onO
                 >
                   <td className="rank" data-label="Rank">{i + 1}</td>
                   <td className="tk">
-                    <span className="tk-top">
-                      <button
-                        className={`wl-star ${watchlist.includes(s.t) ? "on" : ""}`}
-                        type="button"
-                        title={watchlist.includes(s.t) ? "Untrack" : "Track"}
-                        aria-label={watchlist.includes(s.t) ? `Untrack ${s.t}` : `Track ${s.t}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onToggleTrack(s.t);
-                        }}
-                      >
-                        {watchlist.includes(s.t) ? "★" : "☆"}
-                      </button>
-                      <button
-                        className={`sym ${marks[s.t]?.v === "up" ? "mk-up" : marks[s.t]?.v === "down" ? "mk-down" : ""}`}
-                        type="button"
-                      >
-                        {s.t}
-                      </button>
-                      {isNew(s.t) && (
-                        <span className="newtag" title="Recently added to the lists">NEW</span>
-                      )}
+                    <div className="tk-inner">
+                      <div className="tk-main">
+                        <span className="tk-top">
+                          <button
+                            className={`wl-star ${watchlist.includes(s.t) ? "on" : ""}`}
+                            type="button"
+                            title={watchlist.includes(s.t) ? "Untrack" : "Track"}
+                            aria-label={watchlist.includes(s.t) ? `Untrack ${s.t}` : `Track ${s.t}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onToggleTrack(s.t);
+                            }}
+                          >
+                            {watchlist.includes(s.t) ? "★" : "☆"}
+                          </button>
+                          <button
+                            className={`sym ${marks[s.t]?.v === "up" ? "mk-up" : marks[s.t]?.v === "down" ? "mk-down" : ""}`}
+                            type="button"
+                          >
+                            {s.t}
+                          </button>
+                          {isNew(s.t) && (
+                            <span className="newtag" title="Recently added to the lists">NEW</span>
+                          )}
+                        </span>
+                        <div className="co">{s.n || ""}</div>
+                      </div>
                       <ThumbMark mark={marks[s.t]} onMark={(v) => onMark(s.t, v)} />
-                    </span>
-                    <div className="co">{s.n || ""}</div>
+                    </div>
                   </td>
                   <td className="num" data-label="Price">
                     {fmtPx(s.px)}
