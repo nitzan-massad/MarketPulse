@@ -28,6 +28,7 @@ const STAGGER_MS = 250;
 // map. Live only during market hours; degrades to the snapshot otherwise.
 export function useLiveQuotes(tickers: string[], apiKey: string | null, enabled: boolean) {
   const [live, setLive] = useState<Record<string, number>>({});
+  const [price, setPrice] = useState<Record<string, number>>({}); // absolute last price (Finnhub `c`)
   const [status, setStatus] = useState<LiveStatus>("off");
   const watch = tickers.slice(0, WATCH_CAP);
   const watchKey = watch.join(",");
@@ -61,8 +62,9 @@ export function useLiveQuotes(tickers: string[], apiKey: string | null, enabled:
             return;
           }
           const j = await r.json();
-          if (j && typeof j.dp === "number" && !cancelled) {
-            setLive((prev) => ({ ...prev, [sym]: j.dp }));
+          if (j && !cancelled) {
+            if (typeof j.dp === "number") setLive((prev) => ({ ...prev, [sym]: j.dp }));
+            if (typeof j.c === "number") setPrice((prev) => ({ ...prev, [sym]: j.c }));
           }
         } catch {
           /* transient network — skip this symbol this cycle */
@@ -79,5 +81,5 @@ export function useLiveQuotes(tickers: string[], apiKey: string | null, enabled:
     };
   }, [enabled, apiKey, watchKey]);
 
-  return { live, status };
+  return { live, price, status };
 }
