@@ -10,7 +10,8 @@ on:
     paths:
       - database.rules.json
       - firebase.json
-  workflow_dispatch: {} # lets you deploy the current rules on demand from the Actions tab
+      - .github/workflows/firebase-rules.yml # redeploy when this pipeline itself changes (also auto-deploys on first merge)
+  workflow_dispatch: {} # optional: deploy the current rules on demand from the Actions tab
 
 permissions:
   contents: read
