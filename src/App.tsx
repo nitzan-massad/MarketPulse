@@ -3,6 +3,7 @@ import BestOfBest from "./components/BestOfBest";
 import NewArrivals from "./components/NewArrivals";
 import Masthead from "./components/Masthead";
 import NavMenu, { type NavId } from "./components/NavMenu";
+import NotificationBell from "./components/NotificationBell";
 import Search from "./components/Search";
 import SignInModal from "./components/SignInModal";
 import StockModal from "./components/StockModal";
@@ -13,6 +14,7 @@ import stocksData from "./data/stocks.json";
 import { passes, sortRows, VIEWS } from "./lib";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
+import { useNotifications } from "./useNotifications";
 import { useWatchlist, type Mark } from "./watchlist";
 import { useSavedFilters, type SavedFilters } from "./savedFilters";
 import { initAnalytics, track, trackUser } from "./analytics";
@@ -180,7 +182,32 @@ export default function App() {
   useSavedFilters(user, filters, applyFilters);
 
   const tickers = useMemo(() => rows.map((r) => r.t), [rows]);
-  const { live, status: liveStatus } = useLiveQuotes(tickers, liveKey, liveOn);
+  const { live, price: livePrice, status: liveStatus } = useLiveQuotes(tickers, liveKey, liveOn);
+
+  // best-known price per watched ticker: live Finnhub when polled, else the
+  // bundled snapshot — feeds the notification alert engine.
+  const pxByTicker = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const s of STOCKS) if (typeof s.px === "number") m[s.t] = s.px;
+    return m;
+  }, []);
+  const watchPrices = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const t of watchlist) {
+      const p = livePrice[t] ?? pxByTicker[t];
+      if (typeof p === "number") m[t] = p;
+    }
+    return m;
+  }, [watchlist, livePrice, pxByTicker]);
+  const notif = useNotifications(user, watchlist, watchPrices);
+
+  // clicking a notification: jump to the watchlist view and open that stock's modal
+  function openFromNotification(ticker: string) {
+    setNav("watch");
+    const s = STOCKS.find((x) => x.t === ticker);
+    if (s) handleOpen(s, STOCKS.filter((x) => watchlist.includes(x.t)));
+    else handleOpenTicker(ticker);
+  }
 
   function selectView(id: ViewId) {
     const v = VIEWS[id];
@@ -222,6 +249,15 @@ export default function App() {
         <h1 id="title">Market <span className="em">Pulse</span></h1>
         <div className="site-right">
           <Search onOpen={handleOpen} onOpenTicker={handleOpenTicker} />
+          {authReady && user && (
+            <NotificationBell
+              notifications={notif.notifications}
+              unreadCount={notif.unreadCount}
+              onMarkAllRead={notif.markAllRead}
+              onClearAll={notif.clearAll}
+              onOpenTicker={openFromNotification}
+            />
+          )}
           {syncReady && (
             // fixed-width slot reserved up-front so the account control fades in
             // without reflowing the header once auth resolves (~1–2s)
