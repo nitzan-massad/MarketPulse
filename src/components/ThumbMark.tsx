@@ -4,7 +4,7 @@ import type { Mark, MarkEntry } from "../watchlist";
 import { DATE_LOCALE } from "../lib";
 
 export function fmtMarkDate(ms: number): string {
-  return new Date(ms).toLocaleDateString(DATE_LOCALE, { year: "numeric", month: "short", day: "numeric" });
+  return new Date(ms).toLocaleDateString(DATE_LOCALE, { year: "numeric", month: "numeric", day: "numeric" });
 }
 
 const UP = (

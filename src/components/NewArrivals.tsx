@@ -14,7 +14,7 @@ const STOCKS = stocksData as Stock[];
 
 const fmtDate = (iso: string): string => {
   const [y, m, d] = iso.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(DATE_LOCALE, { month: "short", day: "numeric" });
+  return new Date(y, m - 1, d).toLocaleDateString(DATE_LOCALE, { month: "numeric", day: "numeric" });
 };
 
 const CONS_RANK: Record<string, number> = { StrongSell: 1, Sell: 2, Hold: 3, Buy: 4, StrongBuy: 5 };

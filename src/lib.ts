@@ -24,7 +24,7 @@ export const COLS: Col[] = [
   { k: "_tk", l: "Ticker / Company", cls: "l", sortable: false },
   { k: "px", l: "Price", sortable: true },
   { k: "chg", l: "Day %", sortable: true },
-  { k: "con", l: "Consensus", cls: "l", sortable: true },
+  { k: "con", l: "Consensus", cls: "c", sortable: true },
   { k: "pt", l: "Predicted Price", sortable: true },
   { k: "up", l: "Upside", sortable: true },
   { k: "ss", l: "Smart Score", sortable: true },

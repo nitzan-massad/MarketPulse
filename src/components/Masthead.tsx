@@ -10,7 +10,7 @@ interface MastheadProps {
 }
 
 const SNAPSHOT = new Date(meta.generatedAt).toLocaleString(DATE_LOCALE, {
-  month: "short", day: "numeric", year: "numeric",
+  month: "numeric", day: "numeric", year: "numeric",
   hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short",
 });
 

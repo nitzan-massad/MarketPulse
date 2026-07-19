@@ -313,12 +313,13 @@ function niceTicks(lo: number, hi: number, count = 4): number[] {
   return out;
 }
 
-// "YYYY-MM-DD" -> "M/D"; "YYYY-MM-DD HH:MM:SS" -> "HH:MM" (intraday). No Date() (tz-safe).
+// daily -> locale numeric day/month (device order, digits only); intraday -> "HH:MM".
+// Date built from local parts so there's no timezone day-shift.
 function fmtStamp(s: string, intraday: boolean): string {
   const [d, t] = s.split(" ");
   if (intraday && t) return t.slice(0, 5);
-  const p = d.split("-");
-  return `${+p[1]}/${+p[2]}`;
+  const [y, mo, da] = d.split("-").map(Number);
+  return new Date(y, mo - 1, da).toLocaleDateString(DATE_LOCALE, { month: "numeric", day: "numeric" });
 }
 
 function buildChart(closes: number[], stamps: string[], intraday: boolean): ChartModel {

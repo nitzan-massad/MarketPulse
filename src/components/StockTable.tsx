@@ -174,7 +174,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onO
                       );
                     })()}
                   </td>
-                  <td data-label="Consensus">
+                  <td className="con-cell" data-label="Consensus">
                     <span className={`pill ${consClass(s.con)}`}>{consLabel(s.con)}</span>
                     <div className="dist" title={`${s.b} buy · ${s.h} hold · ${s.s} sell`}>
                       <span className="d-b">▲{s.b}</span>
