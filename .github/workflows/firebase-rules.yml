@@ -1,0 +1,35 @@
+name: Deploy Firebase RTDB rules
+
+# Security rules are project-wide and high-blast-radius (a bad ruleset can lock
+# out every user or expose all data), so this runs ONLY when the rules change,
+# and is gated behind the `firebase-production` GitHub Environment — add
+# required reviewers under Settings → Environments to require approval.
+on:
+  push:
+    branches: [main]
+    paths:
+      - database.rules.json
+      - firebase.json
+  workflow_dispatch: {} # lets you deploy the current rules on demand from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-rules:
+    runs-on: ubuntu-latest
+    environment: firebase-production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Deploy Realtime Database rules
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          if [ -z "$FIREBASE_TOKEN" ]; then
+            echo "::error::FIREBASE_TOKEN secret is not set. Add it in Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          npx --yes firebase-tools deploy --only database --project marketpulse-df5d9 --non-interactive
