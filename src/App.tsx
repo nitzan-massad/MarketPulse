@@ -181,7 +181,13 @@ export default function App() {
   }, []);
   useSavedFilters(user, filters, applyFilters);
 
-  const tickers = useMemo(() => rows.map((r) => r.t), [rows]);
+  // watchlist first so watched tickers always fit inside useLiveQuotes' WATCH_CAP,
+  // otherwise a watched ticker outside the visible rows never gets a live price
+  // and its alerts can never fire (stuck on the static snapshot).
+  const tickers = useMemo(
+    () => [...new Set([...watchlist, ...rows.map((r) => r.t)])],
+    [watchlist, rows],
+  );
   const { live, price: livePrice, status: liveStatus } = useLiveQuotes(tickers, liveKey, liveOn);
 
   // best-known price per watched ticker: live Finnhub when polled, else the
