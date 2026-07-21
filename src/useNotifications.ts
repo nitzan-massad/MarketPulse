@@ -106,17 +106,24 @@ export function useNotifications(
   const persistMeta = useCallback(
     (ticker: string, m: Meta | null) => {
       if (!user) return;
-      if (DEV_AUTH) {
-        setMeta((prev) => {
-          const next = { ...prev };
-          if (m) next[ticker] = m;
-          else delete next[ticker];
-          writeMetaLocal(next);
-          return next;
-        });
-      } else if (db) {
-        void set(ref(db, `watchmeta/${user.uid}/${ticker}`), m); // null removes
-      }
+      // Update local `meta` synchronously in BOTH modes. In the Firebase branch
+      // this is the race fix: previously `meta` only changed after the async
+      // set() echoed back via onValue, so until then the reconcile effect's
+      // `!meta[t]` guard kept re-firing and re-seeding `ref` at the (rising)
+      // live price — pushing the ±5% baseline out of reach and silencing
+      // alerts forever. Seeding now happens exactly once, at add-time price.
+      setMeta((prev) => {
+        const next = { ...prev };
+        if (m) next[ticker] = m;
+        else delete next[ticker];
+        if (DEV_AUTH) writeMetaLocal(next);
+        return next;
+      });
+      // ponytail: onValue does a full-map replace, so a concurrent write to a
+      // different ticker could momentarily wipe this optimistic entry and let it
+      // re-seed. Rare (needs a live tick inside that window); add a seededRef
+      // guard in the reconcile effect if it ever bites.
+      if (!DEV_AUTH && db) void set(ref(db, `watchmeta/${user.uid}/${ticker}`), m); // null removes
     },
     [user],
   );
