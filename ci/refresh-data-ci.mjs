@@ -3,6 +3,7 @@
 // page body. We request the screener API through it and parse the JSON out.
 // (Local manual refresh uses scripts/refresh-data.mjs with Playwright instead.)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { computeKeep, rowFromGetData, forecastFields, fillNulls, nextLastSeen, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const API =
@@ -83,6 +84,57 @@ if (seen.size < 50) {
   console.error(`only ${seen.size} rows — leaving existing data untouched.`);
   process.exit(1);
 }
+const inPull = new Set(seen.keys()); // tickers the dynamic screener returned THIS run
+
+// --- keep set: pinned + non-expired previously-seen tickers, refreshed even when
+// they fall out of the top-120 sorts. Missing ones are backfilled via getData
+// (capped, most-stale-first); the rest carry their last-known row. See ci/keep.mjs.
+let pinned = [];
+try { pinned = JSON.parse(readFileSync("src/data/pinned.json", "utf8")); } catch { /* none */ }
+let prevSeen = {};
+try { prevSeen = JSON.parse(readFileSync("src/data/seen.json", "utf8")); } catch { /* first run */ }
+const prevRows = new Map();
+try { for (const r of JSON.parse(readFileSync("src/data/stocks.json", "utf8"))) prevRows.set(r.t, r); } catch { /* first run */ }
+
+const BACKFILL_LIMIT = Number(process.env.BACKFILL_LIMIT || 300);
+const { keep, dropped } = computeKeep(pinned, prevSeen, Date.now(), KEEP_MAX_AGE_DAYS);
+const lsMs = (t) => Date.parse(prevSeen[t]?.ls || prevSeen[t]?.d || "") || 0;
+const missing = [...keep].filter((t) => !inPull.has(t)).sort((a, b) => lsMs(a) - lsMs(b));
+let refreshed = 0, carried = 0;
+for (const t of missing) {
+  const prev = prevRows.get(t) || {};
+  if (refreshed < BACKFILL_LIMIT) {
+    try {
+      const sol = await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`);
+      const row = rowFromGetData(extractJson(sol.response), prev);
+      if (row.t) { seen.set(t, row); refreshed++; continue; }
+    } catch (e) { console.log(`  keep ${t}: getData skip (${e.message})`); }
+  }
+  if (prev.t) { seen.set(t, prev); carried++; } // over cap or fetch failed — keep last-known row
+}
+for (const t of pinned) if (seen.has(t)) (membership[t] ??= new Set()).add("p");
+console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried, ${dropped.length} expired)`);
+
+// Enrich rows still missing AI-score/sector from the per-ticker stock-forecast payload
+// — the only per-ticker source for those. Covers off-list pins AND brand-new arrivals
+// (whose screener row can lack AI data). Fills blanks only; pins & new arrivals first; capped.
+const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT || 300);
+const prio = (t) => (pinned.includes(t) ? 0 : inPull.has(t) && !prevSeen[t] ? 1 : 2); // pins, then new arrivals, then rest
+const enrichList = [...seen.entries()]
+  .filter(([, r]) => r.ai == null || r.sec == null)
+  .sort((a, b) => prio(a[0]) - prio(b[0]))
+  .slice(0, ENRICH_LIMIT)
+  .map(([t]) => t);
+let enriched = 0;
+for (const t of enrichList) {
+  try {
+    const sol = await flareGet(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`);
+    fillNulls(seen.get(t), forecastFields(extractJson(sol.response), t));
+    enriched++;
+  } catch (e) { console.log(`  enrich ${t}: forecast skip (${e.message})`); }
+}
+console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast`);
+
 mkdirSync("src/data", { recursive: true });
 writeFileSync("src/data/stocks.json", JSON.stringify([...seen.values()]));
 writeFileSync(
@@ -91,17 +143,20 @@ writeFileSync(
 );
 console.log(`wrote ${seen.size} rows; universe ${total}`);
 
-// maintain the first-seen tracker: carry over known dates, stamp brand-new
-// tickers with today, and prune tickers that left the universe.
-let prevSeen = {};
-try { prevSeen = JSON.parse(readFileSync("src/data/seen.json", "utf8")); } catch { /* first run */ }
+// maintain the seen tracker: freeze first-seen fields (d/ss/ai/con/l), stamp
+// brand-new tickers, and update `ls` (last-seen-in-dynamic-list) which drives expiry.
 const today = new Date().toISOString(); // full timestamp so New Arrivals can show hours-ago for fresh names
 const firstSeen = {};
 // AI "top 10%" flag — no screener sort exists for AI, so use the 90th-pct cut (as Best of the Best does)
 const aiArr = [...seen.values()].map((r) => r.ai).filter((x) => x != null).sort((a, b) => a - b);
 const aiTop = aiArr.length ? aiArr[Math.ceil(0.9 * aiArr.length) - 1] : Infinity;
 for (const [t, r] of seen) if (r.ai != null && r.ai >= aiTop) (membership[t] ??= new Set()).add("a");
-for (const [t, r] of seen) firstSeen[t] = prevSeen[t] || { d: today, ss: r.ss, ai: r.ai, con: r.con, l: [...(membership[t] || [])] };
+for (const [t, r] of seen) {
+  const prev = prevSeen[t];
+  if (prev) firstSeen[t] = { ...prev, ls: nextLastSeen(prev, inPull.has(t), today) };
+  // brand-new: dynamic arrivals get today's date (New Arrivals); pins-only get "baseline" so they don't flood it
+  else firstSeen[t] = { d: inPull.has(t) ? today : "baseline", ls: today, ss: r.ss, ai: r.ai, con: r.con, l: [...(membership[t] || [])] };
+}
 writeFileSync("src/data/seen.json", JSON.stringify(firstSeen));
 const freshCount = Object.values(firstSeen).filter((v) => v.d !== "baseline").length;
 console.log(`seen.json: ${Object.keys(firstSeen).length} tickers, ${freshCount} dated`);

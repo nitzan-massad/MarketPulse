@@ -3,6 +3,7 @@
 // does the same in-page fetch the app's data was originally pulled with.
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { computeKeep, rowFromGetData, forecastFields, fillNulls, nextLastSeen, KEEP_MAX_AGE_DAYS } from "../ci/keep.mjs";
 
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -54,6 +55,32 @@ async function pull(page) {
   }, API);
 }
 
+// in-page per-ticker fetches (need the page's Cloudflare clearance)
+async function fetchGetData(page, tickers) {
+  return page.evaluate(async (ts) => {
+    const out = [];
+    for (const t of ts) {
+      try {
+        const r = await fetch(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`, { headers: { accept: "application/json" } });
+        out.push(await r.json());
+      } catch { out.push(null); }
+    }
+    return out;
+  }, tickers);
+}
+async function fetchForecasts(page, tickers) {
+  return page.evaluate(async (ts) => {
+    const out = [];
+    for (const t of ts) {
+      try {
+        const r = await fetch(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`, { headers: { accept: "application/json" } });
+        out.push(await r.json());
+      } catch { out.push(null); }
+    }
+    return out;
+  }, tickers);
+}
+
 const browser = await chromium.launch({
   headless: true,
   args: ["--disable-blink-features=AutomationControlled"],
@@ -74,25 +101,72 @@ for (let attempt = 1; attempt <= 4 && !(data && data.rows.length >= 50); attempt
     await page.waitForTimeout(5000);
   }
 }
-await browser.close();
-
 if (!data || data.rows.length < 50) {
+  await browser.close();
   console.error("Did not get enough rows — leaving existing data untouched.");
   process.exit(1);
 }
 
-mkdirSync("src/data", { recursive: true });
-writeFileSync("src/data/stocks.json", JSON.stringify(data.rows));
-writeFileSync(
-  "src/data/meta.json",
-  JSON.stringify({ generatedAt: new Date().toISOString(), universe: data.total, shown: data.rows.length }, null, 2) + "\n",
-);
-console.log(`wrote ${data.rows.length} rows; universe ${data.total}`);
+// --- keep set: pinned + non-expired previously-seen tickers, backfilled via getData
+// when they fall out of the top-120 sorts (capped, most-stale-first). See ci/keep.mjs.
+const seen = new Map(data.rows.map((r) => [r.t, r]));
+const membership = data.membership; // ticker -> array of ranking flags
+const inPull = new Set(seen.keys());
 
-// maintain the first-seen tracker (see refresh-data-ci.mjs for details)
+let pinned = [];
+try { pinned = JSON.parse(readFileSync("src/data/pinned.json", "utf8")); } catch { /* none */ }
 let prevSeen = {};
 try { prevSeen = JSON.parse(readFileSync("src/data/seen.json", "utf8")); } catch { /* first run */ }
+const prevRows = new Map();
+try { for (const r of JSON.parse(readFileSync("src/data/stocks.json", "utf8"))) prevRows.set(r.t, r); } catch { /* first run */ }
+
+const BACKFILL_LIMIT = Number(process.env.BACKFILL_LIMIT || 300);
+const { keep, dropped } = computeKeep(pinned, prevSeen, Date.now(), KEEP_MAX_AGE_DAYS);
+const lsMs = (t) => Date.parse(prevSeen[t]?.ls || prevSeen[t]?.d || "") || 0;
+const missing = [...keep].filter((t) => !inPull.has(t)).sort((a, b) => lsMs(a) - lsMs(b));
+const toFetch = missing.slice(0, BACKFILL_LIMIT);
+const fetched = toFetch.length ? await fetchGetData(page, toFetch) : [];
+
+let refreshed = 0, carried = 0;
+const carry = (t) => { const prev = prevRows.get(t); if (prev) { seen.set(t, prev); carried++; } };
+fetched.forEach((j, i) => {
+  const t = toFetch[i];
+  const row = j && rowFromGetData(j, prevRows.get(t) || {});
+  if (row && row.t) { seen.set(t, row); refreshed++; } else carry(t);
+});
+for (const t of missing.slice(BACKFILL_LIMIT)) carry(t); // over cap — keep last-known row
+for (const t of pinned) if (seen.has(t) && !(membership[t] || []).includes("p")) (membership[t] ??= []).push("p");
+console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried, ${dropped.length} expired)`);
+
+// enrich rows still missing AI-score/sector via the per-ticker stock-forecast payload
+// (pins & brand-new arrivals first; fills blanks only; capped) — needs the page open.
+const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT || 300);
+const prio = (t) => (pinned.includes(t) ? 0 : inPull.has(t) && !prevSeen[t] ? 1 : 2);
+const enrichList = [...seen.entries()]
+  .filter(([, r]) => r.ai == null || r.sec == null)
+  .sort((a, b) => prio(a[0]) - prio(b[0]))
+  .slice(0, ENRICH_LIMIT)
+  .map(([t]) => t);
+const forecasts = enrichList.length ? await fetchForecasts(page, enrichList) : [];
+await browser.close();
+let enriched = 0;
+forecasts.forEach((fj, i) => { if (fj) { fillNulls(seen.get(enrichList[i]), forecastFields(fj, enrichList[i])); enriched++; } });
+console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast`);
+
+mkdirSync("src/data", { recursive: true });
+writeFileSync("src/data/stocks.json", JSON.stringify([...seen.values()]));
+writeFileSync(
+  "src/data/meta.json",
+  JSON.stringify({ generatedAt: new Date().toISOString(), universe: data.total, shown: seen.size }, null, 2) + "\n",
+);
+console.log(`wrote ${seen.size} rows; universe ${data.total}`);
+
+// maintain the seen tracker (freeze first-seen fields, update `ls` for expiry) — see refresh-data-ci.mjs
 const today = new Date().toISOString(); // full timestamp so New Arrivals can show hours-ago for fresh names
 const firstSeen = {};
-for (const r of data.rows) firstSeen[r.t] = prevSeen[r.t] || { d: today, ss: r.ss, ai: r.ai, con: r.con, l: data.membership[r.t] || [] };
+for (const [t, r] of seen) {
+  const prev = prevSeen[t];
+  if (prev) firstSeen[t] = { ...prev, ls: nextLastSeen(prev, inPull.has(t), today) };
+  else firstSeen[t] = { d: inPull.has(t) ? today : "baseline", ls: today, ss: r.ss, ai: r.ai, con: r.con, l: membership[t] || [] };
+}
 writeFileSync("src/data/seen.json", JSON.stringify(firstSeen));
