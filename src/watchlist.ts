@@ -122,7 +122,9 @@ export interface WatchlistApi {
 export function useWatchlist(): WatchlistApi {
   // With Firebase configured the list belongs to the account: empty until
   // signed in, and cleared on sign-out (nothing left behind).
-  const [list, setList] = useState<string[]>([]);
+  // Seed from localStorage so the last-known list paints on boot instead of
+  // flashing empty for ~5s while Firebase restores the session + RTDB connects.
+  const [list, setList] = useState<string[]>(() => readLocal());
   const [fbUser, setFbUser] = useState<User | null>(null);
   const [devUser, setDevUser] = useState<User | null>(
     () => (DEV_AUTH && localStorage.getItem(DEV_FLAG) === "1" ? DEV_USER : null),
@@ -131,7 +133,7 @@ export function useWatchlist(): WatchlistApi {
   // false until Firebase reports the first auth state — lets the UI avoid the
   // "Sign in" flash before a persisted session is restored (dev resolves at once)
   const [authReady, setAuthReady] = useState<boolean>(DEV_AUTH || !auth);
-  const [marks, setMarks] = useState<Record<string, MarkEntry>>({});
+  const [marks, setMarks] = useState<Record<string, MarkEntry>>(() => readMarks());
   const marksRef = useRef(marks);
   marksRef.current = marks;
 
@@ -152,12 +154,16 @@ export function useWatchlist(): WatchlistApi {
     }
     if (!db) return;
     if (!user) {
-      setMarks({});
+      if (authReady) setMarks({}); // only clear once auth is confirmed signed-out
       return;
     }
     const r = ref(db, `marks/${user.uid}`);
-    return onValue(r, (snap) => setMarks((snap.val() as Record<string, MarkEntry>) || {}));
-  }, [user]);
+    return onValue(r, (snap) => {
+      const m = (snap.val() as Record<string, MarkEntry>) || {};
+      setMarks(m);
+      writeMarks(m); // refresh the boot cache
+    });
+  }, [user, authReady]);
 
   // pressing a thumb: same value again clears it, otherwise set it with today's date
   const toggleMark = useCallback(
@@ -186,7 +192,9 @@ export function useWatchlist(): WatchlistApi {
     }
     if (!db) return;
     if (!user) {
-      setList([]); // signed out: clear so a previous account's list isn't left behind
+      // signed out: clear so a previous account's list isn't left behind — but
+      // only once auth is confirmed, else we'd wipe the optimistic boot paint.
+      if (authReady) setList([]);
       return;
     }
     const r = ref(db, `watchlist/${user.uid}`);
@@ -200,10 +208,12 @@ export function useWatchlist(): WatchlistApi {
         void set(r, obj); // re-fires onValue with the object form
         return;
       }
-      setList(v ? Object.keys(v) : []);
+      const next = v ? Object.keys(v) : [];
+      setList(next);
+      writeLocal(next); // refresh the boot cache
     });
     return () => unsub();
-  }, [user]);
+  }, [user, authReady]);
 
   const toggle = useCallback(
     (ticker: string) => {
@@ -280,6 +290,8 @@ export function useWatchlist(): WatchlistApi {
       setDevUser(null);
       return;
     }
+    writeLocal([]); // drop the boot cache so a signed-out reload paints empty
+    writeMarks({});
     if (auth) void fbSignOut(auth);
   }, []);
 
