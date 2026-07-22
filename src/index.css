@@ -641,7 +641,7 @@ thead th:hover .col-resize::after{opacity:.6}
 .livebadge.live{color:var(--green); border-color:rgba(31,145,82,.4); background:rgba(31,145,82,.09)}
 .livebadge.closed{color:#9a7212; border-color:rgba(184,134,11,.4); background:rgba(184,134,11,.09)}
 .livebadge.error{color:var(--red); border-color:rgba(207,75,48,.4); background:rgba(207,75,48,.09)}
-.livebadge.throttled{color:#9a7212; border-color:rgba(184,134,11,.4); background:rgba(184,134,11,.09)}
+.livebadge.connecting{color:#9a7212; border-color:rgba(184,134,11,.4); background:rgba(184,134,11,.09)}
 .chg.is-live::after{
   content:""; display:inline-block; width:5px; height:5px; border-radius:50%;
   background:currentColor; margin-left:6px; vertical-align:middle; animation:pulse 1.6s infinite;

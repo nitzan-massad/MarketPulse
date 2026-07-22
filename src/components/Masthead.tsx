@@ -20,8 +20,8 @@ export default function Masthead({ poolN, liveStatus, hasKey, onLive }: Masthead
       ? "● Live"
       : liveStatus === "closed"
         ? "● Market closed"
-        : liveStatus === "throttled"
-          ? "◐ Live — throttled"
+        : liveStatus === "connecting"
+          ? "◐ Connecting…"
           : liveStatus === "error"
             ? "⚠ Live — check key"
             : hasKey

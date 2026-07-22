@@ -181,14 +181,14 @@ export default function App() {
   }, []);
   useSavedFilters(user, filters, applyFilters);
 
-  // watchlist first so watched tickers always fit inside useLiveQuotes' WATCH_CAP,
-  // otherwise a watched ticker outside the visible rows never gets a live price
-  // and its alerts can never fire (stuck on the static snapshot).
-  const tickers = useMemo(
-    () => [...new Set([...watchlist, ...rows.map((r) => r.t)])],
-    [watchlist, rows],
+  // Watchlist is subscribed ALWAYS (even off-screen / other views) so watched
+  // tickers always get a live price and their alerts can fire; visible table rows
+  // are subscribed on demand via `observe` (an IntersectionObserver ref-callback).
+  const { live, price: livePrice, status: liveStatus, observe } = useLiveQuotes(
+    watchlist,
+    liveKey,
+    liveOn,
   );
-  const { live, price: livePrice, status: liveStatus } = useLiveQuotes(tickers, liveKey, liveOn);
 
   // best-known price per watched ticker: live Finnhub when polled, else the
   // bundled snapshot — feeds the notification alert engine.
@@ -348,6 +348,7 @@ export default function App() {
             hl={VIEWS[view].hl}
             onSort={handleSort}
             live={live}
+            observe={observe}
             onOpen={(s) => handleOpen(s, rows)}
             watchlist={watchlist}
             onToggleTrack={requestToggle}

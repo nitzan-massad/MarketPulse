@@ -18,6 +18,9 @@ interface StockTableProps {
   hl: string;
   onSort: (k: string) => void;
   live?: Record<string, number>;
+  // ref-callback from useLiveQuotes: rows report visibility so they get
+  // subscribed to the live WS feed only while on-screen.
+  observe?: (ticker: string) => (el: HTMLElement | null) => void;
   onOpen: (s: Stock) => void;
   watchlist: string[];
   onToggleTrack: (t: string) => void;
@@ -43,7 +46,7 @@ export function UpBar({ up }: { up: number | null }) {
   return <span className={`up-val ${neg ? "neg" : "pos"}`}>{val}</span>;
 }
 
-export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onOpen, watchlist, onToggleTrack, marks, onMark }: StockTableProps) {
+export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, observe, onOpen, watchlist, onToggleTrack, marks, onMark }: StockTableProps) {
   const [widths, setWidths] = useState<Record<string, number>>(() => {
     try {
       return JSON.parse(localStorage.getItem("mp_colw") || "{}");
@@ -124,6 +127,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, onO
               return (
                 <tr
                   key={s.t}
+                  ref={observe?.(s.t)}
                   className={`row-open ${isHl ? "hl" : ""}`}
                   style={{ animationDelay: `${Math.min(i, 40) * 14}ms` }}
                   onClick={() => onOpen(s)}
