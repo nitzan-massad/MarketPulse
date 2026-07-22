@@ -20,11 +20,13 @@ export default function Masthead({ poolN, liveStatus, hasKey, onLive }: Masthead
       ? "● Live"
       : liveStatus === "closed"
         ? "● Market closed"
-        : liveStatus === "error"
-          ? "⚠ Live — check key"
-          : hasKey
-            ? "○ Live off"
-            : "⚡ Go live";
+        : liveStatus === "throttled"
+          ? "◐ Live — throttled"
+          : liveStatus === "error"
+            ? "⚠ Live — check key"
+            : hasKey
+              ? "○ Live off"
+              : "⚡ Go live";
   return (
     <div className="metaline">
       <span>Universe <b>{meta.universe.toLocaleString()}</b> US stocks</span>
