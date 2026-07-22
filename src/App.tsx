@@ -268,7 +268,7 @@ export default function App() {
             // fixed-width slot reserved up-front so the account control fades in
             // without reflowing the header once auth resolves (~1–2s)
             <div className="acctslot">
-              {!authReady && <span className="acct-spin" aria-label="Loading account" role="status" />}
+              {!authReady && <span className="acct-loading" aria-label="Loading account" role="status" />}
               {authReady &&
                 (user ? (
                   <button
