@@ -10,7 +10,7 @@ uses whatever is on `main`.
 `.github/workflows/site.yml` (the workflow YAML **must** live in `.github/workflows/`
 — GitHub requirement — but all the logic it calls lives here in `ci/`):
 
-- **Trigger:** every 6h (`cron`), the "Run workflow" button (`workflow_dispatch`), and every push to `main`.
+- **Trigger:** every 5h (`cron`), the "Run workflow" button (`workflow_dispatch`), and every push to `main`.
 - **FlareSolverr** service starts (solves Cloudflare from the runner's IP).
 - **`ci/refresh-data-ci.mjs`** pulls the TipRanks screener API through FlareSolverr and writes
   `src/data/stocks.json`, `src/data/seen.json`, `src/data/meta.json` (skipped on plain pushes;
@@ -62,9 +62,14 @@ scripts) and has a built-in self-check: `node ci/keep.mjs`.
 ## Analyst forecasts — automated ✅
 
 `ci/scrape-forecasts.mjs` refreshes `public/forecasts/<TICKER>.json` from TipRanks'
-`getData` feed via FlareSolverr. `site.yml` runs it right after the data refresh (for
-tickers **missing** a file; `LIMIT` caps per-run count, `ALL=1` re-scrapes everyone),
-and the commit step now also stages `public/forecasts`.
+`getData` feed via FlareSolverr. `site.yml` runs it right after the data refresh, and
+the commit step also stages `public/forecasts`.
+
+- **Selection:** a ticker is scraped if it's **missing a file OR its file is older than
+  `STALE_DAYS`** (default 3), processed **stalest-first** (missing = age 0 = front of queue,
+  so new arrivals are always picked up on the very next run). `LIMIT` caps the per-run count
+  (default 90); `ALL=1` forces everyone. With ~300 tickers and ~5 runs/day, `LIMIT=90`
+  rotates through the whole universe in under a day, and no file exceeds ~`STALE_DAYS` old.
 
 - **Source (verified):** `https://www.tipranks.com/api/stocks/getData/?name=<T>` → `experts[]`.
   Mapping: `name`, `firm`, `rankings[].stars` (0–5), newest `ratings[0]` → `ratingId` 1/2/3 =
@@ -73,13 +78,23 @@ and the commit step now also stages `public/forecasts`.
 - **Failure-tolerant:** per-ticker try/catch, only writes valid non-empty results, `continue-on-error`
   in CI — it can never break the main refresh. Tiny tickers with no ranked analysts simply get no file.
 
-## Bulls Say / Bears Say — still manual ⚠️
+## Bulls Say / Bears Say — automated ✅
 
-`public/bullbear/<TICKER>.json` is a **static, hand-baked** scrape. The AI "Bulls Say /
-Bears Say" prose is **not in TipRanks' free page HTML** (verified: the exact titles/bodies
-aren't served on the free stock/stock-analysis pages) — it's a premium/GPT feature, so
-there's no free endpoint to automate against. New tickers therefore still show
-"not available" for this panel until a premium-access re-scrape. Options if we want it:
-scrape with an authenticated TipRanks session, use a paid data source, or generate the
-pros/cons ourselves from fundamentals. Shape to match:
-`{ "bull": [{ "t": "title", "b": "body" }, …], "bear": [ … ] }`.
+`ci/scrape-bullbear.mjs` refreshes `public/bullbear/<TICKER>.json` (the AI Bulls Say /
+Bears Say thesis) from TipRanks' **stock-analysis** payload via FlareSolverr, using the
+**same selection logic as the forecast scrape** — missing-first + `STALE_DAYS` staleness,
+stalest-first, `LIMIT` (default 90), `ALL=1` to force everyone. `site.yml` runs it right
+after the forecast backfill, and the commit step stages `public/bullbear`. (The old "no
+free endpoint / still manual" note was wrong — the data is free and unauthenticated.)
+
+- **Source (verified live on AAPL, AMD, ACAD, RIVN, NVDA):**
+  `https://www.tipranks.com/stocks/<t-lowercase>/stock-analysis/payload.json` — no auth, no key.
+  Unlike `getData` this path isn't even Cloudflare-gated (plain `fetch` returns 200), but CI goes
+  through the existing FlareSolverr for runner-IP safety. Same `payload.json` family as the
+  AI-score enrichment above, different subpage (`stock-analysis`, not `stock-forecast`).
+- **JSON path:** `models.stocks_extra[0].aiAnalysis.keyPoints[]` → `{ sentiment: "bullish"|"bearish", title, description }` (typically 3 bull + 3 bear).
+- **Output shape:** `{ "bull": [{ "t": "title", "b": "body" }, …], "bear": [ … ], "asOf": "YYYY-MM-DD" }`
+  (`asOf` = the date we last refreshed the ticker, shown next to the panel headline; the payload
+  carries no content date of its own).
+- **Failure-tolerant:** per-ticker try/catch, only writes non-empty results, `continue-on-error`
+  in CI — never blocks the deploy. Tickers with no AI analysis simply get no file (retried next run).

@@ -90,6 +90,7 @@ interface BBPoint {
 interface BullBear {
   bull: BBPoint[];
   bear: BBPoint[];
+  asOf?: string; // YYYY-MM-DD the scrape last refreshed this ticker
 }
 const bbCache = new Map<string, BullBear | null>();
 async function fetchBullBear(ticker: string): Promise<BullBear | null> {
@@ -100,7 +101,7 @@ async function fetchBullBear(ticker: string): Promise<BullBear | null> {
     if (r.ok) {
       const j = await r.json();
       if (j && ((j.bull && j.bull.length) || (j.bear && j.bear.length)))
-        val = { bull: j.bull || [], bear: j.bear || [] };
+        val = { bull: j.bull || [], bear: j.bear || [], asOf: j.asOf };
     }
   } catch {
     /* missing / offline -> not available */
@@ -896,7 +897,14 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
 
           {/* Bulls Say / Bears Say */}
           <div className="mkm-bb">
-            <div className="mkm-bbhdr">Bulls Say, Bears Say</div>
+            <div className="mkm-bbhdr">
+              Bulls Say, Bears Say
+              {bb?.asOf && (
+                <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400, opacity: 0.7, marginLeft: 8 }}>
+                  · updated {bb.asOf}
+                </span>
+              )}
+            </div>
             {bb ? (
               <>
                 <div className="mkm-bbtabs">

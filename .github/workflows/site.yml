@@ -57,15 +57,24 @@ jobs:
           FLARESOLVERR_URL: http://localhost:8191/v1
         run: node ci/scrape-forecasts.mjs
 
+      # Backfill Bulls Say / Bears Say (AI thesis) from TipRanks' stock-analysis
+      # payload. Same additive + failure-tolerant pattern; never blocks the deploy.
+      - name: Backfill bulls/bears (via FlareSolverr)
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          FLARESOLVERR_URL: http://localhost:8191/v1
+        run: node ci/scrape-bullbear.mjs
+
       - name: Commit refreshed data
         if: github.event_name != 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- src/data public/forecasts; then
+          if git diff --quiet -- src/data public/forecasts public/bullbear; then
             echo "No data change."
           else
-            git add src/data public/forecasts
+            git add src/data public/forecasts public/bullbear
             git commit -m "chore: refresh TipRanks snapshot [skip ci]"
             git push
           fi
