@@ -35,3 +35,14 @@ export function evalAlert(current: number, meta: Meta): AlertResult | null {
   const pct = Math.round(((current - addPx) / addPx) * 100);
   return { dir, pct, newRef: current };
 }
+
+// After an alert fires at price P, the ratchet must not fire again until price moves
+// another ±threshold from P. `meta.ref` encodes that, but it is persisted asynchronously
+// (Firebase), and a not-yet-echoed reset can be reverted by onValue's full-map replace —
+// which let one continuous MU drop fire both a 5% and a 7% alert off a stale ref. This
+// synchronous guard closes that window: given the in-memory price at the last fire, it
+// reports whether `current` is still within one threshold of it (i.e. must be suppressed).
+export function reFireSuppressed(current: number, lastFiredPx: number | undefined): boolean {
+  if (!(current > 0) || !(lastFiredPx! > 0)) return false;
+  return Math.abs((current - lastFiredPx!) / lastFiredPx!) < ALERT_THRESHOLD;
+}

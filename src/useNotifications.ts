@@ -1,7 +1,7 @@
 import type { User } from "firebase/auth";
 import { getDatabase, onValue, push, ref, remove, set, update, type Database } from "firebase/database";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { evalAlert, type Dir, type Meta } from "./alertEngine";
+import { evalAlert, reFireSuppressed, type Dir, type Meta } from "./alertEngine";
 import { app, DEV_AUTH } from "./watchlist";
 
 // Notifications reuse the exact persistence shape of useWatchlist: Firebase RTDB
@@ -71,9 +71,10 @@ export function useNotifications(
   const [meta, setMeta] = useState<MetaMap>({});
   const notifsRef = useRef(notifications);
   notifsRef.current = notifications;
-  // guards a single (ticker, ref) crossing from double-firing within a session
-  // (e.g. React StrictMode double-invokes effects in dev).
-  const firedRef = useRef<Set<string>>(new Set());
+  // In-memory price at each ticker's last alert. The re-fire guard reads this
+  // synchronously so it never depends on the async `meta.ref` round-trip (see the
+  // fire effect); also covers React StrictMode's double-invoke in dev.
+  const lastFiredPxRef = useRef<Record<string, number>>({});
 
   // load / subscribe — mirrors useWatchlist's auth-driven data flow
   useEffect(() => {
@@ -154,7 +155,10 @@ export function useNotifications(
       }
     }
     for (const t of Object.keys(meta)) {
-      if (!watchlist.includes(t)) persistMeta(t, null);
+      if (!watchlist.includes(t)) {
+        persistMeta(t, null);
+        delete lastFiredPxRef.current[t]; // fresh baseline if it's ever re-added
+      }
     }
   }, [user, watchlist, prices, meta, persistMeta]);
 
@@ -167,9 +171,12 @@ export function useNotifications(
       if (!m || typeof cur !== "number") continue;
       const res = evalAlert(cur, m);
       if (!res) continue;
-      const key = `${t}:${m.ref}`;
-      if (firedRef.current.has(key)) continue;
-      firedRef.current.add(key);
+      // `meta.ref` resets async via Firebase; a not-yet-echoed reset can be reverted by
+      // onValue's full-map replace, which let one 7% MU drop fire both a 5% and a 7%
+      // alert off the stale ref. Gate on the in-memory last-fire price, which no async
+      // write can revert.
+      if (reFireSuppressed(cur, lastFiredPxRef.current[t])) continue;
+      lastFiredPxRef.current[t] = cur;
       addNotif({ ticker: t, dir: res.dir, pct: res.pct, at: Date.now(), read: false });
       persistMeta(t, { addPx: m.addPx, ref: res.newRef });
     }

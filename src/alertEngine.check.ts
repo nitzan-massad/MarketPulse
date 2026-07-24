@@ -3,7 +3,7 @@
 //   npx tsc src/alertEngine.ts src/alertEngine.check.ts --outDir /tmp/ae \
 //     --module commonjs --target es2020 --lib es2020,dom --skipLibCheck \
 //   && node /tmp/ae/alertEngine.check.js
-import { evalAlert } from "./alertEngine";
+import { evalAlert, reFireSuppressed } from "./alertEngine";
 
 let failed = 0;
 function eq(label: string, got: unknown, want: unknown): void {
@@ -33,6 +33,15 @@ eq("reversal: down from raised ref shows small cumulative pct", evalAlert(99.75,
 eq("big drop", evalAlert(80, { addPx: 100, ref: 100 }), { dir: "down", pct: -20, newRef: 80 });
 eq("guard: zero current → null", evalAlert(0, { addPx: 100, ref: 100 }), null);
 eq("guard: zero ref → null", evalAlert(105, { addPx: 100, ref: 0 }), null);
+
+// re-fire guard — regression for the MU double-alert (5% then 7% off a stale ref):
+// after firing at 95, a further tick to 93 is within threshold and must be suppressed;
+// only a full 5% more (≤90.25) is a fresh crossing.
+eq("refire: within threshold of last fire → suppressed", reFireSuppressed(93, 95), true);
+eq("refire: same price (StrictMode double-invoke) → suppressed", reFireSuppressed(95, 95), true);
+eq("refire: another full threshold away → allowed", reFireSuppressed(90.25, 95), false);
+eq("refire: no prior fire → allowed", reFireSuppressed(93, undefined), false);
+eq("refire: non-positive price → allowed", reFireSuppressed(0, 95), false);
 
 if (failed) throw new Error(`${failed} alertEngine check(s) failed`);
 console.log("\nall alertEngine checks passed");
