@@ -1,12 +1,14 @@
 // Backfill/refresh public/forecasts/<T>.json from TipRanks' getData `experts`
 // feed, via FlareSolverr (same Cloudflare-bypass the data refresh uses). Strictly
 // additive + per-ticker failure-tolerant: a bad ticker is skipped, never fatal, so
-// this can't break the main refresh. By default only fills tickers that are MISSING
-// a file (pass ALL=1 to re-scrape everyone). Cap with LIMIT (default 60).
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+// this can't break the main refresh. Fills tickers that are MISSING a file or are
+// older than STALE_DAYS, stalest first so LIMIT rotates through the whole universe
+// (pass ALL=1 to force everyone). Cap with LIMIT (default 90).
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
-const LIMIT = Number(process.env.LIMIT || 60);
+const LIMIT = Number(process.env.LIMIT || 90);
+const STALE_DAYS = Number(process.env.STALE_DAYS || 3);
 const ALL = process.env.ALL === "1";
 const OUT = "public/forecasts";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -71,9 +73,12 @@ function toForecasts(data) {
 }
 
 const stocks = JSON.parse(readFileSync("src/data/stocks.json", "utf8"));
+const staleBefore = Date.now() - STALE_DAYS * 864e5;
+const age = (t) => { try { return statSync(`${OUT}/${t}.json`).mtimeMs; } catch { return 0; } };
 const targets = stocks
   .map((s) => s.t)
-  .filter((t) => ALL || !existsSync(`${OUT}/${t}.json`))
+  .filter((t) => ALL || !existsSync(`${OUT}/${t}.json`) || age(t) < staleBefore)
+  .sort((a, b) => age(a) - age(b)) // stalest (incl. missing = 0) first
   .slice(0, LIMIT);
 
 mkdirSync(OUT, { recursive: true });
