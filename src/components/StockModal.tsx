@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fmtMin, sessionSlice } from "../chartSession";
 import { fetchForecasts, type Forecast } from "../forecasts";
 import { consClass, consLabel, DATE_LOCALE, fmtMc } from "../lib";
 import { reviewKey } from "../reviewAlerts";
@@ -273,9 +274,12 @@ interface ChartModel {
   lastX: number;
   lastY: number;
   up: boolean;
-  baseY: number; // dashed reference line (range's opening price)
+  baseY: number; // dashed reference line (1D: prev close; other ranges: opening price)
   priceTicks: { y: number; label: string }[];
-  dateTicks: { x: number; label: string }[];
+  dateTicks: { x: number; label: string; future?: boolean }[]; // future = time not yet traded
+  remaining?: { x: number; w: number }; // 1D live: shaded untraded strip to 16:00
+  live?: boolean; // 1D: session still open
+  nowLabel?: string; // 1D live: "H:MM" of the latest bar
 }
 
 // "nice" round axis values within [lo,hi] (e.g. 134,136,138 — not 134.7)
@@ -298,7 +302,43 @@ function fmtStamp(s: string, intraday: boolean): string {
   return new Date(y, mo - 1, da).toLocaleDateString(DATE_LOCALE, { month: "numeric", day: "numeric" });
 }
 
-function buildChart(closes: number[], stamps: string[], intraday: boolean): ChartModel {
+function buildChart(
+  closes: number[],
+  stamps: string[],
+  intraday: boolean,
+  opts: { is1D?: boolean; prevClose?: number | null } = {},
+): ChartModel {
+  const plotR0 = CW - C_R;
+  const plotB0 = CH - C_B;
+
+  // 1D intraday: fixed 9:30–16:00 axis over the latest session, remainder shaded (#3).
+  const slice = intraday && opts.is1D ? sessionSlice(closes, stamps) : null;
+  if (slice) {
+    const c = slice.closes;
+    const base = opts.prevClose && opts.prevClose > 0 ? opts.prevClose : c[0];
+    const lo = Math.min(...c, base), hi = Math.max(...c, base), span = hi - lo || 1;
+    const x = (min: number) => 6 + ((min - slice.dStart) / (slice.dEnd - slice.dStart)) * (plotR0 - 6);
+    const y = (v: number) => C_PAD + (1 - (v - lo) / span) * (plotB0 - C_PAD);
+    const pts = c.map((v, i) => `${x(slice.mins[i]).toFixed(1)} ${y(v).toFixed(1)}`);
+    const line = "M" + pts.join(" L");
+    const lastX = x(slice.lastMin), lastY = y(c[c.length - 1]);
+    const area = `${line} L${lastX.toFixed(1)} ${plotB0} L${x(slice.dStart).toFixed(1)} ${plotB0} Z`;
+    const dp = hi >= 100 ? 0 : hi >= 10 ? 1 : 2;
+    const priceTicks = niceTicks(lo, hi, 4).filter((v) => v >= lo && v <= hi).map((v) => ({ y: y(v), label: v.toFixed(dp) }));
+    const dateTicks = [570, 660, 750, 840, 960] // 9:30, 11:00, 12:30, 14:00, 16:00
+      .filter((m) => m >= slice.dStart && m <= slice.dEnd)
+      .map((m) => ({ x: x(m), label: fmtMin(m), future: m > slice.lastMin }));
+    return {
+      line, area, lastX, lastY,
+      up: c[c.length - 1] >= base,
+      baseY: y(base),
+      priceTicks, dateTicks,
+      remaining: slice.live ? { x: lastX, w: plotR0 - lastX } : undefined,
+      live: slice.live,
+      nowLabel: fmtMin(slice.lastMin),
+    };
+  }
+
   const n = closes.length;
   const lo = Math.min(...closes);
   const hi = Math.max(...closes);
@@ -547,9 +587,12 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   const chart = useMemo(
     () =>
       series && series.closes.length
-        ? buildChart(series.closes, series.stamps, RANGE_CFG[range].interval.includes("min"))
+        ? buildChart(series.closes, series.stamps, RANGE_CFG[range].interval.includes("min"), {
+            is1D: range === "1D",
+            prevClose: quote?.pc ?? null,
+          })
         : null,
-    [series, range],
+    [series, range, quote],
   );
 
   const chartAvailable = !seriesLoading && !seriesError && chart != null;
@@ -645,6 +688,18 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
                   </button>
                 ))}
               </span>
+              {range === "1D" && chart?.nowLabel && (
+                <span className={`mkm-sess ${chart.live ? "live" : "closed"}`}>
+                  {chart.live ? (
+                    <>
+                      <i />
+                      LIVE · {chart.nowLabel}
+                    </>
+                  ) : (
+                    "CLOSED"
+                  )}
+                </span>
+              )}
             </div>
 
             <div className="mkm-plotbox">
@@ -675,14 +730,39 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
                   {chart!.dateTicks.map((t, i) => (
                     <line key={`v${i}`} className="mkm-gridln" x1={t.x} y1={C_PAD} x2={t.x} y2={CH - C_B} />
                   ))}
-                  {/* dashed reference line at the range's opening price */}
+                  {/* 1D live: shade the part of the session not yet traded */}
+                  {chart!.remaining && (
+                    <rect
+                      className="mkm-remaining"
+                      x={chart!.remaining.x}
+                      y={C_PAD}
+                      width={chart!.remaining.w}
+                      height={CH - C_B - C_PAD}
+                    />
+                  )}
+                  {/* dashed reference line — 1D: prev close; other ranges: opening price */}
                   <line className="mkm-baseln" x1="0" y1={chart!.baseY} x2={CW - C_R} y2={chart!.baseY} />
+                  {range === "1D" && chart!.nowLabel && (
+                    <text className="mkm-basetag" x="2" y={chart!.baseY - 3}>
+                      prev close
+                    </text>
+                  )}
                   <path fill={chart!.up ? "url(#mkm-fill-up)" : "url(#mkm-fill-dn)"} d={chart!.area} />
                   <path className={`mkm-chartline ${chart!.up ? "up" : "dn"}`} d={chart!.line} />
+                  {chart!.live && (
+                    <circle
+                      className="mkm-livering"
+                      cx={chart!.lastX}
+                      cy={chart!.lastY}
+                      r="4"
+                      fill="none"
+                      stroke={chart!.up ? "#32d74b" : "#ff453a"}
+                    />
+                  )}
                   <circle
                     cx={chart!.lastX}
                     cy={chart!.lastY}
-                    r="3"
+                    r={chart!.live ? 3.4 : 3}
                     fill={chart!.up ? "#32d74b" : "#ff453a"}
                   />
                   {/* price labels (right gutter) */}
@@ -695,7 +775,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
                   {chart!.dateTicks.map((t, i) => (
                     <text
                       key={`dt${i}`}
-                      className="mkm-axtx"
+                      className={`mkm-axtx ${t.future ? "future" : ""}`}
                       x={t.x}
                       y={CH - 4}
                       textAnchor={i === 0 ? "start" : i === chart!.dateTicks.length - 1 ? "end" : "middle"}

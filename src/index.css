@@ -755,7 +755,18 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-plotbox svg{display:block; width:100%; height:auto}
 .mkm-gridln{stroke:var(--t-line); stroke-width:1}
 .mkm-baseln{stroke:var(--t-faint); stroke-width:1; stroke-dasharray:3 3; opacity:.55}
-.mkm-axtx{fill:var(--t-ink); font-family:Arial,"Helvetica Neue",Helvetica,sans-serif; font-size:10px; letter-spacing:.02em}
+.mkm-axtx{fill:#000; font-family:Arial,"Helvetica Neue",Helvetica,sans-serif; font-size:12.5px; font-weight:600; letter-spacing:.01em}
+.mkm-axtx.future{fill:var(--t-faint); font-weight:500}
+.mkm-remaining{fill:var(--t-line); opacity:.45}
+.mkm-basetag{fill:var(--t-faint); font-family:Arial,sans-serif; font-size:9px; font-weight:600}
+.mkm-livering{transform-box:fill-box; transform-origin:center; animation:mkm-pulse 1.8s ease-out infinite}
+@keyframes mkm-pulse{0%{transform:scale(1); opacity:.55} 70%{transform:scale(2.6); opacity:0} 100%{opacity:0}}
+.mkm-sess{display:inline-flex; align-items:center; gap:5px; font-size:9.5px; font-weight:700; letter-spacing:.03em;
+  padding:2px 8px; border-radius:20px; white-space:nowrap}
+.mkm-sess.live{color:#fff; background:var(--t-red)}
+.mkm-sess.live i{width:6px; height:6px; border-radius:50%; background:#fff; animation:mkm-blink 1.4s infinite}
+.mkm-sess.closed{color:var(--t-muted); background:var(--t-panel); border:1px solid var(--t-line)}
+@keyframes mkm-blink{0%,100%{opacity:1} 50%{opacity:.25}}
 .mkm-chartline{fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;
   stroke-dasharray:1600; stroke-dashoffset:1600; animation:mkm-draw 1.5s .3s forwards cubic-bezier(.3,.7,.2,1)}
 .mkm-chartline.up{stroke:#32d74b}
@@ -951,7 +962,8 @@ thead th:hover .col-resize::after{opacity:.6}
 @media(prefers-reduced-motion:reduce){
   .mkm-modal, .mkm-bhs span, .mkm-ladder .track i, .mkm-chartline, .mkm-plot-msg.mkm-skel, .mkm-kv .v.skel{animation:none}
   .mkm-chartline{stroke-dasharray:none; stroke-dashoffset:0}
-  .mkm-live::before{animation:none}
+  .mkm-live::before, .mkm-livering, .mkm-sess.live i{animation:none}
+  .mkm-livering{opacity:0}
 }
 
 /* ============================================================
