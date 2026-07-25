@@ -13,6 +13,7 @@ interface SearchProps {
 export default function Search({ onOpen, onOpenTicker }: SearchProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [remote, setRemote] = useState<{ t: string; n: string }[]>([]); // Finnhub name/ticker lookups off the ranked set
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -56,6 +57,41 @@ export default function Search({ onOpen, onOpenTicker }: SearchProps) {
   const exact = STOCKS.some((s) => s.t === upper);
   const offUniverse = query.length > 0 && /^[A-Za-z.]{1,6}$/.test(query) && !exact;
 
+  // Resolve company names / off-set tickers via Finnhub symbol lookup (same key +
+  // CORS-enabled host we already use for quotes). Lets "apple" -> AAPL even when the
+  // stock isn't in the ranked set. Debounced; skipped without a key (offline falls
+  // back to the raw-ticker guess below).
+  useEffect(() => {
+    const key = localStorage.getItem("mp_finnhub") || import.meta.env.VITE_FINNHUB_KEY || "";
+    if (!open || query.length < 2 || !key) {
+      setRemote([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    const id = window.setTimeout(async () => {
+      try {
+        const r = await fetch(
+          `https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${key}`,
+          { signal: ctrl.signal },
+        );
+        if (!r.ok) return;
+        const j = await r.json();
+        const inSet = new Set(STOCKS.map((s) => s.t));
+        const rows = (j.result || [])
+          .filter((x: { symbol?: string }) => x.symbol && !x.symbol.includes(".") && !inSet.has(x.symbol))
+          .slice(0, 5)
+          .map((x: { symbol: string; description?: string }) => ({ t: x.symbol, n: x.description || "" }));
+        setRemote(rows);
+      } catch {
+        /* aborted / offline -> no remote matches */
+      }
+    }, 250);
+    return () => {
+      window.clearTimeout(id);
+      ctrl.abort();
+    };
+  }, [query, open]);
+
   const pick = (s: Stock) => {
     onOpen(s, results);
     close();
@@ -68,6 +104,7 @@ export default function Search({ onOpen, onOpenTicker }: SearchProps) {
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "Enter") return;
     if (results[0]) pick(results[0]);
+    else if (remote[0]) pickTicker(remote[0].t);
     else if (offUniverse) pickTicker(upper);
   };
 
@@ -110,14 +147,20 @@ export default function Search({ onOpen, onOpenTicker }: SearchProps) {
                   <span className="search-px">{fmtPx(s.px)}</span>
                 </button>
               ))}
-              {offUniverse && (
+              {remote.map((s) => (
+                <button key={s.t} type="button" className="search-res off" role="option" onClick={() => pickTicker(s.t)}>
+                  <span className="search-tk">{s.t}</span>
+                  <span className="search-co">{s.n ? `${s.n} · not in the ranked set` : "not in the ranked set"}</span>
+                </button>
+              ))}
+              {offUniverse && !remote.length && (
                 <button type="button" className="search-res off" role="option" onClick={() => pickTicker(upper)}>
                   <span className="search-tk">{upper}</span>
                   <span className="search-co">Open — limited data (not in the ranked set)</span>
                 </button>
               )}
-              {results.length === 0 && !offUniverse && (
-                <div className="search-empty">No matches. Type a ticker like NVDA.</div>
+              {results.length === 0 && remote.length === 0 && !offUniverse && (
+                <div className="search-empty">No matches. Try a ticker (NVDA) or company name (Apple).</div>
               )}
             </div>
           )}
