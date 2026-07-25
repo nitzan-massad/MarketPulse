@@ -743,11 +743,20 @@ thead th:hover .col-resize::after{opacity:.6}
 
 /* chart pane */
 .mkm-chartpane{padding:14px 18px 16px; border-bottom:1px solid var(--t-line-2)}
-.mkm-cmdline{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; font-size:11px}
+.mkm-cmdline{display:flex; align-items:center; gap:8px; flex-wrap:nowrap; margin-bottom:12px; font-size:11px}
 .mkm-prompt{color:var(--t-green)}
 .mkm-cmd{color:var(--t-muted)}
-.mkm-ranges{display:inline-flex; gap:4px; margin-left:4px}
-.mkm-ranges button{appearance:none; background:none; border:1px solid var(--t-line); color:var(--t-faint);
+/* range tabs slide horizontally; soft fades on whichever side has more (#1) */
+.mkm-rangewrap{position:relative; flex:1 1 auto; min-width:0; overflow:hidden; margin-left:4px}
+.mkm-rangewrap::before,.mkm-rangewrap::after{content:""; position:absolute; top:0; bottom:0; width:26px; pointer-events:none;
+  opacity:0; transition:opacity .15s; z-index:2}
+.mkm-rangewrap::before{left:0; background:linear-gradient(90deg,var(--t-bg),rgba(255,255,255,0))}
+.mkm-rangewrap::after{right:0; background:linear-gradient(270deg,var(--t-bg),rgba(255,255,255,0))}
+.mkm-rangewrap.fl::before{opacity:1}
+.mkm-rangewrap.fr::after{opacity:1}
+.mkm-ranges{display:flex; gap:4px; overflow-x:auto; scroll-behavior:smooth; scrollbar-width:none; -ms-overflow-style:none; padding:1px 0}
+.mkm-ranges::-webkit-scrollbar{display:none}
+.mkm-ranges button{appearance:none; flex:none; background:none; border:1px solid var(--t-line); color:var(--t-faint);
   font-family:inherit; font-size:10px; font-weight:500; padding:3px 8px; border-radius:5px; cursor:pointer; transition:.15s; letter-spacing:.04em}
 .mkm-ranges button:hover{color:var(--t-ink); border-color:var(--t-muted)}
 .mkm-ranges button.on{background:var(--t-gold); color:#fff; border-color:var(--t-gold); font-weight:700}

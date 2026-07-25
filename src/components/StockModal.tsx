@@ -423,6 +423,20 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   const [liveDesc, setLiveDesc] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  // range tabs slide horizontally (too many to fit); edge fades show there's more
+  const rangesRef = useRef<HTMLDivElement>(null);
+  const [rangeFade, setRangeFade] = useState({ l: false, r: false });
+  const updateRangeFade = useCallback(() => {
+    const el = rangesRef.current;
+    if (!el) return;
+    setRangeFade({ l: el.scrollLeft > 2, r: el.scrollLeft < el.scrollWidth - el.clientWidth - 2 });
+  }, []);
+  useEffect(() => {
+    updateRangeFade();
+    window.addEventListener("resize", updateRangeFade);
+    return () => window.removeEventListener("resize", updateRangeFade);
+  }, [updateRangeFade]);
+
   // close on Escape
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -690,17 +704,19 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
           {/* CHART pane */}
           <div className="mkm-chartpane">
             <div className="mkm-cmdline">
-              <span className="mkm-ranges">
-                {RANGES.map((r) => (
-                  <button
-                    key={r}
-                    className={r === range ? "on" : ""}
-                    onClick={() => setRange(r)}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </span>
+              <div className={`mkm-rangewrap${rangeFade.l ? " fl" : ""}${rangeFade.r ? " fr" : ""}`}>
+                <div className="mkm-ranges" ref={rangesRef} onScroll={updateRangeFade}>
+                  {RANGES.map((r) => (
+                    <button
+                      key={r}
+                      className={r === range ? "on" : ""}
+                      onClick={() => setRange(r)}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {range === "1D" && chart?.nowLabel && (
                 <span className={`mkm-sess ${chart.live ? "live" : "closed"}`}>
                   {chart.live ? (
