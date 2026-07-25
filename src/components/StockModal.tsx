@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fmtMin, sessionSlice } from "../chartSession";
+import { easternNow, type EasternNow, fmtMin, marketOpen, sessionSlice } from "../chartSession";
 import { fetchForecasts, type Forecast } from "../forecasts";
 import { consClass, consLabel, DATE_LOCALE, fmtMc } from "../lib";
 import { reviewKey } from "../reviewAlerts";
@@ -18,9 +18,9 @@ const FMP_KEY = import.meta.env.VITE_FMP_KEY ?? "";
 const stocksUrl = (ticker: string) =>
   `https://stocks.apple.com/symbol/${encodeURIComponent(ticker)}`;
 
-type RangeId = "1D" | "1W" | "1M" | "3M" | "6M" | "YTD" | "1Y";
+type RangeId = "1D" | "1W" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "2Y" | "5Y" | "ALL";
 
-const RANGES: RangeId[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"];
+const RANGES: RangeId[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "2Y", "5Y", "ALL"];
 const DEFAULT_RANGE: RangeId = "1D";
 
 // range -> Twelve Data interval + outputsize
@@ -32,6 +32,9 @@ const RANGE_CFG: Record<RangeId, { interval: string; outputsize: number }> = {
   "6M": { interval: "1day", outputsize: 130 },
   YTD: { interval: "1day", outputsize: 200 },
   "1Y": { interval: "1day", outputsize: 252 },
+  "2Y": { interval: "1day", outputsize: 520 },
+  "5Y": { interval: "1week", outputsize: 260 },
+  ALL: { interval: "1month", outputsize: 600 },
 };
 
 interface Quote {
@@ -302,17 +305,23 @@ function fmtStamp(s: string, intraday: boolean): string {
   return new Date(y, mo - 1, da).toLocaleDateString(DATE_LOCALE, { month: "numeric", day: "numeric" });
 }
 
+// month + 2-digit year (e.g. "Jul '24") for ranges that span multiple years (2Y/5Y/ALL)
+function fmtStampLong(s: string): string {
+  const [y, mo] = (s.split(" ")[0] || "").split("-").map(Number);
+  return new Date(y, (mo || 1) - 1, 1).toLocaleDateString(DATE_LOCALE, { month: "short" }) + " '" + String(y).slice(2);
+}
+
 function buildChart(
   closes: number[],
   stamps: string[],
   intraday: boolean,
-  opts: { is1D?: boolean; prevClose?: number | null } = {},
+  opts: { is1D?: boolean; prevClose?: number | null; now?: EasternNow | null } = {},
 ): ChartModel {
   const plotR0 = CW - C_R;
   const plotB0 = CH - C_B;
 
   // 1D intraday: fixed 9:30–16:00 axis over the latest session, remainder shaded (#3).
-  const slice = intraday && opts.is1D ? sessionSlice(closes, stamps) : null;
+  const slice = intraday && opts.is1D ? sessionSlice(closes, stamps, opts.now ?? null) : null;
   if (slice) {
     const c = slice.closes;
     const base = opts.prevClose && opts.prevClose > 0 ? opts.prevClose : c[0];
@@ -361,9 +370,12 @@ function buildChart(
 
   const nLbl = Math.min(6, n);
   const denom = Math.max(1, nLbl - 1);
+  // multi-year ranges (2Y/5Y/ALL) show month + year so labels aren't ambiguous
+  const multiYear = !intraday && n > 1 && (stamps[0] || "").slice(0, 4) !== (stamps[n - 1] || "").slice(0, 4);
   const dateTicks = Array.from({ length: nLbl }, (_, k) => {
     const i = Math.round((k / denom) * (n - 1));
-    return { x: x(i), label: fmtStamp(stamps[i] || "", intraday) };
+    const stamp = stamps[i] || "";
+    return { x: x(i), label: multiYear ? fmtStampLong(stamp) : fmtStamp(stamp, intraday) };
   });
 
   return {
@@ -590,6 +602,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
         ? buildChart(series.closes, series.stamps, RANGE_CFG[range].interval.includes("min"), {
             is1D: range === "1D",
             prevClose: quote?.pc ?? null,
+            now: easternNow(),
           })
         : null,
     [series, range, quote],
@@ -638,7 +651,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
             </button>
           )}
           {!chromeOff && <ThumbMark mark={mark} onMark={onMark} both />}
-          {!chromeOff && <div className="mkm-live">LIVE</div>}
+          {!chromeOff && marketOpen() && <div className="mkm-live">LIVE</div>}
           <button className="mkm-close" aria-label="Close" onClick={onClose}>
             &times;
           </button>
