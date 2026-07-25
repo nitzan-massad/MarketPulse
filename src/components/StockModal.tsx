@@ -874,7 +874,13 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
           {desc && (
             <div className="mkm-about">
               <div className="mkm-abouthdr">About {name}</div>
-              <p className={`mkm-desc ${descOpen ? "" : "mkm-clamp2"}`}>{desc}</p>
+              <p
+                className={`mkm-desc ${descOpen ? "" : "mkm-clamp2"}`}
+                title={descOpen ? "Collapse" : "Expand"}
+                onClick={() => setDescOpen((v) => !v)}
+              >
+                {desc}
+              </p>
               <button
                 type="button"
                 className="mkm-more"

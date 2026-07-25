@@ -768,7 +768,7 @@ thead th:hover .col-resize::after{opacity:.6}
 /* company description (first line shown, rest collapsed) */
 .mkm-about{padding:14px 18px; border-bottom:1px solid var(--t-line-2)}
 .mkm-abouthdr{font-family:var(--t-head); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--t-muted); font-weight:600; margin-bottom:9px}
-.mkm-desc{margin:0; font-family:inherit; font-size:12.5px; line-height:1.62; color:var(--t-muted)}
+.mkm-desc{margin:0; font-family:inherit; font-size:12.5px; line-height:1.62; color:var(--t-muted); cursor:pointer}
 .mkm-clamp1{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:1; line-clamp:1; overflow:hidden}
 .mkm-clamp2{display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden}
 /* shared "show more/less" toggle for About + Bulls/Bears */
