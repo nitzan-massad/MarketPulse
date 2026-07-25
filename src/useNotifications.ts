@@ -11,9 +11,12 @@ const db: Database | null = app ? getDatabase(app) : null;
 
 export interface Notification {
   id: string;
+  type: "price" | "review";
   ticker: string;
-  dir: Dir;
-  pct: number; // cumulative % vs add price at fire time
+  dir?: Dir; // price
+  pct?: number; // price: cumulative % vs add price at fire time
+  company?: string; // review
+  keys?: string[]; // review: identity keys of the new reviews (drives the modal highlight)
   at: number; // epoch ms
   read: boolean;
 }
@@ -23,6 +26,7 @@ export interface NotificationsApi {
   unreadCount: number;
   markAllRead: () => void;
   clearAll: () => void;
+  pushReview: (ticker: string, company: string, newKeys: string[]) => void;
 }
 
 type MetaMap = Record<string, Meta>;
@@ -33,7 +37,7 @@ const META_LS = "mp_watch_meta";
 function readNotifsLocal(): Notification[] {
   try {
     const v = JSON.parse(localStorage.getItem(NOTIFS_LS) || "[]");
-    return Array.isArray(v) ? v : [];
+    return Array.isArray(v) ? v.map((n) => ({ type: "price", ...n })) : [];
   } catch {
     return [];
   }
@@ -92,8 +96,9 @@ export function useNotifications(
     const nref = ref(db, `notifications/${user.uid}`);
     const mref = ref(db, `watchmeta/${user.uid}`);
     const unNotif = onValue(nref, (snap) => {
-      const v = (snap.val() as Record<string, Omit<Notification, "id">>) || {};
-      const arr = Object.entries(v).map(([id, n]) => ({ id, ...n }));
+      const v =
+        (snap.val() as Record<string, Omit<Notification, "id" | "type"> & { type?: Notification["type"] }>) || {};
+      const arr = Object.entries(v).map(([id, n]) => ({ id, ...n, type: n.type ?? "price" }));
       arr.sort((a, b) => b.at - a.at);
       setNotifs(arr);
     });
@@ -146,6 +151,31 @@ export function useNotifications(
     [user],
   );
 
+  // Review alerts share this store. Bump the single unread review notification for a
+  // ticker (grouping) instead of stacking a new one each detection cycle.
+  const pushReview = useCallback(
+    (ticker: string, company: string, newKeys: string[]) => {
+      if (!user || !newKeys.length) return;
+      const existing = notifsRef.current.find((n) => n.type === "review" && n.ticker === ticker && !n.read);
+      if (!existing) {
+        addNotif({ type: "review", ticker, company, keys: newKeys, at: Date.now(), read: false });
+        return;
+      }
+      const keys = Array.from(new Set([...(existing.keys ?? []), ...newKeys]));
+      const at = Date.now();
+      if (DEV_AUTH) {
+        setNotifs((prev) => {
+          const next = prev.map((n) => (n.id === existing.id ? { ...n, keys, at } : n)).sort((a, b) => b.at - a.at);
+          writeNotifsLocal(next);
+          return next;
+        });
+      } else if (db) {
+        void update(ref(db, `notifications/${user.uid}/${existing.id}`), { keys, at });
+      }
+    },
+    [user, addNotif],
+  );
+
   // reconcile meta: create for newly-watched tickers (reqs 11 + 12), prune the rest
   useEffect(() => {
     if (!user) return;
@@ -177,7 +207,7 @@ export function useNotifications(
       // write can revert.
       if (reFireSuppressed(cur, lastFiredPxRef.current[t])) continue;
       lastFiredPxRef.current[t] = cur;
-      addNotif({ ticker: t, dir: res.dir, pct: res.pct, at: Date.now(), read: false });
+      addNotif({ type: "price", ticker: t, dir: res.dir, pct: res.pct, at: Date.now(), read: false });
       persistMeta(t, { addPx: m.addPx, ref: res.newRef });
     }
   }, [user, watchlist, prices, meta, addNotif, persistMeta]);
@@ -211,5 +241,5 @@ export function useNotifications(
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
 
-  return { notifications, unreadCount, markAllRead, clearAll };
+  return { notifications, unreadCount, markAllRead, clearAll, pushReview };
 }

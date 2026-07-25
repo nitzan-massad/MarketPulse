@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fetchForecasts, type Forecast } from "../forecasts";
 import { consClass, consLabel, DATE_LOCALE, fmtMc } from "../lib";
+import { reviewKey } from "../reviewAlerts";
 import type { Stock } from "../types";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
@@ -110,34 +112,7 @@ async function fetchBullBear(ticker: string): Promise<BullBear | null> {
   return val;
 }
 
-// Analyst forecasts — per-ticker snapshot pulled from TipRanks' free getData
-// feed (name, firm, star rating, price target, prior target, position, date),
-// baked into public/forecasts/. Lazy-fetched; absent/empty -> no coverage.
-interface Forecast {
-  n: string | null; // analyst name
-  f: string | null; // firm
-  st: number | null; // TipRanks star rating 0–5
-  r: string | null; // position: Buy / Hold / Sell
-  pt: number; // price target
-  opt: number | null; // prior target (shows "old → new")
-  d: string; // rating date "YYYY-MM-DD"
-}
-const fcCache = new Map<string, Forecast[] | null>();
-async function fetchForecasts(ticker: string): Promise<Forecast[] | null> {
-  if (fcCache.has(ticker)) return fcCache.get(ticker)!;
-  let val: Forecast[] | null = null;
-  try {
-    const r = await fetch(`${import.meta.env.BASE_URL}forecasts/${encodeURIComponent(ticker)}.json`);
-    if (r.ok) {
-      const j = await r.json();
-      if (Array.isArray(j) && j.length) val = j;
-    }
-  } catch {
-    /* missing / offline -> no coverage */
-  }
-  fcCache.set(ticker, val);
-  return val;
-}
+// Forecast type + fetchForecasts now live in ../forecasts (shared with the review detector).
 
 // Company description for off-universe tickers (those with no scraped DB desc).
 // Source order: (1) baked public/desc.json — hand-scraped from TipRanks for the
@@ -373,9 +348,10 @@ interface StockModalProps {
   onMark: (v: Mark) => void;
   onPrev?: () => void; // page to previous stock in the list (undefined = none)
   onNext?: () => void; // page to next stock
+  highlightReviews?: string[] | null; // opened from a review notification: open forecasts + glow these rows
 }
 
-export default function StockModal({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext }: StockModalProps) {
+export default function StockModal({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext, highlightReviews }: StockModalProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
@@ -390,6 +366,8 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   const [bbOpen, setBbOpen] = useState<Set<number>>(() => new Set()); // per-topic expanded indices
   const [forecasts, setForecasts] = useState<Forecast[] | null>(null);
   const [fcOpen, setFcOpen] = useState(false);
+  const [hotKeys, setHotKeys] = useState<Set<string>>(() => new Set()); // review rows to glow, from a notification
+  const highlightDone = useRef<string[] | null>(null);
   const [liveDesc, setLiveDesc] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
@@ -466,6 +444,19 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
       cancelled = true;
     };
   }, [stock.t, stock.desc]);
+
+  // opened from a review notification: once forecasts load, open the forecast view and
+  // glow the new rows for 2s, then let the CSS transition fade them out. Fires once per
+  // notification-open (guarded on the array reference).
+  useEffect(() => {
+    if (!highlightReviews?.length || !forecasts) return;
+    if (highlightDone.current === highlightReviews) return;
+    highlightDone.current = highlightReviews;
+    setFcOpen(true);
+    setHotKeys(new Set(highlightReviews));
+    const id = window.setTimeout(() => setHotKeys(new Set()), 2000);
+    return () => window.clearTimeout(id);
+  }, [highlightReviews, forecasts]);
 
   // fetch series for the active range (default 1M on open; others on tab click)
   useEffect(() => {
@@ -1010,8 +1001,9 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
                 </div>
                 {forecasts.map((f, i) => {
                   const up = fcUpside(f.pt);
+                  const hot = hotKeys.has(reviewKey(f));
                   return (
-                    <div className="mkm-fcfrow" key={i}>
+                    <div className={`mkm-fcfrow${hot ? " mkm-fchot" : ""}`} key={i}>
                       {starRow(f.st)}
                       <span className="mkm-fcan">
                         <b>{f.n || "—"}</b>

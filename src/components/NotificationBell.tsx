@@ -7,7 +7,7 @@ interface Props {
   unreadCount: number;
   onMarkAllRead: () => void;
   onClearAll: () => void;
-  onOpenTicker: (ticker: string) => void;
+  onOpen: (n: Notification) => void;
 }
 
 const BellIcon = (
@@ -31,6 +31,11 @@ const TrashIcon = (
     <path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
   </svg>
 );
+const DocIcon = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M8 13h8" /><path d="M8 17h5" />
+  </svg>
+);
 
 function sameDay(ms: number, now: Date): boolean {
   const d = new Date(ms);
@@ -42,7 +47,7 @@ export default function NotificationBell({
   unreadCount,
   onMarkAllRead,
   onClearAll,
-  onOpenTicker,
+  onOpen,
 }: Props) {
   const [open, setOpen] = useState(false);
   // ids that were unread when the panel was opened — their coloured dots persist
@@ -90,19 +95,32 @@ export default function NotificationBell({
 
   function renderRow(n: Notification) {
     const isNew = sessionNew.has(n.id);
+    const open = () => {
+      onOpen(n);
+      setOpen(false);
+    };
+    if (n.type === "review") {
+      const count = n.keys?.length ?? 1;
+      return (
+        <button key={n.id} className={`nb-row${isNew ? "" : " read"}`} role="menuitem" onClick={open}>
+          <span className="nb-ico review">{DocIcon}</span>
+          <span className="nb-mid">
+            <span className="nb-msg">
+              <span className="nb-tk">{n.ticker}</span>
+              {n.company ? <span className="nb-co"> · {n.company}</span> : null}
+            </span>
+            <span className="nb-rev">{count === 1 ? "new analyst review" : `${count} new analyst reviews`}</span>
+            <span className="nb-date">{fmtMarkDate(n.at)}</span>
+          </span>
+        </button>
+      );
+    }
     const up = n.dir === "up";
     const msg = up ? "I hope you bought this: " : "it's time to buy: ";
-    const sign = n.pct >= 0 ? "+" : "−";
+    const pct = n.pct ?? 0;
+    const sign = pct >= 0 ? "+" : "−";
     return (
-      <button
-        key={n.id}
-        className={`nb-row${isNew ? "" : " read"}`}
-        role="menuitem"
-        onClick={() => {
-          onOpenTicker(n.ticker);
-          setOpen(false);
-        }}
-      >
+      <button key={n.id} className={`nb-row${isNew ? "" : " read"}`} role="menuitem" onClick={open}>
         <span className={`nb-dot ${up ? "up" : "dn"}`} />
         <span className="nb-mid">
           <span className="nb-msg">
@@ -114,7 +132,7 @@ export default function NotificationBell({
         <span className={`nb-pct ${up ? "up" : "dn"}`}>
           {up ? ArrowUp : ArrowDown}
           {sign}
-          {Math.abs(n.pct)}%
+          {Math.abs(pct)}%
         </span>
       </button>
     );
@@ -145,7 +163,7 @@ export default function NotificationBell({
             <div className="nb-empty">
               <div className="nb-medallion">{BellIcon}</div>
               <div className="nb-empty-h">No alerts yet</div>
-              <div className="nb-empty-s">We'll ping you the moment a watchlist stock moves 5% or more.</div>
+              <div className="nb-empty-s">We'll ping you when a watchlist stock moves 5% or more, or a new analyst review lands.</div>
             </div>
           ) : (
             <>

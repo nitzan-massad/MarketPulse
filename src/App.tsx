@@ -14,7 +14,8 @@ import stocksData from "./data/stocks.json";
 import { passes, sortRows, VIEWS } from "./lib";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
-import { useNotifications } from "./useNotifications";
+import { useNotifications, type Notification } from "./useNotifications";
+import { useReviewAlerts } from "./useReviewAlerts";
 import { useWatchlist, type Mark } from "./watchlist";
 import { useSavedFilters, type SavedFilters } from "./savedFilters";
 import { initAnalytics, track, trackUser } from "./analytics";
@@ -48,6 +49,7 @@ export default function App() {
   const [consensuses, setConsensuses] = useState<string[]>(["StrongBuy"]);
   const [cap, setCap] = useState(0);
   const [openStock, setOpenStock] = useState<Stock | null>(null);
+  const [fcHighlight, setFcHighlight] = useState<string[] | null>(null); // review keys to glow when opened from a notification
   // the list the modal was opened from, so ‹ › can page prev/next in place
   const [openList, setOpenList] = useState<Stock[]>([]);
   const { list: watchlist, toggle: toggleTrack, marks, toggleMark, user, authReady, signIn, signOut, ready: syncReady } = useWatchlist();
@@ -69,6 +71,7 @@ export default function App() {
     track("open_stock", { ticker: s.t, section: nav });
     setOpenStock(s);
     setOpenList(list);
+    setFcHighlight(null);
   }
   function handleNav(id: NavId) {
     track("select_section", { section: id });
@@ -79,6 +82,7 @@ export default function App() {
   function handleOpenTicker(ticker: string) {
     track("search_open_ticker", { ticker });
     setOpenList([]); // off-universe search result has no sibling list to page
+    setFcHighlight(null);
     setOpenStock({
       t: ticker, n: "", sec: "", px: null, chg: null, pt: null, up: null, con: "",
       b: 0, h: 0, s: 0, ss: null, ai: null, air: null, aipt: null, mc: null, desc: null,
@@ -206,13 +210,16 @@ export default function App() {
     return m;
   }, [watchlist, livePrice, pxByTicker]);
   const notif = useNotifications(user, watchlist, watchPrices);
+  useReviewAlerts(user, watchlist, notif.pushReview);
 
-  // clicking a notification: jump to the watchlist view and open that stock's modal
-  function openFromNotification(ticker: string) {
+  // clicking a notification: jump to the watchlist view and open that stock's modal.
+  // A review notification also opens the forecast view with its new rows highlighted.
+  function openFromNotification(n: Notification) {
     setNav("watch");
-    const s = STOCKS.find((x) => x.t === ticker);
+    const s = STOCKS.find((x) => x.t === n.ticker);
     if (s) handleOpen(s, STOCKS.filter((x) => watchlist.includes(x.t)));
-    else handleOpenTicker(ticker);
+    else handleOpenTicker(n.ticker);
+    if (n.type === "review") setFcHighlight(n.keys ?? []);
   }
 
   function selectView(id: ViewId) {
@@ -261,7 +268,7 @@ export default function App() {
               unreadCount={notif.unreadCount}
               onMarkAllRead={notif.markAllRead}
               onClearAll={notif.clearAll}
-              onOpenTicker={openFromNotification}
+              onOpen={openFromNotification}
             />
           )}
           {syncReady && (
@@ -378,12 +385,16 @@ export default function App() {
         return (
           <StockModal
             stock={openStock}
-            onClose={() => setOpenStock(null)}
+            onClose={() => {
+              setOpenStock(null);
+              setFcHighlight(null);
+            }}
             tracked={watchlist.includes(openStock.t)}
             onToggleTrack={() => requestToggle(openStock.t)}
             covered={STOCKS.some((s) => s.t === openStock.t)}
             mark={marks[openStock.t]}
             onMark={(v) => requestMark(openStock.t, v)}
+            highlightReviews={fcHighlight}
             onPrev={i > 0 ? () => setOpenStock(openList[i - 1]) : undefined}
             onNext={i >= 0 && i < openList.length - 1 ? () => setOpenStock(openList[i + 1]) : undefined}
           />
