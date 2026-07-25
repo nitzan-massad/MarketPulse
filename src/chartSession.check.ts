@@ -3,7 +3,7 @@
 //   npx tsc src/chartSession.ts src/chartSession.check.ts --outDir /tmp/cs \
 //     --module commonjs --target es2020 --lib es2020,dom --skipLibCheck \
 //   && node /tmp/cs/chartSession.check.js
-import { fmtMin, marketOpen, sessionSlice } from "./chartSession";
+import { fmtMin, marketOpen, nearestIndex, sessionSlice } from "./chartSession";
 
 let failed = 0;
 function eq(label: string, got: unknown, want: unknown): void {
@@ -55,6 +55,17 @@ eq("Saturday is closed", marketOpen({ date: "2026-07-25", min: 12 * 60 }), false
 eq("Friday midday is open", marketOpen({ date: "2026-07-24", min: 12 * 60 }), true);
 eq("Friday after 16:00 is closed", marketOpen({ date: "2026-07-24", min: 16 * 60 + 5 }), false);
 eq("Friday pre-open is closed", marketOpen({ date: "2026-07-24", min: 9 * 60 }), false);
+
+// nearestIndex — the chart scrubber snaps to a real data point
+const XS = [0, 10, 20, 30, 40];
+eq("scrub: exact hit", nearestIndex(XS, 20), 2);
+eq("scrub: rounds to closer neighbour", nearestIndex(XS, 23), 2);
+eq("scrub: rounds up past midpoint", nearestIndex(XS, 26), 3);
+eq("scrub: exact midpoint keeps the earlier point", nearestIndex(XS, 25), 2);
+eq("scrub: left of range clamps to first", nearestIndex(XS, -50), 0);
+eq("scrub: right of range clamps to last", nearestIndex(XS, 999), 4);
+eq("scrub: single point", nearestIndex([7], 999), 0);
+eq("scrub: empty -> -1", nearestIndex([], 5), -1);
 
 if (failed) throw new Error(`${failed} chartSession check(s) failed`);
 console.log("\nall chartSession checks passed");

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { easternNow, type EasternNow, fmtMin, marketOpen, sessionSlice } from "../chartSession";
+import { easternNow, type EasternNow, fmtMin, marketOpen, nearestIndex, sessionSlice } from "../chartSession";
 import { fetchForecasts, type Forecast } from "../forecasts";
 import { consClass, consLabel, DATE_LOCALE, fmtMc } from "../lib";
 import { reviewKey } from "../reviewAlerts";
@@ -283,6 +283,7 @@ interface ChartModel {
   remaining?: { x: number; w: number }; // 1D live: shaded untraded strip to 16:00
   live?: boolean; // 1D: session still open
   nowLabel?: string; // 1D live: "H:MM" of the latest bar
+  pts: { x: number; y: number; v: number; s: string }[]; // every plotted point — drives the scrubber
 }
 
 // "nice" round axis values within [lo,hi] (e.g. 134,136,138 — not 134.7)
@@ -303,6 +304,18 @@ function fmtStamp(s: string, intraday: boolean): string {
   if (intraday && t) return t.slice(0, 5);
   const [y, mo, da] = d.split("-").map(Number);
   return new Date(y, mo - 1, da).toLocaleDateString(DATE_LOCALE, { month: "numeric", day: "numeric" });
+}
+
+// scrubber label: intraday -> "24 Jul, 20:35"; daily -> "24 Jul 2026"
+function fmtScrub(s: string, intraday: boolean): string {
+  const [d, t] = (s || "").split(" ");
+  const [y, mo, da] = (d || "").split("-").map(Number);
+  if (!y) return s || "";
+  const date = new Date(y, (mo || 1) - 1, da || 1);
+  if (intraday && t) {
+    return `${date.toLocaleDateString(DATE_LOCALE, { day: "numeric", month: "short" })}, ${t.slice(0, 5)}`;
+  }
+  return date.toLocaleDateString(DATE_LOCALE, { day: "numeric", month: "short", year: "numeric" });
 }
 
 // month + 2-digit year (e.g. "Jul '24") for ranges that span multiple years (2Y/5Y/ALL)
@@ -345,6 +358,13 @@ function buildChart(
       remaining: slice.live ? { x: lastX, w: plotR0 - lastX } : undefined,
       live: slice.live,
       nowLabel: fmtMin(slice.lastMin),
+      // the kept session is the tail of `stamps`, so map back for a date+time label
+      pts: c.map((v, i) => ({
+        x: x(slice.mins[i]),
+        y: y(v),
+        v,
+        s: fmtScrub(stamps[stamps.length - c.length + i] || "", true),
+      })),
     };
   }
 
@@ -387,6 +407,7 @@ function buildChart(
     baseY: y(closes[0]),
     priceTicks,
     dateTicks,
+    pts: closes.map((v, i) => ({ x: x(i), y: y(v), v, s: fmtScrub(stamps[i] || "", intraday) })),
   };
 }
 
@@ -422,6 +443,10 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   const highlightDone = useRef<string[] | null>(null);
   const [liveDesc, setLiveDesc] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+
+  // chart scrubber: hover (mouse) or drag (touch) snaps to the nearest plotted point
+  const [scrub, setScrub] = useState<number | null>(null);
+  const plotRef = useRef<HTMLDivElement>(null);
 
   // range tabs slide horizontally (too many to fit); edge fades show there's more
   const rangesRef = useRef<HTMLDivElement>(null);
@@ -625,6 +650,27 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   const chartAvailable = !seriesLoading && !seriesError && chart != null;
   const todayVol = series?.volume ?? null;
 
+  // pointer x -> nearest plotted point. The SVG is a fixed 600-wide viewBox scaled to the
+  // box width, so convert the client x into viewBox units before matching.
+  const onScrub = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const box = plotRef.current;
+      if (!box || !chart || chart.pts.length < 2) return;
+      // a mouse hover scrubs; a finger must actually be down (so a tap doesn't stick)
+      if (e.pointerType !== "mouse" && e.buttons === 0 && e.type === "pointermove") return;
+      const r = box.getBoundingClientRect();
+      const svg = box.querySelector("svg");
+      const inset = svg ? svg.getBoundingClientRect() : r;
+      const vbX = ((e.clientX - inset.left) / (inset.width || 1)) * CW;
+      const i = nearestIndex(chart.pts.map((p) => p.x), vbX);
+      if (i >= 0) setScrub(i);
+    },
+    [chart],
+  );
+  const clearScrub = useCallback(() => setScrub(null), []);
+  useEffect(() => setScrub(null), [range, stock.t]); // a new range/ticker clears the readout
+  const scrubPt = scrub != null && chart && scrub < chart.pts.length ? chart.pts[scrub] : null;
+
   // off-universe tickers have no scraped DB row, so while their live data is in
   // flight show a spinner (not the empty template); once settled, either the
   // full modal or, if nothing came back, a clear "not found" state.
@@ -731,7 +777,21 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
               )}
             </div>
 
-            <div className="mkm-plotbox">
+            {/* scrub readout — height always reserved so the chart never jumps */}
+            <div className={`mkm-scrub${scrubPt ? " on" : ""}`} aria-live="off">
+              <span className="mkm-scrub-t">{scrubPt ? scrubPt.s : " "}</span>
+              <span className="mkm-scrub-p">{scrubPt ? usd(scrubPt.v) : " "}</span>
+            </div>
+
+            <div
+              className="mkm-plotbox"
+              ref={plotRef}
+              onPointerDown={onScrub}
+              onPointerMove={onScrub}
+              onPointerUp={clearScrub}
+              onPointerCancel={clearScrub}
+              onPointerLeave={clearScrub}
+            >
               {seriesLoading ? (
                 <div className="mkm-plot-msg mkm-skel">loading…</div>
               ) : !chartAvailable ? (
@@ -794,6 +854,13 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
                     r={chart!.live ? 3.4 : 3}
                     fill={chart!.up ? "#32d74b" : "#ff453a"}
                   />
+                  {/* scrubber crosshair — vertical line + dot snapped to the nearest point */}
+                  {scrubPt && (
+                    <g pointerEvents="none">
+                      <line className="mkm-scrubln" x1={scrubPt.x} y1={C_PAD} x2={scrubPt.x} y2={CH - C_B} />
+                      <circle className="mkm-scrubdot" cx={scrubPt.x} cy={scrubPt.y} r="4" />
+                    </g>
+                  )}
                   {/* price labels (right gutter) */}
                   {chart!.priceTicks.map((t, i) => (
                     <text key={`pt${i}`} className="mkm-axtx" x={CW - 3} y={t.y + 3} textAnchor="end">

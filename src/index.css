@@ -771,7 +771,17 @@ thead th:hover .col-resize::after{opacity:.6}
   font-family:inherit; font-size:10px; font-weight:500; padding:3px 8px; border-radius:5px; cursor:pointer; transition:.15s; letter-spacing:.04em}
 .mkm-ranges button:hover{color:var(--t-ink); border-color:var(--t-muted)}
 .mkm-ranges button.on{background:var(--t-gold); color:#fff; border-color:var(--t-gold); font-weight:700}
-.mkm-plotbox{background:var(--t-panel); border:1px solid var(--t-line); border-radius:8px; padding:8px 8px 4px; position:relative; overflow:hidden; min-height:96px}
+/* chart scrubber: readout above the plot (height always reserved, so no layout jump) */
+.mkm-scrub{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+  height:30px; margin-bottom:2px; visibility:hidden; text-align:center; line-height:1.15}
+.mkm-scrub.on{visibility:visible}
+.mkm-scrub-t{font-family:Arial,sans-serif; font-size:10px; font-weight:600; color:var(--t-muted); letter-spacing:.02em}
+.mkm-scrub-p{font-family:"Archivo",sans-serif; font-size:14px; font-weight:800; color:var(--t-gold);
+  font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+.mkm-scrubln{stroke:var(--t-gold); stroke-width:1.2; opacity:.55}
+.mkm-scrubdot{fill:var(--t-gold); stroke:var(--t-bg); stroke-width:2}
+/* pan-y: a vertical swipe still scrolls the modal; horizontal drags scrub */
+.mkm-plotbox{background:var(--t-panel); border:1px solid var(--t-line); border-radius:8px; padding:8px 8px 4px; position:relative; overflow:hidden; min-height:96px; touch-action:pan-y; cursor:crosshair}
 .mkm-plotbox svg{display:block; width:100%; height:auto}
 .mkm-gridln{stroke:var(--t-line); stroke-width:1}
 .mkm-baseln{stroke:var(--t-faint); stroke-width:1; stroke-dasharray:3 3; opacity:.55}

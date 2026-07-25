@@ -84,6 +84,22 @@ export function easternNow(): EasternNow {
   return { date: `${g.year}-${g.month}-${g.day}`, min: hh * 60 + parseInt(g.minute, 10) };
 }
 
+// Index of the point whose x is nearest to `x` — drives the chart scrubber, so a drag
+// always snaps to a real data point. `xs` is ascending; returns -1 when empty.
+export function nearestIndex(xs: readonly number[], x: number): number {
+  if (!xs.length) return -1;
+  let best = 0;
+  let bestD = Math.abs(xs[0] - x);
+  for (let i = 1; i < xs.length; i++) {
+    const d = Math.abs(xs[i] - x);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
 // minute-of-day -> "H:MM" (no timezone math; the exchange stamps are already local to it)
 export function fmtMin(min: number): string {
   const h = Math.floor(min / 60);
