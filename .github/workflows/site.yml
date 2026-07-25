@@ -66,15 +66,21 @@ jobs:
           FLARESOLVERR_URL: http://localhost:8191/v1
         run: node ci/scrape-bullbear.mjs
 
+      # Rebuild the compact "recent reviews" feed New Arrivals reads (from the forecasts on disk).
+      - name: Build recent-reviews feed
+        if: github.event_name != 'push'
+        continue-on-error: true
+        run: node ci/build-reviews-recent.mjs
+
       - name: Commit refreshed data
         if: github.event_name != 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- src/data public/forecasts public/bullbear; then
+          if git diff --quiet -- src/data public/forecasts public/bullbear public/reviews-recent.json; then
             echo "No data change."
           else
-            git add src/data public/forecasts public/bullbear
+            git add src/data public/forecasts public/bullbear public/reviews-recent.json
             git commit -m "chore: refresh TipRanks snapshot [skip ci]"
             git push
           fi

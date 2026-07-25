@@ -222,6 +222,12 @@ export default function App() {
     if (n.type === "review") setFcHighlight(n.keys ?? []);
   }
 
+  // New Arrivals review row: open the stock + its forecast view with that review glowing
+  function openReview(s: Stock, list: Stock[], key: string) {
+    handleOpen(s, list);
+    setFcHighlight([key]);
+  }
+
   function selectView(id: ViewId) {
     const v = VIEWS[id];
     setView(id);
@@ -366,7 +372,7 @@ export default function App() {
       ) : nav === "best" ? (
         <BestOfBest onOpen={handleOpen} marks={marks} onMark={requestMark} />
       ) : nav === "new" ? (
-        <NewArrivals onOpen={handleOpen} marks={marks} onMark={requestMark} />
+        <NewArrivals onOpen={handleOpen} onOpenReview={openReview} marks={marks} onMark={requestMark} />
       ) : (
         <Watchlist
           watchlist={watchlist}

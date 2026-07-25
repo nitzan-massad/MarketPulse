@@ -98,3 +98,13 @@ free endpoint / still manual" note was wrong — the data is free and unauthenti
   carries no content date of its own).
 - **Failure-tolerant:** per-ticker try/catch, only writes non-empty results, `continue-on-error`
   in CI — never blocks the deploy. Tickers with no AI analysis simply get no file (retried next run).
+
+## Recent reviews feed (New Arrivals) — automated ✅
+
+`ci/build-reviews-recent.mjs` reads the forecast files on disk and writes
+`public/reviews-recent.json` — the newest analyst review per ticker whose date is within
+`RECENT_DAYS` (default 7): `{ generatedAt, days, items: [{ t, n, f, r, pt, opt, d }] }`.
+New Arrivals loads this one small file (instead of hundreds of forecast files) to surface
+stocks with a fresh review. `site.yml` runs it after the scrapes and commits the JSON. The
+`n|f|d|r|pt` fields match `reviewAlerts.reviewKey`, so clicking a review row opens the stock's
+Analyst Forecasts and highlights that exact row.

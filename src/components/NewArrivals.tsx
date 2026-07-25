@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import stocksData from "../data/stocks.json";
+import { reviewKey } from "../reviewAlerts";
 import type { Stock } from "../types";
 import { addedInfo, agoLabel, consClass, consLabel, DATE_LOCALE, firstSeen, fmtMc, fmtPx, LIST_LABEL, NEW_WINDOW_DAYS, scoreColor } from "../lib";
 import { Chip, UpBar } from "./StockTable";
@@ -45,22 +46,67 @@ function changesFor(s: Stock): Change[] {
   return out;
 }
 
+// newest analyst review per ticker, from public/reviews-recent.json (built by CI)
+interface ReviewItem {
+  t: string;
+  n: string | null; // analyst
+  f: string | null; // firm
+  r: string | null; // Buy/Hold/Sell
+  pt: number | null; // new target
+  opt: number | null; // prior target (shows "old → new")
+  d: string; // review date
+}
+
 interface NewArrivalsProps {
   onOpen: (s: Stock, list?: Stock[]) => void;
+  onOpenReview: (s: Stock, list: Stock[], key: string) => void; // opens the forecast view + glows this review
   marks: Record<string, MarkEntry>;
   onMark: (t: string, v: Mark) => void;
 }
 
-export default function NewArrivals({ onOpen, marks, onMark }: NewArrivalsProps) {
-  const items = useMemo(() => {
-    return STOCKS.map((s) => ({ s, info: addedInfo(s.t) }))
-      .filter((x): x is { s: Stock; info: NonNullable<ReturnType<typeof addedInfo>> } => x.info != null)
-      .sort(
-        (a, b) =>
-          a.info.daysAgo - b.info.daysAgo ||
-          (b.s.up ?? -Infinity) - (a.s.up ?? -Infinity),
-      );
+export default function NewArrivals({ onOpen, onOpenReview, marks, onMark }: NewArrivalsProps) {
+  // recent analyst reviews across the screener, from the CI-built feed
+  const [reviews, setReviews] = useState<Record<string, ReviewItem>>({});
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${import.meta.env.BASE_URL}reviews-recent.json`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled || !j || !Array.isArray(j.items)) return;
+        const m: Record<string, ReviewItem> = {};
+        for (const it of j.items as ReviewItem[]) m[it.t] = it;
+        setReviews(m);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  // unified arrivals: newly-listed stocks and/or stocks with a fresh review, newest first
+  const items = useMemo(() => {
+    const day = (iso: string) => Date.parse(iso.slice(0, 10) + "T00:00:00") || 0;
+    type Row = { s: Stock; info: ReturnType<typeof addedInfo>; review: ReviewItem | null; when: number };
+    const byT = new Map<string, Row>();
+    for (const s of STOCKS) {
+      const info = addedInfo(s.t);
+      if (info) byT.set(s.t, { s, info, review: null, when: day(info.date) });
+    }
+    for (const t of Object.keys(reviews)) {
+      const s = STOCKS.find((x) => x.t === t);
+      if (!s) continue;
+      const rev = reviews[t];
+      const ex = byT.get(t);
+      if (ex) {
+        ex.review = rev;
+        ex.when = Math.max(ex.when, day(rev.d));
+      } else {
+        byT.set(t, { s, info: null, review: rev, when: day(rev.d) });
+      }
+    }
+    return [...byT.values()].sort((a, b) => b.when - a.when || (b.s.up ?? -Infinity) - (a.s.up ?? -Infinity));
+  }, [reviews]);
+  const listStocks = useMemo(() => items.map((x) => x.s), [items]);
 
   return (
     <div className="bob">
@@ -71,7 +117,10 @@ export default function NewArrivals({ onOpen, marks, onMark }: NewArrivalsProps)
         </h2>
         <div className="bob-counts">
           <span>
-            <b>{items.length}</b> added in the last {NEW_WINDOW_DAYS} days
+            <b>{items.filter((x) => x.info && !x.review).length}</b> newly listed
+          </span>
+          <span>
+            <b>{items.filter((x) => x.review).length}</b> with a fresh review
           </span>
         </div>
       </header>
@@ -96,39 +145,76 @@ export default function NewArrivals({ onOpen, marks, onMark }: NewArrivalsProps)
               </tr>
             </thead>
             <tbody>
-              {items.map(({ s, info }) => {
+              {items.map(({ s, info, review }) => {
                 const chg = changesFor(s);
                 const lists = firstSeen(s.t)?.l ?? [];
+                const raised = !review || review.opt == null || review.pt == null || review.pt >= review.opt;
                 return (
-                  <tr key={s.t} className="row-open" onClick={() => onOpen(s, items.map((x) => x.s))}>
+                  <tr
+                    key={s.t}
+                    className="row-open"
+                    onClick={() => (review ? onOpenReview(s, listStocks, reviewKey(review)) : onOpen(s, listStocks))}
+                  >
                     <td className="na-added">
-                      <span className={`na-pill ${info.daysAgo <= 2 ? "" : "old"}`}>
-                        <span className="na-pd" aria-hidden="true" />
-                        <span className="na-pt">{agoLabel(info.daysAgo, info.hoursAgo)}</span>
-                      </span>
-                      <span className="na-date">{fmtDate(info.date)}</span>
+                      {review ? (
+                        <>
+                          <span className="na-pill rev">
+                            <span className="na-pd" aria-hidden="true" />
+                            <span className="na-pt">review</span>
+                          </span>
+                          <span className="na-date">{fmtDate(review.d)}</span>
+                        </>
+                      ) : info ? (
+                        <>
+                          <span className={`na-pill ${info.daysAgo <= 2 ? "" : "old"}`}>
+                            <span className="na-pd" aria-hidden="true" />
+                            <span className="na-pt">{agoLabel(info.daysAgo, info.hoursAgo)}</span>
+                          </span>
+                          <span className="na-date">{fmtDate(info.date)}</span>
+                        </>
+                      ) : null}
                     </td>
                     <td className="na-chg l">
-                      {(lists.length > 0 || chg.length === 0) && (
-                        <div className="na-chgline">
-                          {lists.map((k) => (
-                            <span key={k} className={`na-list ${k}`}>{LIST_LABEL[k] ?? k}</span>
-                          ))}
-                          {chg.length === 0 && (
-                            <span className="na-new">
-                              <span className="na-newdot" aria-hidden="true" />New
-                            </span>
+                      {review ? (
+                        <div className="na-rev">
+                          <span className="na-revan">
+                            <b>{review.n || "—"}</b>
+                            {review.f ? <small> · {review.f}</small> : null}
+                          </span>
+                          <span className="na-revpt">
+                            {review.opt != null && (
+                              <>
+                                <span className="o">{fmtPx(review.opt)}</span>
+                                <span className="a">→</span>
+                              </>
+                            )}
+                            <span className={raised ? "up" : "dn"}>{fmtPx(review.pt)}</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          {(lists.length > 0 || chg.length === 0) && (
+                            <div className="na-chgline">
+                              {lists.map((k) => (
+                                <span key={k} className={`na-list ${k}`}>{LIST_LABEL[k] ?? k}</span>
+                              ))}
+                              {chg.length === 0 && (
+                                <span className="na-new">
+                                  <span className="na-newdot" aria-hidden="true" />New
+                                </span>
+                              )}
+                            </div>
                           )}
-                        </div>
+                          {chg.map((c, i) => (
+                            <div className="na-chgrow" key={i}>
+                              <span className="na-chgk">{c.k}</span>
+                              <span className="na-chip">{c.o}</span>
+                              <span className="na-arr">→</span>
+                              <span className={`na-chip n ${c.dir}`}>{c.n}</span>
+                            </div>
+                          ))}
+                        </>
                       )}
-                      {chg.map((c, i) => (
-                        <div className="na-chgrow" key={i}>
-                          <span className="na-chgk">{c.k}</span>
-                          <span className="na-chip">{c.o}</span>
-                          <span className="na-arr">→</span>
-                          <span className={`na-chip n ${c.dir}`}>{c.n}</span>
-                        </div>
-                      ))}
                     </td>
                     <td className="tk">
                       <div className="tk-inner">

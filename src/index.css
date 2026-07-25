@@ -478,7 +478,7 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(27,63,115,.09), transparent 7
 .na-table td.na-added{text-align:center; white-space:nowrap; vertical-align:middle}
 /* narrower Added column */
 .na-table th:first-child, .na-table td.na-added{padding-left:6px; padding-right:4px}
-.na-table th:nth-child(2), .na-table td.na-chg{max-width:80px}
+.na-table th:nth-child(2), .na-table td.na-chg{max-width:190px}
 /* recency pill — dotted "how long ago", date + list tag centred beneath */
 .na-pill{display:inline-flex; align-items:center; gap:3px; padding:1px 6px 1px 4px; border-radius:999px;
   background:rgba(31,145,82,.1); border:1px solid rgba(31,145,82,.28)}
@@ -487,6 +487,17 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(27,63,115,.09), transparent 7
 .na-pill.old .na-pd{background:var(--faint)}
 .na-pill .na-pt{font-family:"Archivo",sans-serif; font-weight:700; font-size:9px; color:#17603a; letter-spacing:.01em}
 .na-pill.old .na-pt{color:var(--muted)}
+/* new-analyst-review pill + compact two-line review cell (#5) */
+.na-pill.rev{background:rgba(27,63,115,.08); border-color:rgba(27,63,115,.28)}
+.na-pill.rev .na-pd{background:var(--gold)}
+.na-pill.rev .na-pt{color:var(--gold)}
+.na-rev{display:flex; flex-direction:column; gap:1px; line-height:1.25; text-align:left}
+.na-revan b{font-weight:600; font-size:11.5px; color:var(--ink)}
+.na-revan small{color:var(--faint); font-size:10px}
+.na-revpt{font-family:"Archivo",sans-serif; font-weight:700; font-size:11.5px; font-variant-numeric:tabular-nums}
+.na-revpt .o{color:var(--faint); font-weight:600}
+.na-revpt .a{color:var(--faint); margin:0 3px}
+.na-revpt .up{color:var(--green)} .na-revpt .dn{color:var(--red)}
 .na-added .na-date{display:block; margin:2px auto 0; font-family:"JetBrains Mono",monospace; font-size:8px; color:var(--faint)}
 /* which ranking(s) the ticker entered on — shown in the Changes cell, next to "New" */
 .na-chgline{display:flex; flex-direction:column; align-items:flex-start; gap:3px}
