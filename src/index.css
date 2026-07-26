@@ -639,7 +639,7 @@ thead th:hover .col-resize::after{opacity:.6}
   font-family:"JetBrains Mono",monospace; font-weight:700; font-size:14px; color:var(--ink);
   letter-spacing:.01em; cursor:pointer; text-align:left;
 }
-.tk button.sym:hover{text-decoration:underline; text-decoration-color:var(--gold-soft); text-underline-offset:3px}
+.tk button.sym:hover{color:var(--gold-soft)}
 .tk button.sym:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px; border-radius:3px}
 
 /* ---- live Day% badge + cell dot ---- */
