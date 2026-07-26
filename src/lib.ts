@@ -125,6 +125,9 @@ export const firstSeen = (t: string): SeenEntry | null => SEEN[t] ?? null;
 
 export function sortRows(rows: Stock[], sort: keyof Stock, dir: number): Stock[] {
   return [...rows].sort((a, b) => {
+    // Consensus sorts on the analyst mix, not the rating string: desc = most buys,
+    // then fewest holds, then fewest sells. asc mirrors all three.
+    if (sort === "con") return dir * (a.b - b.b || b.h - a.h || b.s - a.s);
     const x = a[sort];
     const y = b[sort];
     if (x == null && y == null) return 0;
