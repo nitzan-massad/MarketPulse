@@ -72,6 +72,15 @@ jobs:
         continue-on-error: true
         run: node ci/build-reviews-recent.mjs
 
+      # Sector average P/E (trailing + forward) from Finviz — one GET, no key.
+      # Via FlareSolverr because Finviz is Cloudflare-fronted and the runner IP may be challenged.
+      - name: Refresh sector P/E averages
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          FLARESOLVERR_URL: http://localhost:8191/v1
+        run: node ci/scrape-sectors.mjs
+
       - name: Commit refreshed data
         if: github.event_name != 'push'
         run: |

@@ -16,5 +16,5 @@ scrape are in [`ci/README.md`](./ci/README.md). Read it before touching the pipe
 
 ## Data files
 
-- `src/data/{stocks,seen,meta}.json` — refreshed automatically by CI. Don't hand-edit.
+- `src/data/{stocks,seen,meta,sectors}.json` — refreshed automatically by CI. Don't hand-edit.
 - `public/bullbear/<T>.json`, `public/forecasts/<T>.json` — currently static/manual (see `ci/README.md`).

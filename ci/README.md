@@ -99,6 +99,38 @@ free endpoint / still manual" note was wrong — the data is free and unauthenti
 - **Failure-tolerant:** per-ticker try/catch, only writes non-empty results, `continue-on-error`
   in CI — never blocks the deploy. Tickers with no AI analysis simply get no file (retried next run).
 
+## Sector average P/E — automated ✅
+
+`ci/scrape-sectors.mjs` writes `src/data/sectors.json` — the average **trailing and forward**
+P/E per sector — from Finviz's sector groups table. `site.yml` runs it after the reviews feed;
+the commit step's existing `src/data` glob already stages it.
+
+- **Source (verified):** `https://finviz.com/groups.ashx?g=sector&v=110&o=name` — one
+  unauthenticated GET per run (~60 KB), no key. Finviz is Cloudflare-fronted, so CI routes it
+  through the existing FlareSolverr for runner-IP safety; plain `fetch` works locally
+  (`node ci/scrape-sectors.mjs`).
+- **Taxonomy is free.** Finviz's sector names normalize onto the app's own vocab through
+  `keep.mjs`'s `sectorName()` with no mapping table — `Real Estate` → `RealEstate`,
+  `Consumer Cyclical` → `ConsumerCyclical`, all 11 map. TipRanks' **`General`** catch-all
+  (~15 tickers) has no Finviz counterpart and gets no entry; `StockModal` renders "—".
+- **Output:** `{ "asOf": "YYYY-MM-DD", "sectors": { "Technology": { "pe": 34.77, "fpe": 25.53 }, … } }`
+- **Parsing is header-anchored,** not fixed-offset: the script finds the `No. | Name | Stocks`
+  header run and reads P/E and Fwd P/E at whatever offset the header says, so a Finviz column
+  reshuffle moves the reads with it. It anchors on that run specifically because the page's
+  filter dropdowns also contain bare `Name` / `P/E` options that a plain `indexOf` hits first.
+- **Failure-tolerant:** a run parsing fewer than 8 sectors throws instead of writing, results
+  merge over the previous file (a fetch occasionally returns without the first data row), and
+  the step is `continue-on-error` — it can never block the deploy.
+- **Self-check:** `CHECK=1 node ci/scrape-sectors.mjs` exercises the parse against a fixture
+  (column offsets, header reshuffle, `-` → `null`, dropdown decoys). No test framework, same
+  posture as `node ci/keep.mjs`.
+
+**Consumer.** `StockModal`'s stats grid shows `Fwd P/E` for the stock (from Finnhub's
+`/stock/metric?metric=all`, already fetched on card open — `metric.forwardPE`, a key Finnhub
+**omits entirely** for loss-makers, so read it as `?? null`) beside a split `Sector Avg P/E`
+box carrying Today | Fwd. Fwd P/E renders green below the sector's **forward** average and red
+above it — compare forward to forward, or every stock looks cheap.
+
 ## Recent reviews feed (New Arrivals) — automated ✅
 
 `ci/build-reviews-recent.mjs` reads the forecast files on disk and writes

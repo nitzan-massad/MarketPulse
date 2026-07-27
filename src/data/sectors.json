@@ -1,0 +1,49 @@
+{
+ "asOf": "2026-07-27",
+ "sectors": {
+  "BasicMaterials": {
+   "pe": 21.13,
+   "fpe": 13.65
+  },
+  "CommunicationServices": {
+   "pe": 28.93,
+   "fpe": 28.62
+  },
+  "ConsumerCyclical": {
+   "pe": 28.21,
+   "fpe": 19.94
+  },
+  "ConsumerDefensive": {
+   "pe": 26.62,
+   "fpe": 20.65
+  },
+  "Energy": {
+   "pe": 18.89,
+   "fpe": 12.72
+  },
+  "Financial": {
+   "pe": 18.02,
+   "fpe": 14.85
+  },
+  "Healthcare": {
+   "pe": 30.91,
+   "fpe": 18.3
+  },
+  "Industrials": {
+   "pe": 38.6,
+   "fpe": 28.42
+  },
+  "RealEstate": {
+   "pe": 32.42,
+   "fpe": 30.18
+  },
+  "Technology": {
+   "pe": 34.75,
+   "fpe": 25.52
+  },
+  "Utilities": {
+   "pe": 20.73,
+   "fpe": 16.34
+  }
+ }
+}
