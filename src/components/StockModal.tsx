@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { easternNow, type EasternNow, fmtMin, marketOpen, nearestIndex, sessionSlice } from "../chartSession";
 import { fetchForecasts, type Forecast } from "../forecasts";
+import sectorPe from "../data/sectors.json";
 import { consClass, consLabel, DATE_LOCALE, fmtMc } from "../lib";
 import { reviewKey } from "../reviewAlerts";
 import type { Stock } from "../types";
@@ -50,6 +51,7 @@ interface Metric {
   hi52: number | null;
   lo52: number | null;
   pe: number | null;
+  fwdPe: number | null; // consensus forward P/E; absent for loss-makers (~47% of the universe)
   epsTtm: number | null; // trailing EPS — for the live price/EPS P/E (Apple Stocks style)
   beta: number | null;
   avgVol3M: number | null;
@@ -200,6 +202,8 @@ async function fetchQuoteMetric(ticker: string): Promise<{ quote: Quote; metric:
       hi52: num(m["52WeekHigh"]),
       lo52: num(m["52WeekLow"]),
       pe: num(m.peTTM) ?? num(m.peBasicExclExtraTTM),
+      // Finnhub omits the key entirely (not null) when there's no forward estimate
+      fwdPe: num(m.forwardPE),
       epsTtm: num(m.epsTTM) ?? num(m.epsBasicExclExtraTTM),
       beta: num(m.beta),
       avgVol3M: num(m["3MonthAverageTradingVolume"]),
@@ -588,6 +592,17 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
     metric?.epsTtm != null && metric.epsTtm > 0 && price != null
       ? price / metric.epsTtm
       : metric?.pe ?? null;
+  // Sector averages are keyed by the app's own sector vocab, so this looks up
+  // stock.sec — NOT the `sector` below, which prefers Finnhub's finhubIndustry
+  // (a different taxonomy). TipRanks' "General" catch-all has no entry: renders "—".
+  const secAvg = (sectorPe.sectors as Record<string, { pe: number | null; fpe: number | null }>)[stock.sec] ?? null;
+  // cheaper than the sector on forward earnings reads green, pricier reads red
+  const fwdPeClass =
+    metric?.fwdPe == null || metric.fwdPe <= 0 || secAvg?.fpe == null
+      ? ""
+      : metric.fwdPe < secAvg.fpe
+        ? "up"
+        : "dn";
   // prefer live profile (Finnhub) over the scraped DB row for these fields
   const name = profile?.name ?? stock.n;
   const sector = profile?.sector ?? stock.sec;
@@ -1017,6 +1032,14 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
                 <div className="k">Volume</div>
                 <div className={`v ${seriesLoading ? "skel" : ""}`}>{fmtVol(todayVol)}</div>
               </div>
+              {/* row 1 ends on Avg Vol 3M so it sits beside Volume, the number it's read against */}
+              <div className="row">
+                <div className="k">Avg Vol 3M</div>
+                <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>
+                  {fmtVol(metric?.avgVol3M != null ? metric.avgVol3M * 1e6 : null)}
+                </div>
+              </div>
+              {/* row 2: range, risk, then the three valuation cells */}
               <div className="row">
                 <div className="k">52W High</div>
                 <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>{usd(metric?.hi52)}</div>
@@ -1026,9 +1049,9 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
                 <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>{usd(metric?.lo52)}</div>
               </div>
               <div className="row">
-                <div className="k">Avg Vol 3M</div>
+                <div className="k">Beta</div>
                 <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>
-                  {fmtVol(metric?.avgVol3M != null ? metric.avgVol3M * 1e6 : null)}
+                  {metric?.beta == null ? "—" : metric.beta.toFixed(2)}
                 </div>
               </div>
               <div className="row">
@@ -1038,9 +1061,26 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
                 </div>
               </div>
               <div className="row">
-                <div className="k">Beta</div>
-                <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>
-                  {metric?.beta == null ? "—" : metric.beta.toFixed(2)}
+                <div className="k">Fwd P/E</div>
+                {/* green/red vs the sector's FORWARD average — comparing it to the
+                    trailing half would flatter every stock */}
+                <div
+                  className={`v ${fwdPeClass} ${qmLoading && !metric ? "skel" : ""}`}
+                >
+                  {metric?.fwdPe == null || metric.fwdPe <= 0 ? "—" : metric.fwdPe.toFixed(2)}
+                </div>
+              </div>
+              <div className="row">
+                <div className="k">Sector Avg P/E</div>
+                <div className="split">
+                  <div>
+                    <div className="n">{secAvg?.pe == null ? "—" : secAvg.pe.toFixed(2)}</div>
+                    <div className="l">Today</div>
+                  </div>
+                  <div>
+                    <div className="n">{secAvg?.fpe == null ? "—" : secAvg.fpe.toFixed(2)}</div>
+                    <div className="l">Fwd</div>
+                  </div>
                 </div>
               </div>
             </div>

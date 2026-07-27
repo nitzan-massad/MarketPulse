@@ -954,12 +954,20 @@ thead th:hover .col-resize::after{opacity:.6}
 
 /* stats block */
 .mkm-statblock{padding:14px 18px 16px; border-top:1px solid var(--t-line-2)}
-.mkm-kv{display:grid; grid-template-columns:repeat(5,1fr); gap:14px 18px}
+/* 5 equal columns + a wider 6th: the last cell of row 2 is the split sector box,
+   which needs room for two full-size numbers side by side. */
+.mkm-kv{display:grid; grid-template-columns:repeat(5,1fr) 1.4fr; gap:14px 18px}
 .mkm-kv .row{border-left:2px solid var(--t-line); padding-left:9px}
 .mkm-kv .k{font-family:var(--t-head); font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--t-muted)}
 .mkm-kv .v{font-size:13.5px; font-weight:700; margin-top:4px}
 .mkm-kv .v.up{color:var(--t-green)} .mkm-kv .v.dn{color:var(--t-red)} .mkm-kv .v.gold{color:var(--t-gold)}
 .mkm-kv .v.skel{color:var(--t-faint); animation:mkm-skel 1.2s ease-in-out infinite}
+/* sector box: one cell, one label, two equal halves (Today | Fwd) */
+.mkm-kv .split{display:grid; grid-template-columns:1fr 1fr; margin-top:4px}
+.mkm-kv .split>div:first-child{border-right:1px solid var(--t-line); padding-right:9px}
+.mkm-kv .split>div:last-child{padding-left:10px}
+.mkm-kv .split .n{font-size:13.5px; font-weight:700; line-height:1.15}
+.mkm-kv .split .l{font-family:var(--t-head); font-size:8.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--t-faint); margin-top:2px}
 
 /* footer */
 .mkm-foot{padding:12px 18px; border-top:1px solid var(--t-line); background:var(--t-panel); display:flex; align-items:center; justify-content:flex-end; gap:12px}
