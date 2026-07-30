@@ -1,5 +1,5 @@
 {
- "asOf": "2026-07-29",
+ "asOf": "2026-07-30",
  "sectors": {
   "BasicMaterials": {
    "pe": 20.85,
@@ -19,11 +19,11 @@
   },
   "Energy": {
    "pe": 18.95,
-   "fpe": 12.77
+   "fpe": 12.78
   },
   "Financial": {
-   "pe": 17.8,
-   "fpe": 14.71
+   "pe": 17.78,
+   "fpe": 14.7
   },
   "Healthcare": {
    "pe": 31.25,
@@ -39,7 +39,7 @@
   },
   "Technology": {
    "pe": 33.36,
-   "fpe": 24.37
+   "fpe": 23.84
   },
   "Utilities": {
    "pe": 20.12,
