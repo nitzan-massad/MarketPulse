@@ -4,13 +4,20 @@
 // this can't break the main refresh. Fills tickers that are MISSING a file or are
 // older than STALE_DAYS, stalest first so LIMIT rotates through the whole universe
 // (pass ALL=1 to force everyone). Cap with LIMIT (default 90).
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+//
+// ponytail: "when did we last fetch this" lives in the committed _asOf.json sidecar,
+// NOT in the file's mtime. Git stores no mtimes, so actions/checkout stamps every file
+// with the checkout time — an mtime check makes all 300+ files look seconds old, nothing
+// is ever refreshed, and only brand-new tickers get fetched. That's exactly what happened
+// between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
 const STALE_DAYS = Number(process.env.STALE_DAYS || 3);
 const ALL = process.env.ALL === "1";
 const OUT = "public/forecasts";
+const ASOF = `${OUT}/_asOf.json`; // { ticker: ISO } — build-reviews-recent skips it (not an array)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const RATING = { 1: "Buy", 2: "Hold", 3: "Sell" };
 
@@ -74,15 +81,17 @@ function toForecasts(data) {
 
 const stocks = JSON.parse(readFileSync("src/data/stocks.json", "utf8"));
 const staleBefore = Date.now() - STALE_DAYS * 864e5;
-const age = (t) => { try { return statSync(`${OUT}/${t}.json`).mtimeMs; } catch { return 0; } };
+const asOf = existsSync(ASOF) ? JSON.parse(readFileSync(ASOF, "utf8")) : {};
+const age = (t) => Date.parse(asOf[t]) || 0; // never fetched -> 0 -> front of the queue
 const targets = stocks
   .map((s) => s.t)
-  .filter((t) => ALL || !existsSync(`${OUT}/${t}.json`) || age(t) < staleBefore)
-  .sort((a, b) => age(a) - age(b)) // stalest (incl. missing = 0) first
+  .filter((t) => ALL || age(t) < staleBefore)
+  .sort((a, b) => age(a) - age(b)) // stalest (incl. never-fetched = 0) first
   .slice(0, LIMIT);
 
 mkdirSync(OUT, { recursive: true });
 console.log(`forecasts backfill: ${targets.length} ticker(s) (LIMIT=${LIMIT}, ALL=${ALL})`);
+const now = new Date().toISOString();
 let ok = 0, empty = 0, fail = 0;
 for (const t of targets) {
   try {
@@ -90,9 +99,14 @@ for (const t of targets) {
     const fc = toForecasts(extractJson(html));
     if (fc.length) { writeFileSync(`${OUT}/${t}.json`, JSON.stringify(fc)); ok++; console.log(`  ${t}: ${fc.length} ✓`); }
     else { empty++; console.log(`  ${t}: none`); }
+    // ponytail: stamp on empty too, so a ticker TipRanks genuinely has no experts for
+    // rotates out instead of hogging a LIMIT slot every run. It still gets retried each
+    // STALE_DAYS. Failures are NOT stamped — those are transient, retry next run.
+    asOf[t] = now;
   } catch (e) {
     fail++;
     console.log(`  ${t}: skip (${e.message})`);
   }
 }
+writeFileSync(ASOF, JSON.stringify(asOf, null, 1));
 console.log(`done: ${ok} written, ${empty} empty, ${fail} failed`);

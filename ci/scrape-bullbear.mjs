@@ -6,7 +6,7 @@
 // ponytail: flareGet/extractJson are duplicated from scrape-forecasts.mjs on purpose —
 // two ~15-line copies beat a shared module that would touch the known-good forecast
 // script; factor into ci/flare.mjs if a third consumer appears.
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -62,11 +62,20 @@ const ASOF = new Date().toISOString().slice(0, 10);
 
 const stocks = JSON.parse(readFileSync("src/data/stocks.json", "utf8"));
 const staleBefore = Date.now() - STALE_DAYS * 864e5;
-const age = (t) => { try { return statSync(`${OUT}/${t}.json`).mtimeMs; } catch { return 0; } };
+// ponytail: age comes from the asOf WE stamp into each file, never from mtime — git stores
+// no mtimes, so actions/checkout makes every file look seconds old and nothing is ever
+// refreshed (same bug that froze public/forecasts). Read once into a map; `age` is called
+// O(n log n) times by the sort. Missing file / pre-asOf file -> 0 -> front of the queue.
+const ages = new Map(stocks.map((s) => {
+  let d = "";
+  try { d = JSON.parse(readFileSync(`${OUT}/${s.t}.json`, "utf8")).asOf || ""; } catch { /* missing or unstamped */ }
+  return [s.t, Date.parse(d) || 0];
+}));
+const age = (t) => ages.get(t) ?? 0;
 const targets = stocks
   .map((s) => s.t)
-  .filter((t) => ALL || !existsSync(`${OUT}/${t}.json`) || age(t) < staleBefore)
-  .sort((a, b) => age(a) - age(b)) // stalest (incl. missing = 0) first
+  .filter((t) => ALL || age(t) < staleBefore)
+  .sort((a, b) => age(a) - age(b)) // stalest (incl. never-fetched = 0) first
   .slice(0, LIMIT);
 
 mkdirSync(OUT, { recursive: true });
@@ -81,6 +90,9 @@ for (const t of targets) {
       ok++;
       console.log(`  ${t}: ${bb.bull.length}↑ ${bb.bear.length}↓ ✓`);
     } else {
+      // ponytail: nothing written, so this ticker stays at age 0 and is retried every run.
+      // Currently ~6 tickers (TipRanks has no thesis for them) out of a 90 slot budget —
+      // cheap. If that set grows, write `{bull:[],bear:[],asOf}` so they rotate out instead.
       empty++;
       console.log(`  ${t}: none`);
     }
