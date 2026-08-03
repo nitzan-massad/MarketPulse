@@ -124,8 +124,15 @@ truthy("OFF-PULL FREEZE is idempotent — 100 off-pull runs never advance the cl
 eq("off-pull with only `d` → carries d (first-seen doubles as last-seen)", () => nextLastSeen({ d: OLD }, false, TODAY), OLD);
 eq('off-pull legacy "baseline" → clock starts now, so expiry applies uniformly', () => nextLastSeen({ d: "baseline" }, false, TODAY), TODAY);
 eq("off-pull with an unparseable ls → clock starts now", () => nextLastSeen({ ls: "garbage" }, false, TODAY), TODAY);
-eq("off-pull: a garbage `ls` MASKS a good `d` (ls || d picks ls first) → clock restarts",
-  () => nextLastSeen({ ls: "garbage", d: OLD }, false, TODAY), TODAY);
+// FIXED: `prev.ls || prev.d` took ls unconditionally, so ONE corrupt write restarted the
+// 365-day expiry clock even though a valid first-seen date sat right beside it — silently
+// extending a dead ticker's life by a year. Each candidate is now validated in turn.
+eq("off-pull: a garbage `ls` falls back to a good `d` instead of restarting the clock",
+  () => nextLastSeen({ ls: "garbage", d: OLD }, false, TODAY), OLD);
+eq("off-pull: a numeric-epoch `ls` also falls back to `d`",
+  () => nextLastSeen({ ls: 1750000000000, d: OLD }, false, TODAY), OLD);
+eq("off-pull: garbage in BOTH → clock starts now",
+  () => nextLastSeen({ ls: "garbage", d: "nonsense" }, false, TODAY), TODAY);
 eq("off-pull: an EMPTY ls falls through to d (empty is falsy, garbage is not)",
   () => nextLastSeen({ ls: "", d: OLD }, false, TODAY), OLD);
 eq("off-pull with no prior entry at all → today", () => nextLastSeen(undefined, false, TODAY), TODAY);
@@ -251,9 +258,13 @@ eq('px LAUNDERS a numeric string: "10.126" → 10.13', () => rowFromGetData({ ti
 truthy("px on a non-numeric p → NaN (rnd does not validate; JSON.stringify writes it as null)",
   () => Number.isNaN(rowFromGetData({ ticker: "X", prices: [{ p: "abc" }] }).px));
 eq("px when prices is a non-array object → null, no throw", () => rowFromGetData({ ticker: "X", prices: {} }).px, null);
-// documented robustness gap — a null element in the price series is an unguarded read
-check("px THROWS if the last prices element is null (unguarded `prices[len-1].p`)",
-  () => assert.throws(() => rowFromGetData({ ticker: "X", prices: [{ p: 1 }, null] }), TypeError));
+// FIXED: a null element in the price series used to be an unguarded read that THREW.
+// scripts/refresh-data.mjs calls rowFromGetData outside any try/catch, so one malformed
+// price row aborted the whole local refresh instead of degrading to null.
+eq("px when the last prices element is null → null, no throw",
+  () => rowFromGetData({ ticker: "X", prices: [{ p: 1 }, null] }).px, null);
+eq("px when the last prices element is a primitive → null, no throw",
+  () => rowFromGetData({ ticker: "X", prices: [{ p: 1 }, 7] }).px, null);
 
 // --- E5. pt: the "best analysts" target, and its selection precedence ---------------
 eq("pt prefers bench === 1 over period === 0 and over index 0",
@@ -331,11 +342,15 @@ for (const junk of [0, "", false, null, undefined, NaN]) {
 }
 eq("an ARRAY tipranksStockScore has no `score` key → carry, no throw", () => ssOf([], { ss: 7 }), 7);
 eq("an array WITH a score-like index still carries", () => ssOf([1, 2, 3], { ss: 7 }), 7);
-// type laundering — `ss` is the one numeric field that never passes through rnd()
-eq('TYPE LAUNDERING: a string score "7" passes through as the STRING "7", unconverted', () => ssOf({ score: "7" }, { ss: 2 }), "7");
-eq("TYPE LAUNDERING: an object score passes through as an object", () => ssOf({ score: { v: 1 } }, { ss: 2 }), { v: 1 });
-truthy("TYPE LAUNDERING: a NaN score passes through as NaN (serialises to null in stocks.json)",
-  () => Number.isNaN(ssOf({ score: NaN }, { ss: 2 })));
+// FIXED: `ss` was the ONE numeric field bypassing rnd(), so a string score reached
+// stocks.json as a STRING and then hit sortRows' string branch, localeCompare-ing against
+// numbers. A non-numeric score is a reshaped payload, not a value — carry, don't launder.
+eq('a numeric STRING score "7" is coerced to the number 7', () => ssOf({ score: "7" }, { ss: 2 }), 7);
+eq("an object score is a reshape → carry prev.ss, never write an object", () => ssOf({ score: { v: 1 } }, { ss: 2 }), 2);
+eq("a NaN score is a reshape → carry prev.ss, never write NaN", () => ssOf({ score: NaN }, { ss: 2 }), 2);
+eq("a non-numeric string score → carry prev.ss", () => ssOf({ score: "n/a" }, { ss: 2 }), 2);
+eq("a reshaped score with NO prev → null, not NaN", () => ssOf({ score: "n/a" }, {}), null);
+eq("score 0 still wins over prev (0 is a value)", () => ssOf({ score: 0 }, { ss: 7 }), 0);
 
 // =====================================================================================
 // F. consensus mapping — the exact vocabulary. src/lib.ts lowercases and SUBSTRING-matches
@@ -468,11 +483,16 @@ eq("fj.models present but stocks absent → {}", () => forecastFields({ models: 
 eq("fj.models.stocks null → {}", () => forecastFields({ models: { stocks: null } }, "TER"), {});
 eq("fj.models.stocks empty → {}", () => forecastFields({ models: { stocks: [] } }, "TER"), {});
 eq("_id matching is exact and case-sensitive", () => forecastFields(BUNDLE, "ter"), {});
-// documented footgun: an _id-less stub matches an undefined ticker
-eq("FOOTGUN: forecastFields(fj, undefined) MATCHES an _id-less stub instead of returning {}",
-  () => forecastFields({ models: { stocks: [{ report: { score: 5 } }] } }, undefined).ai, 5);
-check("forecastFields THROWS when models.stocks is a non-array object (unguarded .find)",
-  () => assert.throws(() => forecastFields({ models: { stocks: {} } }, "TER"), TypeError));
+// FIXED: a falsy ticker matched an _id-less stub, grafting one stock's fields onto another.
+eq("forecastFields(fj, undefined) → {} (a falsy ticker must match nothing)",
+  () => forecastFields({ models: { stocks: [{ report: { score: 5 } }] } }, undefined), {});
+eq("forecastFields(fj, '') → {}", () => forecastFields({ models: { stocks: [{ report: { score: 5 } }] } }, ""), {});
+// FIXED: `|| []` did not guard a non-array, so `.find` threw. Array.isArray does.
+eq("models.stocks as a non-array object → {}, no throw",
+  () => forecastFields({ models: { stocks: {} } }, "TER"), {});
+eq("models.stocks as a string → {}, no throw", () => forecastFields({ models: { stocks: "x" } }, "TER"), {});
+eq("a null row inside stocks is skipped, not dereferenced",
+  () => forecastFields({ models: { stocks: [null, { _id: "TER", report: { score: 71 } }] } }, "TER").ai, 71);
 
 // --- G5. the remaining forecastFields mappings ---------------------------------------
 eq("n prefers company.name", () => ff({ company: { name: "Teradyne", companyName: "IGNORED" } }).n, "Teradyne");
@@ -510,9 +530,14 @@ eq("airName only touches the FIRST character — the rest of the slug is preserv
 // MALFORMED OUTPUT — documented, not endorsed. airName capitalises character 0 only, so a
 // multi-word slug keeps its separator and its lower-case second word. If TipRanks ever emits
 // one, the app renders "Strong_buy" / "Strong buy" — neither is in the AI-rating vocabulary.
-eq('MALFORMED: airName("strong_buy") → "Strong_buy" (underscore kept, second word not capitalised)', () => airName("strong_buy"), "Strong_buy");
-eq('MALFORMED: airName("strong buy") → "Strong buy"', () => airName("strong buy"), "Strong buy");
-eq('MALFORMED: airName("strong-buy") → "Strong-buy"', () => airName("strong-buy"), "Strong-buy");
+// FIXED: airName upper-cased character 0 only, so a multi-word ratingId shipped
+// "Strong_buy" — in neither the app's AI-rating vocabulary nor a valid display string.
+// Each word is now title-cased and separators normalise to a single space.
+eq('airName("strong_buy") → "Strong Buy"', () => airName("strong_buy"), "Strong Buy");
+eq('airName("strong buy") → "Strong Buy"', () => airName("strong buy"), "Strong Buy");
+eq('airName("strong-buy") → "Strong Buy"', () => airName("strong-buy"), "Strong Buy");
+eq('airName("  outperform  ") trims', () => airName("  outperform  "), "Outperform");
+eq('airName("_") → null (no words)', () => airName("_"), null);
 truthy("MALFORMED: unlike sectorName, airName does NOT normalise separators away",
   () => airName("strong_buy") !== "StrongBuy" && sectorName("real-estate") === "RealEstate");
 eq('airName("") → null (empty is falsy, treated as no rating)', () => airName(""), null);

@@ -40,8 +40,12 @@ export function computeKeep(pinned, prevSeen, nowMs, maxAgeDays = KEEP_MAX_AGE_D
 // (legacy "baseline" seed entries) start the clock now, so expiry applies uniformly.
 export function nextLastSeen(prev, isInPull, today) {
   if (isInPull) return today;
-  const carried = (prev && (prev.ls || prev.d)) || "";
-  return Number.isFinite(Date.parse(carried)) ? carried : today;
+  // Try `ls` then fall back to `d`: taking `ls` unconditionally meant ONE corrupt write
+  // restarted the 365-day expiry clock even though a valid first-seen date sat right there.
+  for (const cand of [prev?.ls, prev?.d]) {
+    if (typeof cand === "string" && Number.isFinite(Date.parse(cand))) return cand;
+  }
+  return today;
 }
 
 const rnd = (x, p = 2) => (x == null ? null : +Number(x).toFixed(p));
@@ -55,7 +59,15 @@ const APP_SECTORS = ["BasicMaterials", "CommunicationServices", "ConsumerCyclica
 const SEC_BY_NORM = Object.fromEntries(APP_SECTORS.map((s) => [s.toLowerCase(), s]));
 export const sectorName = (slug) => (slug ? SEC_BY_NORM[String(slug).toLowerCase().replace(/[^a-z0-9]/g, "")] ?? null : null);
 // AI rating slug ("outperform") → app's "Outperform"/"Neutral"/"Underperform" (capitalize first)
-export const airName = (slug) => (slug ? String(slug)[0].toUpperCase() + String(slug).slice(1) : null);
+// Title-case each WORD, not just character 0: a multi-word ratingId like "strong_buy" used
+// to ship "Strong_buy" — a value in neither the app's AI-rating vocabulary nor a valid
+// display string. TipRanks only emits outperform/neutral/underperform today, so this is
+// insurance against a vocabulary change, not a live bug.
+export const airName = (slug) => {
+  if (!slug) return null;
+  const words = String(slug).trim().split(/[\s_-]+/).filter(Boolean);
+  return words.length ? words.map((w) => w[0].toUpperCase() + w.slice(1)).join(" ") : null;
+};
 
 // --- `ss` (Smart Score) from getData ------------------------------------------
 // TipRanks emits `score: null` as a REAL value meaning "this stock has no Smart
@@ -91,14 +103,24 @@ function ssFromGetData(j, prev) {
   // `?.score` this replaced degraded to prev.ss cleanly. scripts/refresh-data.mjs calls
   // rowFromGetData outside any try/catch, so a scalar here would abort the local refresh
   // rather than carry. Belongs in the "reshaped payload -> carry" branch, same as absent.
-  return s && typeof s === "object" && "score" in s ? s.score ?? null : prev.ss ?? null;
+  if (!(s && typeof s === "object" && "score" in s)) return prev.ss ?? null;
+  // ss was the ONE numeric field bypassing rnd(), so {score:"7"} wrote the STRING "7" into
+  // stocks.json, which then hit sortRows' string branch and localeCompared against numbers.
+  // A non-numeric score is a reshaped payload, not a value: carry rather than launder.
+  if (s.score == null) return null; // explicit null IS the answer — see above
+  const n = Number(s.score);
+  return Number.isFinite(n) ? n : prev.ss ?? null;
 }
 
 // Build a stocks.json row from a getData JSON blob, carrying over fields getData
 // can't supply (sec/ai/air/aipt/chg) from the ticker's previous row.
 export function rowFromGetData(j, prev = {}) {
   const prices = j.prices || [];
-  const px = prices.length ? prices[prices.length - 1].p : null;
+  // A null/!object last element used to throw here, and scripts/refresh-data.mjs calls
+  // rowFromGetData outside any try/catch — so one malformed price row aborted the whole
+  // local refresh. Same failure class the ssFromGetData typeof guard exists for.
+  const lastPx = prices.length ? prices[prices.length - 1] : null;
+  const px = lastPx && typeof lastPx === "object" ? rnd(lastPx.p) : null;
   const ptc = j.ptConsensus || [];
   const ptE = ptc.find((p) => p.bench === 1) || ptc.find((p) => p.period === 0) || ptc[0]; // "best analysts" target
   const pt = ptE ? ptE.priceTarget : null;
@@ -134,7 +156,11 @@ export function rowFromGetData(j, prev = {}) {
 // ticker by `_id` (peers in the bundle are stubs). Returns nulls for fields it lacks
 // (ss/mc) so fillNulls leaves those alone.
 export function forecastFields(fj, ticker) {
-  const s = (fj?.models?.stocks || []).find((x) => x._id === ticker);
+  // Array.isArray, not `|| []`: a reshaped `stocks` object has no .find and threw. And a
+  // falsy ticker must never match an _id-less stub row, which would graft one stock's
+  // fields onto another.
+  const list = fj?.models?.stocks;
+  const s = ticker && Array.isArray(list) ? list.find((x) => x && x._id === ticker) : undefined;
   if (!s) return {};
   const c = s.company || {};
   const rep = s.report || {};
@@ -164,7 +190,14 @@ export function forecastFields(fj, ticker) {
 
 // Fill only the null/absent fields of `row` from `extra` (never overwrite real values).
 export function fillNulls(row, extra) {
-  for (const [k, v] of Object.entries(extra || {})) if (row[k] == null && v != null) row[k] = v;
+  for (const [k, v] of Object.entries(extra || {})) {
+    if (row[k] != null || v == null) continue;
+    // rnd() returns NaN (not null) for non-numeric input, and JSON.stringify(NaN) is null —
+    // so filling with NaN wrote a null that LOOKED like a real fetch. refresh-data-ci.mjs
+    // guards this for its overwrite fields; fillNulls has to guard it for the fill path.
+    if (typeof v === "number" && !Number.isFinite(v)) continue;
+    row[k] = v;
+  }
   return row;
 }
 
