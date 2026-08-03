@@ -64,7 +64,14 @@ assert.ok(/toFixed\(4\)/.test(lib), "the sub-cent branch must still exist, or ev
 // merely lacking a copy of it — the modal renders more prices than every list view combined.
 const modal = readFileSync(path.join(SRC, "components", "StockModal.tsx"), "utf8");
 assert.ok(/import \{[^}]*\bpxDp\b[^}]*\} from "\.\.\/lib"/.test(modal), "StockModal must import pxDp from ../lib");
-// its chart axis sizes its own tick precision — that is fine, but it must widen below a cent
-assert.ok(/hi >= 0\.01 \? 2 : 4/.test(modal), "the chart price axis must use 4dp below a cent, or every tick reads 0.00");
+// Its chart axis sizes its own tick precision — that is fine, but EVERY such ladder must
+// widen below a cent. There are two (intraday and multi-day); counting them is the point,
+// because fixing one and leaving the other is precisely the failure this file exists for.
+const dpLadders = modal.match(/const dp = hi >= 100 \?[^;]*;/g) || [];
+assert.ok(dpLadders.length > 0, "expected the chart tick-precision ladders in StockModal");
+for (const l of dpLadders) {
+  assert.ok(/hi >= 0\.01 \? 2 : 4/.test(l),
+    `every chart price-axis ladder must use 4dp below a cent, or its ticks all read 0.00 — found: ${l}`);
+}
 
 console.log(`price formatting: ok — ${checked} src file(s) scanned, no private money formatter`);

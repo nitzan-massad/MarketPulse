@@ -329,6 +329,13 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     { sec: "Tech", ai: 91, air: "Outperform", aipt: 14, chg: 1.2 },
   );
   assert(row.up === 50, "upside = (15-10)/10 = 50%");
+  // pt/aipt are DOLLARS, not scores: a sub-dollar target at 2dp rendered "$0.00" next to a
+  // live sub-cent price and a non-zero upside computed from the raw value — self-refuting.
+  {
+    const sub = rowFromGetData({ ticker: "P", prices: [{ p: 0.0034 }], ptConsensus: [{ bench: 1, priceTarget: 0.004 }] }, {});
+    assert(sub.px === 0.0034 && sub.pt === 0.004, "a sub-cent price AND its target both survive at 4dp");
+    assert(sub.up === 17.6, "upside still comes from the raw values, so it must agree with what is shown");
+  }
   assert(row.con === "StrongBuy", "rating 5 → StrongBuy (compact, matches app vocab)");
   assert(row.b === 3 && row.h === 1 && row.s === 0, "buy/hold/sell from latest all-analyst consensus");
   assert(row.sec === "Tech" && row.ai === 91 && row.aipt === 14 && row.chg === 1.2, "carries sec/ai/aipt/chg from prev");

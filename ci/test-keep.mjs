@@ -566,6 +566,13 @@ eq("a sub-penny price survives at 4dp instead of rounding to 0", () => rndPx(0.0
 eq("a sub-penny price is never 0", () => rndPx(0.0001) !== 0, true);
 eq("the real cheapest shipped row is untouched", () => rndPx(0.17), 0.17);
 eq("just under $1 keeps 4dp", () => rndPx(0.9999), 0.9999);
+// ...and every DOLLAR field uses it, not just px: a target is a price. pt/aipt at 2dp
+// rendered "$0.00" beside a live sub-cent price and an upside computed from the raw value.
+const SUB = { models: { stocks: [{ _id: "P", analystRatings: { best: { priceTarget: { value: 0.004 } } }, report: { rating: { priceTarget: { value: 0.0072 } } } }] } };
+eq("a sub-dollar analyst target keeps 4dp", () => forecastFields(SUB, "P").pt, 0.004);
+eq("a sub-dollar AI target keeps 4dp", () => forecastFields(SUB, "P").aipt, 0.0072);
+eq("the getData mapper agrees — one rule for every dollar field",
+  () => rowFromGetData({ ticker: "P", prices: [{ p: 0.0034 }], ptConsensus: [{ bench: 1, priceTarget: 0.004 }] }, {}).pt, 0.004);
 eq("below $1, the 5th decimal still rounds", () => rndPx(0.00005), 0.0001);
 // at and above $1 it must stay 2dp — cents are the right precision for a real quote, and
 // widening it here would churn every price in stocks.json on the next run
