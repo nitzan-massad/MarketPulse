@@ -87,6 +87,26 @@ the commit step also stages `public/forecasts`.
 - **Failure-tolerant:** per-ticker try/catch, only writes valid non-empty results, `continue-on-error`
   in CI — it can never break the main refresh. Tiny tickers with no ranked analysts simply get no file.
 
+- **⚠️ Paywall fallback — `ci/forecast-html.mjs`.** The `getData` API anonymizes a fixed teaser
+  window of rows: 6 AI-model rows plus **up to 4 real brokers**. An anonymized row keeps `firm`,
+  `date`, `ratingId` and `stars` but has `name: null` and every price-target field nulled, so
+  `toForecasts()` drops it on the `!e.name` guard. On AAPL (194 experts) losing 4 is noise. On a
+  micro cap whose entire coverage is 3–4 ratings it swallows **100%** of it — which is how ~49
+  tickers wrote `[]` and showed "No analyst forecasts" while tipranks.com plainly listed them.
+  Relaxing the guards recovers **nothing**; the targets are absent from the JSON. So when
+  `fc.length === 0 && data.expertRatingsFilteredCount > 0` we scrape the SSR page
+  `tipranks.com/stocks/<t>/forecast`, which renders names and targets in full, and join `stars`
+  back from the API on firm+date. `opt` is unrecoverable that way and comes back `null`.
+
+  `expertRatingsFilteredCount` equals the count of name-null experts (verified across 21
+  payloads, zero mismatches) — it is both the gate and the alarm: **if it ever exceeds 4 real
+  brokers, the teaser window has widened and will start eating mid-caps.** Gating on it keeps
+  the 260 KB page fetch and the brittle HTML parsing away from the ~300 healthy tickers.
+  The parser anchors on the analyst-profile slug and on column order, never on class names
+  (TipRanks ships obfuscated per-build hashes). Guarded by `node ci/test-forecast-html.mjs`
+  against a real trimmed ADCT page; if the markup moves, that test fails and the parser
+  returns `[]` — a stale file, never a corrupt one.
+
 ## Bulls Say / Bears Say — automated ✅
 
 `ci/scrape-bullbear.mjs` refreshes `public/bullbear/<TICKER>.json` (the AI Bulls Say /

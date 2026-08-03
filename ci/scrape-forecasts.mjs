@@ -11,6 +11,7 @@
 // is ever refreshed, and only brand-new tickers get fetched. That's exactly what happened
 // between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { parseForecastHtml, withStars } from "./forecast-html.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -92,11 +93,21 @@ const targets = stocks
 mkdirSync(OUT, { recursive: true });
 console.log(`forecasts backfill: ${targets.length} ticker(s) (LIMIT=${LIMIT}, ALL=${ALL})`);
 const now = new Date().toISOString();
-let ok = 0, empty = 0, fail = 0;
+let ok = 0, empty = 0, fail = 0, viaHtml = 0;
 for (const t of targets) {
   try {
     const html = await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`);
-    const fc = toForecasts(extractJson(html));
+    const data = extractJson(html);
+    let fc = toForecasts(data);
+    // The API withheld rows behind the paywall teaser and we got nothing usable — fall back
+    // to the SSR page, which renders the analyst names and targets in full. Gated on the
+    // payload's own admission so the ~300 healthy tickers keep the cheap JSON path.
+    // See ci/forecast-html.mjs for the full explanation.
+    if (!fc.length && data.expertRatingsFilteredCount > 0) {
+      const page = await flareGet(`https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/forecast`);
+      const rows = withStars(parseForecastHtml(page), data);
+      if (rows.length) { fc = rows; viaHtml++; }
+    }
     if (fc.length) { writeFileSync(`${OUT}/${t}.json`, JSON.stringify(fc)); ok++; console.log(`  ${t}: ${fc.length} ✓`); }
     else { empty++; console.log(`  ${t}: none`); }
     // ponytail: stamp on empty too, so a ticker TipRanks genuinely has no experts for
@@ -109,4 +120,4 @@ for (const t of targets) {
   }
 }
 writeFileSync(ASOF, JSON.stringify(asOf, null, 1));
-console.log(`done: ${ok} written, ${empty} empty, ${fail} failed`);
+console.log(`done: ${ok} written (${viaHtml} via HTML fallback), ${empty} empty, ${fail} failed`);
