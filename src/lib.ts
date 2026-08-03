@@ -47,7 +47,12 @@ export const fmtMc = (m: number | null): string =>
 // storage fix alone was invisible to the reader, which is the only place it matters.
 // Guarded by src/fmtPx.check.ts.
 export const fmtPx = (v: number | null): string =>
-  v == null ? "—" : "$" + (v >= 100 ? v.toFixed(0) : v >= 0.01 || v <= -0.01 ? v.toFixed(2) : v.toFixed(4));
+  v == null ? "—" : "$" + (v >= 100 ? v.toFixed(0) : pxDp(v));
+// Decimals for a dollar amount below $100: cents normally, 4dp under a cent so a sub-penny
+// quote is not annihilated. Exported because StockModal formats 14 more prices (headline,
+// chart axis, targets, OHLC, 52w range, forecast rows) through its own local helpers — they
+// need the same rule, and a second private copy of it is how "$0.00" survived the first fix.
+export const pxDp = (v: number): string => (v >= 0.01 || v <= -0.01 ? v.toFixed(2) : v.toFixed(4));
 
 // A missing consensus gets NO rating class — it must not fall through to "h" and
 // paint as a real Hold. Callers render the neutral "—" placeholder instead (ConsPill).

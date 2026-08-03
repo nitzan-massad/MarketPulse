@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { easternNow, type EasternNow, fmtMin, marketOpen, nearestIndex, sessionSlice } from "../chartSession";
 import { fetchForecasts, type Forecast } from "../forecasts";
 import sectorPe from "../data/sectors.json";
-import { consClass, consLabel, DATE_LOCALE, fmtMc } from "../lib";
+import { consClass, consLabel, DATE_LOCALE, fmtMc, pxDp } from "../lib";
 import { reviewKey } from "../reviewAlerts";
 import type { Stock } from "../types";
 import type { Mark, MarkEntry } from "../watchlist";
@@ -162,8 +162,11 @@ const num = (v: unknown): number | null => {
   return typeof n === "number" && isFinite(n) ? n : null;
 };
 
-const usd = (v: number | null | undefined, dp = 2): string =>
-  v == null ? "—" : "$" + v.toFixed(dp);
+// dp defaults to the shared price rule (cents, or 4dp under a cent) — a flat 2dp here
+// printed a real sub-penny quote as "$0.00" in the modal long after the table stopped.
+// An explicit dp still wins, for the axis ticks that size their own precision.
+const usd = (v: number | null | undefined, dp?: number): string =>
+  v == null ? "—" : "$" + (dp == null ? pxDp(v) : v.toFixed(dp));
 
 const pct = (v: number | null | undefined): string =>
   v == null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "%";
@@ -349,7 +352,7 @@ function buildChart(
     const line = "M" + pts.join(" L");
     const lastX = x(slice.lastMin), lastY = y(c[c.length - 1]);
     const area = `${line} L${lastX.toFixed(1)} ${plotB0} L${x(slice.dStart).toFixed(1)} ${plotB0} Z`;
-    const dp = hi >= 100 ? 0 : hi >= 10 ? 1 : 2;
+    const dp = hi >= 100 ? 0 : hi >= 10 ? 1 : hi >= 0.01 ? 2 : 4; // 4dp under a cent, or every tick reads 0.00
     const priceTicks = niceTicks(lo, hi, 4).filter((v) => v >= lo && v <= hi).map((v) => ({ y: y(v), label: v.toFixed(dp) }));
     const dateTicks = [570, 660, 750, 840, 960] // 9:30, 11:00, 12:30, 14:00, 16:00
       .filter((m) => m >= slice.dStart && m <= slice.dEnd)
@@ -387,7 +390,7 @@ function buildChart(
   const lastY = y(closes[n - 1]);
   const area = `${line} L${lastX.toFixed(1)} ${plotB} L${x(0).toFixed(1)} ${plotB} Z`;
 
-  const dp = hi >= 100 ? 0 : hi >= 10 ? 1 : 2;
+  const dp = hi >= 100 ? 0 : hi >= 10 ? 1 : hi >= 0.01 ? 2 : 4; // 4dp under a cent, or every tick reads 0.00
   const priceTicks = niceTicks(lo, hi, 4)
     .filter((v) => v >= lo && v <= hi)
     .map((v) => ({ y: y(v), label: v.toFixed(dp) }));
@@ -630,7 +633,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
 
   // ---- analyst forecast helpers ----
   const fcUsd = (v: number): string =>
-    "$" + (v >= 100 ? Math.round(v).toLocaleString() : v.toFixed(2));
+    "$" + (v >= 100 ? Math.round(v).toLocaleString() : pxDp(v));
   const posClass = (r: string | null): string =>
     r === "Buy" ? "buy" : r === "Sell" ? "sell" : "hold";
   const fmtFcDate = (d: string): string => {

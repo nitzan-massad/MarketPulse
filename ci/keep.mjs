@@ -224,25 +224,35 @@ export function enrichQueue(rows, { inPull, pinned = [], aiFreshMs, now = Date.n
   return { list, eligible, cap };
 }
 
-// Apply a forecastFields result to a row. Returns "trio" | "partial" | "none" for logging.
+// Apply a forecastFields result to a row. Returns "trio" | "partial" | "fill" | "none".
 //
-// The AI trio is written ATOMICALLY and is deliberately EXCLUDED from the fillNulls pass.
-// Running fillNulls over the whole payload first defeated the atomicity: a payload with
-// `score` but no `ratingId` landed a fresh 69 in a null `ai` beside a stale "Outperform"
-// in `air` — the exact UNP symptom this pass exists to fix — and the atomic block below
-// could not undo it, so it logged "trio not applied" about a row it had already corrupted.
-// Either the whole trio lands or none of it does; a row keeps a consistent stale trio or a
-// consistent blank one. `chg` is independent of the AI report, so it applies on its own.
+// The AI trio is written ATOMICALLY, and when the row already HOLDS a trio value it is
+// excluded from the fillNulls pass. Running fillNulls over the whole payload defeated the
+// atomicity: a payload with `score` but no `ratingId` landed a fresh 69 in a null `ai`
+// beside a stale "Outperform" in `air` — the exact UNP symptom this pass exists to fix —
+// and the atomic block below could not undo it, so it logged "trio not applied" about a
+// row it had already corrupted.
+//
+// But the hazard is mixing EPOCHS, not writing a partial trio: it needs a stale value to
+// be inconsistent WITH. On a row whose trio is entirely blank there is nothing to mix, and
+// refusing the fill made things worse — the row could never be completed, so needsFill()
+// stayed true and it camped at prio 1 burning a fetch every run, forever. So: blank trio →
+// fill whatever the payload has (missing fields keep rendering "—"); any trio value present
+// → all three land or none do. `chg` is independent of the AI report and applies on its own.
 export function applyForecast(row, f) {
+  const hasStale = AI_TRIO.some((k) => row[k] != null);
   const rest = { ...f };
-  for (const k of AI_TRIO) delete rest[k];
+  if (hasStale) for (const k of AI_TRIO) delete rest[k];
   fillNulls(row, rest);
   if (usable(f.chg)) row.chg = f.chg; // overwrite, not fill — nothing else re-checks it
   if (AI_TRIO.every((k) => usable(f[k]))) {
     for (const k of AI_TRIO) row[k] = f[k];
     return "trio";
   }
-  return AI_TRIO.some((k) => usable(f[k])) ? "partial" : "none";
+  if (!AI_TRIO.some((k) => usable(f[k]))) return "none";
+  // A partial report against a blank trio DID land (via the fill above) — distinguish it,
+  // or the log claims nothing was written and the counters cannot tell the two apart.
+  return hasStale ? "partial" : "fill";
 }
 
 // --- AI-score scale guard -----------------------------------------------------
@@ -390,6 +400,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const r5 = { t: "X", ai: 74, air: "Outperform", aipt: 328 };
     applyForecast(r5, { ai: 69, air: null, aipt: null });
     assert(r5.ai === 74 && r5.air === "Outperform", "a partial report leaves a fully-populated trio alone");
+    // ...but a BLANK trio has no epoch to mix with, so a partial report must still land, or
+    // the row can never be completed and camps at prio 1 burning a fetch every run forever.
+    const r6 = { t: "KAPA", ai: null, air: null, aipt: null, sec: "General" };
+    assert(applyForecast(r6, { ai: 69, air: "Outperform", aipt: null }) === "fill", "a partial report on a blank trio DID write");
+    assert(r6.ai === 69 && r6.air === "Outperform" && r6.aipt === null, "what the payload had lands; the rest stays '—'");
+    assert(!needsFill(r6), "and the row stops being a permanent prio-1 resident");
   }
 
   // enrichQueue — off-pull rows are eligible even with a full trio (that is the whole point:

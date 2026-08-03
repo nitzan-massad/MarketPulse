@@ -157,7 +157,9 @@ for (const t of enrichList) {
     // Fills blanks, then lands the AI trio atomically — and deliberately keeps the trio out
     // of the fill pass, or a partial report would ship a fresh score beside a stale rating.
     // See applyForecast in ci/keep.mjs.
-    if (applyForecast(seen.get(t), f) === "partial") console.log(`  enrich ${t}: partial AI report, trio not applied`);
+    const landed = applyForecast(seen.get(t), f);
+    if (landed === "partial") console.log(`  enrich ${t}: partial AI report, trio left as it was`);
+    if (landed === "fill") console.log(`  enrich ${t}: partial AI report, filled a blank trio`);
     enriched++;
   } catch (e) { console.log(`  enrich ${t}: forecast skip (${e.message})`); }
 }

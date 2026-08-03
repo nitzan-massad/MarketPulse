@@ -163,7 +163,9 @@ forecasts.forEach((fj, i) => {
   const t = enrichList[i];
   const f = forecastFields(fj, t);
   if (!Object.keys(f).length) { noReport++; return; }
-  if (applyForecast(seen.get(t), f) === "partial") console.log(`  enrich ${t}: partial AI report, trio not applied`);
+  const landed = applyForecast(seen.get(t), f);
+  if (landed === "partial") console.log(`  enrich ${t}: partial AI report, trio left as it was`);
+  if (landed === "fill") console.log(`  enrich ${t}: partial AI report, filled a blank trio`);
   enriched++;
 });
 console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast (cap ${ENRICH_LIMIT}, ${noReport} with no report)`);

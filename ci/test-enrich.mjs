@@ -1,4 +1,5 @@
-// Self-check for the AI-enrich queue in ci/refresh-data-ci.mjs. The bug this guards
+// Self-check for the AI-enrich queue (ci/keep.mjs `enrichQueue`/`applyForecast`, driven by
+// ci/refresh-data-ci.mjs and scripts/refresh-data.mjs). The bug this guards
 // against: rows that fall out of a run's screener pull are rebuilt by rowFromGetData,
 // which carries ai/air/aipt from the previous row (ci/keep.mjs:123-125 — getData has no
 // AI-analyst fields at all). Enrich was the only thing that could re-check them, but it
@@ -7,7 +8,7 @@
 // have corrected it anyway. UNP served "Outperform" for ~10 days / ~46 runs after its
 // 2026-07-24 downgrade to "Neutral". Run: node ci/test-enrich.mjs
 import assert from "node:assert/strict";
-import { applyForecast, enrichQueue, fillNulls } from "./keep.mjs";
+import { applyForecast, enrichQueue, fillNulls, ENRICH_MAX as K_ENRICH_MAX, ENRICH_STALE_MS } from "./keep.mjs";
 
 const iso = (hoursAgo) => new Date(Date.now() - hoursAgo * 36e5).toISOString();
 
@@ -78,7 +79,8 @@ const select = (rows, seen, inPull, pinned, limit) => {
   assert.deepEqual(picked, ["B", "E", "C"], "stalest ls first");
   // A STALE pin jumps the queue; a FRESH one does not (see the #10 block below — this
   // assertion asserted the opposite while it ran on a local copy of `prio`).
-  assert.deepEqual(select(rows, seen, new Set(), ["B"], 3), ["B", "E", "C"], "a stale pin leads");
+  // E is pinned and stale (99h) but NOT the stalest, so this fails if pin priority is dropped
+  assert.deepEqual(select(rows, seen, new Set(), ["E"], 3), ["E", "B", "C"], "a stale pin leads even when something is staler");
   assert.deepEqual(select(rows, seen, new Set(), ["D"], 3), ["B", "E", "C"],
     "D was refreshed an hour ago — being pinned does not buy it a slot");
 }
@@ -105,6 +107,29 @@ const select = (rows, seen, inPull, pinned, limit) => {
   const frozen = Object.fromEntries(off.map((t, i) => [t, { ls: iso(100 - i) }]));
   const noStamp = () => select(rows, frozen, new Set(), [], 2);
   assert.deepEqual(noStamp(), noStamp(), "ls-only ordering is static — proves the ea stamp is load-bearing");
+}
+
+// --- the callers must USE the shared logic, not re-inline it ---------------------
+// Everything above tests ci/keep.mjs. Nothing loads the two refresh scripts (they fetch on
+// import), so without this a future edit could paste the queue back into both and every
+// check would stay green — which is how this bug shipped twice already. Cheap source-level
+// guard: the shared names must be imported, and the tell-tale inline forms must be absent.
+{
+  const { readFileSync } = await import("node:fs");
+  for (const p of ["ci/refresh-data-ci.mjs", "scripts/refresh-data.mjs"]) {
+    const src = readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
+    const imports = src.match(/^import \{[^}]*\} from "[^"]*keep\.mjs";/m);
+    assert.ok(imports, `${p} must import from ci/keep.mjs`);
+    for (const name of ["applyForecast", "enrichQueue"]) {
+      assert.ok(imports[0].includes(name), `${p} must import ${name}, not re-implement it`);
+    }
+    // the inline forms this refactor removed — each is a copy that drifted once
+    assert.equal(/AI_TRIO\s*=|trio\s*=\s*\[/.test(src), false, `${p} must not declare its own AI trio list`);
+    assert.equal(/const\s+prio\s*=/.test(src), false, `${p} must not declare its own prio tiers`);
+    assert.equal(/ENRICH_TARGET_RUNS\s*=\s*\d/.test(src), false, `${p} must not redefine ENRICH_TARGET_RUNS`);
+    assert.equal(/ENRICH_MAX\s*=\s*\d/.test(src), false, `${p} must not redefine ENRICH_MAX`);
+    assert.equal(/Math\.ceil\([^)]*\/\s*ENRICH_TARGET_RUNS\)/.test(src), false, `${p} must not re-derive the cap`);
+  }
 }
 
 console.log("enrich queue: ok");
@@ -138,7 +163,7 @@ console.log("enrich overwrite (incl. chg + NaN guard): ok");
 // Unconditional prio 0 re-fetched every pin every run, and sticky slots scaled with the pin
 // count — enough pins and prio-2 rotation stops dead, so staleness silently goes unbounded.
 {
-  const STALE_MS = 3 * 864e5;
+  const STALE_MS = ENRICH_STALE_MS; // the real constant, not a copy of it
   const now = Date.parse("2026-08-03T12:00:00Z");
   const prio = (pinned, t, r, freshMs) =>
     pinned.includes(t) && now - freshMs > STALE_MS ? 0 : (r.ai == null || r.sec == null) ? 1 : 2;
@@ -154,7 +179,7 @@ console.log("enrich overwrite (incl. chg + NaN guard): ok");
 // because the off-pull set grows ~5.7/day. Derive the cap instead; keep 40 as a floor and
 // ENRICH_MAX as a ceiling, since every unit of cap is one FlareSolverr fetch per run.
 {
-  const MAX = 120; // mirrors ENRICH_MAX in ci/refresh-data-ci.mjs and scripts/refresh-data.mjs
+  const MAX = K_ENRICH_MAX; // the real constant — ci/keep.mjs owns it, both scripts import it
   const cap = (n, target = 3) => Math.min(MAX, Math.max(40, Math.ceil(n / target)));
   assert.equal(cap(73), 40, "73 eligible still fits the floor");
   assert.equal(cap(120), 40, "120/3 = 40, exactly the floor");
