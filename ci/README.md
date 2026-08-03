@@ -96,7 +96,15 @@ the commit step also stages `public/forecasts`.
   Relaxing the guards recovers **nothing**; the targets are absent from the JSON. So when
   `fc.length === 0 && data.expertRatingsFilteredCount > 0` we scrape the SSR page
   `tipranks.com/stocks/<t>/forecast`, which renders names and targets in full, and join `stars`
-  back from the API on firm+date. `opt` is unrecoverable that way and comes back `null`.
+  back from the API on firm+date.
+
+  **A revised target renders as two cells joined by an arrow — `"$15" "→" "$0.9"` — and the NEW
+  target is the LAST one.** Taking the first `$` publishes the pre-revision figure: that bug
+  shipped briefly and wrote `pt=15` for VTGN, a $0.24 stock whose real target is $0.9, i.e.
+  +6100% upside on screen. Verified against the API on 35 revised rows: last `$` === `priceTarget`
+  35/35, first `$` === `oldPriceTarget` 35/35 — so `opt` comes from the page too, and the first
+  fixture (ADCT) had no revised row, which is why the original test passed. `ci/fixtures/vtgn-forecast.html`
+  now covers the revised case; keep both.
 
   `expertRatingsFilteredCount` equals the count of name-null experts (verified across 21
   payloads, zero mismatches) — it is both the gate and the alarm: **if it ever exceeds 4 real

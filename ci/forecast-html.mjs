@@ -51,15 +51,24 @@ export function parseForecastHtml(html) {
     const date = tok.find((s) => /^\d{2}\/\d{2}\/\d{2}$/.test(s));
     if (!date) continue;
     const before = tok.slice(0, tok.indexOf(date)); // the headline sits AFTER the date — exclude it
-    const pt = before.find((s) => /^\$[\d.,]+$/.test(s));
-    if (!pt) continue; // rendered "—": a real analyst with no target, and a Forecast needs one
+    // A REVISED target renders as two cells joined by an arrow: "$15" "→" "$0.9". The NEW
+    // target is the LAST one; the first is the prior target, which is `opt`. Taking the first
+    // `$` here silently published pre-revision targets — VTGN wrote pt=15 for a $0.24 stock
+    // whose real target is 0.9, i.e. +6100% upside on screen. Verified against the API on 35
+    // revised rows: last $ === priceTarget 35/35, first $ === oldPriceTarget 35/35.
+    const money = before.filter((s) => /^\$[\d.,]+$/.test(s));
+    if (!money.length) continue; // rendered "―": a real analyst with no target, and a Forecast needs one
+    const num = (s) => +s.slice(1).replace(/,/g, "");
+    const pt = num(money[money.length - 1]);
+    const opt = money.length > 1 ? num(money[0]) : null;
     const r = before.find((s) => /^(Buy|Hold|Sell)$/.test(s));
     const [n, f] = before;
     if (!n || !f || !r || ACTIONS.test(f)) continue; // ACTIONS guard: shifted columns, don't invent a firm
 
     const [mm, dd, yy] = date.split("/");
-    const row = { n, f, r, pt: +pt.slice(1).replace(/,/g, ""), d: `20${yy}-${mm}-${dd}` };
-    if (!Number.isFinite(row.pt)) continue;
+    const row = { n, f, r, pt, opt, d: `20${yy}-${mm}-${dd}` };
+    if (!Number.isFinite(row.pt) || row.pt <= 0) continue;
+    if (row.opt != null && !Number.isFinite(row.opt)) row.opt = null;
     const key = `${row.n}|${row.f}|${row.d}|${row.pt}`;
     if (seen.has(key)) continue; // the page ships the table twice (desktop + mobile layouts)
     seen.add(key);
@@ -69,7 +78,7 @@ export function parseForecastHtml(html) {
 }
 
 // Stars survive anonymization in the API payload, so recover them by joining firm+date.
-// `opt` cannot be recovered — the SSR table shows only the current target.
+// `opt` comes from the page itself (the "$old → $new" pair), so nothing is lost here.
 export function withStars(rows, data) {
   const stars = new Map();
   for (const e of data.experts || []) {
@@ -79,6 +88,6 @@ export function withStars(rows, data) {
     if (rk) stars.set(`${e.firm}|${String(r0.date).slice(0, 10)}`, rk.stars);
   }
   return rows
-    .map((x) => ({ n: x.n, f: x.f, st: stars.get(`${x.f}|${x.d}`) ?? null, r: x.r, pt: x.pt, opt: null, d: x.d }))
+    .map((x) => ({ n: x.n, f: x.f, st: stars.get(`${x.f}|${x.d}`) ?? null, r: x.r, pt: x.pt, opt: x.opt ?? null, d: x.d }))
     .sort((a, b) => (b.d || "").localeCompare(a.d || ""));
 }

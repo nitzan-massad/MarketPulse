@@ -12,7 +12,7 @@ const rows = parseForecastHtml(html);
 // 4 analysts are listed; H.C. Wainwright's target renders as "—" and a Forecast needs a target
 assert.equal(rows.length, 3, `expected 3 parsed rows, got ${rows.length}`);
 assert.deepEqual(rows.map((r) => r.f), ["RBC Capital", "Guggenheim", "Stephens"]);
-assert.deepEqual(rows[0], { n: "Leonid Timashev", f: "RBC Capital", r: "Hold", pt: 2, d: "2026-07-07" });
+assert.deepEqual(rows[0], { n: "Leonid Timashev", f: "RBC Capital", r: "Hold", pt: 2, opt: null, d: "2026-07-07" });
 assert.equal(rows.find((r) => r.f === "Guggenheim").pt, 10);
 assert.equal(rows.find((r) => r.f === "Stephens").pt, 5);
 assert.ok(!rows.some((r) => r.f.includes("Wainwright")), "row with no price target must be skipped");
@@ -46,6 +46,31 @@ assert.deepEqual(withst.map((r) => r.d), ["2026-07-07", "2026-06-30", "2026-06-0
 for (const r of withst) {
   assert.deepEqual(Object.keys(r), ["n", "f", "st", "r", "pt", "opt", "d"], "Forecast key shape");
   assert.equal(r.opt, null);
+}
+
+// REVISED TARGETS. A revision renders as "$old → $new"; taking the FIRST $ published the
+// pre-revision target. This shipped: VTGN wrote pt=15 for a $0.24 stock whose real target is
+// 0.9 (+6100% upside on screen). The ADCT fixture has no revised row, which is exactly why
+// the original test passed — hence this second fixture.
+{
+  const v = parseForecastHtml(readFileSync(new URL("./fixtures/vtgn-forecast.html", import.meta.url), "utf8"));
+  const by = (n) => v.find((r) => r.n === n);
+  assert.equal(v.length, 3, `expected 3 VTGN rows, got ${v.length}`);
+
+  assert.deepEqual(by("Andrew Tsai"), { n: "Andrew Tsai", f: "Jefferies", r: "Hold", pt: 0.9, opt: 15, d: "2025-12-17" });
+  assert.deepEqual(by("Elemer Piros"), { n: "Elemer Piros", f: "Lucid Capital", r: "Hold", pt: 1, opt: 19, d: "2025-12-17" });
+  // unrevised row in the same table: single "$", so opt stays null
+  assert.equal(by("Paul Matteis").pt, 1);
+  assert.equal(by("Paul Matteis").opt, null);
+  // William Blair's target renders "―" (no target at all) and must still be skipped
+  assert.ok(!v.some((r) => r.f === "William Blair"), "no-target row must be skipped");
+
+  // the invariant, stated directly: on a revision the new target is never the larger-by-default
+  // one — it is whichever came after the arrow. Guard against silently reverting to first-$.
+  for (const r of v) {
+    if (r.opt != null) assert.notEqual(r.pt, r.opt, "pt and opt must differ on a revision");
+  }
+  assert.equal(withStars(v, {}).find((r) => r.n === "Andrew Tsai").opt, 15, "withStars must carry opt through");
 }
 
 // garbage in -> empty out, never a throw: a markup change must yield a stale file, not a crash
