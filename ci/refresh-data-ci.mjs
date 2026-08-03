@@ -115,25 +115,57 @@ for (const t of missing) {
 for (const t of pinned) if (seen.has(t)) (membership[t] ??= new Set()).add("p");
 console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried, ${dropped.length} expired)`);
 
-// Enrich rows still missing AI-score/sector from the per-ticker stock-forecast payload
-// — the only per-ticker source for those. Covers off-list pins AND brand-new arrivals
-// (whose screener row can lack AI data). Fills blanks only; pins & new arrivals first; capped.
-const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT || 300);
-const prio = (t) => (pinned.includes(t) ? 0 : inPull.has(t) && !prevSeen[t] ? 1 : 2); // pins, then new arrivals, then rest
+// Enrich from the per-ticker stock-forecast payload — the only per-ticker source for the
+// AI-analyst score/rating/target and the sector name. Two jobs:
+//   1. FILL blanks: off-list pins and brand-new arrivals whose screener row lacks AI data.
+//   2. CORRECT carried AI data: rows outside this run's pull come from rowFromGetData,
+//      which carries ai/air/aipt verbatim (ci/keep.mjs:86-88 — getData genuinely has no
+//      AI-analyst fields, so carrying beats blanking). Nothing else ever re-checks them.
+//      Selecting on "needs a null filled" alone made that permanent: a carried row has
+//      both non-null, so it could never be picked, and a downgrade stayed invisible until
+//      the ticker re-entered the pull (UNP showed "Outperform" for ~10 days / ~46 runs
+//      after its 2026-07-24 downgrade). Hence `|| !inPull.has(t)` below.
+// The AI trio therefore OVERWRITES; fillNulls handles the rest. fillNulls cannot correct
+// a stale non-null, and only a value the payload actually supplies may replace one.
+// SCALE — this overwrite requires forecastFields to emit `ai` on the screener's 0-100
+// scale. It does (ci/keep.mjs), and `node ci/test-ai-scale.mjs` guards it. Were the old
+// `/10` ever reinstated, the overwrite would drag every off-pull row onto 0-10 and the
+// UI's scoreColor(s.ai, 100) would paint them dark — the fill path already stranded
+// AAPL at 8.2 and TER at 7.8 that way, and this pass is what repaired them.
+// Cost bound: ENRICH_LIMIT fetches/run, oldest-AI-first, and `ea` (enriched-at, stamped
+// in the seen tracker below) rotates the queue instead of re-picking the same head — lsMs
+// alone never moves while a ticker is off-pull. Worst-case AI staleness is therefore
+// ceil(offPull / (ENRICH_LIMIT - sticky)) runs x the 5h cron. Measured 2026-08-03: 73
+// off-pull, and 9 sticky slots that re-cost every run (2 pins by design + 7 rows whose
+// forecast payload carries no AI report at all, so they stay blank and keep re-queuing)
+// → 31 fresh slots/run → 3 runs ≈ 15h, well inside a rating-change news cycle.
+// The off-pull set grows monotonically against KEEP_MAX_AGE_DAYS — raise ENRICH_LIMIT
+// once it passes ~120, or the bound stretches past a day.
+const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT || 40);
+const AI_FIELDS = ["ai", "air", "aipt"];
+// When this row's AI trio was last known-good: in the pull (the screener ships
+// aiAnalystData) or enriched. Reuses lsMs so there is one age concept, not two.
+const aiFreshMs = (t) => Math.max(lsMs(t), Date.parse(prevSeen[t]?.ea || "") || 0);
+const needsFill = (r) => r.ai == null || r.sec == null;
+const prio = (t, r) => (pinned.includes(t) ? 0 : needsFill(r) ? 1 : 2); // pins, then blanks (incl. new arrivals), then stale carries
 const enrichList = [...seen.entries()]
-  .filter(([, r]) => r.ai == null || r.sec == null)
-  .sort((a, b) => prio(a[0]) - prio(b[0]))
+  .filter(([t, r]) => needsFill(r) || !inPull.has(t))
+  .sort((a, b) => prio(a[0], a[1]) - prio(b[0], b[1]) || aiFreshMs(a[0]) - aiFreshMs(b[0]))
   .slice(0, ENRICH_LIMIT)
   .map(([t]) => t);
 let enriched = 0;
+const enrichTried = new Set();
 for (const t of enrichList) {
+  enrichTried.add(t); // stamp the attempt, not the success: a ticker with no forecast payload must not block the queue head forever
   try {
     const sol = await flareGet(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`);
-    fillNulls(seen.get(t), forecastFields(extractJson(sol.response), t));
+    const f = forecastFields(extractJson(sol.response), t);
+    const row = fillNulls(seen.get(t), f);
+    for (const k of AI_FIELDS) if (f[k] != null) row[k] = f[k]; // overwrite — never blank
     enriched++;
   } catch (e) { console.log(`  enrich ${t}: forecast skip (${e.message})`); }
 }
-console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast`);
+console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast (${enrichList.filter((t) => !inPull.has(t)).length} off-pull)`);
 
 mkdirSync("src/data", { recursive: true });
 writeFileSync("src/data/stocks.json", JSON.stringify([...seen.values()]));
@@ -157,6 +189,9 @@ for (const [t, r] of seen) {
   // brand-new: dynamic arrivals get today's date (New Arrivals); pins-only get "baseline" so they don't flood it
   else firstSeen[t] = { d: inPull.has(t) ? today : "baseline", ls: today, ss: r.ss, ai: r.ai, con: r.con, l: [...(membership[t] || [])] };
 }
+// `ea` = AI trio last re-checked. Sends this run's picks to the back of the enrich queue
+// so the off-pull set rotates through it; `ls` alone is frozen while a ticker is off-pull.
+for (const t of enrichTried) if (firstSeen[t]) firstSeen[t].ea = today;
 writeFileSync("src/data/seen.json", JSON.stringify(firstSeen));
 const freshCount = Object.values(firstSeen).filter((v) => v.d !== "baseline").length;
 console.log(`seen.json: ${Object.keys(firstSeen).length} tickers, ${freshCount} dated`);
