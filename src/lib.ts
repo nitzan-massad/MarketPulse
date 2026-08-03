@@ -133,8 +133,14 @@ export function sortRows(rows: Stock[], sort: keyof Stock, dir: number): Stock[]
   return [...rows].sort((a, b) => {
     // Consensus sorts on the analyst mix, not the rating string: desc = most buys,
     // then fewest holds, then fewest sells. asc mirrors all three. Never reads `con`,
-    // so a null rating can't skew the order — a row with no rating has no distribution
-    // either (b/h/s all 0), which parks it at the "fewest buys" end.
+    // so a null rating can't throw or skew the ordering key.
+    // It does NOT follow that an unrated row sorts last: `con` and the b/h/s
+    // distribution are independent fields, so a row can have con: null with a real,
+    // non-zero mix (refresh-data-ci.mjs reads analystConsensus and distribution
+    // separately; keep.mjs can miss CON_NAME while still copying nB/nH/nS). Such a
+    // row sorts by its real mix and displays "—" — deliberate, since the analyst
+    // counts are genuine data even when the label is missing. Don't "fix" this to
+    // compare the rating string.
     if (sort === "con") return dir * (a.b - b.b || b.h - a.h || b.s - a.s);
     const x = a[sort];
     const y = b[sort];

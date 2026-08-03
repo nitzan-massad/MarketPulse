@@ -1,6 +1,6 @@
 // Self-check for the AI-enrich queue in ci/refresh-data-ci.mjs. The bug this guards
 // against: rows that fall out of a run's screener pull are rebuilt by rowFromGetData,
-// which carries ai/air/aipt from the previous row (ci/keep.mjs:86-88 — getData has no
+// which carries ai/air/aipt from the previous row (ci/keep.mjs:123-125 — getData has no
 // AI-analyst fields at all). Enrich was the only thing that could re-check them, but it
 // selected on "needs a null filled", and a carried row's trio is non-null — so it was
 // permanently ineligible (70 of 73 off-pull rows on 2026-08-03) and fillNulls could not

@@ -1,8 +1,9 @@
 // Dependency-free self-check for the nullable-consensus contract. No test framework
 // by design (mirrors alertEngine.check.ts). The bug this guards against: types.ts
-// declared `con: string` while the writers emit null (ci/refresh-data-ci.mjs:72,
-// ci/keep.mjs:81,114), so an unrated row (1) painted with Hold styling because
-// consClass fell through to "h", and (2) was dropped by the default ["StrongBuy"]
+// declared `con: string` while all FOUR writers emit null (ci/refresh-data-ci.mjs:72,
+// ci/keep.mjs:118, ci/keep.mjs:147, scripts/refresh-data.mjs:41), so an unrated row
+// (1) painted with Hold styling because consClass fell through to "h", and
+// (2) was dropped by the default ["StrongBuy"]
 // filter, vanishing from the table for a refresh cycle. Seen on AMTX/NXXT/SNES/CBUS/BEAT.
 // Run:
 //   npx tsc src/lib.ts src/consensusNull.check.ts --outDir /tmp/cn \
@@ -68,8 +69,9 @@ eq("null con still obeys the search query",
 
 // ---- 3. sorting on consensus is deterministic and null-safe ---------------
 // The comparator sorts on the analyst mix (b/h/s), never the rating string, so a
-// null `con` cannot skew the order or throw. An unrated row has no distribution
-// either (b/h/s = 0), which parks it at the "fewest buys" end.
+// null `con` cannot throw. It does NOT park unrated rows last: `con` and the
+// distribution are independent fields, so con:null with a real non-zero mix sorts
+// by that mix — asserted below, and the reason this block tests both cases.
 const mixed = [row("A", "StrongBuy", 3), row("N", null, 0), row("B", "Buy", 1)];
 eq("con desc: unrated (0 buys) sorts last", sortRows(mixed, "con", -1).map((r) => r.t), ["A", "B", "N"]);
 eq("con asc: unrated sorts first", sortRows(mixed, "con", 1).map((r) => r.t), ["N", "B", "A"]);

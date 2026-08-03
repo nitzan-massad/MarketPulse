@@ -119,7 +119,7 @@ console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried,
 // AI-analyst score/rating/target and the sector name. Two jobs:
 //   1. FILL blanks: off-list pins and brand-new arrivals whose screener row lacks AI data.
 //   2. CORRECT carried AI data: rows outside this run's pull come from rowFromGetData,
-//      which carries ai/air/aipt verbatim (ci/keep.mjs:86-88 — getData genuinely has no
+//      which carries ai/air/aipt verbatim (ci/keep.mjs:123-125 — getData genuinely has no
 //      AI-analyst fields, so carrying beats blanking). Nothing else ever re-checks them.
 //      Selecting on "needs a null filled" alone made that permanent: a carried row has
 //      both non-null, so it could never be picked, and a downgrade stayed invisible until

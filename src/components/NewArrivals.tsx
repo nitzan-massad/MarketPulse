@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import stocksData from "../data/stocks.json";
 import { reviewKey } from "../reviewAlerts";
 import type { Stock } from "../types";
-import { addedInfo, agoLabel, consClass, consLabel, DATE_LOCALE, firstSeen, fmtMc, fmtPx, LIST_LABEL, NEW_WINDOW_DAYS, scoreColor } from "../lib";
+import { addedInfo, agoLabel, consLabel, DATE_LOCALE, firstSeen, fmtMc, fmtPx, LIST_LABEL, NEW_WINDOW_DAYS, scoreColor } from "../lib";
 import { consDir, type ConsDir } from "../consensus";
-import { Chip, UpBar } from "./StockTable";
+import { Chip, ConsPill, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
 
@@ -234,7 +234,7 @@ export default function NewArrivals({ onOpen, onOpenReview, marks, onMark }: New
                     </td>
                     <td className="num">{fmtPx(s.px)}</td>
                     <td className="con-cell">
-                      <span className={`pill ${consClass(s.con)}`}>{consLabel(s.con)}</span>
+                      <ConsPill con={s.con} />
                       <div className="dist">{s.b}·{s.h}·{s.s}</div>
                     </td>
                     <td>

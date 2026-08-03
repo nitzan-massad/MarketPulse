@@ -4,7 +4,7 @@
 // The vocabulary is written by the data pipeline, from two kinds of writer:
 //   1. ci/keep.mjs:50 `CON_NAME` maps the TipRanks rating/enumId 1–5 to
 //      StrongSell | Sell | Neutral | Buy | StrongBuy  (note: "Neutral", never "Hold"),
-//      used by rowFromGetData (ci/keep.mjs:81) and forecastFields (ci/keep.mjs:114).
+//      used by rowFromGetData (ci/keep.mjs:118) and forecastFields (ci/keep.mjs:151).
 //   2. the screener passthrough `bc.analystConsensus?.name || null`
 //      (ci/refresh-data-ci.mjs:72 and scripts/refresh-data.mjs:41) — an *unvalidated*
 //      upstream string, so a label we've never seen can appear at any time.

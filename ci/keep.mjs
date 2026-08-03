@@ -87,7 +87,11 @@ export const airName = (slug) => (slug ? String(slug)[0].toUpperCase() + String(
 // row. Visible "—" on a real null, carry only on a real reshape.
 function ssFromGetData(j, prev) {
   const s = j.tipranksStockScore;
-  return s && "score" in s ? s.score ?? null : prev.ss ?? null;
+  // `typeof s === "object"` is not redundant: `in` THROWS on a truthy primitive, and the
+  // `?.score` this replaced degraded to prev.ss cleanly. scripts/refresh-data.mjs calls
+  // rowFromGetData outside any try/catch, so a scalar here would abort the local refresh
+  // rather than carry. Belongs in the "reshaped payload -> carry" branch, same as absent.
+  return s && typeof s === "object" && "score" in s ? s.score ?? null : prev.ss ?? null;
 }
 
 // Build a stocks.json row from a getData JSON blob, carrying over fields getData
@@ -186,7 +190,16 @@ const AI_SCALE_MIN_SAMPLE = 20; // below this, "all values are small" proves not
 
 // Returns a human-readable error string, or null when the column looks single-scaled.
 export function aiScaleError(rows, floor = AI_SCALE_FLOOR) {
+  const total = (rows || []).length;
   const scored = (rows || []).filter((r) => r && r.ai != null && Number.isFinite(Number(r.ai)));
+  // An emptied column is a worse failure than a rescaled one, and the scale checks below
+  // are blind to it — they compare values that no longer exist and silently return null.
+  // Guard it explicitly: normal is ~344/351 scored, so a wholesale wipe is unmistakable.
+  if (total >= AI_SCALE_MIN_SAMPLE && scored.length < total * 0.5) {
+    return `ai is missing on ${total - scored.length}/${total} row(s) — only ${scored.length} `
+      + `scored. Normal is nearly all rows; an emptied column means the AI source or its `
+      + `mapping broke, not that TipRanks stopped scoring.`;
+  }
   if (!scored.length) return null;
   const low = scored.filter((r) => Number(r.ai) <= floor);
   const high = scored.filter((r) => Number(r.ai) > floor);
@@ -251,6 +264,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   assert(ssOf({ tipranksStockScore: { score: 4 } }, { ss: 7 }) === 4, "a real score still wins over prev.ss");
   assert(ssOf({ tipranksStockScore: { score: 0 } }, { ss: 7 }) === 0, "score 0 is a value, not a blank (nullish test, not falsy)");
   assert(ssOf({ tipranksStockScore: { score: null } }, {}) === null && ssOf({}, {}) === null, "no prev to carry → null either way");
+  // a truthy PRIMITIVE must carry, not throw: `in` throws on one, and scripts/refresh-data.mjs
+  // calls rowFromGetData outside any try/catch, so a scalar reshape would abort the local refresh
+  for (const junk of [7, "x", true, [], 0, null, undefined]) {
+    assert(ssOf({ tipranksStockScore: junk }, { ss: 7 }) === 7, `tipranksStockScore=${JSON.stringify(junk)} → carry prev.ss, never throw`);
+  }
 
   // forecastFields — real TER shape from the HAR
   const fj = { models: { stocks: [
@@ -287,5 +305,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   assert(aiScaleError(Array.from({ length: 25 }, (_, i) => ({ t: `T${i}`, ai: 5 + i / 10 }))) !== null, "a whole column ≤10 is caught too");
   assert(aiScaleError([{ t: "A", ai: 7.8 }]) === null, "too small a sample to judge → no verdict");
   assert(aiScaleError([]) === null && aiScaleError(null) === null, "no data → no verdict");
+  // an EMPTIED column used to slip through: the scale arms compare values that no longer
+  // exist, so 351 nulls returned null and the check printed "OK — 0/351 rows scored"
+  assert(aiScaleError(Array.from({ length: 351 }, (_, i) => ({ t: `T${i}`, ai: null }))) !== null, "a wiped ai column is caught, not reported OK");
+  assert(aiScaleError(Array.from({ length: 351 }, (_, i) => ({ t: `T${i}`, ai: i < 176 ? null : 50 }))) !== null, "losing over half the column is caught");
+  assert(aiScaleError(Array.from({ length: 351 }, (_, i) => ({ t: `T${i}`, ai: i < 7 ? null : 50 }))) === null, "the normal ~7 genuinely-unscored rows are fine");
   console.log("keep.mjs self-check OK");
 }
