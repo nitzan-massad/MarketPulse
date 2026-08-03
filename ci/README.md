@@ -46,15 +46,69 @@ market cap and description — but **not** the AI-analyst score/rating/target or
 Backfill is capped per run (`BACKFILL_LIMIT`, default 300, most-stale-first) and per-ticker
 failure-tolerant, so it can't blow the runtime or break the main refresh.
 
-**AI-score / sector enrichment.** After backfill, any row still missing `ai` or `sec` — a
-brand-new pin, or a **brand-new arrival** whose screener row lacked AI data — is enriched from
-the per-ticker **stock-forecast** payload (`www.tipranks.com/stocks/<t>/stock-forecast/payload.json`
-→ `ci/keep.mjs` `forecastFields`): AI score (0–100 → ÷10), AI rating, AI target, and the sector
-name (slug → the app's PascalCase form). It fills blanks only (never overwrites real values),
-does pins + new arrivals first, and is capped (`ENRICH_LIMIT`, default 300) and failure-tolerant.
-Net effect: a freshly-pinned ticker AND a freshly-arrived ticker both end up fully populated —
-no blank AI/sector columns. (Consensus strings use the app's compact vocab — `StrongBuy`, not
-`Strong Buy` — because the UI substring-matches `strongbuy`; see `src/lib.ts`.)
+⚠️ **`ss: null` from TipRanks is an answer, not a gap.** `getData` returns the full
+`tipranksStockScore` object with `"score": null` for a stock that simply **has no Smart
+Score** (verified live on **ASTI** and **BCDA**; GOOGL comes back 10 and DNLI 6 from the
+identical shape). `rowFromGetData` used to write `j.tipranksStockScore?.score ?? prev.ss`,
+which cannot tell "TipRanks says there is no score" from "the payload reshaped" — so a real
+null resurrected the last number and served it as fresh. ASTI was stuck at `ss 2` from
+2026-07-23 across 7 market-moving runs and could not recover to `—` while it stayed off the
+screener list. `ssFromGetData` now keys off **presence of the `score` key**: present (even
+`null`) → trust it and let null through → the UI renders `—`; object/key absent → payload
+reshaped, carry `prev.ss`. That matches the screener path, which has always used `?? null`
+(`refresh-data-ci.mjs:73`) — which is why *on-list* no-score tickers like BCDA already showed
+`—`. The deliberate trade-off: if `tipranksStockScore` ever disappears wholesale, every
+keep-path ticker freezes on its previous `ss` (current behaviour, and the safe side — a
+vanished field is our parse bug, not news). Backstops: `if (row.t)` rejects a garbage
+per-ticker response and carries the whole previous row, and the ≥50-row guard
+(`refresh-data-ci.mjs:83-86`) aborts before writing on a total screener failure. Covered by
+`node ci/keep.mjs` (explicit null beats `prev`; missing object / missing key carry it; a real
+score and a literal `0` still win).
+
+**AI-score / sector enrichment.** After backfill, a row is enriched from the per-ticker
+**stock-forecast** payload (`www.tipranks.com/stocks/<t>/stock-forecast/payload.json`
+→ `ci/keep.mjs` `forecastFields`) if it is still missing `ai`/`sec` **or if it is off-pull**:
+AI score, AI rating, AI target, and the sector name (slug → the app's PascalCase form).
+Ordered pins → blanks → stalest carry, capped by `ENRICH_LIMIT` (default **40**), failure-tolerant.
+
+`sec` and the rest are fill-only, but **the AI trio (`ai`/`air`/`aipt`) OVERWRITES** — and must,
+because `getData` carries no AI-analyst data (`ci/keep.mjs` carries the trio from the previous
+row), and `fillNulls` can never correct a stale non-null. Before this, an off-pull ticker's AI
+score/rating was frozen indefinitely: **UNP displayed "Outperform"/74 for ~10 days / ~46 runs**
+after TipRanks downgraded it to Neutral/69. Only a value actually present in the payload
+overwrites — a null never blanks a good one.
+
+**⚠️ The rotation is ordered by `ea` (enriched-at, stamped into `seen.json`), NOT by `ls`.**
+`ls` is frozen while a ticker is off-pull, so ordering on it would re-pick the same 40 tickers
+every run and staleness would stay unbounded — the identical trap as keying forecast staleness
+off file mtime (see the Analyst forecasts section). `ea` is stamped on *attempt*, not success,
+so a ticker whose payload never parses can't camp at the queue head. With ~73 off-pull tickers
+and 9 sticky (2 pins + 7 with no AI report at all), worst-case AI staleness is **3 runs ≈ 15h**.
+Raise `ENRICH_LIMIT` once the off-pull set passes ~120. Guard: `node ci/test-enrich.mjs`.
+
+Net effect: freshly-pinned and freshly-arrived tickers end up fully populated, and off-pull
+tickers no longer serve stale AI data. (Consensus strings use the app's compact vocab —
+`StrongBuy`, not `Strong Buy` — because the UI substring-matches `strongbuy`; see `src/lib.ts`.)
+
+⚠️ **`ai` is 0–100 on BOTH sources — never rescale it.** This doc used to say the forecast
+score is "0–100 → ÷10", and `forecastFields` did divide. That was wrong on both counts. The
+screener writes `aiAnalystData.overallScore` undivided (live spread **39–85**), the forecast
+payload's `report.score` is the same scale (verified live: TER 71, AAPL 75, NVDA 79), and the
+app expects 0–100 — `scoreColor(s.ai, 100)` in the tables and a literal `/100` in `StockModal`.
+Because the enrich path only ever ran for the two **pinned** tickers, exactly 2 of 344 rows
+shipped on a 0–10 scale (TER 7.8 for a real 71, stuck for 58 commits and painted deep red in
+every table) while the other 342 were fine — which is why nothing looked broken. `aipt` on the
+same path is a **dollar** price target, not a score (TER 406 against a 367.69 price), and is
+correct as-is. Corrupt rows do **not** self-heal: `fillNulls` only fills nulls.
+
+- **Guard: `node ci/test-ai-scale.mjs`.** Fails if `src/data/stocks.json` mixes scales — some
+  non-null `ai` ≤ 10 while others are > 10 (impossible in one column: a real 0–10 column would
+  have *every* value ≤ 10) — or if the whole column is ≤ 10 over a 20+ row sample. It names the
+  offending tickers, and also re-asserts that `forecastFields` maps 78 → 78. The assumption,
+  stated in `aiScaleError` in `keep.mjs`, is that **no ticker legitimately scores ≤ 10 on 0–100**
+  (1st percentile of the live 344 is 41, nothing under 30). A bare `max/min` ratio was rejected:
+  it false-positives on any legitimately wide spread. **Not yet a step in `site.yml`** — same
+  manual posture as `test-staleness.mjs` / `test-forecast-html.mjs`; worth adding as one.
 
 The shared keep/expiry/mapping logic lives in `ci/keep.mjs` (used by both the CI and local
 scripts) and has a built-in self-check: `node ci/keep.mjs`.
