@@ -310,20 +310,133 @@ rather than quietly skipping the check.
 
 ### Where it runs, and what actually blocks a bad deploy
 
-- **`.github/workflows/tests.yml`** — `on: push` (every branch), `pull_request`,
-  `workflow_dispatch`. This is the red X on the commit, and the only coverage branches and
-  PRs get, since `site.yml` only triggers on pushes to `main`.
-- **`site.yml` → "Run all checks (npm test)"** — right after `npm ci`, *before* the scrapes,
-  the data commit, the build and the Pages deploy. **This step is the gate.** A separate
-  workflow cannot block `site.yml`'s deploy, so the deploy workflow has to run the checks
-  itself; putting it ahead of the scrapes also means a broken pipeline cannot commit bad JSON
-  to `main`.
-- Neither has `continue-on-error` — unlike the refresh steps above, which are deliberately
-  failure-tolerant. A red check stops the job.
+`site.yml` runs `npm test` **twice**, and the two runs guard different things. This is not
+belt-and-braces; skip either one and something real gets through.
 
-Cost of that belt-and-braces: a push to `main` runs the checks twice (~20s). Worth it — the
-gate and the status check serve different jobs. If you ever want it once, add
-`branches-ignore: [main]` to `tests.yml`'s `push` trigger and keep the `site.yml` step.
+| Step | When | What it can actually catch |
+|---|---|---|
+| `tests.yml` | every branch + PR (`main` excluded) | logic regressions, as a red X on the commit — the only coverage branches and PRs get, since `site.yml` only triggers on pushes to `main` |
+| `site.yml` → "Run all checks (npm test)" | after `npm ci`, **before** the scrapes | broken *code*, before it is allowed to touch the network |
+| `site.yml` → "Re-check the refreshed data (THE DATA GATE)" | after the scrapes, **before** the commit and the deploy | broken *data* — the snapshot this run just produced |
+
+The ordering is the whole point. The data checks (`test-ai-scale.mjs`,
+`test-consensus-direction.mjs`) read `src/data/*.json` **off disk**, so in the pre-scrape run
+they are validating the *previous* commit's snapshot. On their own they would have let a
+repeat of the ÷10 AI-scale bug be committed to `main` and deployed, going red only on the
+next cron run five hours later — with the bad data already live. The refresh commit also
+carries `[skip ci]`, so `tests.yml` never sees it either.
+
+Neither `npm test` step has `continue-on-error`, unlike the refresh steps above, which are
+deliberately failure-tolerant. Failing the data gate aborts before the commit and before the
+Pages deploy, so nothing is written and the last good deploy stays up.
+
+`main` is excluded from `tests.yml` because `site.yml` runs the identical command on every
+push to it — that exclusion is a duplicate-job saving, not a coverage gap.
 
 <!-- END: Tests -->
+
+## Enrich — the AI trio, the queue, and the cost bound
+
+Where `ci/refresh-data-ci.mjs` (and its local mirror `scripts/refresh-data.mjs`) top up rows
+from the per-ticker `stock-forecast` payload. This is the only per-ticker source for the
+AI-analyst score/rating/target and the sector name — `getData` exposes neither.
+
+**Why the AI trio overwrites instead of filling.** Rows outside a run's screener pull are
+built by `rowFromGetData`, which carries `ai`/`air`/`aipt`/`chg` verbatim from the previous
+row (`getData` genuinely has no AI-analyst fields, so carrying beats blanking). Nothing else
+ever re-checks them. Selecting only rows that "need a null filled" made that permanent: a
+carried row has both non-null, so it could never be picked, and `fillNulls` cannot overwrite
+a non-null anyway. UNP showed "Outperform"/74 for ~10 days (~46 runs) after TipRanks
+downgraded it to Neutral/69. Hence `|| !inPull.has(t)` in the eligibility filter.
+
+`chg` belongs in that set for the same reason and was the field the first pass forgot: it is
+Day %, the most time-sensitive column in the table, frozen on every off-pull row. Sampled
+12/12 wrong, sign wrong in 8 — TER showed +12.07 against a live +0.60, ARTV +9.29 against
+−3.16. The payload we already fetch carries it, so repairing it costs no extra request.
+
+**Atomicity.** The trio lands whole or not at all. Field-by-field, a payload with `score` but
+no `ratingId` ships a fresh 69 beside a stale "Outperform" — the exact UNP symptom, at half
+scale. `chg` is independent of the AI report and so is applied separately.
+
+**Scale.** The overwrite depends on `forecastFields` emitting `ai` on the screener's 0–100
+scale. Reinstate the old `/10` and the overwrite drags every off-pull row onto 0–10, where
+the UI's `scoreColor(s.ai, 100)` paints them dark — the fill path already stranded AAPL at
+8.2 and TER at 7.8 that way. `ci/test-ai-scale.mjs` guards it; see *AI score scale* below.
+
+**Rotation and the cost bound.** Queue order is oldest-AI-first, and `ea` (enriched-at) is
+stamped on **attempt, not success**, so a permanently-dead ticker goes to the back instead of
+camping at the head. `ls` cannot serve as that clock — `nextLastSeen` deliberately freezes it
+for exactly the off-pull tickers being rotated. `ba` does the same job for the backfill queue.
+Worst-case staleness is `ceil(eligible / (ENRICH_LIMIT − sticky))` runs × the 5h cron.
+Measured 2026-08-03: 73 off-pull with 9 sticky slots (2 pins by design, 7 rows whose payload
+carries no AI report at all) → 31 fresh slots/run → 3 runs ≈ 15h, inside a news cycle.
+
+`ENRICH_LIMIT` is **derived**, not fixed: a fixed 40 could not bound a set growing ~5.7/day,
+and the 15h worst case would decay to ~50h within six weeks. Floor 40 for small sets, ceiling
+`ENRICH_MAX` (120) because every unit is one FlareSolverr fetch on top of `BACKFILL_LIMIT`.
+
+The ceiling does a second job: it is what makes the staleness `WARNING` reachable. While the
+cap was purely `eligible / ENRICH_TARGET_RUNS`, the condition `eligible > cap * runs` was
+arithmetically unsatisfiable — a guard that read as protection and was dead code. With the
+ceiling it fires above 360 eligible rows, i.e. when rotation really has slipped past target.
+`ci/test-enrich.mjs` asserts both the bound and that regression.
+
+## Smart Score — why an explicit `null` is data, not a miss
+
+TipRanks emits `score: null` as a **real value** meaning "this stock has no Smart Score".
+Verified live: ASTI and BCDA both return the full `tipranksStockScore` object
+(`returnOnAssets`, `momentum`, `assetGrowth`, …) with `"score": null`, while GOOGL comes back
+10 and DNLI 6 from the very same shape. So `ssFromGetData` keys off the **presence of the
+key**, not the nullness of the value.
+
+A plain `?? prev.ss` collapses "no score" and "payload reshaped" into a single "carry", which
+resurrects the last known number and serves it as if freshly read. ASTI stayed frozen at
+`ss: 2` from 2026-07-23 across 7 market-moving runs and could never recover to "—" while it
+stayed off the screener list.
+
+**The trade-off, stated deliberately.** If TipRanks ever drops `tipranksStockScore` entirely
+or renames `score`, every keep-path ticker silently holds its previous `ss`. That is the safe
+side of the line: a vanished field is a *scraper bug*, not a data change, and freezing beats
+blanking 350 rows on our own parse error. An explicit null is the opposite — it *is* the data,
+so we fail visibly and render "—". An explicitly `null` *object* is lumped in with absent
+(unobserved in the wild; carrying is the conservative reading).
+
+This is also what makes the two write paths agree rather than disagree: the screener path uses
+`?? null`, which is why on-list no-score tickers like BCDA already render "—". A wholesale
+screener failure cannot quietly blank the file either — the row-count guard in
+`refresh-data-ci.mjs` aborts before anything is written — and a garbage per-ticker response
+cannot reach the mapper, since both callers accept the mapped row only `if (row.t)` and
+otherwise carry the whole previous row.
+
+## AI score scale
+
+`ai` is 0–100 on **both** sources. `report.score` verified live at TER 71 / AAPL 75 / NVDA 79,
+the same scale as the screener's `aiAnalystData.overallScore` (live spread 39–85). `aipt` is a
+price target in dollars, not a score — TER 406 vs px 367.69, AAPL 348 vs 308.91, NVDA 223 vs
+200.75. Neither is rescaled.
+
+A `/10` in `forecastFields` once wrote the two pinned rows on a 0–10 scale (TER 7.8 for a real
+71) and went unnoticed for 58 commits, because that path only ever ran for pins — exactly two
+rows of 344 — and one small number in isolation is indistinguishable from a genuinely low
+score. `fillNulls` could not self-heal them either, since it never overwrites a non-null; the
+enrich overwrite pass is what repaired them.
+
+`aiScaleError` encodes the detectable signal — the **mixture** — with one stated assumption:
+**no ticker legitimately scores ≤ 10 on the 0–100 scale.** Of 344 non-null rows the real
+spread is 39–85 and the 1st percentile is 41; nothing has ever come in under 30. If TipRanks
+ever publishes a genuine single-digit score this trips. That is the deliberate cost of a check
+that cannot be fooled.
+
+Two rejected alternatives, so they don't get re-proposed:
+
+- **A max/min ratio.** False-positives on any legitimately wide spread — 8 → 85 is a ratio of
+  10.6 and perfectly valid data.
+- **Lowering the `floor` argument "to be careful."** It is the low/high split point, so
+  lowering it *silences* the guard: at `floor: 5`, 7.8 and 8.2 count as high and the original
+  bug passes. Raising it tightens. `ci/test-keep.mjs` pins this footgun with explicit
+  assertions.
+
+`ci/test-ai-scale.mjs` points the guard at the data we actually ship, and carries a positive
+control derived from the shipped rows — rescale one by `/10` and the guard must name it — so
+neutering `aiScaleError` to `return null` cannot make the file pass silently.
 
