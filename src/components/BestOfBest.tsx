@@ -1,8 +1,9 @@
 import { useMemo, type ReactNode } from "react";
-import { consClass, consLabel, fmtMc, fmtPx, scoreColor } from "../lib";
+import { consLabel, fmtMc, fmtPx, scoreColor } from "../lib";
 import stocksData from "../data/stocks.json";
 import type { Stock } from "../types";
 import type { Mark, MarkEntry } from "../watchlist";
+import { ConsPill } from "./StockTable";
 import ThumbMark from "./ThumbMark";
 
 const STOCKS = stocksData as Stock[];
@@ -94,7 +95,7 @@ export function Card({
         <div className="bob-m">
           <span className="bob-k">Consensus</span>
           <span className="bob-v">
-            <span className={`pill ${consClass(s.con)}`}>{consLabel(s.con)}</span>
+            <ConsPill con={s.con} />
             <span className="bob-dist">
               {s.b}·{s.h}·{s.s}
             </span>

@@ -45,8 +45,11 @@ export const fmtMc = (m: number | null): string =>
 export const fmtPx = (v: number | null): string =>
   v == null ? "—" : "$" + (v >= 100 ? v.toFixed(0) : v.toFixed(2));
 
-export function consClass(c: string): string {
-  c = (c || "").toLowerCase();
+// A missing consensus gets NO rating class — it must not fall through to "h" and
+// paint as a real Hold. Callers render the neutral "—" placeholder instead (ConsPill).
+export function consClass(c: string | null | undefined): string {
+  if (c == null || c === "") return "";
+  c = c.toLowerCase();
   if (c.includes("strongbuy")) return "sb";
   if (c.includes("strongsell")) return "ss";
   if (c.includes("buy")) return "b";
@@ -54,7 +57,7 @@ export function consClass(c: string): string {
   return "h";
 }
 
-export function consLabel(c: string): string {
+export function consLabel(c: string | null | undefined): string {
   return (c || "—").replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 
@@ -81,7 +84,10 @@ export function passes(s: Stock, state: FilterState): boolean {
   }
   if (state.sectors.length && state.sectors.includes(s.sec) === state.sectorNot) return false;
   if (state.cap && (s.mc == null || s.mc < state.cap)) return false;
-  if (state.consensuses.length && !state.consensuses.includes(s.con || "")) return false;
+  // Consensus is a membership test over KNOWN ratings only: a row whose rating the feed
+  // omitted (con null/"") is KEPT, not dropped, so it can't blink out of the table for a
+  // refresh cycle. Its cell renders "—", so it never reads as a match for the selection.
+  if (state.consensuses.length && s.con != null && s.con !== "" && !state.consensuses.includes(s.con)) return false;
   return true;
 }
 
@@ -126,7 +132,9 @@ export const firstSeen = (t: string): SeenEntry | null => SEEN[t] ?? null;
 export function sortRows(rows: Stock[], sort: keyof Stock, dir: number): Stock[] {
   return [...rows].sort((a, b) => {
     // Consensus sorts on the analyst mix, not the rating string: desc = most buys,
-    // then fewest holds, then fewest sells. asc mirrors all three.
+    // then fewest holds, then fewest sells. asc mirrors all three. Never reads `con`,
+    // so a null rating can't skew the order — a row with no rating has no distribution
+    // either (b/h/s all 0), which parks it at the "fewest buys" end.
     if (sort === "con") return dir * (a.b - b.b || b.h - a.h || b.s - a.s);
     const x = a[sort];
     const y = b[sort];

@@ -39,6 +39,13 @@ export function Chip({ v, max }: { v: number | null; max: number }) {
   );
 }
 
+// No consensus from the feed → the same neutral "—" the other missing values use
+// (see Chip above), NOT a pill: an unrated row must not look like a real Hold.
+export function ConsPill({ con }: { con: string | null }) {
+  if (con == null || con === "") return <span className="dash">—</span>;
+  return <span className={`pill ${consClass(con)}`}>{consLabel(con)}</span>;
+}
+
 export function UpBar({ up }: { up: number | null }) {
   if (up == null) return <span className="dash">—</span>;
   const neg = up < 0;
@@ -183,7 +190,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, obs
                     })()}
                   </td>
                   <td className="con-cell" data-label="Consensus">
-                    <span className={`pill ${consClass(s.con)}`}>{consLabel(s.con)}</span>
+                    <ConsPill con={s.con} />
                     <div className="dist" title={`${s.b} buy · ${s.h} hold · ${s.s} sell`}>
                       <span className="d-b">▲{s.b}</span>
                       <span className="d-h">●{s.h}</span>

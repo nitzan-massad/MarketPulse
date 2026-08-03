@@ -1,8 +1,8 @@
 import type { User } from "firebase/auth";
 import stocksData from "../data/stocks.json";
 import type { Stock } from "../types";
-import { consClass, consLabel, fmtMc, fmtPx, scoreColor } from "../lib";
-import { Chip, UpBar } from "./StockTable";
+import { fmtMc, fmtPx, scoreColor } from "../lib";
+import { Chip, ConsPill, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
 
@@ -121,7 +121,7 @@ export default function Watchlist({
                     <UpBar up={s.up} />
                   </td>
                   <td className="l">
-                    <span className={`pill ${consClass(s.con)}`}>{consLabel(s.con)}</span>
+                    <ConsPill con={s.con} />
                   </td>
                   <td className="ctr">
                     <Chip v={s.ss} max={10} />

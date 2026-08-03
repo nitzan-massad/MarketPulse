@@ -13,8 +13,9 @@ export interface Stock {
   pt: number | null;
   /** Upside % to target */
   up: number | null;
-  /** Consensus name e.g. "StrongBuy" / "Buy" / "Hold" / "Sell" / "StrongSell" */
-  con: string;
+  /** Consensus name e.g. "StrongBuy" / "Buy" / "Hold" / "Sell" / "StrongSell", or
+   *  null when the feed omits the rating (see ci/refresh-data-ci.mjs, ci/keep.mjs) */
+  con: string | null;
   /** Analyst buy count */
   b: number;
   /** Analyst hold count */
