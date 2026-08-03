@@ -175,6 +175,14 @@ the commit step also stages `public/forecasts`.
   fixture (ADCT) had no revised row, which is why the original test passed. `ci/fixtures/vtgn-forecast.html`
   now covers the revised case; keep both.
 
+  **Stage 2, planned but NOT built: merge SSR rows into the JSON path instead of only falling
+  back.** The teaser window covers the *freshest* ratings, so JSON-path tickers systematically
+  miss the newest analyst action — 8 of 8 sampled large caps did, ALGS by 4 months, and the union
+  was +24% rows. Because the forecast scrape already rotates (`LIMIT=90`), the merge costs
+  ~90 extra HTML fetches per run rather than 351. See [`PLAN-ssr-merge.md`](./PLAN-ssr-merge.md)
+  for the merge/precedence rules, the phased rollout, and the notification-blast risk that has
+  to be settled first.
+
   `expertRatingsFilteredCount` equals the count of name-null experts (verified across 21
   payloads, zero mismatches) — it is both the gate and the alarm: **if it ever exceeds 4 real
   brokers, the teaser window has widened and will start eating mid-caps.** Gating on it keeps
