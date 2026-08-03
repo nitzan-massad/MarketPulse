@@ -10,7 +10,9 @@ import assert from "node:assert/strict";
 import { fillNulls } from "./keep.mjs";
 
 const iso = (hoursAgo) => new Date(Date.now() - hoursAgo * 36e5).toISOString();
-const AI_FIELDS = ["ai", "air", "aipt"];
+// mirrors CARRIED_FIELDS in refresh-data-ci.mjs — the fields getData cannot supply,
+// so enrich must overwrite them. `chg` (Day %) is one: it was frozen on every off-pull row.
+const CARRIED_FIELDS = ["ai", "air", "aipt", "chg"];
 
 // --- selection, mirrored from ci/refresh-data-ci.mjs -----------------------
 // `rows` : ticker -> stocks.json row, `seen` : ticker -> seen.json entry
@@ -30,7 +32,12 @@ const select = (rows, seen, inPull, pinned, limit) => {
 // everything fills, the AI trio overwrites
 const applyForecast = (row, f) => {
   fillNulls(row, f);
-  for (const k of AI_FIELDS) if (f[k] != null) row[k] = f[k];
+  for (const k of CARRIED_FIELDS) {
+    const v = f[k];
+    if (v == null) continue;
+    if (typeof v === "number" && !Number.isFinite(v)) continue; // NaN would serialise to null and blank a good value
+    row[k] = v;
+  }
   return row;
 };
 
@@ -116,3 +123,30 @@ const applyForecast = (row, f) => {
 }
 
 console.log("enrich queue: ok");
+
+// --- the overwrite must not blank a good value when the payload reshapes ---------
+// rnd() returns NaN for a non-numeric score, and JSON.stringify(NaN) is null, so a bare
+// `!= null` test would wipe the very field it promises to protect.
+{
+  const stale = { t: "X", ai: 74, air: "Outperform", aipt: 328, chg: 4.02 };
+  const reshaped = { ai: NaN, air: null, aipt: NaN, chg: NaN };
+  const row = { ...stale };
+  for (const k of CARRIED_FIELDS) {
+    const v = reshaped[k];
+    if (v == null) continue;
+    if (typeof v === "number" && !Number.isFinite(v)) continue;
+    row[k] = v;
+  }
+  assert.deepEqual(row, stale, "a reshaped payload must carry every field, not blank it");
+  assert.equal(JSON.stringify({ ai: NaN }), '{"ai":null}', "NaN really does serialise to null — this is why the guard exists");
+}
+
+// --- chg is refreshed, and that was the whole point of adding it ------------------
+{
+  const row = { t: "TER", ai: 71, air: "Outperform", aipt: 406, chg: 12.07 }; // 12 days stale
+  const fresh = { ai: 71, air: "Outperform", aipt: 406, chg: 0.6 };
+  for (const k of CARRIED_FIELDS) if (fresh[k] != null) row[k] = fresh[k];
+  assert.equal(row.chg, 0.6, "Day % must be overwritten, not carried");
+}
+
+console.log("enrich overwrite (incl. chg + NaN guard): ok");

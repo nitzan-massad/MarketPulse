@@ -142,14 +142,21 @@ console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried,
 // The off-pull set grows monotonically against KEEP_MAX_AGE_DAYS — raise ENRICH_LIMIT
 // once it passes ~120, or the bound stretches past a day.
 const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT || 40);
-const AI_FIELDS = ["ai", "air", "aipt"];
+// Exactly the fields rowFromGetData carries from the previous row because getData does
+// not ship them (see ci/keep.mjs) — so enrich must OVERWRITE these, not fill them.
+// `chg` belongs here for the same reason as the AI trio and was the field this pass
+// originally forgot: it is Day %, the most time-sensitive column in the table, and it
+// was frozen on every off-pull row. Sampled 12/12 wrong, sign wrong in 8 — TER showed
+// +12.07 against a live +0.60, ARTV +9.29 against -3.16. The payload we already fetch
+// carries it (keep.mjs forecastFields), so repairing it costs no extra request.
+const CARRIED_FIELDS = ["ai", "air", "aipt", "chg"];
 // When this row's AI trio was last known-good: in the pull (the screener ships
 // aiAnalystData) or enriched. Reuses lsMs so there is one age concept, not two.
 const aiFreshMs = (t) => Math.max(lsMs(t), Date.parse(prevSeen[t]?.ea || "") || 0);
 const needsFill = (r) => r.ai == null || r.sec == null;
 const prio = (t, r) => (pinned.includes(t) ? 0 : needsFill(r) ? 1 : 2); // pins, then blanks (incl. new arrivals), then stale carries
-const enrichList = [...seen.entries()]
-  .filter(([t, r]) => needsFill(r) || !inPull.has(t))
+const enrichEligible = [...seen.entries()].filter(([t, r]) => needsFill(r) || !inPull.has(t));
+const enrichList = enrichEligible
   .sort((a, b) => prio(a[0], a[1]) - prio(b[0], b[1]) || aiFreshMs(a[0]) - aiFreshMs(b[0]))
   .slice(0, ENRICH_LIMIT)
   .map(([t]) => t);
@@ -161,11 +168,27 @@ for (const t of enrichList) {
     const sol = await flareGet(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`);
     const f = forecastFields(extractJson(sol.response), t);
     const row = fillNulls(seen.get(t), f);
-    for (const k of AI_FIELDS) if (f[k] != null) row[k] = f[k]; // overwrite — never blank
+    // `!= null` alone is not enough: rnd() yields NaN on a reshaped/non-numeric score, and
+    // JSON.stringify(NaN) is null — so the "never blank a good value" promise would break
+    // exactly when the payload changes shape. Carry on reshape, blank only on an explicit
+    // null, matching the doctrine ssFromGetData states in ci/keep.mjs.
+    for (const k of CARRIED_FIELDS) {
+      const v = f[k];
+      if (v == null) continue;
+      if (typeof v === "number" && !Number.isFinite(v)) continue;
+      row[k] = v;
+    }
     enriched++;
   } catch (e) { console.log(`  enrich ${t}: forecast skip (${e.message})`); }
 }
-console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast (${enrichList.filter((t) => !inPull.has(t)).length} off-pull)`);
+const offPull = enrichEligible.filter(([t]) => !inPull.has(t)).length; // count BEFORE the slice — the old log counted after, so it saturated at ENRICH_LIMIT and read 36 when 73 were off-pull
+console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast (${offPull} off-pull, cap ${ENRICH_LIMIT})`);
+// Nothing else watches this: once eligible rows outpace the cap, AI/chg staleness quietly
+// grows past a day again. Off-pull grew 3 -> 73 in 12 days (~5.7/day), so this WILL fire.
+if (enrichEligible.length > ENRICH_LIMIT * 2) {
+  console.log(`  WARNING: ${enrichEligible.length} rows need enriching but the cap is ${ENRICH_LIMIT}`
+    + ` — full rotation now takes ~${Math.ceil(enrichEligible.length / ENRICH_LIMIT)} runs. Raise ENRICH_LIMIT.`);
+}
 
 mkdirSync("src/data", { recursive: true });
 writeFileSync("src/data/stocks.json", JSON.stringify([...seen.values()]));
