@@ -69,7 +69,9 @@ score and a literal `0` still win).
 **stock-forecast** payload (`www.tipranks.com/stocks/<t>/stock-forecast/payload.json`
 → `ci/keep.mjs` `forecastFields`) if it is still missing `ai`/`sec` **or if it is off-pull**:
 AI score, AI rating, AI target, and the sector name (slug → the app's PascalCase form).
-Ordered pins → blanks → stalest carry, capped by `ENRICH_LIMIT` (default **40**), failure-tolerant.
+Ordered stale-pins → blanks → stalest carry, failure-tolerant. `ENRICH_LIMIT` is **derived**
+(`max(40, ceil(eligible / 3))`) so full rotation stays inside 3 runs as the off-pull set grows —
+a fixed 40 let the bound decay from ~15h to ~50h within six weeks. An explicit env var wins.
 
 `sec` and the rest are fill-only, but **the AI trio (`ai`/`air`/`aipt`) OVERWRITES** — and must,
 because `getData` carries no AI-analyst data (`ci/keep.mjs` carries the trio from the previous
@@ -83,8 +85,21 @@ overwrites — a null never blanks a good one.
 every run and staleness would stay unbounded — the identical trap as keying forecast staleness
 off file mtime (see the Analyst forecasts section). `ea` is stamped on *attempt*, not success,
 so a ticker whose payload never parses can't camp at the queue head. With ~73 off-pull tickers
-and 9 sticky (2 pins + 7 with no AI report at all), worst-case AI staleness is **3 runs ≈ 15h**.
-Raise `ENRICH_LIMIT` once the off-pull set passes ~120. Guard: `node ci/test-enrich.mjs`.
+worst-case AI staleness is **3 runs ≈ 15h**, and stays there because the cap scales. A pin is
+prioritised only when actually stale (>3d), so pins no longer re-cost a fetch every run and
+sticky slots can't crowd out rotation. The AI trio is applied **atomically** — a payload with
+`score` but no `ratingId` would otherwise ship a fresh score beside a stale rating, the very
+symptom this pass exists to fix. An empty result is logged and counted (`N with no report`)
+rather than silently counting as enriched.
+
+**The keep-set backfill queue has the identical hazard and the identical fix**: it is ordered
+by `ba` (backfilled-at), not `ls`, because every candidate is off-pull and `ls` is frozen for
+exactly those. Without it, the tail past `BACKFILL_LIMIT` would never be fetched and those rows
+would serve stale *prices*, not just stale AI data. Both stamps are written on **attempt**, so a
+permanently-dead ticker rotates away instead of camping at the queue head.
+
+`scripts/refresh-data.mjs` mirrors all of this. It diverged once and silently reproduced the
+bug CI had already fixed — keep the two in step. Guard: `node ci/test-enrich.mjs`.
 
 Net effect: freshly-pinned and freshly-arrived tickers end up fully populated, and off-pull
 tickers no longer serve stale AI data. (Consensus strings use the app's compact vocab —

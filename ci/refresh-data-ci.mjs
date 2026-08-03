@@ -99,11 +99,19 @@ try { for (const r of JSON.parse(readFileSync("src/data/stocks.json", "utf8"))) 
 const BACKFILL_LIMIT = Number(process.env.BACKFILL_LIMIT || 300);
 const { keep, dropped } = computeKeep(pinned, prevSeen, Date.now(), KEEP_MAX_AGE_DAYS);
 const lsMs = (t) => Date.parse(prevSeen[t]?.ls || prevSeen[t]?.d || "") || 0;
-const missing = [...keep].filter((t) => !inPull.has(t)).sort((a, b) => lsMs(a) - lsMs(b));
+// #6 — DO NOT sort this queue on lsMs. `ls` is frozen while a ticker is off-pull (that is
+// what nextLastSeen does), and every ticker in `missing` is BY DEFINITION off-pull — so the
+// ordering never changes and, once `missing` exceeds BACKFILL_LIMIT, the tail past the cap is
+// never fetched again. Same trap as file mtime and as the enrich queue. `ba` (backfilled-at,
+// stamped in the seen tracker below) advances, so a fetched ticker goes to the back.
+const baMs = (t) => Date.parse(prevSeen[t]?.ba || "") || lsMs(t);
+const missing = [...keep].filter((t) => !inPull.has(t)).sort((a, b) => baMs(a) - baMs(b));
+const backfillTried = new Set();
 let refreshed = 0, carried = 0;
 for (const t of missing) {
   const prev = prevRows.get(t) || {};
   if (refreshed < BACKFILL_LIMIT) {
+    backfillTried.add(t); // attempt, not success — a permanently-dead ticker must not camp at the head
     try {
       const sol = await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`);
       const row = rowFromGetData(extractJson(sol.response), prev);
@@ -113,7 +121,13 @@ for (const t of missing) {
   if (prev.t) { seen.set(t, prev); carried++; } // over cap or fetch failed — keep last-known row
 }
 for (const t of pinned) if (seen.has(t)) (membership[t] ??= new Set()).add("p");
-console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried, ${dropped.length} expired)`);
+console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried, ${dropped.length} expired, cap ${BACKFILL_LIMIT})`);
+// The second cliff: past the cap, prices/consensus/ss go stale too, not just AI data.
+// Off-pull grew 3 -> 73 in 12 days, so this fires around Sept-Oct 2026 without a bump.
+if (missing.length > BACKFILL_LIMIT * 0.8) {
+  console.log(`  WARNING: ${missing.length} kept tickers are off-pull against a cap of ${BACKFILL_LIMIT}`
+    + ` — at the cap, rows past it serve stale prices. Raise BACKFILL_LIMIT or lower KEEP_MAX_AGE_DAYS.`);
+}
 
 // Enrich from the per-ticker stock-forecast payload — the only per-ticker source for the
 // AI-analyst score/rating/target and the sector name. Two jobs:
@@ -141,7 +155,11 @@ console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried,
 // → 31 fresh slots/run → 3 runs ≈ 15h, well inside a rating-change news cycle.
 // The off-pull set grows monotonically against KEEP_MAX_AGE_DAYS — raise ENRICH_LIMIT
 // once it passes ~120, or the bound stretches past a day.
-const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT || 40);
+// #5 — a FIXED cap cannot bound a growing set: at 40 with off-pull growing ~5.7/day the
+// 3-run (15h) worst case decays to ~20h within a week and ~50h in six. The cap is therefore
+// derived from the eligible set so the bound stays put, with 40 as a floor for small sets.
+// Explicit ENRICH_LIMIT still wins, which is what the tests and a manual run use.
+const ENRICH_TARGET_RUNS = 3; // full rotation within 3 runs = ~15h at the 5h cron
 // Exactly the fields rowFromGetData carries from the previous row because getData does
 // not ship them (see ci/keep.mjs) — so enrich must OVERWRITE these, not fill them.
 // `chg` belongs here for the same reason as the AI trio and was the field this pass
@@ -154,38 +172,52 @@ const CARRIED_FIELDS = ["ai", "air", "aipt", "chg"];
 // aiAnalystData) or enriched. Reuses lsMs so there is one age concept, not two.
 const aiFreshMs = (t) => Math.max(lsMs(t), Date.parse(prevSeen[t]?.ea || "") || 0);
 const needsFill = (r) => r.ai == null || r.sec == null;
-const prio = (t, r) => (pinned.includes(t) ? 0 : needsFill(r) ? 1 : 2); // pins, then blanks (incl. new arrivals), then stale carries
+// #10 — a pin is prio 0 only when it is actually STALE. Unconditional prio 0 re-fetched both
+// pins every run (2 wasted requests) and, worse, sticky slots scale with the pin count: if
+// pins + permanent blanks ever reached the cap, prio-2 rotation would stop dead and
+// staleness would silently return to unbounded. Fresh pins now fall through to the queue.
+const STALE_MS = 3 * 864e5;
+const prio = (t, r) => (pinned.includes(t) && Date.now() - aiFreshMs(t) > STALE_MS ? 0 : needsFill(r) ? 1 : 2);
 const enrichEligible = [...seen.entries()].filter(([t, r]) => needsFill(r) || !inPull.has(t));
+const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT)
+  || Math.max(40, Math.ceil(enrichEligible.length / ENRICH_TARGET_RUNS));
 const enrichList = enrichEligible
   .sort((a, b) => prio(a[0], a[1]) - prio(b[0], b[1]) || aiFreshMs(a[0]) - aiFreshMs(b[0]))
   .slice(0, ENRICH_LIMIT)
   .map(([t]) => t);
-let enriched = 0;
+let enriched = 0, noReport = 0;
 const enrichTried = new Set();
 for (const t of enrichList) {
   enrichTried.add(t); // stamp the attempt, not the success: a ticker with no forecast payload must not block the queue head forever
   try {
     const sol = await flareGet(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`);
     const f = forecastFields(extractJson(sol.response), t);
+    // #9 — an empty result was a SILENT no-op that still counted as enriched and still
+    // stamped `ea`, so the row rotated to the back with no signal and could never re-queue
+    // as prio-1. Usually a bundle/_id mismatch, i.e. our bug, not missing data.
+    if (!Object.keys(f).length) { noReport++; console.log(`  enrich ${t}: no forecast fields in payload`); continue; }
     const row = fillNulls(seen.get(t), f);
     // `!= null` alone is not enough: rnd() yields NaN on a reshaped/non-numeric score, and
     // JSON.stringify(NaN) is null — so the "never blank a good value" promise would break
     // exactly when the payload changes shape. Carry on reshape, blank only on an explicit
     // null, matching the doctrine ssFromGetData states in ci/keep.mjs.
-    for (const k of CARRIED_FIELDS) {
-      const v = f[k];
-      if (v == null) continue;
-      if (typeof v === "number" && !Number.isFinite(v)) continue;
-      row[k] = v;
-    }
+    // #8 — write the AI trio ATOMICALLY. Field-by-field, a payload with `score` but no
+    // `ratingId` shipped a fresh 69 next to a stale "Outperform" — the exact UNP symptom
+    // this pass exists to fix, reintroduced at half scale. Either the whole trio lands or
+    // none of it does. `chg` is independent of the AI report, so it is applied separately.
+    const usable = (v) => v != null && !(typeof v === "number" && !Number.isFinite(v));
+    const trio = ["ai", "air", "aipt"];
+    if (trio.every((k) => usable(f[k]))) for (const k of trio) row[k] = f[k];
+    else if (trio.some((k) => usable(f[k]))) console.log(`  enrich ${t}: partial AI report, trio not applied`);
+    if (usable(f.chg)) row.chg = f.chg;
     enriched++;
   } catch (e) { console.log(`  enrich ${t}: forecast skip (${e.message})`); }
 }
 const offPull = enrichEligible.filter(([t]) => !inPull.has(t)).length; // count BEFORE the slice — the old log counted after, so it saturated at ENRICH_LIMIT and read 36 when 73 were off-pull
-console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast (${offPull} off-pull, cap ${ENRICH_LIMIT})`);
+console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast (${offPull} off-pull, cap ${ENRICH_LIMIT}, ${noReport} with no report)`);
 // Nothing else watches this: once eligible rows outpace the cap, AI/chg staleness quietly
 // grows past a day again. Off-pull grew 3 -> 73 in 12 days (~5.7/day), so this WILL fire.
-if (enrichEligible.length > ENRICH_LIMIT * 2) {
+if (enrichEligible.length > ENRICH_LIMIT * ENRICH_TARGET_RUNS) {
   console.log(`  WARNING: ${enrichEligible.length} rows need enriching but the cap is ${ENRICH_LIMIT}`
     + ` — full rotation now takes ~${Math.ceil(enrichEligible.length / ENRICH_LIMIT)} runs. Raise ENRICH_LIMIT.`);
 }
@@ -214,7 +246,12 @@ for (const [t, r] of seen) {
 }
 // `ea` = AI trio last re-checked. Sends this run's picks to the back of the enrich queue
 // so the off-pull set rotates through it; `ls` alone is frozen while a ticker is off-pull.
+// Rotation stamps. Both are "attempted at", not "succeeded at": a permanently-dead ticker
+// must go to the back of its queue rather than camp at the head every run. Both MUST be
+// stamped or the corresponding queue re-picks the same head forever — `ls` cannot serve,
+// because nextLastSeen deliberately freezes it for exactly these off-pull tickers.
 for (const t of enrichTried) if (firstSeen[t]) firstSeen[t].ea = today;
+for (const t of backfillTried) if (firstSeen[t]) firstSeen[t].ba = today;
 writeFileSync("src/data/seen.json", JSON.stringify(firstSeen));
 const freshCount = Object.values(firstSeen).filter((v) => v.d !== "baseline").length;
 console.log(`seen.json: ${Object.keys(firstSeen).length} tickers, ${freshCount} dated`);

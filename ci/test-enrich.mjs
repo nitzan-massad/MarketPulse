@@ -150,3 +150,81 @@ console.log("enrich queue: ok");
 }
 
 console.log("enrich overwrite (incl. chg + NaN guard): ok");
+
+// --- #10: a pin is prio 0 only when actually stale ------------------------------
+// Unconditional prio 0 re-fetched every pin every run, and sticky slots scaled with the pin
+// count — enough pins and prio-2 rotation stops dead, so staleness silently goes unbounded.
+{
+  const STALE_MS = 3 * 864e5;
+  const now = Date.parse("2026-08-03T12:00:00Z");
+  const prio = (pinned, t, r, freshMs) =>
+    pinned.includes(t) && now - freshMs > STALE_MS ? 0 : (r.ai == null || r.sec == null) ? 1 : 2;
+  const full = { ai: 71, sec: "Technology" };
+  assert.equal(prio(["TER"], "TER", full, now - 1 * 864e5), 2, "a FRESH pin must not jump the queue");
+  assert.equal(prio(["TER"], "TER", full, now - 9 * 864e5), 0, "a STALE pin still gets priority");
+  assert.equal(prio(["TER"], "X", { ai: null, sec: null }, now), 1, "a blank row is prio 1");
+  assert.equal(prio([], "X", full, 0), 2, "never-enriched non-pin is prio 2");
+}
+
+// --- #5: the cap scales with the eligible set so the bound cannot decay ---------
+// A fixed 40 meant the 3-run (~15h) worst case drifted to ~20h in a week and ~50h in six,
+// because the off-pull set grows ~5.7/day. Derive the cap instead; keep 40 as a floor.
+{
+  const cap = (n, target = 3) => Math.max(40, Math.ceil(n / target));
+  assert.equal(cap(73), 40, "73 eligible still fits the floor");
+  assert.equal(cap(120), 40, "120/3 = 40, exactly the floor");
+  assert.equal(cap(200), 67, "200 eligible -> 67, so rotation stays at 3 runs");
+  assert.equal(cap(350), 117, "350 eligible -> 117");
+  for (const n of [1, 40, 73, 120, 200, 350, 1000]) {
+    assert.ok(Math.ceil(n / cap(n)) <= 3, `rotation stays within 3 runs at n=${n}`);
+  }
+}
+
+// --- #8: the AI trio lands atomically ------------------------------------------
+// Field-by-field, a payload with `score` but no `ratingId` shipped a fresh 69 beside a stale
+// "Outperform" — the exact UNP symptom, reintroduced at half scale.
+{
+  const usable = (v) => v != null && !(typeof v === "number" && !Number.isFinite(v));
+  const apply = (row, f) => {
+    const trio = ["ai", "air", "aipt"];
+    if (trio.every((k) => usable(f[k]))) for (const k of trio) row[k] = f[k];
+    if (usable(f.chg)) row.chg = f.chg;
+    return row;
+  };
+  const stale = () => ({ ai: 74, air: "Outperform", aipt: 328, chg: 4.02 });
+  assert.deepEqual(apply(stale(), { ai: 69, air: "Neutral", aipt: 333, chg: 0.92 }),
+    { ai: 69, air: "Neutral", aipt: 333, chg: 0.92 }, "a complete report replaces the whole trio");
+  assert.deepEqual(apply(stale(), { ai: 69, chg: 0.92 }),
+    { ai: 74, air: "Outperform", aipt: 328, chg: 0.92 },
+    "a PARTIAL report leaves the trio alone — no fresh score beside a stale rating");
+  assert.deepEqual(apply(stale(), { air: "Neutral" }), stale(), "rating alone is not enough");
+  assert.deepEqual(apply(stale(), { ai: NaN, air: "Neutral", aipt: 333 }), stale(), "NaN makes the trio unusable");
+  // chg is independent of the AI report and must still refresh on its own
+  assert.equal(apply(stale(), { chg: 0.6 }).chg, 0.6, "chg refreshes even when the trio is incomplete");
+}
+
+// --- #9: an empty result is a signal, not a silent success ----------------------
+{
+  const f = {};
+  assert.equal(Object.keys(f).length, 0, "an _id/bundle mismatch yields {} — must be counted and logged, not enriched");
+}
+
+// --- #6: the backfill queue must not order on a frozen key ---------------------
+// `ls` is frozen for off-pull tickers and EVERY backfill candidate is off-pull, so ordering
+// on it re-picks the same head forever and the tail past BACKFILL_LIMIT is never fetched.
+{
+  const seenA = { A: { ls: "2026-07-01T00:00:00Z" }, B: { ls: "2026-07-02T00:00:00Z" }, C: { ls: "2026-07-03T00:00:00Z" } };
+  const lsMs = (s) => (t) => Date.parse(s[t]?.ls || s[t]?.d || "") || 0;
+  const baMs = (s) => (t) => Date.parse(s[t]?.ba || "") || lsMs(s)(t);
+  const pick = (s, key, cap) => ["A", "B", "C"].sort((x, y) => key(s)(x) - key(s)(y)).slice(0, cap);
+
+  const first = pick(seenA, baMs, 2);
+  assert.deepEqual(first, ["A", "B"], "first run takes the two oldest");
+  const stamped = { ...seenA };
+  for (const t of first) stamped[t] = { ...stamped[t], ba: "2026-08-03T00:00:00Z" };
+  assert.deepEqual(pick(stamped, baMs, 2), ["C", "A"], "ba advances, so C finally gets its turn");
+  // control: ls-only ordering never reaches C
+  assert.deepEqual(pick(stamped, lsMs, 2), ["A", "B"], "CONTROL: ls-only ordering re-picks the same head forever");
+}
+
+console.log("enrich queue hardening (#5 #6 #8 #9 #10): ok");

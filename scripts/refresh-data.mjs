@@ -123,7 +123,11 @@ try { for (const r of JSON.parse(readFileSync("src/data/stocks.json", "utf8"))) 
 const BACKFILL_LIMIT = Number(process.env.BACKFILL_LIMIT || 300);
 const { keep, dropped } = computeKeep(pinned, prevSeen, Date.now(), KEEP_MAX_AGE_DAYS);
 const lsMs = (t) => Date.parse(prevSeen[t]?.ls || prevSeen[t]?.d || "") || 0;
-const missing = [...keep].filter((t) => !inPull.has(t)).sort((a, b) => lsMs(a) - lsMs(b));
+// Not lsMs: `ls` is frozen for off-pull tickers and every entry here IS off-pull, so the
+// order would never change and the tail past BACKFILL_LIMIT would never be fetched. `ba`
+// (backfilled-at) advances. Mirrors ci/refresh-data-ci.mjs.
+const baMs = (t) => Date.parse(prevSeen[t]?.ba || "") || lsMs(t);
+const missing = [...keep].filter((t) => !inPull.has(t)).sort((a, b) => baMs(a) - baMs(b));
 const toFetch = missing.slice(0, BACKFILL_LIMIT);
 const fetched = toFetch.length ? await fetchGetData(page, toFetch) : [];
 
@@ -138,20 +142,45 @@ for (const t of missing.slice(BACKFILL_LIMIT)) carry(t); // over cap — keep la
 for (const t of pinned) if (seen.has(t) && !(membership[t] || []).includes("p")) (membership[t] ??= []).push("p");
 console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried, ${dropped.length} expired)`);
 
-// enrich rows still missing AI-score/sector via the per-ticker stock-forecast payload
-// (pins & brand-new arrivals first; fills blanks only; capped) — needs the page open.
-const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT || 300);
-const prio = (t) => (pinned.includes(t) ? 0 : inPull.has(t) && !prevSeen[t] ? 1 : 2);
-const enrichList = [...seen.entries()]
-  .filter(([, r]) => r.ai == null || r.sec == null)
-  .sort((a, b) => prio(a[0]) - prio(b[0]))
+// Enrich from the per-ticker stock-forecast payload. MUST mirror ci/refresh-data-ci.mjs —
+// this script diverged once and silently reproduced the bug CI had already fixed: it
+// selected only rows with a NULL ai/sec, so an off-pull ticker whose ai/air/aipt/chg were
+// CARRIED from the previous row (see ci/keep.mjs) was never eligible, and fillNulls cannot
+// overwrite a non-null anyway. Locally that meant UNP kept showing "Outperform"/74 for days
+// after TipRanks downgraded it to Neutral/69. Keep the two in step.
+const ENRICH_TARGET_RUNS = 3;
+const CARRIED_FIELDS = ["ai", "air", "aipt", "chg"];
+const aiFreshMs = (t) => Math.max(lsMs(t), Date.parse(prevSeen[t]?.ea || "") || 0);
+const needsFill = (r) => r.ai == null || r.sec == null;
+const STALE_MS = 3 * 864e5;
+const prio = (t, r) => (pinned.includes(t) && Date.now() - aiFreshMs(t) > STALE_MS ? 0 : needsFill(r) ? 1 : 2);
+const enrichEligible = [...seen.entries()].filter(([t, r]) => needsFill(r) || !inPull.has(t));
+const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT)
+  || Math.max(40, Math.ceil(enrichEligible.length / ENRICH_TARGET_RUNS));
+const enrichList = enrichEligible
+  .sort((a, b) => prio(a[0], a[1]) - prio(b[0], b[1]) || aiFreshMs(a[0]) - aiFreshMs(b[0]))
   .slice(0, ENRICH_LIMIT)
   .map(([t]) => t);
 const forecasts = enrichList.length ? await fetchForecasts(page, enrichList) : [];
 await browser.close();
-let enriched = 0;
-forecasts.forEach((fj, i) => { if (fj) { fillNulls(seen.get(enrichList[i]), forecastFields(fj, enrichList[i])); enriched++; } });
-console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast`);
+let enriched = 0, noReport = 0;
+const enrichTried = new Set(enrichList); // attempt, not success — so `ea` rotates the queue
+const usable = (v) => v != null && !(typeof v === "number" && !Number.isFinite(v));
+forecasts.forEach((fj, i) => {
+  if (!fj) return;
+  const t = enrichList[i];
+  const f = forecastFields(fj, t);
+  if (!Object.keys(f).length) { noReport++; return; }
+  const row = fillNulls(seen.get(t), f);
+  // the AI trio lands atomically or not at all: a payload with `score` but no `ratingId`
+  // would otherwise ship a fresh score beside a stale rating
+  const trio = ["ai", "air", "aipt"];
+  if (trio.every((k) => usable(f[k]))) for (const k of trio) row[k] = f[k];
+  if (usable(f.chg)) row.chg = f.chg;
+  enriched++;
+});
+console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast (cap ${ENRICH_LIMIT}, ${noReport} with no report)`);
+void CARRIED_FIELDS; // documented above; the trio + chg are applied explicitly for atomicity
 
 mkdirSync("src/data", { recursive: true });
 writeFileSync("src/data/stocks.json", JSON.stringify([...seen.values()]));
@@ -169,4 +198,7 @@ for (const [t, r] of seen) {
   if (prev) firstSeen[t] = { ...prev, ls: nextLastSeen(prev, inPull.has(t), today) };
   else firstSeen[t] = { d: inPull.has(t) ? today : "baseline", ls: today, ss: r.ss, ai: r.ai, con: r.con, l: membership[t] || [] };
 }
+// same rotation stamp CI writes — without it a local run resets the enrich queue clock
+for (const t of enrichTried) if (firstSeen[t]) firstSeen[t].ea = today;
+for (const t of toFetch) if (firstSeen[t]) firstSeen[t].ba = today;
 writeFileSync("src/data/seen.json", JSON.stringify(firstSeen));

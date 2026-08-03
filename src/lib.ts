@@ -106,6 +106,7 @@ export interface SeenEntry {
   // they exist; both are pipeline bookkeeping and nothing in the UI should render them.
   ls?: string; // last seen in the dynamic screener pull (ISO). FROZEN while a ticker is off-pull.
   ea?: string; // last enrich attempt (ISO) — drives the AI/chg refresh rotation, see ci/refresh-data-ci.mjs
+  ba?: string; // last getData backfill attempt (ISO) — drives the keep-set rotation, same reason
 }
 // human labels for the entry lists (l)
 export const LIST_LABEL: Record<string, string> = { u: "Analyst", s: "Smart Score", a: "AI Top" };
