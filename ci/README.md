@@ -337,7 +337,7 @@ push to it — that exclusion is a duplicate-job saving, not a coverage gap.
 
 ## Enrich — the AI trio, the queue, and the cost bound
 
-Where `ci/refresh-data-ci.mjs` (and its local mirror `scripts/refresh-data.mjs`) top up rows
+Where `ci/refresh-data-ci.mjs` and `scripts/refresh-data.mjs` top up rows
 from the per-ticker `stock-forecast` payload. This is the only per-ticker source for the
 AI-analyst score/rating/target and the sector name — `getData` exposes neither.
 
@@ -354,9 +354,22 @@ Day %, the most time-sensitive column in the table, frozen on every off-pull row
 12/12 wrong, sign wrong in 8 — TER showed +12.07 against a live +0.60, ARTV +9.29 against
 −3.16. The payload we already fetch carries it, so repairing it costs no extra request.
 
-**Atomicity.** The trio lands whole or not at all. Field-by-field, a payload with `score` but
-no `ratingId` ships a fresh 69 beside a stale "Outperform" — the exact UNP symptom, at half
-scale. `chg` is independent of the AI report and so is applied separately.
+**Shared, not mirrored.** The queue (`enrichQueue`) and the write (`applyForecast`) live in
+`ci/keep.mjs`; both refresh scripts import them and supply only the transport (FlareSolverr
+vs Playwright). They each held a copy once, drifted, and silently reproduced a bug the other
+had already fixed — `ci/test-enrich.mjs` now fails if either re-inlines the logic.
+
+**Atomicity.** The trio lands whole or not at all — *when there is something to be
+inconsistent with*. Field-by-field, a payload with `score` but no `ratingId` ships a fresh 69
+beside a stale "Outperform": the exact UNP symptom, at half scale. Note the fix is not simply
+"never write a partial trio": the hazard is mixing **epochs**, which needs a stale value
+present. On a row whose trio is entirely blank there is nothing to mix, and refusing the write
+is strictly worse — `needsFill()` stays true, so the row camps at prio 1 and burns one fetch
+every run, forever (this regressed once, on the ~7 permanently-unscored rows). So: a trio
+holding any value is all-or-nothing; a blank trio takes whatever the payload has, and the
+missing fields keep rendering "—". `applyForecast` returns `trio` / `partial` / `fill` /
+`none` so the log distinguishes the two. `chg` is independent of the AI report and is applied
+separately.
 
 **Scale.** The overwrite depends on `forecastFields` emitting `ai` on the screener's 0–100
 scale. Reinstate the old `/10` and the overwrite drags every off-pull row onto 0–10, where
