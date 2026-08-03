@@ -160,21 +160,19 @@ assert.deepEqual(v.filter((r) => r.d === "2025-12-17").map((r) => r.n), ["Andrew
   // all, so it must be dropped — NOT rescued with the headline's $99.
   assert.equal(get("Dash Dollar"), undefined, "no-target row must be dropped even when its headline has a $");
 
-  // FINDING (reported, not fixed): with the firm cells empty the columns shift left and the
-  // price-target token lands in `f`. The row is emitted with f: "$6" — a corrupt firm. The
-  // ACTIONS guard only catches a shift that lands an ACTION verb there, not a $ amount.
-  // Not reachable from today's real pages (TipRanks always renders a firm), hence pinned
-  // here rather than fixed. If forecast-html.mjs gains a "$"-in-firm guard, flip this to
-  // `assert.equal(get("No Firm"), undefined)`.
-  assert.equal(get("No Firm").f, "$6", "documented gap: an empty firm cell shifts the target into `f`");
+  // FIXED (was a documented gap): an empty firm cell shifted the columns left and the
+  // price-target token landed in `f`, emitting a corrupt firm of "$6". The ACTIONS guard
+  // only caught a shift that put an ACTION verb there. `notAColumn` now rejects anything
+  // that is plainly another column — a $ amount, a percentage, a date, a rating word, a
+  // dash — so the row is dropped instead of published with a nonsense firm.
+  assert.equal(get("No Firm"), undefined, "a shifted price target must not be adopted as the firm");
 
-  // FINDING (reported, not fixed): with the analyst-name span empty, the firm (rendered
-  // twice) fills both `n` and `f`. Degraded but not corrupt — the app shows the firm as the
-  // analyst name. Same reasoning as above.
-  assert.deepEqual(get("Nameless Bank"), { n: "Nameless Bank", f: "Nameless Bank", r: "Buy", pt: 5, opt: null, d: "2026-07-17" },
-    "documented gap: an empty analyst-name cell makes n fall back to the firm");
+  // FIXED (was a documented gap): with the analyst-name span empty the firm (rendered twice)
+  // filled both `n` and `f`, so the app showed a bank as the analyst. `n === f` is now
+  // rejected — a row that cannot name its analyst is dropped rather than shown degraded.
+  assert.equal(get("Nameless Bank"), undefined, "a row whose analyst name collapsed onto the firm must be dropped");
 
-  assert.equal(s.length, 5, `expected 5 rows from edge-shapes, got ${s.length}`);
+  assert.equal(s.length, 3, `expected 3 rows from edge-shapes, got ${s.length}`);
   // assertWellFormed intentionally runs LAST here: the two documented gaps above are the
   // only rows in the suite it would otherwise be asked to bless, and it still holds for
   // them (both are well-typed, just semantically wrong) — so the contract is unbroken.
@@ -192,17 +190,15 @@ assert.deepEqual(v.filter((r) => r.d === "2025-12-17").map((r) => r.n), ["Andrew
   assert.equal(get("Rollover Jan").d, "2026-01-02", "01/02/26 -> 2026-01-02");
   assert.ok(get("Rollover Dec").d < get("Rollover Jan").d, "string compare must order the rollover correctly");
 
-  // WHAT THE CODE ACTUALLY DOES with a malformed / out-of-range date (measured, not assumed):
-  // the regex is purely positional (^\d{2}/\d{2}/\d{2}$) and the year is a literal "20"+YY,
-  // so there is NO calendar or range validation whatsoever. All three of these are emitted.
-  // FINDING (reported, not fixed): a broken feed can therefore publish an unsortable or
-  // never-expiring date. 2099 sorts to the top of the newest-first list forever, and
-  // "2026-13-45" is an Invalid Date in the UI. Low likelihood (TipRanks renders real dates)
-  // but zero cost to guard. Pinned here so a future guard is a deliberate test change.
-  assert.equal(get("Impossible Date").d, "2026-13-45", "documented gap: 13/45/26 passes through unvalidated");
-  assert.equal(get("Ancient Date").d, "2014-07-07", "documented gap: a pre-2015 date is not rejected");
-  assert.equal(get("Future Date").d, "2099-07-07", "documented gap: a future date is not rejected");
-  assert.equal(d.length, 5);
+  // FIXED (was a documented gap): the regex is positional and the year is a literal "20"+YY,
+  // so there was NO calendar or range validation. "13/45/26" became 2026-13-45 (an Invalid
+  // Date in the UI) and "07/07/99" became 2099-07-07, which sorts to the top of a
+  // newest-first list forever. The parser now round-trips the date through Date and rejects
+  // anything that isn't a real day, pre-2015, or beyond next year.
+  assert.equal(get("Impossible Date"), undefined, "13/45/26 is not a real day — must be rejected");
+  assert.equal(get("Ancient Date"), undefined, "a pre-2015 date must be rejected");
+  assert.equal(get("Future Date"), undefined, "a far-future date must be rejected (it would sort first forever)");
+  assert.equal(d.length, 2, `only the two real dates survive, got ${d.length}`);
 
   // ...but on every REAL page we have, the sane-range invariant does hold. This is the
   // assertion that would catch a genuine date regression (century prefix, MM/DD swap,
@@ -236,12 +232,12 @@ assert.deepEqual(v.filter((r) => r.d === "2025-12-17").map((r) => r.n), ["Andrew
   // literal unicode passes through unchanged
   assert.equal(get("Ítalo Müller-Sørensen").n, "Ítalo Müller-Sørensen", "unicode analyst name survives");
 
-  // FINDING (reported, not fixed): only those four entity forms are decoded. Any other
-  // numeric entity — e.g. &#225; for "á" — reaches the JSON raw and renders literally in
-  // the modal. The two real fixtures contain no entities at all, so this is unproven on
-  // real markup; it is a plausible failure for accented analyst names.
-  assert.equal(e.find((r) => r.n.includes("Brien")).n, "Se&#225;n O'Brien",
-    "documented gap: numeric entities other than &#39;/&#x27; are not decoded");
+  // FIXED (was a documented gap): only four entity forms were decoded, so any other numeric
+  // entity — &#225; for "á" — reached the JSON raw and rendered literally in the modal.
+  // All decimal and hex numeric entities are now decoded generically.
+  assert.equal(e.find((r) => r.n.includes("Brien")).n, "Seán O'Brien",
+    "numeric entities decode to their character");
+  assert.ok(!e.some((r) => /&#\d+;|&#x[0-9a-f]+;/i.test(r.n + r.f)), "no raw numeric entity may survive");
 }
 
 /* ============================================================ DEDUP DETAILS
@@ -422,12 +418,14 @@ assert.deepEqual(v.filter((r) => r.d === "2025-12-17").map((r) => r.n), ["Andrew
   }
   assert.ok(parseForecastHtml(adct.slice(0, 4000)).length === 0, "cut inside the first row -> no row at all");
 
-  // INPUT CONTRACT: a string is required. The sole caller (scrape-forecasts.mjs) passes
-  // `j.solution.response || ""`, so this is unreachable in production — pinned so the
-  // contract is explicit. If forecast-html.mjs ever coerces instead, flip these.
-  assert.throws(() => parseForecastHtml(), TypeError, "documented: parseForecastHtml requires a string");
-  assert.throws(() => parseForecastHtml(null), TypeError);
-  assert.throws(() => parseForecastHtml(123), TypeError);
+  // INPUT CONTRACT (was: threw a TypeError). A non-string is now "no rows", never a throw.
+  // The sole caller passes `j.solution.response || ""` so it was unreachable in production,
+  // but the whole design promise of this parser is "a markup change yields a stale file, not
+  // a crash" — and throwing on a malformed response contradicted that for no benefit.
+  assert.deepEqual(parseForecastHtml(), [], "no argument -> no rows, never a throw");
+  assert.deepEqual(parseForecastHtml(null), [], "null -> no rows");
+  assert.deepEqual(parseForecastHtml(123), [], "a number -> no rows");
+  assert.deepEqual(parseForecastHtml({}), [], "an object -> no rows");
 }
 
 /* ============================================== CROSS-FIXTURE SANITY SWEEP */

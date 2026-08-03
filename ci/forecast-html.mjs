@@ -22,6 +22,7 @@ const ACTIONS = /^(Reiterated|Initiated|Maintained|Assigned|Upgraded|Downgraded|
 
 // Column order in the table: Analyst | Firm | Price Target | Position | Upside | Action | Date
 export function parseForecastHtml(html) {
+  if (typeof html !== "string") return []; // contract: anything but a string is "no rows", never a throw
   const start = html.indexOf("Analyst Profile");
   if (start < 0) return [];
   const body = html.slice(start);
@@ -45,7 +46,13 @@ export function parseForecastHtml(html) {
 
     const tok = chunk
       .replace(/<[^>]+>/g, "|")
-      .replace(/&amp;/g, "&").replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').replace(/&nbsp;/g, " ")
+      // Decode ALL numeric entities, not a hand-picked four: an accented analyst name
+      // (&#225;) previously reached the JSON raw as "Se&#225;n". Named entities stay a
+      // short list because the table only ever emits these.
+      .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+      .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d))
+      .replace(/&nbsp;/g, " ").replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
       .split("|").map((s) => s.trim()).filter(Boolean);
 
     const date = tok.find((s) => /^\d{2}\/\d{2}\/\d{2}$/.test(s));
@@ -63,10 +70,25 @@ export function parseForecastHtml(html) {
     const opt = money.length > 1 ? num(money[0]) : null;
     const r = before.find((s) => /^(Buy|Hold|Sell)$/.test(s));
     const [n, f] = before;
-    if (!n || !f || !r || ACTIONS.test(f)) continue; // ACTIONS guard: shifted columns, don't invent a firm
+    // A shifted column must never be adopted as a name or a firm. ACTIONS caught only the
+    // case where an action VERB landed in the firm cell; an empty firm cell shifted the
+    // price target in instead, emitting f: "$6", and an empty analyst cell made `n` fall
+    // back to the firm, emitting n === f. Reject anything that is plainly another column.
+    const notAColumn = (v) => v && !ACTIONS.test(v) && !/^\$[\d.,]+$/.test(v)
+      && !/^-?[\d.,]+%$/.test(v) && !/^\d{2}\/\d{2}\/\d{2}$/.test(v)
+      && !/^(Buy|Hold|Sell|Upside|Downside)$/.test(v) && v !== "―" && v !== "—";
+    if (!r || !notAColumn(n) || !notAColumn(f) || n === f) continue;
 
     const [mm, dd, yy] = date.split("/");
-    const row = { n, f, r, pt, opt, d: `20${yy}-${mm}-${dd}` };
+    // The regex is purely positional, so "13/45/26" became 2026-13-45 (Invalid Date in the
+    // UI) and "07/07/99" became 2099-07-07, which sorts to the top of a newest-first list
+    // forever. Validate that the parts describe a real, plausible day.
+    const iso = `20${yy}-${mm}-${dd}`;
+    const asDate = new Date(`${iso}T00:00:00Z`);
+    if (Number.isNaN(asDate.getTime()) || asDate.toISOString().slice(0, 10) !== iso) continue;
+    const year = 2000 + +yy;
+    if (year < 2015 || year > new Date().getUTCFullYear() + 1) continue; // no pre-history, no far future
+    const row = { n, f, r, pt, opt, d: iso };
     if (!Number.isFinite(row.pt) || row.pt <= 0) continue;
     if (row.opt != null && !Number.isFinite(row.opt)) row.opt = null;
     const key = `${row.n}|${row.f}|${row.d}|${row.pt}`;
