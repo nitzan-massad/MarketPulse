@@ -3,7 +3,7 @@
 // does the same in-page fetch the app's data was originally pulled with.
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { computeKeep, rowFromGetData, forecastFields, fillNulls, nextLastSeen, KEEP_MAX_AGE_DAYS } from "../ci/keep.mjs";
+import { computeKeep, rowFromGetData, forecastFields, applyForecast, enrichQueue, nextLastSeen, KEEP_MAX_AGE_DAYS } from "../ci/keep.mjs";
 
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -145,41 +145,25 @@ for (const t of missing.slice(BACKFILL_LIMIT)) carry(t); // over cap — keep la
 for (const t of pinned) if (seen.has(t) && !(membership[t] || []).includes("p")) (membership[t] ??= []).push("p");
 console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried, ${dropped.length} expired)`);
 
-// Enrich from the per-ticker stock-forecast payload. MUST mirror ci/refresh-data-ci.mjs —
-// this script diverged once and silently reproduced the bug CI had already fixed: it
-// selected only rows with a NULL ai/sec, so an off-pull ticker whose ai/air/aipt/chg were
-// CARRIED from the previous row (see ci/keep.mjs) was never eligible, and fillNulls cannot
-// overwrite a non-null anyway. Locally that meant UNP kept showing "Outperform"/74 for days
-// after TipRanks downgraded it to Neutral/69. Keep the two in step.
-const ENRICH_TARGET_RUNS = 3;
-const ENRICH_MAX = 120; // ceiling on the derived cap — see ci/refresh-data-ci.mjs
+// Enrich from the per-ticker stock-forecast payload. The selection, the cap and the
+// application rules are IMPORTED from ci/keep.mjs, not copied: this script once held its
+// own copy, diverged, and silently reproduced a bug CI had already fixed — it selected only
+// rows with a NULL ai/sec, so an off-pull ticker whose ai/air/aipt/chg were CARRIED from
+// the previous row was never eligible. Locally that meant UNP kept showing "Outperform"/74
+// for days after TipRanks downgraded it to Neutral/69. Only the Playwright fetch is local.
 const aiFreshMs = (t) => Math.max(lsMs(t), Date.parse(prevSeen[t]?.ea || "") || 0);
-const needsFill = (r) => r.ai == null || r.sec == null;
-const STALE_MS = 3 * 864e5;
-const prio = (t, r) => (pinned.includes(t) && Date.now() - aiFreshMs(t) > STALE_MS ? 0 : needsFill(r) ? 1 : 2);
-const enrichEligible = [...seen.entries()].filter(([t, r]) => needsFill(r) || !inPull.has(t));
-const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT)
-  || Math.min(ENRICH_MAX, Math.max(40, Math.ceil(enrichEligible.length / ENRICH_TARGET_RUNS)));
-const enrichList = enrichEligible
-  .sort((a, b) => prio(a[0], a[1]) - prio(b[0], b[1]) || aiFreshMs(a[0]) - aiFreshMs(b[0]))
-  .slice(0, ENRICH_LIMIT)
-  .map(([t]) => t);
+const { list: enrichList, cap: ENRICH_LIMIT } =
+  enrichQueue(seen.entries(), { inPull, pinned, aiFreshMs, limit: process.env.ENRICH_LIMIT });
 const forecasts = enrichList.length ? await fetchForecasts(page, enrichList) : [];
 await browser.close();
 let enriched = 0, noReport = 0;
 const enrichTried = new Set(enrichList); // attempt, not success — so `ea` rotates the queue
-const usable = (v) => v != null && !(typeof v === "number" && !Number.isFinite(v));
 forecasts.forEach((fj, i) => {
   if (!fj) return;
   const t = enrichList[i];
   const f = forecastFields(fj, t);
   if (!Object.keys(f).length) { noReport++; return; }
-  const row = fillNulls(seen.get(t), f);
-  // the AI trio lands atomically or not at all: a payload with `score` but no `ratingId`
-  // would otherwise ship a fresh score beside a stale rating
-  const trio = ["ai", "air", "aipt"];
-  if (trio.every((k) => usable(f[k]))) for (const k of trio) row[k] = f[k];
-  if (usable(f.chg)) row.chg = f.chg;
+  if (applyForecast(seen.get(t), f) === "partial") console.log(`  enrich ${t}: partial AI report, trio not applied`);
   enriched++;
 });
 console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast (cap ${ENRICH_LIMIT}, ${noReport} with no report)`);

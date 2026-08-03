@@ -3,7 +3,7 @@
 // page body. We request the screener API through it and parse the JSON out.
 // (Local manual refresh uses scripts/refresh-data.mjs with Playwright instead.)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { computeKeep, rowFromGetData, forecastFields, fillNulls, nextLastSeen, rndPx, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
+import { computeKeep, rowFromGetData, forecastFields, applyForecast, enrichQueue, nextLastSeen, rndPx, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const API =
@@ -133,36 +133,16 @@ if (missing.length > BACKFILL_LIMIT * 0.8) {
 // AI-analyst score/rating/target and the sector name. Two jobs: FILL blanks (off-list pins,
 // brand-new arrivals), and CORRECT the ai/air/aipt/chg that rowFromGetData carries verbatim
 // for off-pull rows — nothing else ever re-checks those, so the AI trio OVERWRITES here
-// while fillNulls handles the rest. Why each of those is the way it is (the UNP downgrade
-// that stayed visible for 46 runs, the 0-100 scale this overwrite depends on, the queue
-// rotation and its cost bound): ci/README.md → Enrich.
-const ENRICH_TARGET_RUNS = 3; // full rotation within 3 runs = ~15h at the 5h cron
-// Ceiling, because the derived cap below scales with a set that only grows and every unit
-// is one FlareSolverr fetch on top of BACKFILL_LIMIT. 120/run rotates the whole ~351-row
-// universe inside ENRICH_TARGET_RUNS, so hitting this means the keep set itself is the
-// problem — and the WARNING below can then actually fire, which without a ceiling it
-// mathematically never could (cap = eligible/3 makes `eligible > cap * 3` false always).
-const ENRICH_MAX = 120;
+// (atomically) while blanks fill normally. Why each of those is the way it is (the UNP
+// downgrade that stayed visible for 46 runs, the 0-100 scale this overwrite depends on, the
+// queue rotation and its cost bound): ci/README.md → Enrich.
 // When this row's AI trio was last known-good: in the pull (the screener ships
 // aiAnalystData) or enriched. Reuses lsMs so there is one age concept, not two.
 const aiFreshMs = (t) => Math.max(lsMs(t), Date.parse(prevSeen[t]?.ea || "") || 0);
-const needsFill = (r) => r.ai == null || r.sec == null;
-// A pin is prio 0 only when it is actually STALE. Unconditional prio 0 re-fetched both pins
-// every run and, worse, sticky slots scale with the pin count: if pins + permanent blanks
-// ever reached the cap, prio-2 rotation would stop dead and staleness would silently return
-// to unbounded. Fresh pins fall through to the queue.
-const STALE_MS = 3 * 864e5;
-const prio = (t, r) => (pinned.includes(t) && Date.now() - aiFreshMs(t) > STALE_MS ? 0 : needsFill(r) ? 1 : 2);
-const enrichEligible = [...seen.entries()].filter(([t, r]) => needsFill(r) || !inPull.has(t));
-// A FIXED cap cannot bound a growing set (at 40, with off-pull growing ~5.7/day, the 15h
-// worst case decays to ~50h within six weeks), so derive it — floor 40 for small sets,
-// ceiling ENRICH_MAX for cost. An explicit env value still wins, as the tests rely on.
-const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT)
-  || Math.min(ENRICH_MAX, Math.max(40, Math.ceil(enrichEligible.length / ENRICH_TARGET_RUNS)));
-const enrichList = enrichEligible
-  .sort((a, b) => prio(a[0], a[1]) - prio(b[0], b[1]) || aiFreshMs(a[0]) - aiFreshMs(b[0]))
-  .slice(0, ENRICH_LIMIT)
-  .map(([t]) => t);
+// Selection, the cap and the payload-application rules all live in ci/keep.mjs so this
+// script and scripts/refresh-data.mjs cannot drift apart again. Only the fetch is local.
+const { list: enrichList, eligible: enrichEligible, cap: ENRICH_LIMIT } =
+  enrichQueue(seen.entries(), { inPull, pinned, aiFreshMs, limit: process.env.ENRICH_LIMIT });
 let enriched = 0, noReport = 0;
 const enrichTried = new Set();
 for (const t of enrichList) {
@@ -174,20 +154,10 @@ for (const t of enrichList) {
     // stamped `ea`, so the row rotated to the back with no signal and could never re-queue
     // as prio-1. Usually a bundle/_id mismatch, i.e. our bug, not missing data.
     if (!Object.keys(f).length) { noReport++; console.log(`  enrich ${t}: no forecast fields in payload`); continue; }
-    const row = fillNulls(seen.get(t), f);
-    // `!= null` alone is not enough: rnd() yields NaN on a reshaped/non-numeric score, and
-    // JSON.stringify(NaN) is null — so the "never blank a good value" promise would break
-    // exactly when the payload changes shape. Carry on reshape, blank only on an explicit
-    // null, matching the doctrine ssFromGetData states in ci/keep.mjs.
-    // #8 — write the AI trio ATOMICALLY. Field-by-field, a payload with `score` but no
-    // `ratingId` shipped a fresh 69 next to a stale "Outperform" — the exact UNP symptom
-    // this pass exists to fix, reintroduced at half scale. Either the whole trio lands or
-    // none of it does. `chg` is independent of the AI report, so it is applied separately.
-    const usable = (v) => v != null && !(typeof v === "number" && !Number.isFinite(v));
-    const trio = ["ai", "air", "aipt"];
-    if (trio.every((k) => usable(f[k]))) for (const k of trio) row[k] = f[k];
-    else if (trio.some((k) => usable(f[k]))) console.log(`  enrich ${t}: partial AI report, trio not applied`);
-    if (usable(f.chg)) row.chg = f.chg;
+    // Fills blanks, then lands the AI trio atomically — and deliberately keeps the trio out
+    // of the fill pass, or a partial report would ship a fresh score beside a stale rating.
+    // See applyForecast in ci/keep.mjs.
+    if (applyForecast(seen.get(t), f) === "partial") console.log(`  enrich ${t}: partial AI report, trio not applied`);
     enriched++;
   } catch (e) { console.log(`  enrich ${t}: forecast skip (${e.message})`); }
 }

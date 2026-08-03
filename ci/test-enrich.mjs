@@ -7,38 +7,20 @@
 // have corrected it anyway. UNP served "Outperform" for ~10 days / ~46 runs after its
 // 2026-07-24 downgrade to "Neutral". Run: node ci/test-enrich.mjs
 import assert from "node:assert/strict";
-import { fillNulls } from "./keep.mjs";
+import { applyForecast, enrichQueue, fillNulls } from "./keep.mjs";
 
 const iso = (hoursAgo) => new Date(Date.now() - hoursAgo * 36e5).toISOString();
-// mirrors CARRIED_FIELDS in refresh-data-ci.mjs — the fields getData cannot supply,
-// so enrich must overwrite them. `chg` (Day %) is one: it was frozen on every off-pull row.
-const CARRIED_FIELDS = ["ai", "air", "aipt", "chg"];
 
-// --- selection, mirrored from ci/refresh-data-ci.mjs -----------------------
+// Selection and application are IMPORTED, never re-implemented here. This file used to hold
+// its own copy of both, and that is precisely how a real bug shipped green: the local
+// `applyForecast` did not run the `fillNulls` pass the production caller ran first, so it
+// could not see that a partial report was landing a fresh `ai` beside a stale `air`. A
+// mirrored test proves the mirror, not the code.
 // `rows` : ticker -> stocks.json row, `seen` : ticker -> seen.json entry
 const select = (rows, seen, inPull, pinned, limit) => {
   const lsMs = (t) => Date.parse(seen[t]?.ls || seen[t]?.d || "") || 0;
   const aiFreshMs = (t) => Math.max(lsMs(t), Date.parse(seen[t]?.ea || "") || 0);
-  const needsFill = (r) => r.ai == null || r.sec == null;
-  const prio = (t, r) => (pinned.includes(t) ? 0 : needsFill(r) ? 1 : 2);
-  return Object.entries(rows)
-    .filter(([t, r]) => needsFill(r) || !inPull.has(t))
-    .sort((a, b) => prio(a[0], a[1]) - prio(b[0], b[1]) || aiFreshMs(a[0]) - aiFreshMs(b[0]))
-    .slice(0, limit)
-    .map(([t]) => t);
-};
-
-// --- the write, mirrored from ci/refresh-data-ci.mjs ----------------------
-// everything fills, the AI trio overwrites
-const applyForecast = (row, f) => {
-  fillNulls(row, f);
-  for (const k of CARRIED_FIELDS) {
-    const v = f[k];
-    if (v == null) continue;
-    if (typeof v === "number" && !Number.isFinite(v)) continue; // NaN would serialise to null and blank a good value
-    row[k] = v;
-  }
-  return row;
+  return enrichQueue(Object.entries(rows), { inPull, pinned, aiFreshMs, limit }).list;
 };
 
 // THE REGRESSION: an off-pull row whose AI trio is fully populated must still be
@@ -94,8 +76,11 @@ const applyForecast = (row, f) => {
   const picked = select(rows, seen, new Set(), [], 3);
   assert.equal(picked.length, 3, "cap respected");
   assert.deepEqual(picked, ["B", "E", "C"], "stalest ls first");
-  // pins jump the queue regardless of age
-  assert.deepEqual(select(rows, seen, new Set(), ["D"], 3), ["D", "B", "E"], "pins first");
+  // A STALE pin jumps the queue; a FRESH one does not (see the #10 block below — this
+  // assertion asserted the opposite while it ran on a local copy of `prio`).
+  assert.deepEqual(select(rows, seen, new Set(), ["B"], 3), ["B", "E", "C"], "a stale pin leads");
+  assert.deepEqual(select(rows, seen, new Set(), ["D"], 3), ["B", "E", "C"],
+    "D was refreshed an hour ago — being pinned does not buy it a slot");
 }
 
 // the cap only bounds staleness if the queue ROTATES. `ls` is frozen while a ticker is
@@ -129,14 +114,8 @@ console.log("enrich queue: ok");
 // `!= null` test would wipe the very field it promises to protect.
 {
   const stale = { t: "X", ai: 74, air: "Outperform", aipt: 328, chg: 4.02 };
-  const reshaped = { ai: NaN, air: null, aipt: NaN, chg: NaN };
   const row = { ...stale };
-  for (const k of CARRIED_FIELDS) {
-    const v = reshaped[k];
-    if (v == null) continue;
-    if (typeof v === "number" && !Number.isFinite(v)) continue;
-    row[k] = v;
-  }
+  applyForecast(row, { ai: NaN, air: null, aipt: NaN, chg: NaN });
   assert.deepEqual(row, stale, "a reshaped payload must carry every field, not blank it");
   assert.equal(JSON.stringify({ ai: NaN }), '{"ai":null}', "NaN really does serialise to null — this is why the guard exists");
 }
@@ -144,9 +123,13 @@ console.log("enrich queue: ok");
 // --- chg is refreshed, and that was the whole point of adding it ------------------
 {
   const row = { t: "TER", ai: 71, air: "Outperform", aipt: 406, chg: 12.07 }; // 12 days stale
-  const fresh = { ai: 71, air: "Outperform", aipt: 406, chg: 0.6 };
-  for (const k of CARRIED_FIELDS) if (fresh[k] != null) row[k] = fresh[k];
+  applyForecast(row, { ai: 71, air: "Outperform", aipt: 406, chg: 0.6 });
   assert.equal(row.chg, 0.6, "Day % must be overwritten, not carried");
+  // and chg refreshes even when the AI report is too partial to land
+  const partial = { t: "TER", ai: 71, air: "Outperform", aipt: 406, chg: 12.07 };
+  assert.equal(applyForecast(partial, { ai: 69, chg: 0.6 }), "partial", "score alone is a partial report");
+  assert.deepEqual(partial, { t: "TER", ai: 71, air: "Outperform", aipt: 406, chg: 0.6 },
+    "THE HOLE THIS CLOSES: the trio stays consistent, only chg moves");
 }
 
 console.log("enrich overwrite (incl. chg + NaN guard): ok");
@@ -202,13 +185,10 @@ console.log("enrich overwrite (incl. chg + NaN guard): ok");
 // Field-by-field, a payload with `score` but no `ratingId` shipped a fresh 69 beside a stale
 // "Outperform" — the exact UNP symptom, reintroduced at half scale.
 {
-  const usable = (v) => v != null && !(typeof v === "number" && !Number.isFinite(v));
-  const apply = (row, f) => {
-    const trio = ["ai", "air", "aipt"];
-    if (trio.every((k) => usable(f[k]))) for (const k of trio) row[k] = f[k];
-    if (usable(f.chg)) row.chg = f.chg;
-    return row;
-  };
+  // The real function, not a local copy of its second half. The copy omitted the fillNulls
+  // pass that ran first in production, so it could not see that a partial report filled a
+  // null `ai` before the atomic block ever ran — asserted directly at the end of this block.
+  const apply = (row, f) => { applyForecast(row, f); return row; };
   const stale = () => ({ ai: 74, air: "Outperform", aipt: 328, chg: 4.02 });
   assert.deepEqual(apply(stale(), { ai: 69, air: "Neutral", aipt: 333, chg: 0.92 }),
     { ai: 69, air: "Neutral", aipt: 333, chg: 0.92 }, "a complete report replaces the whole trio");
@@ -219,6 +199,20 @@ console.log("enrich overwrite (incl. chg + NaN guard): ok");
   assert.deepEqual(apply(stale(), { ai: NaN, air: "Neutral", aipt: 333 }), stale(), "NaN makes the trio unusable");
   // chg is independent of the AI report and must still refresh on its own
   assert.equal(apply(stale(), { chg: 0.6 }).chg, 0.6, "chg refreshes even when the trio is incomplete");
+
+  // THE HOLE: a null `ai` beside a stale `air`. fillNulls ran over the WHOLE payload first,
+  // so a partial report filled `ai` with a fresh 69 and then the atomic block declined to
+  // write — logging "trio not applied" about a row it had already corrupted. The trio must
+  // be excluded from the fill pass, not merely guarded after it.
+  const halfBlank = { ai: null, air: "Outperform", aipt: 328, sec: null };
+  assert.equal(apply(halfBlank, { ai: 69, air: null, aipt: null, sec: "Industrials" }).ai, null,
+    "a partial report must not fill a null `ai` next to a stale `air` — the UNP symptom at half scale");
+  assert.equal(halfBlank.sec, "Industrials", "...while non-trio blanks still fill normally");
+  // and the pre-fix behaviour must still be reproducible, or this guard is testing nothing
+  const oldWay = { ai: null, air: "Outperform", aipt: 328 };
+  fillNulls(oldWay, { ai: 69, air: null, aipt: null });
+  assert.equal(oldWay.ai, 69,
+    "REGRESSION GUARD: fillNulls over the whole payload really does corrupt the trio — if it stops, rewrite this test");
 }
 
 // --- #9: an empty result is a signal, not a silent success ----------------------

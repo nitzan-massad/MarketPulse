@@ -186,6 +186,65 @@ export function fillNulls(row, extra) {
   return row;
 }
 
+// --- enrich: queue selection + payload application ----------------------------
+// Both refresh scripts (ci/refresh-data-ci.mjs and scripts/refresh-data.mjs) drive the
+// same enrich pass, and they used to hold a copy each. They diverged once and silently
+// reproduced a bug CI had already fixed, so the logic lives HERE and they import it.
+// Only the transport differs (FlareSolverr vs Playwright) — that stays in the callers.
+export const ENRICH_TARGET_RUNS = 3; // full rotation within 3 runs = ~15h at the 5h cron
+// Ceiling, because the derived cap scales with a set that only grows and every unit is one
+// fetch on top of BACKFILL_LIMIT. 120/run rotates the whole ~351-row universe inside
+// ENRICH_TARGET_RUNS, so hitting this means the keep set itself is the problem — and the
+// caller's WARNING can then actually fire, which without a ceiling it mathematically never
+// could (cap = eligible/3 makes `eligible > cap * 3` false always).
+export const ENRICH_MAX = 120;
+export const ENRICH_STALE_MS = 3 * 864e5;
+export const AI_TRIO = ["ai", "air", "aipt"];
+export const needsFill = (r) => r.ai == null || r.sec == null;
+// `!= null` alone is not enough: rnd() yields NaN on a reshaped/non-numeric score, and
+// JSON.stringify(NaN) is null — so the "never blank a good value" promise would break
+// exactly when the payload changes shape.
+const usable = (v) => v != null && !(typeof v === "number" && !Number.isFinite(v));
+
+// Which rows to enrich this run, in order. `rows` is seen.entries(); `aiFreshMs(t)` is when
+// the row's AI trio was last known-good (in the pull, or enriched). A pin is prio 0 only
+// when actually STALE — unconditional prio 0 burned a slot every run, and sticky slots
+// scale with the pin count, so a big enough pin list would stop prio-2 rotation dead.
+export function enrichQueue(rows, { inPull, pinned = [], aiFreshMs, now = Date.now(), limit }) {
+  const eligible = [...rows].filter(([t, r]) => needsFill(r) || !inPull.has(t));
+  // A FIXED cap cannot bound a growing set (at 40, with off-pull growing ~5.7/day, the 15h
+  // worst case decays to ~50h within six weeks), so derive it — floor 40 for small sets,
+  // ceiling ENRICH_MAX for cost. An explicit caller/env value still wins.
+  const cap = Number(limit) || Math.min(ENRICH_MAX, Math.max(40, Math.ceil(eligible.length / ENRICH_TARGET_RUNS)));
+  const prio = (t, r) => (pinned.includes(t) && now - aiFreshMs(t) > ENRICH_STALE_MS ? 0 : needsFill(r) ? 1 : 2);
+  const list = [...eligible]
+    .sort((a, b) => prio(a[0], a[1]) - prio(b[0], b[1]) || aiFreshMs(a[0]) - aiFreshMs(b[0]))
+    .slice(0, cap)
+    .map(([t]) => t);
+  return { list, eligible, cap };
+}
+
+// Apply a forecastFields result to a row. Returns "trio" | "partial" | "none" for logging.
+//
+// The AI trio is written ATOMICALLY and is deliberately EXCLUDED from the fillNulls pass.
+// Running fillNulls over the whole payload first defeated the atomicity: a payload with
+// `score` but no `ratingId` landed a fresh 69 in a null `ai` beside a stale "Outperform"
+// in `air` — the exact UNP symptom this pass exists to fix — and the atomic block below
+// could not undo it, so it logged "trio not applied" about a row it had already corrupted.
+// Either the whole trio lands or none of it does; a row keeps a consistent stale trio or a
+// consistent blank one. `chg` is independent of the AI report, so it applies on its own.
+export function applyForecast(row, f) {
+  const rest = { ...f };
+  for (const k of AI_TRIO) delete rest[k];
+  fillNulls(row, rest);
+  if (usable(f.chg)) row.chg = f.chg; // overwrite, not fill — nothing else re-checks it
+  if (AI_TRIO.every((k) => usable(f[k]))) {
+    for (const k of AI_TRIO) row[k] = f[k];
+    return "trio";
+  }
+  return AI_TRIO.some((k) => usable(f[k])) ? "partial" : "none";
+}
+
 // --- AI-score scale guard -----------------------------------------------------
 // `ai` is written by two independent paths (the screener's `aiAnalystData.overallScore` and
 // `forecastFields`' `report.score`) and both are 0–100. One small number in isolation is
@@ -307,6 +366,51 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const stuck = { ai: 7.8 };
   fillNulls(stuck, { ai: 71 });
   assert(stuck.ai === 7.8, "fillNulls leaves a wrong-but-non-null ai alone (needs the enrich path to overwrite)");
+
+  // applyForecast — the fill pass must NOT reach the AI trio. A partial report landing a
+  // fresh `ai` next to a stale `air` is the UNP symptom; it happened through fillNulls,
+  // which the old caller ran over the whole payload before the atomic block.
+  {
+    const stale = () => ({ t: "UNP", ai: null, air: "Outperform", aipt: 328, chg: 4.02, sec: null });
+    const partial = { ai: 69, air: null, aipt: null, sec: "Industrials" };
+    const r1 = stale();
+    assert(applyForecast(r1, partial) === "partial", "score without ratingId is a partial report");
+    assert(r1.ai === null && r1.air === "Outperform" && r1.aipt === 328,
+      "THE REGRESSION: a partial report must not fill a null `ai` beside a stale `air`");
+    assert(r1.sec === "Industrials", "non-trio blanks still fill on a partial report");
+    const r2 = stale();
+    assert(applyForecast(r2, { ai: 69, air: "Neutral", aipt: 333, chg: 0.92 }) === "trio", "a complete report lands");
+    assert(r2.ai === 69 && r2.air === "Neutral" && r2.aipt === 333 && r2.chg === 0.92, "the whole trio overwrites, chg too");
+    const r3 = stale();
+    assert(applyForecast(r3, { ai: NaN, air: "Neutral", aipt: 333 }) === "partial" && r3.ai === null,
+      "NaN makes the trio unusable — and must not be filled in as a fake null either");
+    const r4 = stale();
+    applyForecast(r4, { chg: 0.6 });
+    assert(r4.chg === 0.6, "chg refreshes even when the trio is absent");
+    const r5 = { t: "X", ai: 74, air: "Outperform", aipt: 328 };
+    applyForecast(r5, { ai: 69, air: null, aipt: null });
+    assert(r5.ai === 74 && r5.air === "Outperform", "a partial report leaves a fully-populated trio alone");
+  }
+
+  // enrichQueue — off-pull rows are eligible even with a full trio (that is the whole point:
+  // nothing else re-checks a carried trio), and the queue must ROTATE on aiFreshMs.
+  {
+    const rows = [["A", { ai: 70, sec: "Tech" }], ["B", { ai: null, sec: null }], ["C", { ai: 70, sec: "Tech" }]];
+    const inPull = new Set(["A"]); // B and C are off-pull
+    const fresh = { A: 100, B: 50, C: 10 };
+    const q = enrichQueue(rows, { inPull, pinned: [], aiFreshMs: (t) => fresh[t], limit: 2 });
+    assert(q.list[0] === "B", "a row needing a fill outranks a merely-stale one");
+    assert(q.eligible.map(([t]) => t).join() === "B,C", "an in-pull row with a full trio is not eligible; off-pull C is");
+    assert(enrichQueue(rows, { inPull: new Set(), pinned: [], aiFreshMs: (t) => fresh[t], limit: 3 }).list.join() === "B,C,A",
+      "everything off-pull is eligible, ordered oldest-first after the fill-first tier");
+    assert(enrichQueue(rows, { inPull, pinned: ["C"], aiFreshMs: () => 0, now: 1e12, limit: 1 }).list[0] === "C",
+      "a STALE pin takes the first slot");
+    assert(enrichQueue(rows, { inPull, pinned: ["C"], aiFreshMs: () => 1e12, now: 1e12, limit: 1 }).list[0] === "B",
+      "a FRESH pin does not — it falls through to the queue");
+    assert(enrichQueue([], { inPull: new Set(), aiFreshMs: () => 0 }).cap === 40, "small sets get the floor of 40");
+    const many = Array.from({ length: 900 }, (_, i) => [`T${i}`, { ai: null, sec: null }]);
+    assert(enrichQueue(many, { inPull: new Set(), aiFreshMs: () => 0 }).cap === ENRICH_MAX, "big sets get the ceiling");
+  }
 
   // aiScaleError — the guard that makes the ÷10 class of bug un-shippable.
   assert(aiScaleError([{ t: "A", ai: 71 }, { t: "B", ai: 46 }, { t: "C", ai: null }]) === null, "uniform 0–100 column is fine");

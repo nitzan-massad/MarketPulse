@@ -49,6 +49,10 @@ const EXPECTED_EXPORTS = {
   computeKeep: "function", nextLastSeen: "function", sectorName: "function",
   airName: "function", rowFromGetData: "function", forecastFields: "function",
   fillNulls: "function", aiScaleError: "function", rndPx: "function",
+  // the enrich pass, shared by ci/refresh-data-ci.mjs and scripts/refresh-data.mjs so the
+  // two cannot drift apart again — covered in section L below
+  applyForecast: "function", enrichQueue: "function", needsFill: "function",
+  AI_TRIO: "object", ENRICH_MAX: "number", ENRICH_TARGET_RUNS: "number", ENRICH_STALE_MS: "number",
 };
 for (const [name, type] of Object.entries(EXPECTED_EXPORTS)) {
   eq(`export ${name} is a ${type}`, () => typeof K[name], type);
@@ -56,7 +60,7 @@ for (const [name, type] of Object.entries(EXPECTED_EXPORTS)) {
 // A tripwire, not decoration: new public surface must arrive with coverage in this file.
 // NOTE `CON_NAME`, `ssFromGetData` and `AI_SCALE_MIN_SAMPLE` are deliberately module-private
 // — they are exercised through rowFromGetData / forecastFields / aiScaleError below.
-eq("keep.mjs exports exactly the 12 covered names", () => Object.keys(K).sort(), Object.keys(EXPECTED_EXPORTS).sort());
+eq("keep.mjs exports exactly the covered names", () => Object.keys(K).sort(), Object.keys(EXPECTED_EXPORTS).sort());
 eq("CON_NAME is private — the vocabulary is asserted through the two mappers", () => K.CON_NAME, undefined);
 eq("KEEP_MAX_AGE_DAYS is 365 (the expiry contract seen.json is written against)", () => KEEP_MAX_AGE_DAYS, 365);
 eq("AI_SCALE_FLOOR is 10 (top of the bogus 0–10 scale)", () => AI_SCALE_FLOOR, 10);
@@ -741,6 +745,73 @@ truthy("floor 100 over a large sample flips to the all-low verdict instead", () 
 truthy("FOOTGUN: a lowered floor lets a genuine 0–10 column through as long as it clears the new split",
   () => aiScaleError(rep(MIN_SAMPLE, 9), 5) === null);
 eq("the floor is reported in the message so a non-default is visible", () => aiScaleError(REAL_BUG, 20).includes("≤ 20"), true);
+
+// =====================================================================================
+// L. applyForecast / enrichQueue — the shared enrich pass
+// =====================================================================================
+// These moved into this module because both refresh scripts held a copy each, drifted, and
+// silently reproduced a bug CI had already fixed. ci/test-enrich.mjs drives the queue
+// behaviour in depth; this section covers the module surface and the one invariant that a
+// mirrored copy is structurally unable to check.
+const { applyForecast, enrichQueue, needsFill, AI_TRIO, ENRICH_MAX, ENRICH_TARGET_RUNS } = K;
+
+eq("AI_TRIO is exactly the three fields getData cannot supply", () => [...AI_TRIO].sort(), ["ai", "aipt", "air"]);
+eq("needsFill is about ai and sec only", () => [
+  needsFill({ ai: null, sec: "Tech" }), needsFill({ ai: 70, sec: null }),
+  needsFill({ ai: 70, sec: "Tech" }), needsFill({ ai: 70, sec: "Tech", air: null }),
+], [true, true, false, false]);
+
+// L1. THE INVARIANT: the trio is atomic THROUGH the fill pass, not merely after it.
+// A mirrored copy of the atomic block alone cannot catch this — the corruption happens in
+// the fillNulls call that used to run before it.
+{
+  const row = { ai: null, air: "Outperform", aipt: 328, sec: null, chg: 4.02 };
+  eq("a score-only report is 'partial'", () => applyForecast(row, { ai: 69, air: null, aipt: null, sec: "Industrials" }), "partial");
+  eq("a null `ai` is NOT filled beside a stale `air` (the UNP symptom at half scale)", () => row.ai, null);
+  eq("the stale rating is left as it was — consistent, not half-updated", () => row.air, "Outperform");
+  eq("non-trio blanks still fill", () => row.sec, "Industrials");
+  eq("chg is untouched when the payload omits it", () => row.chg, 4.02);
+}
+{
+  const row = { ai: 74, air: "Outperform", aipt: 328, chg: 4.02 };
+  eq("a complete report lands atomically", () => applyForecast(row, { ai: 69, air: "Neutral", aipt: 333, chg: 0.92 }), "trio");
+  eq("...all three fields, overwriting non-nulls", () => [row.ai, row.air, row.aipt], [69, "Neutral", 333]);
+  eq("...and chg with them", () => row.chg, 0.92);
+}
+eq("an empty payload is a no-op", () => { const r = { ai: 74 }; return [applyForecast(r, {}), r.ai]; }, ["none", 74]);
+eq("an all-null report is 'none', not 'partial'", () => applyForecast({ ai: 74 }, { ai: null, air: null, aipt: null }), "none");
+truthy("a NaN score cannot make the trio usable", () => applyForecast({ ai: 74 }, { ai: NaN, air: "Neutral", aipt: 1 }) === "partial");
+eq("a NaN score is not filled into a blank either", () => { const r = { ai: null }; applyForecast(r, { ai: NaN, air: null, aipt: null }); return r.ai; }, null);
+eq("chg refreshes on its own — it is not part of the AI report", () => { const r = { ai: 74, chg: 9 }; applyForecast(r, { chg: 0.6 }); return [r.ai, r.chg]; }, [74, 0.6]);
+
+// L2. the queue: cap derivation and the rotation key
+eq("a small eligible set gets the floor of 40", () => enrichQueue([], { inPull: new Set(), aiFreshMs: () => 0 }).cap, 40);
+eq("a large one gets the ENRICH_MAX ceiling",
+  () => enrichQueue(Array.from({ length: 900 }, (_, i) => [`T${i}`, { ai: null, sec: null }]),
+    { inPull: new Set(), aiFreshMs: () => 0 }).cap, ENRICH_MAX);
+eq("an explicit limit wins over the derived cap",
+  () => enrichQueue([["A", { ai: null, sec: null }]], { inPull: new Set(), aiFreshMs: () => 0, limit: 7 }).cap, 7);
+eq("a limit of '0'/'' falls back to the derived cap (an unset env var must not zero it)",
+  () => [enrichQueue([], { inPull: new Set(), aiFreshMs: () => 0, limit: "" }).cap,
+    enrichQueue([], { inPull: new Set(), aiFreshMs: () => 0, limit: undefined }).cap], [40, 40]);
+{
+  // an in-pull row with a full trio is NOT eligible; an off-pull one is, however fresh it looks
+  const rows = [["IN", { ai: 70, sec: "Tech" }], ["OFF", { ai: 70, sec: "Tech" }], ["BLANK", { ai: null, sec: null }]];
+  const q = enrichQueue(rows, { inPull: new Set(["IN", "BLANK"]), aiFreshMs: () => 0, limit: 9 });
+  eq("eligibility = needs a fill, or is off-pull", () => q.eligible.map(([t]) => t).sort(), ["BLANK", "OFF"]);
+  eq("blanks are served before mere staleness", () => q.list, ["BLANK", "OFF"]);
+}
+{
+  // rotation: the queue must order on aiFreshMs, so a stamped row goes to the back
+  const rows = ["A", "B", "C"].map((t) => [t, { ai: 70, sec: "Tech" }]);
+  const age = { A: 10, B: 20, C: 30 };
+  const opts = { inPull: new Set(), aiFreshMs: (t) => age[t], limit: 1 };
+  eq("oldest first", () => enrichQueue(rows, opts).list, ["A"]);
+  age.A = 99; // what the `ea` stamp does
+  eq("a stamped row moves to the back", () => enrichQueue(rows, opts).list, ["B"]);
+}
+truthy("ENRICH_TARGET_RUNS x ENRICH_MAX bounds a rotation the WARNING can actually detect",
+  () => 361 > Math.min(ENRICH_MAX, Math.max(40, Math.ceil(361 / ENRICH_TARGET_RUNS))) * ENRICH_TARGET_RUNS);
 
 // =====================================================================================
 // report

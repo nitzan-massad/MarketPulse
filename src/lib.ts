@@ -42,8 +42,12 @@ export const DATE_LOCALE: string[] =
 export const fmtMc = (m: number | null): string =>
   m == null ? "—" : m >= 1e6 ? "$" + (m / 1e6).toFixed(2) + "T" : m >= 1e3 ? "$" + (m / 1e3).toFixed(1) + "B" : "$" + Math.round(m) + "M";
 
+// Sub-cent quotes get 4dp, matching what the pipeline now STORES (ci/keep.mjs `rndPx`).
+// A flat 2dp here rendered a real $0.0034 delisting-track penny stock as "$0.00" — the
+// storage fix alone was invisible to the reader, which is the only place it matters.
+// Guarded by src/fmtPx.check.ts.
 export const fmtPx = (v: number | null): string =>
-  v == null ? "—" : "$" + (v >= 100 ? v.toFixed(0) : v.toFixed(2));
+  v == null ? "—" : "$" + (v >= 100 ? v.toFixed(0) : v >= 0.01 || v <= -0.01 ? v.toFixed(2) : v.toFixed(4));
 
 // A missing consensus gets NO rating class — it must not fall through to "h" and
 // paint as a real Hold. Callers render the neutral "—" placeholder instead (ConsPill).
