@@ -18,6 +18,9 @@ async function pull(page) {
     const seen = new Map();
     const membership = {}; // ticker -> ranking(s) it appears in
     const rnd = (x, p = 2) => (x == null ? null : +Number(x).toFixed(p));
+    // Duplicated from ci/keep.mjs `rndPx` and NOT importable: this whole function is
+    // serialized into the page by page.evaluate, so it has no module scope. Keep in step.
+    const rndPx = (x) => (x == null ? null : Number(x) < 1 ? rnd(x, 4) : rnd(x, 2));
     let total = null;
     for (const sb of sorts) {
       const r = await fetch(base + "&sortBy=" + sb, { headers: { accept: "application/json" } });
@@ -36,7 +39,7 @@ async function pull(page) {
         const ai = it.aiAnalystData || {};
         seen.set(t.ticker, {
           t: t.ticker, n: t.companyName, sec: t.sector?.name || null,
-          px: rnd(t.lastClose), chg: rnd(t.priceChangePct != null ? t.priceChangePct * 100 : null, 2),
+          px: rndPx(t.lastClose), chg: rnd(t.priceChangePct != null ? t.priceChangePct * 100 : null, 2),
           pt: rnd(bpt.convertedPriceTarget), up: rnd(bpt.upside != null ? bpt.upside * 100 : null, 1),
           con: bc.analystConsensus?.name || null, b: d.buy || 0, h: d.hold || 0, s: d.sell || 0,
           ss: e.tipRanksSmartScoreData?.tipRanksSmartScore ?? null,
@@ -149,14 +152,14 @@ console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried,
 // overwrite a non-null anyway. Locally that meant UNP kept showing "Outperform"/74 for days
 // after TipRanks downgraded it to Neutral/69. Keep the two in step.
 const ENRICH_TARGET_RUNS = 3;
-const CARRIED_FIELDS = ["ai", "air", "aipt", "chg"];
+const ENRICH_MAX = 120; // ceiling on the derived cap — see ci/refresh-data-ci.mjs
 const aiFreshMs = (t) => Math.max(lsMs(t), Date.parse(prevSeen[t]?.ea || "") || 0);
 const needsFill = (r) => r.ai == null || r.sec == null;
 const STALE_MS = 3 * 864e5;
 const prio = (t, r) => (pinned.includes(t) && Date.now() - aiFreshMs(t) > STALE_MS ? 0 : needsFill(r) ? 1 : 2);
 const enrichEligible = [...seen.entries()].filter(([t, r]) => needsFill(r) || !inPull.has(t));
 const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT)
-  || Math.max(40, Math.ceil(enrichEligible.length / ENRICH_TARGET_RUNS));
+  || Math.min(ENRICH_MAX, Math.max(40, Math.ceil(enrichEligible.length / ENRICH_TARGET_RUNS)));
 const enrichList = enrichEligible
   .sort((a, b) => prio(a[0], a[1]) - prio(b[0], b[1]) || aiFreshMs(a[0]) - aiFreshMs(b[0]))
   .slice(0, ENRICH_LIMIT)
@@ -180,7 +183,6 @@ forecasts.forEach((fj, i) => {
   enriched++;
 });
 console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast (cap ${ENRICH_LIMIT}, ${noReport} with no report)`);
-void CARRIED_FIELDS; // documented above; the trio + chg are applied explicitly for atomicity
 
 mkdirSync("src/data", { recursive: true });
 writeFileSync("src/data/stocks.json", JSON.stringify([...seen.values()]));

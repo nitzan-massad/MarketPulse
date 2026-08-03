@@ -3,7 +3,7 @@
 // page body. We request the screener API through it and parse the JSON out.
 // (Local manual refresh uses scripts/refresh-data.mjs with Playwright instead.)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { computeKeep, rowFromGetData, forecastFields, fillNulls, nextLastSeen, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
+import { computeKeep, rowFromGetData, forecastFields, fillNulls, nextLastSeen, rndPx, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const API =
@@ -67,7 +67,7 @@ for (const sb of [5, 2, 3]) {
     const ai = it.aiAnalystData || {};
     seen.set(t.ticker, {
       t: t.ticker, n: t.companyName, sec: t.sector?.name || null,
-      px: rnd(t.lastClose), chg: rnd(t.priceChangePct != null ? t.priceChangePct * 100 : null, 2),
+      px: rndPx(t.lastClose), chg: rnd(t.priceChangePct != null ? t.priceChangePct * 100 : null, 2),
       pt: rnd(bpt.convertedPriceTarget), up: rnd(bpt.upside != null ? bpt.upside * 100 : null, 1),
       con: bc.analystConsensus?.name || null, b: d.buy || 0, h: d.hold || 0, s: d.sell || 0,
       ss: e.tipRanksSmartScoreData?.tipRanksSmartScore ?? null,
@@ -130,57 +130,35 @@ if (missing.length > BACKFILL_LIMIT * 0.8) {
 }
 
 // Enrich from the per-ticker stock-forecast payload — the only per-ticker source for the
-// AI-analyst score/rating/target and the sector name. Two jobs:
-//   1. FILL blanks: off-list pins and brand-new arrivals whose screener row lacks AI data.
-//   2. CORRECT carried AI data: rows outside this run's pull come from rowFromGetData,
-//      which carries ai/air/aipt verbatim (ci/keep.mjs:123-125 — getData genuinely has no
-//      AI-analyst fields, so carrying beats blanking). Nothing else ever re-checks them.
-//      Selecting on "needs a null filled" alone made that permanent: a carried row has
-//      both non-null, so it could never be picked, and a downgrade stayed invisible until
-//      the ticker re-entered the pull (UNP showed "Outperform" for ~10 days / ~46 runs
-//      after its 2026-07-24 downgrade). Hence `|| !inPull.has(t)` below.
-// The AI trio therefore OVERWRITES; fillNulls handles the rest. fillNulls cannot correct
-// a stale non-null, and only a value the payload actually supplies may replace one.
-// SCALE — this overwrite requires forecastFields to emit `ai` on the screener's 0-100
-// scale. It does (ci/keep.mjs), and `node ci/test-ai-scale.mjs` guards it. Were the old
-// `/10` ever reinstated, the overwrite would drag every off-pull row onto 0-10 and the
-// UI's scoreColor(s.ai, 100) would paint them dark — the fill path already stranded
-// AAPL at 8.2 and TER at 7.8 that way, and this pass is what repaired them.
-// Cost bound: ENRICH_LIMIT fetches/run, oldest-AI-first, and `ea` (enriched-at, stamped
-// in the seen tracker below) rotates the queue instead of re-picking the same head — lsMs
-// alone never moves while a ticker is off-pull. Worst-case AI staleness is therefore
-// ceil(offPull / (ENRICH_LIMIT - sticky)) runs x the 5h cron. Measured 2026-08-03: 73
-// off-pull, and 9 sticky slots that re-cost every run (2 pins by design + 7 rows whose
-// forecast payload carries no AI report at all, so they stay blank and keep re-queuing)
-// → 31 fresh slots/run → 3 runs ≈ 15h, well inside a rating-change news cycle.
-// The off-pull set grows monotonically against KEEP_MAX_AGE_DAYS — raise ENRICH_LIMIT
-// once it passes ~120, or the bound stretches past a day.
-// #5 — a FIXED cap cannot bound a growing set: at 40 with off-pull growing ~5.7/day the
-// 3-run (15h) worst case decays to ~20h within a week and ~50h in six. The cap is therefore
-// derived from the eligible set so the bound stays put, with 40 as a floor for small sets.
-// Explicit ENRICH_LIMIT still wins, which is what the tests and a manual run use.
+// AI-analyst score/rating/target and the sector name. Two jobs: FILL blanks (off-list pins,
+// brand-new arrivals), and CORRECT the ai/air/aipt/chg that rowFromGetData carries verbatim
+// for off-pull rows — nothing else ever re-checks those, so the AI trio OVERWRITES here
+// while fillNulls handles the rest. Why each of those is the way it is (the UNP downgrade
+// that stayed visible for 46 runs, the 0-100 scale this overwrite depends on, the queue
+// rotation and its cost bound): ci/README.md → Enrich.
 const ENRICH_TARGET_RUNS = 3; // full rotation within 3 runs = ~15h at the 5h cron
-// Exactly the fields rowFromGetData carries from the previous row because getData does
-// not ship them (see ci/keep.mjs) — so enrich must OVERWRITE these, not fill them.
-// `chg` belongs here for the same reason as the AI trio and was the field this pass
-// originally forgot: it is Day %, the most time-sensitive column in the table, and it
-// was frozen on every off-pull row. Sampled 12/12 wrong, sign wrong in 8 — TER showed
-// +12.07 against a live +0.60, ARTV +9.29 against -3.16. The payload we already fetch
-// carries it (keep.mjs forecastFields), so repairing it costs no extra request.
-const CARRIED_FIELDS = ["ai", "air", "aipt", "chg"];
+// Ceiling, because the derived cap below scales with a set that only grows and every unit
+// is one FlareSolverr fetch on top of BACKFILL_LIMIT. 120/run rotates the whole ~351-row
+// universe inside ENRICH_TARGET_RUNS, so hitting this means the keep set itself is the
+// problem — and the WARNING below can then actually fire, which without a ceiling it
+// mathematically never could (cap = eligible/3 makes `eligible > cap * 3` false always).
+const ENRICH_MAX = 120;
 // When this row's AI trio was last known-good: in the pull (the screener ships
 // aiAnalystData) or enriched. Reuses lsMs so there is one age concept, not two.
 const aiFreshMs = (t) => Math.max(lsMs(t), Date.parse(prevSeen[t]?.ea || "") || 0);
 const needsFill = (r) => r.ai == null || r.sec == null;
-// #10 — a pin is prio 0 only when it is actually STALE. Unconditional prio 0 re-fetched both
-// pins every run (2 wasted requests) and, worse, sticky slots scale with the pin count: if
-// pins + permanent blanks ever reached the cap, prio-2 rotation would stop dead and
-// staleness would silently return to unbounded. Fresh pins now fall through to the queue.
+// A pin is prio 0 only when it is actually STALE. Unconditional prio 0 re-fetched both pins
+// every run and, worse, sticky slots scale with the pin count: if pins + permanent blanks
+// ever reached the cap, prio-2 rotation would stop dead and staleness would silently return
+// to unbounded. Fresh pins fall through to the queue.
 const STALE_MS = 3 * 864e5;
 const prio = (t, r) => (pinned.includes(t) && Date.now() - aiFreshMs(t) > STALE_MS ? 0 : needsFill(r) ? 1 : 2);
 const enrichEligible = [...seen.entries()].filter(([t, r]) => needsFill(r) || !inPull.has(t));
+// A FIXED cap cannot bound a growing set (at 40, with off-pull growing ~5.7/day, the 15h
+// worst case decays to ~50h within six weeks), so derive it — floor 40 for small sets,
+// ceiling ENRICH_MAX for cost. An explicit env value still wins, as the tests rely on.
 const ENRICH_LIMIT = Number(process.env.ENRICH_LIMIT)
-  || Math.max(40, Math.ceil(enrichEligible.length / ENRICH_TARGET_RUNS));
+  || Math.min(ENRICH_MAX, Math.max(40, Math.ceil(enrichEligible.length / ENRICH_TARGET_RUNS)));
 const enrichList = enrichEligible
   .sort((a, b) => prio(a[0], a[1]) - prio(b[0], b[1]) || aiFreshMs(a[0]) - aiFreshMs(b[0]))
   .slice(0, ENRICH_LIMIT)
@@ -216,10 +194,13 @@ for (const t of enrichList) {
 const offPull = enrichEligible.filter(([t]) => !inPull.has(t)).length; // count BEFORE the slice — the old log counted after, so it saturated at ENRICH_LIMIT and read 36 when 73 were off-pull
 console.log(`enriched ${enriched}/${enrichList.length} row(s) via stock-forecast (${offPull} off-pull, cap ${ENRICH_LIMIT}, ${noReport} with no report)`);
 // Nothing else watches this: once eligible rows outpace the cap, AI/chg staleness quietly
-// grows past a day again. Off-pull grew 3 -> 73 in 12 days (~5.7/day), so this WILL fire.
+// grows past a day again. Reachable only because ENRICH_MAX bounds the derived cap — while
+// the cap was purely `eligible / ENRICH_TARGET_RUNS` this condition was arithmetically
+// unsatisfiable, so the guard read as protection and was in fact dead code.
 if (enrichEligible.length > ENRICH_LIMIT * ENRICH_TARGET_RUNS) {
   console.log(`  WARNING: ${enrichEligible.length} rows need enriching but the cap is ${ENRICH_LIMIT}`
-    + ` — full rotation now takes ~${Math.ceil(enrichEligible.length / ENRICH_LIMIT)} runs. Raise ENRICH_LIMIT.`);
+    + ` — full rotation now takes ~${Math.ceil(enrichEligible.length / ENRICH_LIMIT)} runs.`
+    + ` Raise ENRICH_MAX (currently ${ENRICH_MAX}) or lower KEEP_MAX_AGE_DAYS.`);
 }
 
 mkdirSync("src/data", { recursive: true });

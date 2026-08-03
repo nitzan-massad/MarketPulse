@@ -1,14 +1,18 @@
 name: Tests
 
-# Every push, every branch, every pull request. This is the status check that turns a
-# broken check into a visible red X on the commit — including on branches and PRs, which
-# site.yml (push to `main` only) never sees.
+# Every branch and every pull request. This is the status check that turns a broken check
+# into a visible red X on the commit — which site.yml (push to `main` only) never does for
+# branches and PRs.
+#
+# `main` is excluded on purpose: site.yml runs the identical `npm test` on every push to
+# main, so including it here just buys a duplicate job. Not a coverage gap.
 #
 # It is NOT what stops a bad deploy: a separate workflow cannot block site.yml's Pages
-# deploy. site.yml runs `npm test` itself, before it scrapes or builds, and that step is
-# the actual gate. See ci/README.md → Tests.
+# deploy. site.yml runs `npm test` itself — twice, once before the scrape and once after —
+# and those steps are the actual gates. See ci/README.md → Tests.
 on:
   push:
+    branches-ignore: [main]
   pull_request:
   workflow_dispatch:
 

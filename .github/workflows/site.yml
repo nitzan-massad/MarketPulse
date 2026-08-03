@@ -38,11 +38,12 @@ jobs:
 
       - run: npm ci
 
-      # THE DEPLOY GATE. Runs every check in the repo (ci/test-*.mjs, src/*.check.ts, the
-      # ci/keep.mjs self-check) before anything scrapes, commits data, or deploys — so a
-      # broken pipeline can neither push bad JSON to `main` nor ship bad logic to Pages.
-      # Deliberately NOT `continue-on-error`, unlike the refresh steps below: a red check
-      # must stop this job. tests.yml runs the same command for branches and PRs.
+      # LOGIC GATE — checks the code before it is allowed to scrape. This does NOT vet the
+      # data this run produces: the data checks (ci/test-ai-scale.mjs,
+      # ci/test-consensus-direction.mjs) read src/data/*.json off disk, which at this point
+      # is still the PREVIOUS commit's snapshot. The post-refresh run below is what vets
+      # what we actually ship. Deliberately NOT `continue-on-error`, unlike the refresh
+      # steps: a red check must stop this job.
       - name: Run all checks (npm test)
         run: npm test
 
@@ -92,6 +93,22 @@ jobs:
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
         run: node ci/scrape-sectors.mjs
+
+      # THE DATA GATE — the one that actually protects what ships. Everything above this
+      # point is `continue-on-error`, and the pre-scrape `npm test` could only vet the
+      # PREVIOUS snapshot, so without this step a mapping regression (the ÷10 AI-scale bug,
+      # a blanked column, a reshaped payload) would be committed to `main` AND deployed,
+      # and would first go red on the next cron run 5h later — by which time the bad data
+      # is already live. The refresh commit also carries `[skip ci]`, so tests.yml never
+      # sees it either.
+      #
+      # Deliberately NOT `continue-on-error`: failing here aborts before the commit and
+      # before the Pages deploy, so nothing is written and the last good deploy stays up.
+      # Re-runs the whole suite rather than a data-only subset — it takes ~2s, and a
+      # separate "which checks are the data ones" list is one more thing to get wrong.
+      - name: Re-check the refreshed data (THE DATA GATE)
+        if: github.event_name != 'push'
+        run: npm test
 
       - name: Commit refreshed data
         if: github.event_name != 'push'

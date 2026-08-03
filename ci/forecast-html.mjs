@@ -77,6 +77,10 @@ export function parseForecastHtml(html) {
     const notAColumn = (v) => v && !ACTIONS.test(v) && !/^\$[\d.,]+$/.test(v)
       && !/^-?[\d.,]+%$/.test(v) && !/^\d{2}\/\d{2}\/\d{2}$/.test(v)
       && !/^(Buy|Hold|Sell|Upside|Downside)$/.test(v) && v !== "―" && v !== "—";
+    // `n === f` is a DELIBERATE over-reach, not column detection: it is the signature of an
+    // empty analyst cell (n falls back to the firm), but it also drops the genuine row where
+    // an analyst's name IS their firm's — an eponymous or sole-proprietor shop. Losing one
+    // such rating beats inventing an analyst on every shifted row, so the over-reach stays.
     if (!r || !notAColumn(n) || !notAColumn(f) || n === f) continue;
 
     const [mm, dd, yy] = date.split("/");

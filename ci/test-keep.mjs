@@ -25,7 +25,7 @@ const MODULE = process.env.KEEP_MODULE || new URL("./keep.mjs", import.meta.url)
 const K = await import(MODULE);
 const {
   KEEP_MAX_AGE_DAYS, AI_SCALE_FLOOR, lastSeenMs, computeKeep, nextLastSeen,
-  sectorName, airName, rowFromGetData, forecastFields, fillNulls, aiScaleError,
+  sectorName, airName, rowFromGetData, forecastFields, fillNulls, aiScaleError, rndPx,
 } = K;
 
 // --- harness -------------------------------------------------------------------
@@ -48,7 +48,7 @@ const EXPECTED_EXPORTS = {
   KEEP_MAX_AGE_DAYS: "number", AI_SCALE_FLOOR: "number", lastSeenMs: "function",
   computeKeep: "function", nextLastSeen: "function", sectorName: "function",
   airName: "function", rowFromGetData: "function", forecastFields: "function",
-  fillNulls: "function", aiScaleError: "function",
+  fillNulls: "function", aiScaleError: "function", rndPx: "function",
 };
 for (const [name, type] of Object.entries(EXPECTED_EXPORTS)) {
   eq(`export ${name} is a ${type}`, () => typeof K[name], type);
@@ -56,7 +56,7 @@ for (const [name, type] of Object.entries(EXPECTED_EXPORTS)) {
 // A tripwire, not decoration: new public surface must arrive with coverage in this file.
 // NOTE `CON_NAME`, `ssFromGetData` and `AI_SCALE_MIN_SAMPLE` are deliberately module-private
 // — they are exercised through rowFromGetData / forecastFields / aiScaleError below.
-eq("keep.mjs exports exactly the 11 covered names", () => Object.keys(K).sort(), Object.keys(EXPECTED_EXPORTS).sort());
+eq("keep.mjs exports exactly the 12 covered names", () => Object.keys(K).sort(), Object.keys(EXPECTED_EXPORTS).sort());
 eq("CON_NAME is private — the vocabulary is asserted through the two mappers", () => K.CON_NAME, undefined);
 eq("KEEP_MAX_AGE_DAYS is 365 (the expiry contract seen.json is written against)", () => KEEP_MAX_AGE_DAYS, 365);
 eq("AI_SCALE_FLOOR is 10 (top of the bogus 0–10 scale)", () => AI_SCALE_FLOOR, 10);
@@ -552,6 +552,38 @@ eq("airName is used for `air` in forecastFields", () => ff({ report: { ratingId:
 eq("air with ratingId absent → null", () => ff({ report: { score: 1 } }).air, null);
 eq("air with ratingId null → null", () => ff({ report: { ratingId: null } }).air, null);
 eq("air with ratingId '' → null", () => ff({ report: { ratingId: "" } }).air, null);
+
+// =====================================================================================
+// I2. rndPx — price precision. A flat 2dp silently ANNIHILATES a sub-penny quote
+// (0.0034 -> 0, which fmtPx renders "$0.00"), and 42 of 351 shipped rows are under $1.
+// The $1 switch point is the contract: 4dp below, 2dp at-or-above.
+// =====================================================================================
+eq("a sub-penny price survives at 4dp instead of rounding to 0", () => rndPx(0.0034), 0.0034);
+eq("a sub-penny price is never 0", () => rndPx(0.0001) !== 0, true);
+eq("the real cheapest shipped row is untouched", () => rndPx(0.17), 0.17);
+eq("just under $1 keeps 4dp", () => rndPx(0.9999), 0.9999);
+eq("below $1, the 5th decimal still rounds", () => rndPx(0.00005), 0.0001);
+// at and above $1 it must stay 2dp — cents are the right precision for a real quote, and
+// widening it here would churn every price in stocks.json on the next run
+eq("exactly $1 switches to 2dp", () => rndPx(1), 1);
+eq("$1 and a fraction rounds to cents", () => rndPx(1.23456), 1.23);
+eq("a normal quote rounds to cents", () => rndPx(367.6912), 367.69);
+eq("a large quote rounds to cents", () => rndPx(1234.5678), 1234.57);
+// null/absent propagates — every px writer feeds this an optional field
+eq("null in, null out", () => rndPx(null), null);
+eq("undefined in, null out", () => rndPx(undefined), null);
+// 0 is a value, not an absence: a nullish test, not a falsy one
+eq("0 stays 0 rather than becoming null", () => rndPx(0), 0);
+// negatives are nonsense for a price but must not silently flip branch on Number(x) < 1
+eq("a negative price takes the 4dp branch, not a throw", () => rndPx(-0.5), -0.5);
+// numeric strings: the payloads are unvalidated, so coercion has to be deliberate
+eq('the string "0.0034" coerces and keeps 4dp', () => rndPx("0.0034"), 0.0034);
+eq('the string "367.6912" coerces to cents', () => rndPx("367.6912"), 367.69);
+// and the mappers must actually USE it — this is the regression that motivated the export
+eq("rowFromGetData rounds a sub-penny last price at 4dp",
+  () => rowFromGetData({ ticker: "PENNY", prices: [{ p: 0.0034 }] }, {}).px, 0.0034);
+eq("forecastFields rounds a sub-penny daily price at 4dp",
+  () => forecastFields({ models: { stocks: [{ _id: "P", prices: { daily: { priceUSD: 0.0034 } } }] } }, "P").px, 0.0034);
 
 // =====================================================================================
 // I. sectorName — slug → the app's PascalCase sector, matched by normalising both sides

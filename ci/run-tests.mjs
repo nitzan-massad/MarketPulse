@@ -47,13 +47,16 @@ const selfChecks = [path.join(CI_DIR, "keep.mjs")].filter(existsSync);
 
 // -------------------------------------------------------- vacuity heuristics --
 
-/** Drop block comments and whole-line `//` comments so commented-out assertions don't
- *  count. Inline `//` is left alone on purpose — stripping it would eat "https://…". */
+/** Drop block comments and `//` comments, whole-line AND trailing, so a commented-out
+ *  assertion never counts toward the vacuity check below — `foo(); // assert(x)` used to.
+ *  The `[^:]` guard is what keeps "https://…" intact: it requires the character before the
+ *  `//` to not be a colon, so a URL scheme is never mistaken for a comment. */
 const stripComments = (src) =>
   src
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n")
     .filter((l) => !/^\s*\/\//.test(l))
+    .map((l) => l.replace(/(^|[^:])\/\/.*$/, "$1"))
     .join("\n");
 
 const ASSERT_PATTERNS = [
@@ -74,8 +77,17 @@ function countAssertions(file) {
   return ASSERT_PATTERNS.reduce((n, re) => n + (src.match(re)?.length ?? 0), 0);
 }
 
-/** Lines that look like a check reporting a satisfied expectation. */
+/** Lines that look like a check reporting a satisfied expectation. Deliberately loose and
+ *  NOT line-anchored, because the checks genuinely say it mid-line ("ai-scale OK — 344/351
+ *  rows scored", "staleness queue: ok"). It is only ever a "prove it" hint — never a
+ *  verdict — which is exactly why it needs the hard counterpart below. */
 const EVIDENCE_RE = /\b(ok|OK|pass|PASS|passed)\b|✓/;
+
+/** …the counterpart: a check that PRINTED a failure and still exited 0 is broken, and a
+ *  stray "ok" elsewhere in its output would otherwise let EVIDENCE_RE wave it through.
+ *  This one IS a verdict. Both markers are ones the checks in this repo actually emit
+ *  (`FAIL <label>` from the src/*.check.ts `eq()` helper). */
+const FAILURE_RE = /^\s*(FAIL|not ok)\b/m;
 
 /** A `.mjs` check that imports a `.ts` module needs Node's native type stripping. */
 const TS_IMPORT_RE = /(?:from|import\s*\(?)\s*["'][^"']+\.ts["']/;
@@ -124,6 +136,10 @@ function runCheck(name, argv, { source, needsTypeStripping = false }) {
   // exit 0 from here on — now look for signs it actually did something
   if (out.trim() === "") {
     notes.push("exited 0 without printing anything — cannot tell it ran; make it say so");
+    return { name, ok: false, ms, out, notes };
+  }
+  if (FAILURE_RE.test(out)) {
+    notes.push("printed a FAIL line but exited 0 — the check is not propagating its own failure");
     return { name, ok: false, ms, out, notes };
   }
   if (!EVIDENCE_RE.test(out)) {

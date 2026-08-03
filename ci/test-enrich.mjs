@@ -168,15 +168,33 @@ console.log("enrich overwrite (incl. chg + NaN guard): ok");
 
 // --- #5: the cap scales with the eligible set so the bound cannot decay ---------
 // A fixed 40 meant the 3-run (~15h) worst case drifted to ~20h in a week and ~50h in six,
-// because the off-pull set grows ~5.7/day. Derive the cap instead; keep 40 as a floor.
+// because the off-pull set grows ~5.7/day. Derive the cap instead; keep 40 as a floor and
+// ENRICH_MAX as a ceiling, since every unit of cap is one FlareSolverr fetch per run.
 {
-  const cap = (n, target = 3) => Math.max(40, Math.ceil(n / target));
+  const MAX = 120; // mirrors ENRICH_MAX in ci/refresh-data-ci.mjs and scripts/refresh-data.mjs
+  const cap = (n, target = 3) => Math.min(MAX, Math.max(40, Math.ceil(n / target)));
   assert.equal(cap(73), 40, "73 eligible still fits the floor");
   assert.equal(cap(120), 40, "120/3 = 40, exactly the floor");
   assert.equal(cap(200), 67, "200 eligible -> 67, so rotation stays at 3 runs");
-  assert.equal(cap(350), 117, "350 eligible -> 117");
-  for (const n of [1, 40, 73, 120, 200, 350, 1000]) {
+  assert.equal(cap(350), 117, "350 eligible -> 117, just under the ceiling");
+  assert.equal(cap(360), MAX, "360/3 lands exactly ON the ceiling");
+  assert.equal(cap(900), MAX, "past the ceiling the cap stops growing — cost is bounded");
+  assert.equal(cap(1e6), MAX, "and stays bounded however large the keep set gets");
+  for (const n of [1, 40, 73, 120, 200, 350, 360]) {
     assert.ok(Math.ceil(n / cap(n)) <= 3, `rotation stays within 3 runs at n=${n}`);
+  }
+  // THE POINT OF THE CEILING, beyond cost: it is what makes the staleness WARNING in
+  // refresh-data-ci.mjs reachable at all. Without it cap === ceil(n/3), so the condition
+  // `n > cap * 3` is arithmetically unsatisfiable and the guard is dead code that reads
+  // as protection. With it, the warning fires exactly when rotation really has slipped.
+  const warns = (n) => n > cap(n) * 3;
+  assert.ok(!warns(351), "at today's whole universe there is nothing to warn about");
+  assert.ok(!warns(360), "at the ceiling boundary rotation is still within target");
+  assert.ok(warns(361), "one row past what the ceiling can rotate in 3 runs — WARN");
+  assert.ok(warns(1000), "and it keeps warning as the set grows");
+  const uncapped = (n) => Math.max(40, Math.ceil(n / 3));
+  for (const n of [1, 73, 361, 1000, 5000]) {
+    assert.ok(!(n > uncapped(n) * 3), `REGRESSION GUARD: without a ceiling the warning is dead at n=${n}`);
   }
 }
 

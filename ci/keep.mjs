@@ -49,6 +49,13 @@ export function nextLastSeen(prev, isInPull, today) {
 }
 
 const rnd = (x, p = 2) => (x == null ? null : +Number(x).toFixed(p));
+// Prices, not scores: 2dp destroys a sub-dollar quote (0.0034 -> 0, rendered "$0.00" by
+// fmtPx). Sub-$1 tickers are not hypothetical here — 42 of 351 shipped rows are under $1,
+// the cheapest at $0.17 — and a delisting-track penny stock is exactly the row a watcher
+// is watching. 4dp below $1, 2dp above. Every px writer uses this: ci/keep.mjs (both
+// mappers), ci/refresh-data-ci.mjs and scripts/refresh-data.mjs — they disagreed once and
+// that is the whole class of bug this file keeps fixing.
+export const rndPx = (x) => (x == null ? null : Number(x) < 1 ? rnd(x, 4) : rnd(x, 2));
 // rating/enumId (1–5) → the app's compact consensus vocab (see src/types.ts + src/lib.ts:
 // the UI lowercases + substring-matches "strongbuy"/"strongsell", so NO spaces).
 const CON_NAME = { 1: "StrongSell", 2: "Sell", 3: "Neutral", 4: "Buy", 5: "StrongBuy" };
@@ -70,44 +77,22 @@ export const airName = (slug) => {
 };
 
 // --- `ss` (Smart Score) from getData ------------------------------------------
-// TipRanks emits `score: null` as a REAL value meaning "this stock has no Smart
-// Score". Verified live: ASTI and BCDA both return the FULL tipranksStockScore
-// object (returnOnAssets, momentum, assetGrowth, …) with `"score": null`, while
-// GOOGL comes back 10 and DNLI 6 from the very same shape.
-//
-// So the presence of the KEY — not the nullness of the value — is what tells the two
-// cases apart:
+// The KEY's presence, not the value's nullness, separates the two cases:
 //   `score` present (even null) → TipRanks answered; null propagates → UI renders "—"
-//   object or key absent        → payload reshaped / renamed → carry prev.ss
-// A plain `?? prev.ss` collapses both into "carry", so a legitimate null resurrected
-// the last known number and served it as if freshly read: ASTI stayed frozen at ss 2
-// from 2026-07-23 across 7 market-moving runs, and could never recover to "—" while it
-// stayed off the screener list. (An explicitly `null` *object* is lumped in with absent —
-// unobserved in the wild, and carrying is the conservative reading of it.)
-//
-// TRADE-OFF, stated deliberately: if TipRanks ever drops `tipranksStockScore` entirely
-// (or renames `score`), EVERY keep-path ticker silently holds its previous `ss` — that is
-// today's behaviour and the safe side of the line, because a vanished field is a scraper
-// bug, not a data change, and freezing beats blanking 350 rows on our own parse error.
-// An explicit null is the opposite: it IS the data, so we fail visibly and show "—".
-// That is also what makes the two write paths agree instead of disagree — the screener
-// path uses `?? null` (refresh-data-ci.mjs:73), which is exactly why on-list no-score
-// tickers like BCDA already render "—". And a wholesale screener failure can't quietly
-// blank the file either: the row-count guard at refresh-data-ci.mjs:83-86 aborts the run
-// before anything is written. Nor can a garbage per-ticker response reach here — both
-// callers accept the mapped row only `if (row.t)`, and otherwise carry the whole previous
-// row. Visible "—" on a real null, carry only on a real reshape.
+//   object or key absent        → payload reshaped/renamed → carry prev.ss
+// A plain `?? prev.ss` collapses both, resurrecting a stale number as if freshly read.
+// Visible "—" on a real null, carry only on a real reshape — the trade-off that choice
+// makes, and the live evidence for it, are in ci/README.md → Smart Score.
 function ssFromGetData(j, prev) {
   const s = j.tipranksStockScore;
-  // `typeof s === "object"` is not redundant: `in` THROWS on a truthy primitive, and the
-  // `?.score` this replaced degraded to prev.ss cleanly. scripts/refresh-data.mjs calls
-  // rowFromGetData outside any try/catch, so a scalar here would abort the local refresh
-  // rather than carry. Belongs in the "reshaped payload -> carry" branch, same as absent.
+  // `typeof s === "object"` is not redundant: `in` THROWS on a truthy primitive, and
+  // scripts/refresh-data.mjs calls rowFromGetData outside any try/catch, so a scalar here
+  // would abort the local refresh rather than carry. Same branch as absent.
   if (!(s && typeof s === "object" && "score" in s)) return prev.ss ?? null;
+  if (s.score == null) return null; // explicit null IS the answer
   // ss was the ONE numeric field bypassing rnd(), so {score:"7"} wrote the STRING "7" into
   // stocks.json, which then hit sortRows' string branch and localeCompared against numbers.
   // A non-numeric score is a reshaped payload, not a value: carry rather than launder.
-  if (s.score == null) return null; // explicit null IS the answer — see above
   const n = Number(s.score);
   return Number.isFinite(n) ? n : prev.ss ?? null;
 }
@@ -120,7 +105,7 @@ export function rowFromGetData(j, prev = {}) {
   // rowFromGetData outside any try/catch — so one malformed price row aborted the whole
   // local refresh. Same failure class the ssFromGetData typeof guard exists for.
   const lastPx = prices.length ? prices[prices.length - 1] : null;
-  const px = lastPx && typeof lastPx === "object" ? rnd(lastPx.p) : null;
+  const px = lastPx && typeof lastPx === "object" ? rndPx(lastPx.p) : null;
   const ptc = j.ptConsensus || [];
   const ptE = ptc.find((p) => p.bench === 1) || ptc.find((p) => p.period === 0) || ptc[0]; // "best analysts" target
   const pt = ptE ? ptE.priceTarget : null;
@@ -133,7 +118,7 @@ export function rowFromGetData(j, prev = {}) {
     t: j.ticker,
     n: j.companyName ?? prev.n ?? null,
     sec: prev.sec ?? null,                       // getData exposes only a numeric sectorID — carry the name
-    px: rnd(px),
+    px,                                          // already rndPx'd above (the upside calc uses it)
     chg: prev.chg ?? null,                       // no daily-change field in getData — carry
     pt: rnd(pt),
     up: rnd(up, 1),
@@ -170,7 +155,7 @@ export function forecastFields(fj, ticker) {
   return {
     n: c.name ?? c.companyName ?? null,
     sec: sectorName(c.sector),
-    px: rnd(daily.priceUSD ?? daily.price),
+    px: rndPx(daily.priceUSD ?? daily.price),
     chg: daily.gain != null ? rnd(daily.gain * 100, 2) : null,
     pt: rnd(best.priceTarget?.value),
     up: up != null ? rnd(up * 100, 1) : null,
@@ -202,22 +187,15 @@ export function fillNulls(row, extra) {
 }
 
 // --- AI-score scale guard -----------------------------------------------------
-// `ai` is written by TWO independent paths — the screener (`aiAnalystData.overallScore`
-// in refresh-data-ci.mjs) and `forecastFields` above (`report.score`). Both are 0–100.
-// A `/10` in forecastFields wrote the two pinned rows on a 0–10 scale (TER 7.8 for a
-// real 71) and nobody noticed for 58 commits, because one small number in isolation is
-// indistinguishable from a genuinely low score.
-//
-// What IS detectable is the MIXTURE: if the column really were 0–10, EVERY value would
-// be ≤ 10. So the two failure signatures are
+// `ai` is written by two independent paths (the screener's `aiAnalystData.overallScore` and
+// `forecastFields`' `report.score`) and both are 0–100. One small number in isolation is
+// indistinguishable from a genuinely low score, so this checks the MIXTURE instead:
 //   1. some values ≤ FLOOR while others are > FLOOR → two scales in one column;
-//   2. every value ≤ FLOOR over a large sample     → the whole column got rescaled.
-// ASSUMPTION: no ticker legitimately scores ≤ 10 on the 0–100 scale. Live evidence:
-// of 344 non-null rows the real spread is 39–85 and the 1st percentile is 41 — nothing
-// has ever come in under 30. If TipRanks ever publishes a genuine single-digit score
-// this trips; that is the deliberate trade-off for a check that can't be fooled. (A bare
-// max/min ratio was rejected: it false-positives on any legitimately wide spread, e.g.
-// 8 → 85 is a ratio of 10.6 and perfectly valid data.)
+//   2. every value ≤ FLOOR over a large sample     → the whole column got rescaled;
+//   3. most values missing                         → the column was emptied, a worse
+//      failure that arms 1 and 2 are blind to (they compare values that no longer exist).
+// ASSUMPTION: no ticker legitimately scores ≤ 10 on 0–100. Evidence, the rejected
+// alternatives, and what trips this: ci/README.md → AI score scale.
 export const AI_SCALE_FLOOR = 10;
 const AI_SCALE_MIN_SAMPLE = 20; // below this, "all values are small" proves nothing
 
