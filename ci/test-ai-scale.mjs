@@ -22,6 +22,26 @@ const rows = JSON.parse(readFileSync(path, "utf8"));
 const fj = { models: { stocks: [{ _id: "TER", report: { score: 78 } }] } };
 assert.equal(forecastFields(fj, "TER").ai, 78, "forecastFields must NOT divide report.score by 10");
 
+// 1b. POSITIVE CONTROL — the check below trusts `aiScaleError`'s verdict on the real file,
+// so prove the guard still bites before believing an "OK". Without this, neutering
+// aiScaleError to `return null` would make this file pass forever while the data rots.
+// The control is derived from the SHIPPED rows, not a synthetic column: rescale them by
+// the exact /10 that regressed and the guard must name the offenders.
+assert.ok(
+  aiScaleError([{ t: "CTRL", ai: 7.8 }, { t: "OK", ai: 79 }]),
+  "positive control: aiScaleError no longer flags a 0-10 row mixed into a 0-100 column — the guard has been neutered",
+);
+const scoredRows = rows.filter((r) => r.ai != null && Number.isFinite(Number(r.ai)));
+if (scoredRows.length >= 2) {
+  const rescaled = rows.map((r, i) => (i === 0 && r.ai != null ? { ...r, ai: +(Number(r.ai) / 10).toFixed(1) } : r));
+  assert.ok(
+    aiScaleError(rescaled),
+    "positive control: rescaling ONE shipped row by /10 no longer trips the guard — a repeat of the original bug would ship undetected",
+  );
+}
+// Note: `aiScaleError(rows, floor)` must be called WITHOUT a floor here. The parameter is
+// the low/high split point, so LOWERING it silences the guard rather than tightening it.
+
 // 2. the shipped data must be on one scale
 const err = aiScaleError(rows);
 const scored = rows.filter((r) => r.ai != null);
