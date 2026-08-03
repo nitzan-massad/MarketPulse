@@ -1,0 +1,49 @@
+name: Tests
+
+# Every push, every branch, every pull request. This is the status check that turns a
+# broken check into a visible red X on the commit — including on branches and PRs, which
+# site.yml (push to `main` only) never sees.
+#
+# It is NOT what stops a bad deploy: a separate workflow cannot block site.yml's Pages
+# deploy. site.yml runs `npm test` itself, before it scrapes or builds, and that step is
+# the actual gate. See ci/README.md → Tests.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One test run per ref; a new push supersedes an in-flight one.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 24 (LTS), not 20: ci/test-consensus-direction.mjs imports ../src/consensus.ts,
+      # and importing .ts needs native type stripping, which landed unflagged in 22.18.
+      # On Node 20 that check cannot execute at all (ERR_UNKNOWN_FILE_EXTENSION).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # ci/run-tests.mjs discovers ci/test-*.mjs, src/*.check.ts and the ci/keep.mjs
+      # self-check, runs each in its own process, and exits non-zero if any fails.
+      # Deliberately no `continue-on-error` — a red check must be a red job.
+      - name: Run all checks
+        run: npm test
+
+      # site.yml never runs on branches or PRs, so without this a type regression only
+      # surfaces once it has already reached `main`. `npm run build` is `tsc && vite build`,
+      # so a type error breaks the deploy — catch it here instead.
+      - name: Typecheck
+        run: npx tsc --noEmit

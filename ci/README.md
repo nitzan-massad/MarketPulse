@@ -227,3 +227,80 @@ New Arrivals loads this one small file (instead of hundreds of forecast files) t
 stocks with a fresh review. `site.yml` runs it after the scrapes and commits the JSON. The
 `n|f|d|r|pt` fields match `reviewAlerts.reviewKey`, so clicking a review row opens the stock's
 Analyst Forecasts and highlights that exact row.
+
+<!-- BEGIN: Tests (ci/run-tests.mjs + .github/workflows/tests.yml) -->
+
+## Tests — run on every push ✅
+
+**One command, the same one CI runs:**
+
+```
+npm test          # === node ci/run-tests.mjs
+```
+
+Needs **Node ≥ 22.18** locally (see *Node version* below). No test framework and no test
+dependency — every check is a plain script that asserts with `node:assert` (or a local
+`eq()` helper) and exits non-zero when unhappy. `ci/run-tests.mjs` only finds them, runs
+each in its own child process, and turns "one exited 1" into "the job is red". Nothing
+touches the network; the only writes are to `node_modules/.tmp/checks/`.
+
+### What it discovers
+
+Discovery is by **pattern, never a hardcoded list** — drop in a new check and it runs, with
+no edit to the runner:
+
+| Pattern | How it runs |
+|---|---|
+| `ci/test-*.mjs` | directly, on the current Node |
+| `src/*.check.ts` | one `tsc` pass into `node_modules/.tmp/checks/` first, then the emitted `.js` |
+| `ci/keep.mjs` | the self-check behind its `import.meta.url === file://${process.argv[1]}` guard |
+
+`src/*.check.ts` needs the compile step (not just Node's type stripping) because those files
+import their subject **without a file extension** (`from "./lib"`) and one pulls in React +
+JSX — Node's resolver cannot do either. The runner uses the repo's existing `typescript`
+devDependency with the same flags as the `npx tsc …` line in each file's header comment, plus
+a `{ "type": "commonjs" }` marker in the out-dir (the repo root is `"type": "module"`, so
+without it Node would parse the CommonJS output as ESM and die on `exports`).
+
+### Two rules beyond pass/fail
+
+1. **A vacuous check is a failing check.** Exit 0 with no output at all, or a source file
+   with no assertion in it (commented-out assertions don't count), is reported `FAIL` — a
+   gutted test that reads green forever is worse than no test. Exiting 0 with output but no
+   `ok`/`pass` line is a softer *suspicious* note, listed in the summary.
+2. **A check that cannot execute is not a pass.** See below.
+
+The runner keeps going after the first failure, so one run reports everything that is broken,
+and prints a `PASS`/`FAIL` line per file (with assertion count) plus a final tally.
+
+### Node version — why the workflows pin 24, not 20
+
+`ci/test-consensus-direction.mjs` imports `../src/consensus.ts`. Importing `.ts` needs Node's
+native type stripping, which shipped **unflagged in 22.18**; on Node 20 the check dies with
+`ERR_UNKNOWN_FILE_EXTENSION` and cannot run at all. Both workflows therefore pin
+`node-version: 24` (current LTS) — verified: `npm ci`, `npm test`, `npx tsc --noEmit` and
+`npm run build` all pass on 24.16.0. Keep the two workflows in step.
+
+On an older local Node the runner detects this via `process.features.typescript` and prints one
+actionable line naming the version instead of leaking a resolver stack trace — and **fails**,
+rather than quietly skipping the check.
+
+### Where it runs, and what actually blocks a bad deploy
+
+- **`.github/workflows/tests.yml`** — `on: push` (every branch), `pull_request`,
+  `workflow_dispatch`. This is the red X on the commit, and the only coverage branches and
+  PRs get, since `site.yml` only triggers on pushes to `main`.
+- **`site.yml` → "Run all checks (npm test)"** — right after `npm ci`, *before* the scrapes,
+  the data commit, the build and the Pages deploy. **This step is the gate.** A separate
+  workflow cannot block `site.yml`'s deploy, so the deploy workflow has to run the checks
+  itself; putting it ahead of the scrapes also means a broken pipeline cannot commit bad JSON
+  to `main`.
+- Neither has `continue-on-error` — unlike the refresh steps above, which are deliberately
+  failure-tolerant. A red check stops the job.
+
+Cost of that belt-and-braces: a push to `main` runs the checks twice (~20s). Worth it — the
+gate and the status check serve different jobs. If you ever want it once, add
+`branches-ignore: [main]` to `tests.yml`'s `push` trigger and keep the `site.yml` step.
+
+<!-- END: Tests -->
+

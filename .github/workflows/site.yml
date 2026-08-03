@@ -27,12 +27,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 24 (LTS), not 20: ci/test-consensus-direction.mjs imports ../src/consensus.ts,
+      # and importing .ts needs native type stripping, which landed unflagged in 22.18.
+      # On Node 20 that check cannot execute at all (ERR_UNKNOWN_FILE_EXTENSION).
+      # Keep this in step with .github/workflows/tests.yml.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - run: npm ci
+
+      # THE DEPLOY GATE. Runs every check in the repo (ci/test-*.mjs, src/*.check.ts, the
+      # ci/keep.mjs self-check) before anything scrapes, commits data, or deploys — so a
+      # broken pipeline can neither push bad JSON to `main` nor ship bad logic to Pages.
+      # Deliberately NOT `continue-on-error`, unlike the refresh steps below: a red check
+      # must stop this job. tests.yml runs the same command for branches and PRs.
+      - name: Run all checks (npm test)
+        run: npm test
 
       - uses: actions/configure-pages@v5
         with:
