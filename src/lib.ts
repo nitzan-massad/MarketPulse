@@ -101,6 +101,11 @@ export interface SeenEntry {
   ai?: number | null; // AI score at first sighting
   con?: string | null; // consensus at first sighting
   l?: string[]; // which ranking(s) it entered on: "u" upside, "s" smart score, "m" market cap
+  // Written by the refresh scripts on every run but previously undeclared — the same
+  // "type lies about the data" class as `con: string` did. Declared so a reader can see
+  // they exist; both are pipeline bookkeeping and nothing in the UI should render them.
+  ls?: string; // last seen in the dynamic screener pull (ISO). FROZEN while a ticker is off-pull.
+  ea?: string; // last enrich attempt (ISO) — drives the AI/chg refresh rotation, see ci/refresh-data-ci.mjs
 }
 // human labels for the entry lists (l)
 export const LIST_LABEL: Record<string, string> = { u: "Analyst", s: "Smart Score", a: "AI Top" };
@@ -128,6 +133,23 @@ export const agoLabel = (days: number, hours: number): string => {
 };
 // baseline metrics captured when the ticker first appeared (for the Changes column)
 export const firstSeen = (t: string): SeenEntry | null => SEEN[t] ?? null;
+
+// A metric APPEARING or DISAPPEARING is a real change. The New Arrivals change row used to
+// require both sides non-null, so a stock losing its Smart Score / AI score showed nothing —
+// silently, exactly when it mattered. "—" marks the missing side and the direction is null,
+// because up/down against an absent value is meaningless. Two nulls, or an equal pair, is no
+// change. Guarded by src/metricChange.check.ts.
+export function metricChange(o: number | null | undefined, n: number | null | undefined):
+  { o: string; n: string; dir: "up" | "down" | null } | null {
+  const a = o ?? null;
+  const b = n ?? null;
+  if (a === b) return null; // includes both-null
+  return {
+    o: a == null ? "—" : String(a),
+    n: b == null ? "—" : String(b),
+    dir: a == null || b == null ? null : b > a ? "up" : "down",
+  };
+}
 
 export function sortRows(rows: Stock[], sort: keyof Stock, dir: number): Stock[] {
   return [...rows].sort((a, b) => {

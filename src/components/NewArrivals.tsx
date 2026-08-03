@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import stocksData from "../data/stocks.json";
 import { reviewKey } from "../reviewAlerts";
 import type { Stock } from "../types";
-import { addedInfo, agoLabel, consLabel, DATE_LOCALE, firstSeen, fmtMc, fmtPx, LIST_LABEL, NEW_WINDOW_DAYS, scoreColor } from "../lib";
+import { addedInfo, agoLabel, consLabel, DATE_LOCALE, metricChange, firstSeen, fmtMc, fmtPx, LIST_LABEL, NEW_WINDOW_DAYS, scoreColor } from "../lib";
 import { consDir, type ConsDir } from "../consensus";
 import { Chip, ConsPill, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
@@ -31,16 +31,20 @@ function changesFor(s: Stock): Change[] {
   const fs = firstSeen(s.t);
   if (!fs) return [];
   const out: Change[] = [];
-  if (fs.ss != null && s.ss != null && fs.ss !== s.ss)
-    out.push({ k: "Smart Score", o: String(fs.ss), n: String(s.ss), dir: s.ss > fs.ss ? "up" : "down" });
-  if (fs.ai != null && s.ai != null && fs.ai !== s.ai)
-    out.push({ k: "AI Score", o: String(fs.ai), n: String(s.ai), dir: s.ai > fs.ai ? "up" : "down" });
-  if (fs.con && s.con && fs.con !== s.con)
+  // metricChange lives in ../lib so it can be unit-tested without mounting a component
+  const ss = metricChange(fs.ss, s.ss);
+  if (ss) out.push({ k: "Smart Score", ...ss });
+  const ai = metricChange(fs.ai, s.ai);
+  if (ai) out.push({ k: "AI Score", ...ai });
+  // normalise "" to null so an empty consensus doesn't read as a change against null
+  const fsCon = fs.con || null;
+  const sCon = s.con || null;
+  if (fsCon !== sCon)
     out.push({
       k: "Consensus",
-      o: consLabel(fs.con),
-      n: consLabel(s.con),
-      dir: consDir(fs.con, s.con),
+      o: consLabel(fsCon), // already renders "—" for null
+      n: consLabel(sCon),
+      dir: consDir(fsCon, sCon), // null when either side is missing
     });
   return out;
 }
