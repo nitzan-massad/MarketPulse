@@ -68,12 +68,12 @@ for (const sb of [5, 2, 3]) {
     seen.set(t.ticker, {
       t: t.ticker, n: t.companyName, sec: t.sector?.name || null,
       px: rndPx(t.lastClose), chg: rnd(t.priceChangePct != null ? t.priceChangePct * 100 : null, 2),
-      pt: rnd(bpt.convertedPriceTarget), up: rnd(bpt.upside != null ? bpt.upside * 100 : null, 1),
+      pt: rndPx(bpt.convertedPriceTarget), up: rnd(bpt.upside != null ? bpt.upside * 100 : null, 1),
       con: bc.analystConsensus?.name || null, b: d.buy || 0, h: d.hold || 0, s: d.sell || 0,
       ss: e.tipRanksSmartScoreData?.tipRanksSmartScore ?? null,
       ai: rnd(ai.overallScore, 1),
       air: (typeof ai.overallRating === "object" ? ai.overallRating?.name : ai.overallRating) ?? null,
-      aipt: rnd(ai.priceTarget), mc: t.marketCap != null ? Math.round(t.marketCap / 1e6) : null,
+      aipt: rndPx(ai.priceTarget), mc: t.marketCap != null ? Math.round(t.marketCap / 1e6) : null,
       desc: t.description || null,
     });
   }

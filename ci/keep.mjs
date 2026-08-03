@@ -120,7 +120,7 @@ export function rowFromGetData(j, prev = {}) {
     sec: prev.sec ?? null,                       // getData exposes only a numeric sectorID — carry the name
     px,                                          // already rndPx'd above (the upside calc uses it)
     chg: prev.chg ?? null,                       // no daily-change field in getData — carry
-    pt: rnd(pt),
+    pt: rndPx(pt),                              // a target is a price too — 2dp zeroed a sub-dollar one
     up: rnd(up, 1),
     con: con ? CON_NAME[con.rating] ?? prev.con ?? null : prev.con ?? null,
     b: con ? con.nB || 0 : prev.b || 0,
@@ -157,7 +157,7 @@ export function forecastFields(fj, ticker) {
     sec: sectorName(c.sector),
     px: rndPx(daily.priceUSD ?? daily.price),
     chg: daily.gain != null ? rnd(daily.gain * 100, 2) : null,
-    pt: rnd(best.priceTarget?.value),
+    pt: rndPx(best.priceTarget?.value),
     up: up != null ? rnd(up * 100, 1) : null,
     con: best.enumId != null ? CON_NAME[best.enumId] ?? null : null,
     b: best.buy, h: best.hold, s: best.sell,
@@ -168,7 +168,7 @@ export function forecastFields(fj, ticker) {
     air: airName(rep.ratingId),
     // AI price target in dollars, not a score — verified against the live price:
     // TER 406 vs px 367.69, AAPL 348 vs 308.91, NVDA 223 vs 200.75. No scaling.
-    aipt: rnd(rep.rating?.priceTarget?.value),
+    aipt: rndPx(rep.rating?.priceTarget?.value),
     desc: c.description ?? null,
   };
 }

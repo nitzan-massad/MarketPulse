@@ -198,7 +198,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, obs
                     </div>
                   </td>
                   <td className="pt" data-label="Predicted Price">
-                    {s.pt == null ? <span className="dash">—</span> : "$" + s.pt.toFixed(2)}
+                    {s.pt == null ? <span className="dash">—</span> : fmtPx(s.pt)}
                   </td>
                   <td data-label="Upside">
                     <UpBar up={s.up} />
