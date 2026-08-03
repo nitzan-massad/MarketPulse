@@ -3,6 +3,7 @@ import stocksData from "../data/stocks.json";
 import { reviewKey } from "../reviewAlerts";
 import type { Stock } from "../types";
 import { addedInfo, agoLabel, consClass, consLabel, DATE_LOCALE, firstSeen, fmtMc, fmtPx, LIST_LABEL, NEW_WINDOW_DAYS, scoreColor } from "../lib";
+import { consDir, type ConsDir } from "../consensus";
 import { Chip, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
@@ -18,13 +19,11 @@ const fmtDate = (iso: string): string => {
   return new Date(y, m - 1, d).toLocaleDateString(DATE_LOCALE, { month: "numeric", day: "numeric" });
 };
 
-const CONS_RANK: Record<string, number> = { StrongSell: 1, Sell: 2, Hold: 3, Buy: 4, StrongBuy: 5 };
-
 interface Change {
   k: string;
   o: string;
   n: string;
-  dir: "up" | "down";
+  dir: ConsDir; // null = direction unknown, render the change with no up/down colour
 }
 
 // what moved for this ticker since it was first tracked (baseline in seen.json → current)
@@ -41,7 +40,7 @@ function changesFor(s: Stock): Change[] {
       k: "Consensus",
       o: consLabel(fs.con),
       n: consLabel(s.con),
-      dir: (CONS_RANK[s.con] ?? 0) >= (CONS_RANK[fs.con] ?? 0) ? "up" : "down",
+      dir: consDir(fs.con, s.con),
     });
   return out;
 }
@@ -210,7 +209,7 @@ export default function NewArrivals({ onOpen, onOpenReview, marks, onMark }: New
                               <span className="na-chgk">{c.k}</span>
                               <span className="na-chip">{c.o}</span>
                               <span className="na-arr">→</span>
-                              <span className={`na-chip n ${c.dir}`}>{c.n}</span>
+                              <span className={c.dir ? `na-chip n ${c.dir}` : "na-chip n"}>{c.n}</span>
                             </div>
                           ))}
                         </>
