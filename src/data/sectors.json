@@ -1,5 +1,5 @@
 {
- "asOf": "2026-08-11",
+ "asOf": "2026-08-12",
  "sectors": {
   "BasicMaterials": {
    "pe": 22.36,
@@ -22,27 +22,27 @@
    "fpe": 12.18
   },
   "Financial": {
-   "pe": 16.55,
+   "pe": 16.56,
    "fpe": 14.59
   },
   "Healthcare": {
    "pe": 32.77,
-   "fpe": 18.52
+   "fpe": 18.51
   },
   "Industrials": {
-   "pe": 39.87,
-   "fpe": 29.41
+   "pe": 39.85,
+   "fpe": 29.4
   },
   "RealEstate": {
-   "pe": 31.47,
+   "pe": 31.48,
    "fpe": 28.75
   },
   "Technology": {
    "pe": 35.76,
-   "fpe": 25.99
+   "fpe": 25.97
   },
   "Utilities": {
-   "pe": 19.45,
+   "pe": 19.46,
    "fpe": 15.7
   }
  }
