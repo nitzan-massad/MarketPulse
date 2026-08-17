@@ -145,7 +145,12 @@ export function forecastFields(fj, ticker) {
   // falsy ticker must never match an _id-less stub row, which would graft one stock's
   // fields onto another.
   const list = fj?.models?.stocks;
-  const s = ticker && Array.isArray(list) ? list.find((x) => x && x._id === ticker) : undefined;
+  // The requested ticker can appear TWICE — once as its own row, once as a null-filled peer
+  // stub (live on PGY: ids AIP,DSP,PGY,RBRK,RELY,PGY). `.find` took the stub and returned an
+  // all-null object, which the callers count as enriched while it writes nothing, so the
+  // ticker rotates away with `ea` stamped and never recovers. Prefer the match with data.
+  const matches = ticker && Array.isArray(list) ? list.filter((x) => x && x._id === ticker) : [];
+  const s = matches.find((x) => x.report || x.company?.sector) ?? matches[0];
   if (!s) return {};
   const c = s.company || {};
   const rep = s.report || {};
@@ -374,6 +379,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   assert(f.chg === 3.54, "daily gain 0.03538 → 3.54%");
   assert(sectorName("consumerCyclical") === "ConsumerCyclical", "multi-word sector slug normalizes");
   assert(Object.keys(forecastFields(fj, "MISSING")).length === 0, "unknown ticker → {}");
+  // live on PGY: the ticker is listed twice, the FIRST being a null-filled peer stub
+  const dupe = { models: { stocks: [{ _id: "TER" }, ...fj.models.stocks] } };
+  assert(forecastFields(dupe, "TER").ai === 78, "duplicate _id → the row with data wins, not the stub");
 
   // fillNulls — only blanks get filled
   const base = { ai: null, sec: "Energy", ss: 6 };
