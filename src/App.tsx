@@ -12,6 +12,7 @@ import Toolbar from "./components/Toolbar";
 import Watchlist from "./components/Watchlist";
 import stocksData from "./data/stocks.json";
 import { passes, sortRows, VIEWS } from "./lib";
+import { parseShareHash } from "./share";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
 import { useNotifications, type Notification } from "./useNotifications";
@@ -125,6 +126,43 @@ export default function App() {
   const [liveOn, setLiveOn] = useState<boolean>(
     () => Boolean(localStorage.getItem("mp_finnhub") || BAKED_KEY) && localStorage.getItem("mp_live") !== "0",
   );
+
+  // ---- deep link: /#AAPL opens that stock's modal ------------------------
+  // Shared links land here. A hash is used (not a path) because GitHub Pages has no
+  // server to rewrite /MarketPulse/AAPL, and it's one character cheaper than "?t=".
+  // parseShareHash whitelists symbol-shaped hashes, so an unrelated "#section-2" or a
+  // leftover OAuth fragment can't open a "No data" modal over the whole page on load.
+  const syncFromHash = useCallback(() => {
+    const t = parseShareHash(location.hash);
+    if (!t) {
+      // The hash stopped naming a stock — Back out of a shared link, or a hand-edited
+      // URL. Close, because the modal that is open is the one the hash put there and
+      // leaving it up makes Back look broken. Safe as a blanket rule: the share link is
+      // the app's only hash consumer, so no other navigation can trip this.
+      setOpenStock(null);
+      setFcHighlight(null);
+      return;
+    }
+    const hit = STOCKS.find((s) => s.t === t);
+    if (hit) handleOpen(hit, STOCKS);
+    else handleOpenTicker(t); // off-universe symbol: live price + chart, metrics marked N/A
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    syncFromHash();
+    // Back/forward between two shared links only changes the hash — no remount, so the
+    // mount-time read alone would leave the first stock's modal open.
+    addEventListener("hashchange", syncFromHash);
+    return () => removeEventListener("hashchange", syncFromHash);
+  }, [syncFromHash]);
+
+  // Closing a deep-linked modal drops the hash, so a reload doesn't reopen a modal the
+  // user just dismissed. replaceState (not pushState, not location.hash = "") keeps it out
+  // of history and fires no hashchange, which would otherwise reopen it immediately.
+  const closeStock = useCallback(() => {
+    setOpenStock(null);
+    setFcHighlight(null);
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  }, []);
 
   const sectorOptions = useMemo(
     () => [...new Set(STOCKS.map((s) => s.sec).filter(Boolean))].sort(),
@@ -391,10 +429,7 @@ export default function App() {
         return (
           <StockModal
             stock={openStock}
-            onClose={() => {
-              setOpenStock(null);
-              setFcHighlight(null);
-            }}
+            onClose={closeStock}
             tracked={watchlist.includes(openStock.t)}
             onToggleTrack={() => requestToggle(openStock.t)}
             covered={STOCKS.some((s) => s.t === openStock.t)}

@@ -5,7 +5,9 @@ import sectorPe from "../data/sectors.json";
 import { consClass, consLabel, DATE_LOCALE, fmtMc, pxDp } from "../lib";
 import { reviewKey } from "../reviewAlerts";
 import type { Stock } from "../types";
+import { buildShareUrl, copyText, pickBurst, type BurstId } from "../share";
 import type { Mark, MarkEntry } from "../watchlist";
+import ShareBurst from "./ShareBurst";
 import ThumbMark from "./ThumbMark";
 
 // Keys come from build-time env (same pattern App uses for Finnhub). Never hardcoded.
@@ -14,6 +16,16 @@ const TWELVEDATA_KEY = import.meta.env.VITE_TWELVEDATA_KEY ?? "";
 // FMP powers the live company description ONLY for tickers missing from the
 // scraped DB (hybrid: DB desc wins). Optional — absent key just skips it.
 const FMP_KEY = import.meta.env.VITE_FMP_KEY ?? "";
+
+// The bare 3-node share glyph (approved look: outlined-chip chrome, this icon).
+const ShareIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" aria-hidden="true">
+    <circle cx="18" cy="5" r="2.6" />
+    <circle cx="6" cy="12" r="2.6" />
+    <circle cx="18" cy="19" r="2.6" />
+    <path d="M8.4 10.8l7.2-4.2M8.4 13.2l7.2 4.2" />
+  </svg>
+);
 
 // Apple Stocks universal link — opens the Stocks app on iOS/macOS, web elsewhere.
 const stocksUrl = (ticker: string) =>
@@ -433,6 +445,11 @@ interface StockModalProps {
 
 export default function StockModal({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext, highlightReviews }: StockModalProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
+  const [burst, setBurst] = useState<BurstId | null>(null);
+  // Remembered across bursts so pickBurst can exclude it — two identical animations in a
+  // row read as "there is only one", which defeats having twenty.
+  const lastBurst = useRef<BurstId | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -586,6 +603,31 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
     [onClose],
   );
 
+  // Copy the deep link, then celebrate. The animation is gated on the copy actually
+  // succeeding: confetti over a clipboard that didn't take is worse than no feedback,
+  // so a failure shows the link as selectable text instead.
+  const onShare = useCallback(async () => {
+    // origin + BASE_URL are read here rather than inside share.ts so that module stays
+    // free of `import.meta` and testable under the check runner's CommonJS compile.
+    const url = buildShareUrl(stock.t, location.origin, import.meta.env.BASE_URL);
+    const ok = await copyText(url);
+    setCopyFailed(!ok);
+    if (!ok) return;
+    const next = pickBurst(lastBurst.current);
+    lastBurst.current = next;
+    setBurst(next); // ShareBurst unmounts itself via onDone when its animation ends
+  }, [stock.t]);
+
+  const shareUrlText = buildShareUrl(stock.t, location.origin, import.meta.env.BASE_URL);
+  const handleBurstDone = useCallback(() => setBurst(null), []);
+
+  // A burst still running when the user pages ‹ › to another stock would finish over the
+  // new ticker, reading as "this one was copied too". Clear it on every ticker change.
+  useEffect(() => {
+    setBurst(null);
+    setCopyFailed(false);
+  }, [stock.t]);
+
   // ---- derived display values (live extras layered over the snapshot row) ----
   const price = quote?.c ?? stock.px;
   const dayPct = quote?.dp ?? stock.chg;
@@ -712,6 +754,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
         aria-modal="true"
         aria-labelledby="mkm-sym"
         ref={dialogRef}
+        data-burst={burst ?? undefined}
       >
         {/* title bar — one aligned row: ticker · star · thumbs · LIVE · close */}
         <div className="mkm-titlebar">
@@ -730,10 +773,28 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
           )}
           {!chromeOff && <ThumbMark mark={mark} onMark={onMark} both />}
           {!chromeOff && marketOpen() && <div className="mkm-live">LIVE</div>}
+          {!chromeOff && (
+            <button
+              type="button"
+              className="mkm-share"
+              title={`Copy link to ${stock.t}`}
+              onClick={onShare}
+            >
+              <ShareIcon />
+              <span>Share</span>
+            </button>
+          )}
           <button className="mkm-close" aria-label="Close" onClick={onClose}>
             &times;
           </button>
         </div>
+
+        {copyFailed && (
+          <div className="mkm-copyfail">
+            <span>Couldn’t reach the clipboard — copy it by hand:</span>
+            <code>{shareUrlText}</code>
+          </div>
+        )}
 
         <div className="mkm-scroll">
           {loadingUncovered ? (
@@ -1184,6 +1245,8 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
           </>
           )}
         </div>
+
+        {burst && <ShareBurst id={burst} onDone={handleBurstDone} />}
       </div>
         {onNext && (
           <button type="button" className="mkm-nav next" aria-label="Next stock" onClick={onNext}>
