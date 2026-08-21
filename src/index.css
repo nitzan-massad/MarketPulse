@@ -360,8 +360,9 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(27,63,115,.09), transparent 7
 /* content-width so the fixed columns can't squeeze the ticker to 0 — the wrap
    scrolls instead; ★ + Ticker stay pinned left */
 .wl-table{width:max-content; min-width:100%; table-layout:fixed; border-collapse:collapse; font-size:13px}
-/* ticker column: not sticky, a touch narrower */
-.wl-table th:nth-child(2), .wl-table td.tk{width:150px}
+/* ticker column: not sticky, a touch narrower. nth-child(3), not (2) — the drag grip
+   is column 1 and ★ is column 2. */
+.wl-table th:nth-child(3), .wl-table td.tk{width:150px}
 /* center the thumbs in the ticker cell (both always shown, so up/down never shift left↔right) */
 .wl-table .tk .tk-top{display:flex; width:100%; align-items:center}
 .wl-table th{padding:11px 10px; font-family:"Archivo",sans-serif; font-size:9.5px; font-weight:700;
@@ -377,9 +378,36 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(27,63,115,.09), transparent 7
 .wl-table td.tk .co{font-size:11.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px}
 .wl-table tbody tr{transition:background .12s}
 .wl-table tbody tr:hover{background:var(--panel-2)}
-.wl-st{text-align:center !important; padding-left:12px !important; padding-right:0 !important}
+.wl-st{text-align:center !important; padding-left:4px !important; padding-right:0 !important}
+
+/* ---- drag to reorder -------------------------------------------------- */
+.wl-gripcell{text-align:center !important; padding:0 0 0 8px !important}
+.wl-grip{
+  appearance:none; background:none; border:0; padding:6px 3px; border-radius:6px;
+  color:var(--faint); cursor:grab; display:inline-flex; align-items:center;
+  touch-action:none;   /* claim the gesture, or a touch-drag scrolls the page instead */
+  transition:color .14s, background .14s;
+}
+.wl-grip:hover{color:var(--gold); background:var(--panel-2)}
+.wl-grip:active{cursor:grabbing}
+.wl-grip:focus-visible{outline:2px solid var(--gold-soft); outline-offset:1px; color:var(--gold)}
+/* the row being dragged: lifted, following the pointer */
+.wl-table tbody tr.wl-dragging{
+  position:relative; z-index:2; background:var(--bg);
+  box-shadow:0 12px 26px -12px rgba(27,29,24,.4); opacity:.96;
+}
+.wl-table tbody tr.wl-dragging td{border-bottom-color:transparent}
+/* where it will land. box-shadow, not a border, so nothing reflows mid-drag and makes the
+   row heights the drop target is computed from move under the pointer. */
+.wl-table tbody tr.wl-dropabove td{box-shadow:inset 0 2px 0 0 var(--gold)}
+.wl-table tbody tr.wl-dropbelow td{box-shadow:inset 0 -2px 0 0 var(--gold)}
+.wl-hint{margin:12px 0 0; padding:0 14px; font-size:12px; color:var(--faint)}
+.wl-hint span{font-family:"JetBrains Mono",monospace; color:var(--muted)}
+@media(prefers-reduced-motion:reduce){
+  .wl-table tbody tr.wl-dragging{box-shadow:none; outline:2px solid var(--gold)}
+}
 /* "also tracking" (dropped from the ranked list) */
-.wl-missing{margin-top:16px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:12px; color:var(--muted)}
+.wl-missing{margin-top:16px; padding:0 14px 4px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; font-size:12px; color:var(--muted)}
 .wl-misschip{appearance:none; cursor:pointer; font-family:"JetBrains Mono",monospace; font-weight:700; font-size:11px; color:var(--muted);
   background:var(--panel-2); border:1px solid var(--line); border-radius:999px; padding:4px 10px; transition:.14s}
 .wl-misschip:hover{border-color:var(--red); color:var(--red)}

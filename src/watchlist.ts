@@ -11,8 +11,16 @@ import {
   type AuthProvider,
   type User,
 } from "firebase/auth";
-import { get, getDatabase, onValue, ref, set, type Database } from "firebase/database";
+import { get, getDatabase, onValue, ref, set, update, type Database } from "firebase/database";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  keyForAppend,
+  moveItem,
+  NEW_GAP,
+  orderTickers,
+  planMove,
+  type KeyMap,
+} from "./watchlistOrder";
 
 // ---------------------------------------------------------------------------
 // Cross-device watchlist — Firebase (Google sign-in + Realtime Database).
@@ -108,8 +116,11 @@ function writeMarks(m: Record<string, MarkEntry>): void {
 }
 
 export interface WatchlistApi {
+  /** Display order: oldest-starred first, newest LAST, then whatever dragging says. */
   list: string[];
   toggle: (ticker: string) => void;
+  /** Move the row at `from` so it ends up at index `to`. Persists and syncs. */
+  reorder: (from: number, to: number) => void;
   marks: Record<string, MarkEntry>;
   toggleMark: (ticker: string, v: Mark) => void; // same v again clears it
   user: User | null;
@@ -125,6 +136,10 @@ export function useWatchlist(): WatchlistApi {
   // Seed from localStorage so the last-known list paints on boot instead of
   // flashing empty for ~5s while Firebase restores the session + RTDB connects.
   const [list, setList] = useState<string[]>(() => readLocal());
+  // The sort keys behind `list`. Held in a ref, not state, because only `reorder` reads them
+  // and re-rendering on a key change would repaint the table for a value nothing displays.
+  // Empty in local mode — there the array's own order IS the order (see `reorder`).
+  const keysRef = useRef<KeyMap>({});
   const [fbUser, setFbUser] = useState<User | null>(null);
   const [devUser, setDevUser] = useState<User | null>(
     () => (DEV_AUTH && localStorage.getItem(DEV_FLAG) === "1" ? DEV_USER : null),
@@ -201,16 +216,25 @@ export function useWatchlist(): WatchlistApi {
     const unsub = onValue(r, (snap) => {
       const v = snap.val();
       if (Array.isArray(v)) {
-        // migrate legacy array -> { ticker: addedAt }
+        // migrate legacy array -> { ticker: sortKey }. Keys are SPREAD, not all stamped with
+        // one Date.now(): identical keys make the whole list one tie, and a tie is broken by
+        // ticker, so the user's original order would silently become alphabetical.
         const now = Date.now();
-        const obj: Record<string, number> = {};
-        for (const t of v) if (t) obj[t] = now;
+        const obj: KeyMap = {};
+        v.forEach((t, i) => {
+          if (t) obj[t] = now + i * NEW_GAP;
+        });
         void set(r, obj); // re-fires onValue with the object form
         return;
       }
-      const next = v ? Object.keys(v) : [];
+      const map: KeyMap = {};
+      if (v && typeof v === "object") for (const [t, k] of Object.entries(v)) map[t] = typeof k === "number" ? k : 0;
+      keysRef.current = map;
+      // Object.keys() order is RTDB's (lexicographic for string keys), which is why the
+      // watchlist used to be alphabetical-ish rather than in the order it was built.
+      const next = orderTickers(map);
       setList(next);
-      writeLocal(next); // refresh the boot cache
+      writeLocal(next); // refresh the boot cache, in display order
     });
     return () => unsub();
   }, [user, authReady]);
@@ -223,13 +247,50 @@ export function useWatchlist(): WatchlistApi {
         if (DEV_AUTH) {
           if (user) writeLocal(next);
         } else if (db) {
-          // per-ticker write storing the date it was added (null removes it) —
-          // kept for a future "added on" feature, and avoids clobbering the map
-          if (user) void set(ref(db, `watchlist/${user.uid}/${ticker}`), has ? null : Date.now());
+          // Per-ticker write (null removes it) so a concurrent star from another device
+          // can't be clobbered. The number is the SORT KEY — seeded from the add time, which
+          // is what puts a newly starred stock at the BOTTOM of the list, and rewritten by
+          // `reorder` when the row is dragged. See watchlistOrder.ts.
+          if (user) {
+            const key = has ? null : keyForAppend(keysRef.current, Date.now());
+            if (key != null) keysRef.current = { ...keysRef.current, [ticker]: key };
+            else { const k = { ...keysRef.current }; delete k[ticker]; keysRef.current = k; }
+            void set(ref(db, `watchlist/${user.uid}/${ticker}`), key);
+          }
         } else {
           writeLocal(next); // local-only when Firebase isn't configured
         }
         return next;
+      });
+    },
+    [user],
+  );
+
+  // Drag-to-reorder. One write in the common case: the dragged row's key becomes the
+  // midpoint of its new neighbours', so list length doesn't affect sync cost. When a gap
+  // runs out of room, planMove returns a full respacing instead — see watchlistOrder.ts.
+  const reorder = useCallback(
+    (from: number, to: number) => {
+      setList((prev) => {
+        if (from === to || from < 0 || from >= prev.length) return prev;
+        const next = moveItem(prev, from, to);
+        if (DEV_AUTH || !db || !user) {
+          // Local mode: the stored array's own order is the order, so a splice IS the write.
+          if (!db || DEV_AUTH) writeLocal(next);
+          return next;
+        }
+        const plan = planMove(prev, keysRef.current, from, to);
+        if (plan.kind === "key") {
+          keysRef.current = { ...keysRef.current, [plan.ticker]: plan.key };
+          void set(ref(db, `watchlist/${user.uid}/${plan.ticker}`), plan.key);
+        } else if (plan.kind === "renumber") {
+          keysRef.current = plan.keys;
+          // update(), not set(): a star added on another device between our read and this
+          // write is a key we don't have, and set() would delete it.
+          void update(ref(db, `watchlist/${user.uid}`), plan.keys);
+        }
+        writeLocal(next);
+        return next; // optimistic — onValue confirms, and agrees because keysRef matched
       });
     },
     [user],
@@ -266,16 +327,19 @@ export function useWatchlist(): WatchlistApi {
       const r = ref(db, `watchlist/${res.user.uid}`);
       const v = (await get(r)).val();
       const now = Date.now();
-      const map: Record<string, number> = {};
+      const map: KeyMap = {};
       if (Array.isArray(v)) {
-        for (const t of v) if (t) map[t] = now;
+        // spread, not one shared `now` — see the migration note in the onValue handler
+        v.forEach((t, i) => {
+          if (t) map[t] = now + i * NEW_GAP;
+        });
       } else if (v && typeof v === "object") {
         for (const [t, ts] of Object.entries(v)) map[t] = typeof ts === "number" ? ts : now;
       }
       let changed = Array.isArray(v);
       for (const t of extra) {
         if (!(t in map)) {
-          map[t] = now;
+          map[t] = keyForAppend(map, now); // a star pressed while signed out still lands last
           changed = true;
         }
       }
@@ -295,5 +359,5 @@ export function useWatchlist(): WatchlistApi {
     if (auth) void fbSignOut(auth);
   }, []);
 
-  return { list, toggle, marks, toggleMark, user, authReady, signIn, signOut, ready: firebaseReady };
+  return { list, toggle, reorder, marks, toggleMark, user, authReady, signIn, signOut, ready: firebaseReady };
 }

@@ -53,7 +53,7 @@ export default function App() {
   const [fcHighlight, setFcHighlight] = useState<string[] | null>(null); // review keys to glow when opened from a notification
   // the list the modal was opened from, so ‹ › can page prev/next in place
   const [openList, setOpenList] = useState<Stock[]>([]);
-  const { list: watchlist, toggle: toggleTrack, marks, toggleMark, user, authReady, signIn, signOut, ready: syncReady } = useWatchlist();
+  const { list: watchlist, toggle: toggleTrack, reorder: reorderWatchlist, marks, toggleMark, user, authReady, signIn, signOut, ready: syncReady } = useWatchlist();
   const [signInOpen, setSignInOpen] = useState(false);
   const [pendingTrack, setPendingTrack] = useState<string | null>(null);
   const [pendingMark, setPendingMark] = useState<{ ticker: string; v: Mark } | null>(null);
@@ -421,6 +421,10 @@ export default function App() {
           onSignInClick={() => setSignInOpen(true)}
           marks={marks}
           onMark={requestMark}
+          onReorder={(from, to) => {
+            track("reorder_watchlist", { from, to });
+            reorderWatchlist(from, to);
+          }}
         />
       )}
 
