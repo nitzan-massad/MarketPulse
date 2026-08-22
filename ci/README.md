@@ -175,13 +175,44 @@ the commit step also stages `public/forecasts`.
   fixture (ADCT) had no revised row, which is why the original test passed. `ci/fixtures/vtgn-forecast.html`
   now covers the revised case; keep both.
 
-  **Stage 2, planned but NOT built: merge SSR rows into the JSON path instead of only falling
-  back.** The teaser window covers the *freshest* ratings, so JSON-path tickers systematically
-  miss the newest analyst action — 8 of 8 sampled large caps did, ALGS by 4 months, and the union
-  was +24% rows. Because the forecast scrape already rotates (`LIMIT=90`), the merge costs
-  ~90 extra HTML fetches per run rather than 351. See [`PLAN-ssr-merge.md`](./PLAN-ssr-merge.md)
-  for the merge/precedence rules, the phased rollout, and the notification-blast risk that has
-  to be settled first.
+  **Stage 2 — SHIPPED 2026-08-22: the page is now MERGED into the JSON path, not just a
+  fallback.** The teaser covers the *freshest* ratings, so the JSON path was systematically
+  behind on every ticker, not only the ones where it returned nothing. BIOA was the shape of it:
+  9 real broker ratings existed, 2 survived the teaser, so `!fc.length` was false and the
+  fallback never fired — next to a UI label reading "n=9". After the merge: 8 of 9.
+
+  Union rules and precedence live in [`forecast-merge.mjs`](./forecast-merge.mjs), guarded by
+  `node ci/test-forecast-merge.mjs`. Keyed on `name|date`, not `firm|date` — two analysts at one
+  firm on one date collide there, which is tolerable for the star join and would drop a whole
+  rating here. SSR wins `pt`/`opt`/`n`/`f`/`d`/`r` (it is the rendered truth, and the JSON copy
+  of those is nulled for exactly the anonymized rows this path exists to recover); JSON wins
+  `st`, the only source of stars.
+
+  Measured over all 418 tickers before shipping (Phase 0, writes-nothing):
+
+  | | |
+  |---|---|
+  | rows | 3976 → **5669 (+42.6%)** — the 8-ticker sample had estimated +24% |
+  | tickers gaining rows | 355 / 418 (85%) |
+  | tickers getting fresher data | 349 / 418 (83%), median **+16 days**, worst **+349** (ANVS, stuck on 2025-09-03) |
+  | tickers losing rows | **0** |
+  | malformed rows / target conflicts | **0 / 0** |
+  | cost | **+474s, +34 MB** per 90-ticker rotation (the plan's "+100s floor" was ~5× optimistic) |
+
+  ⚠️ **`SSR_MERGE=0` is the rollback** — set it on the workflow step and the scraper reverts to
+  the exact old fallback, which is still covered by `node ci/test-forecast-gate.mjs` so it does
+  not rot into an untested incident-only path.
+
+  ⚠️ **The plan's row-count guardrail was DROPPED, not implemented.** It proposed comparing
+  parsed rows against the page's own "N Wall Street analysts" figure and skipping on mismatch.
+  That figure is unusable in both directions: 120 tickers parse *more* than it states (the table
+  renders history beyond the consensus window) and 212 parse *fewer* — but that is TipRanks
+  over-counting, not truncation. ALAR states 2 while rendering one analyst whose price target is
+  a literal `―` (a Hold downgrade); the parser correctly skips him. Two-sided, the guard would
+  have blocked the merge on half the universe. The real protection is structural: a truncated
+  FlareSolverr read parses to a valid *prefix*, so under a UNION it can only shrink the gain,
+  never the file — which is what the 0-rows-lost result confirms, and why the guard was only
+  ever needed under replace semantics.
 
   `expertRatingsFilteredCount` equals the count of name-null experts (verified across 21
   payloads, zero mismatches) — it is both the gate and the alarm: **if it ever exceeds 4 real

@@ -12,12 +12,21 @@
 // between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { parseForecastHtml, withStars } from "./forecast-html.mjs";
+import { mergeForecasts, shouldFetchPage } from "./forecast-merge.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
 const STALE_DAYS = Number(process.env.STALE_DAYS || 3);
 const ALL = process.env.ALL === "1";
-const OUT = "public/forecasts";
+// Union the SSR page into the JSON path instead of only falling back to it when JSON gave
+// nothing. Default ON; SSR_MERGE=0 is an exact rollback to the old fallback behaviour without
+// a revert. Costs one page fetch per ticker in the rotation (~+8 min, ~+34 MB per run,
+// measured over 418 tickers) and buys +42.6% rows with 83% of tickers getting fresher data.
+// See ci/forecast-merge.mjs and ci/PLAN-ssr-merge.md.
+const MERGE = process.env.SSR_MERGE !== "0";
+// Overridable so a live run can be pointed at a throwaway directory to verify the merge
+// against real TipRanks pages without touching the committed files. CI never sets it.
+const OUT = process.env.OUT || "public/forecasts";
 const ASOF = `${OUT}/_asOf.json`; // { ticker: ISO } — build-reviews-recent skips it (not an array)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const RATING = { 1: "Buy", 2: "Hold", 3: "Sell" };
@@ -91,24 +100,36 @@ const targets = stocks
   .slice(0, LIMIT);
 
 mkdirSync(OUT, { recursive: true });
-console.log(`forecasts backfill: ${targets.length} ticker(s) (LIMIT=${LIMIT}, ALL=${ALL})`);
+console.log(`forecasts backfill: ${targets.length} ticker(s) (LIMIT=${LIMIT}, ALL=${ALL}, SSR_MERGE=${MERGE ? 1 : 0})`);
 const now = new Date().toISOString();
-let ok = 0, empty = 0, fail = 0, viaHtml = 0;
+let ok = 0, empty = 0, fail = 0, viaHtml = 0, gained = 0;
 for (const t of targets) {
   try {
     const html = await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`);
     const data = extractJson(html);
     let fc = toForecasts(data);
-    // The API withheld rows behind the paywall teaser and we got nothing usable — fall back
-    // to the SSR page, which renders the analyst names and targets in full. Gated on the
-    // payload's own admission so the ~300 healthy tickers keep the cheap JSON path.
-    // See ci/forecast-html.mjs for the full explanation.
-    if (!fc.length && data.expertRatingsFilteredCount > 0) {
+    const jsonCount = fc.length;
+    // The API paywall-anonymizes its FRESHEST rows, so the JSON path is systematically behind
+    // on every ticker — not just the micro-caps where it returned nothing. The SSR page renders
+    // names and targets in full, so we union the two rather than only falling back when JSON
+    // came up empty. See ci/forecast-merge.mjs for the merge rules and the measured effect.
+    if (shouldFetchPage(fc, data, MERGE)) {
       const page = await flareGet(`https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/forecast`);
       const rows = withStars(parseForecastHtml(page), data);
-      if (rows.length) { fc = rows; viaHtml++; }
+      if (MERGE) {
+        // Strictly additive: a page that parses to nothing leaves the JSON result untouched.
+        const merged = mergeForecasts(rows, fc);
+        if (merged.length > fc.length) viaHtml++;
+        fc = merged;
+      } else if (rows.length) {
+        fc = rows; viaHtml++;
+      }
     }
-    if (fc.length) { writeFileSync(`${OUT}/${t}.json`, JSON.stringify(fc)); ok++; console.log(`  ${t}: ${fc.length} ✓`); }
+    if (fc.length) {
+      writeFileSync(`${OUT}/${t}.json`, JSON.stringify(fc)); ok++;
+      gained += fc.length - jsonCount;
+      console.log(`  ${t}: ${fc.length} ✓${fc.length > jsonCount ? ` (+${fc.length - jsonCount} via page)` : ""}`);
+    }
     else { empty++; console.log(`  ${t}: none`); }
     // ponytail: stamp on empty too, so a ticker TipRanks genuinely has no experts for
     // rotates out instead of hogging a LIMIT slot every run. It still gets retried each
@@ -120,4 +141,4 @@ for (const t of targets) {
   }
 }
 writeFileSync(ASOF, JSON.stringify(asOf, null, 1));
-console.log(`done: ${ok} written (${viaHtml} via HTML fallback), ${empty} empty, ${fail} failed`);
+console.log(`done: ${ok} written (${viaHtml} gained rows from the page, +${gained} rows total), ${empty} empty, ${fail} failed`);

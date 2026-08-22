@@ -1,4 +1,7 @@
-// Self-check for the HTML-fallback GATE in ci/scrape-forecasts.mjs.
+// Self-check for the ROLLBACK path of ci/scrape-forecasts.mjs — the legacy HTML *fallback*,
+// i.e. what SSR_MERGE=0 does. The default path is now a MERGE, covered by
+// ci/test-forecast-merge.mjs; this file exists so the rollback stays a true rollback rather
+// than a second, untested code path that only gets exercised during an incident.
 // Run: node ci/test-forecast-gate.mjs   (no network, no filesystem outside os.tmpdir())
 //
 // !!! THIS FILE MIRRORS LOGIC THAT LIVES IN ci/scrape-forecasts.mjs !!!
@@ -18,12 +21,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import { parseForecastHtml, withStars } from "./forecast-html.mjs";
+import { shouldFetchPage } from "./forecast-merge.mjs";
 
 /* ---------------------------------------------------------------- the mirror */
 
-// MIRROR of scrape-forecasts.mjs:106
-//   if (!fc.length && data.expertRatingsFilteredCount > 0) { ...fetch the SSR page... }
-const shouldFallBack = (fc, data) => !fc.length && data.expertRatingsFilteredCount > 0;
+// No longer a mirror: the gate moved into ci/forecast-merge.mjs, which is pure and
+// import-safe, so this calls the REAL decision with merge disabled. One less copy to drift.
+const shouldFallBack = (fc, data) => shouldFetchPage(fc, data, false);
 
 // MIRROR of scrape-forecasts.mjs:108-112
 //   const rows = withStars(parseForecastHtml(page), data);
@@ -161,17 +165,21 @@ const PAGE = readFileSync(new URL("./fixtures/adct-forecast.html", import.meta.u
 }
 
 /* --------------------------------------------------------------- SOURCE FIDELITY
-   The mirror above is only worth anything if it still matches the scraper. Assert the two
-   load-bearing source lines verbatim. If this fails, the scraper changed — update BOTH. */
+   runTicker() below still restates the scraper's per-ticker flow, so pin the load-bearing
+   source lines. If one of these fails the scraper changed — update BOTH. */
 {
   const src = readFileSync(new URL("./scrape-forecasts.mjs", import.meta.url), "utf8");
-  assert.ok(src.includes("if (!fc.length && data.expertRatingsFilteredCount > 0) {"),
-    "GATE MOVED: ci/scrape-forecasts.mjs no longer contains the mirrored gate condition — update shouldFallBack() in this file to match");
+  assert.ok(src.includes("if (shouldFetchPage(fc, data, MERGE)) {"),
+    "GATE MOVED: the scraper no longer calls shouldFetchPage(fc, data, MERGE) — update this file");
+  assert.ok(src.includes('const MERGE = process.env.SSR_MERGE !== "0";'),
+    "ROLLBACK FLAG MOVED: SSR_MERGE is what makes this whole file's scenario reachable — if it is gone, the fallback path is dead code and these tests are theatre");
   assert.ok(src.includes("const rows = withStars(parseForecastHtml(page), data);"),
     "FALLBACK MOVED: the withStars(parseForecastHtml(page), data) call changed — update runTicker() in this file");
-  assert.ok(src.includes("if (rows.length) { fc = rows;"),
-    "EMPTY-PARSE GUARD MOVED: `if (rows.length)` is what stops an empty parse replacing good JSON rows — update runTicker()");
-  assert.ok(src.includes("if (fc.length) { writeFileSync("),
+  assert.ok(src.includes("fc = rows; viaHtml++;"),
+    "EMPTY-PARSE GUARD MOVED: the `else if (rows.length)` branch is what stops an empty parse replacing good JSON rows in rollback mode — update runTicker()");
+  assert.ok(src.includes("const merged = mergeForecasts(rows, fc);"),
+    "MERGE MOVED: the scraper no longer unions the two sources — if this is gone the paywall bug is back; see ci/test-forecast-merge.mjs");
+  assert.ok(src.includes("if (fc.length) {\n      writeFileSync("),
     "WRITE GUARD MOVED: `if (fc.length)` is what stops [] being written over an existing file — update runTicker()");
   assert.ok(!/^\s*import\s.*scrape-forecasts/m.test(readFileSync(new URL("./test-forecast-gate.mjs", import.meta.url), "utf8")),
     "this test must never import scrape-forecasts.mjs — its module body runs a live scrape");

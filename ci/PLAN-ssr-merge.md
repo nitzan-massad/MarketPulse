@@ -1,7 +1,27 @@
 # Plan — merge SSR forecast rows into the JSON path (stage 2)
 
-**Status: planned, not implemented.** Today the SSR page is a *fallback*, used only when the
-JSON path yields nothing. This plan makes it a *merge*. Written 2026-08-03.
+**Status: SHIPPED 2026-08-22.** Written 2026-08-03. Implemented in `ci/forecast-merge.mjs`
+(union + precedence), `ci/test-forecast-merge.mjs` (guards) and `ci/scrape-forecasts.mjs`
+(wiring; default on, `SSR_MERGE=0` rolls back).
+
+**What changed against this plan — read before trusting the numbers below:**
+
+- **Phase 0 ran over all 418 tickers.** Real effect **+42.6%** rows, not the +24% estimated
+  here from 8 tickers. 85% of tickers gained rows, 83% got fresher data, median **+16 days**,
+  worst **+349** (ANVS, stuck on 2025-09-03). 0 rows lost, 0 malformed, 0 target conflicts.
+- **Cost was ~5× the estimate:** **+474s / +34 MB** per 90-ticker rotation, not +100s / 24 MB.
+  p50 per fetch 1.4s but p95 12s and max 20s — Cloudflare challenges dominate the tail.
+- **Guardrail 3 (row-count sanity check) was dropped, not built.** The page's stated analyst
+  count is unusable as a truncation signal in either direction: it over-counts analysts with no
+  price target (ALAR states 2 but renders one target and one `―`) and under-counts against a
+  table showing history beyond the consensus window (120 tickers). Under union semantics a
+  truncated read can only shrink the *gain*, never the file, so that structural property
+  replaces the check. See ci/README.md.
+- **Phases 1 and 2 were skipped.** 0 losses / 0 conflicts / 0 malformed across the whole
+  universe made a staleness-gated cohort rollout ceremony; shipped default-on with the flag as
+  the rollback instead.
+- **The notification blast was accepted, not mitigated.** The seed-and-suppress design below was
+  NOT implemented — the repo owner chose to let it fire.
 
 ## The problem, and the evidence
 
