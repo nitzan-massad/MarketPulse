@@ -1,5 +1,5 @@
 {
- "asOf": "2026-08-25",
+ "asOf": "2026-08-26",
  "sectors": {
   "BasicMaterials": {
    "pe": 23.15,
@@ -10,8 +10,8 @@
    "fpe": 19.73
   },
   "ConsumerCyclical": {
-   "pe": 25.11,
-   "fpe": 20.79
+   "pe": 25.12,
+   "fpe": 20.8
   },
   "ConsumerDefensive": {
    "pe": 25.27,
@@ -19,7 +19,7 @@
   },
   "Energy": {
    "pe": 13.85,
-   "fpe": 12.8
+   "fpe": 12.81
   },
   "Financial": {
    "pe": 15.49,
@@ -39,10 +39,10 @@
   },
   "Technology": {
    "pe": 32.48,
-   "fpe": 21.21
+   "fpe": 21.2
   },
   "Utilities": {
-   "pe": 19.08,
+   "pe": 19.09,
    "fpe": 16.11
   }
  }
