@@ -1,5 +1,5 @@
 {
- "asOf": "2026-08-28",
+ "asOf": "2026-08-29",
  "sectors": {
   "BasicMaterials": {
    "pe": 22.29,
@@ -10,8 +10,8 @@
    "fpe": 19.71
   },
   "ConsumerCyclical": {
-   "pe": 24.97,
-   "fpe": 20.75
+   "pe": 25,
+   "fpe": 20.74
   },
   "ConsumerDefensive": {
    "pe": 24.87,
