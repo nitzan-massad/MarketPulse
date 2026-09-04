@@ -1,9 +1,9 @@
 {
- "asOf": "2026-09-03",
+ "asOf": "2026-09-04",
  "sectors": {
   "BasicMaterials": {
    "pe": 21.94,
-   "fpe": 15.42
+   "fpe": 15.43
   },
   "CommunicationServices": {
    "pe": 18,
