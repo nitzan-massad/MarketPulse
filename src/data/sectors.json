@@ -2,48 +2,48 @@
  "asOf": "2026-09-04",
  "sectors": {
   "BasicMaterials": {
-   "pe": 21.81,
-   "fpe": 15.33
+   "pe": 21.78,
+   "fpe": 15.31
   },
   "CommunicationServices": {
-   "pe": 17.8,
-   "fpe": 19.45
+   "pe": 17.82,
+   "fpe": 19.47
   },
   "ConsumerCyclical": {
-   "pe": 24.47,
-   "fpe": 20.32
+   "pe": 24.52,
+   "fpe": 20.36
   },
   "ConsumerDefensive": {
-   "pe": 24.73,
-   "fpe": 19.85
+   "pe": 24.72,
+   "fpe": 19.84
   },
   "Energy": {
-   "pe": 14.12,
-   "fpe": 13
+   "pe": 14.13,
+   "fpe": 13.01
   },
   "Financial": {
    "pe": 15.52,
    "fpe": 14.36
   },
   "Healthcare": {
-   "pe": 32.69,
-   "fpe": 18.75
+   "pe": 32.72,
+   "fpe": 18.76
   },
   "Industrials": {
-   "pe": 37.4,
-   "fpe": 28.39
+   "pe": 37.47,
+   "fpe": 28.45
   },
   "RealEstate": {
-   "pe": 33.1,
-   "fpe": 29.29
+   "pe": 33.05,
+   "fpe": 29.25
   },
   "Technology": {
-   "pe": 31.85,
-   "fpe": 21.64
+   "pe": 31.92,
+   "fpe": 21.69
   },
   "Utilities": {
-   "pe": 18.9,
-   "fpe": 16.03
+   "pe": 18.96,
+   "fpe": 16.08
   }
  }
 }
