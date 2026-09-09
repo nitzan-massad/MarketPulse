@@ -1,5 +1,5 @@
 {
- "asOf": "2026-09-08",
+ "asOf": "2026-09-09",
  "sectors": {
   "BasicMaterials": {
    "pe": 21.8,
@@ -15,7 +15,7 @@
   },
   "ConsumerDefensive": {
    "pe": 24.57,
-   "fpe": 19.72
+   "fpe": 19.71
   },
   "Energy": {
    "pe": 14.3,
@@ -30,7 +30,7 @@
    "fpe": 18.28
   },
   "Industrials": {
-   "pe": 37.68,
+   "pe": 37.69,
    "fpe": 28.56
   },
   "RealEstate": {
@@ -43,7 +43,7 @@
   },
   "Utilities": {
    "pe": 19.2,
-   "fpe": 16.24
+   "fpe": 16.25
   }
  }
 }
