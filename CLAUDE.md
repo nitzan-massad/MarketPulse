@@ -20,7 +20,7 @@ node ci/test-keep.mjs          # any ci/test-*.mjs runs standalone
 node ci/keep.mjs               # keep.mjs's built-in self-check
 CHECK=1 node ci/scrape-sectors.mjs   # the sector parser's fixture self-check
 # src/*.check.ts must be compiled first — each file's header comment carries its exact
-# `npx tsc … && node /tmp/…` line; or just run `npm test`, which compiles all 7 in one pass.
+# `npx tsc … && node /tmp/…` line; or just run `npm test`, which compiles them all in one pass.
 ```
 
 **Node versions differ by task.** Tests/CI need **≥ 22.18** (`ci/test-consensus-direction.mjs`
@@ -54,9 +54,11 @@ live quotes and per-user state. No backend of our own.
    `/MarketPulse/`, not `/`.
 3. **App (`src/`)** — `App.tsx` holds all filter/sort/nav state and feeds four sections
    (`StockTable`, `BestOfBest`, `NewArrivals`, `Watchlist`) plus `StockModal`. Pure logic sits in
-   dependency-free modules with a paired `*.check.ts` (`lib`, `consensus`, `alertEngine`,
-   `reviewAlerts`, `chartSession`, the pure exports of `useLiveQuotes`) — keep it that way, that
-   pairing is what makes it testable without React or Firebase.
+   dependency-free modules with a paired `*.check.ts` (`alertEngine`, `chartSession`,
+   `consensusNull`, `fmtPx`, `metricChange`, `reviewAlerts`, `share`, `watchlistOrder`, and the
+   pure exports of `useLiveQuotes`) — keep it that way, that pairing is what makes it testable
+   without React or Firebase. `consensus.ts` is covered from both sides: `consensusNull.check.ts`
+   plus `ci/test-consensus-direction.mjs`.
 
 **Live data & per-user state.** `useLiveQuotes` holds one Finnhub WS (hard cap **50** symbols:
 watchlist first, then on-screen rows) and only during US market hours. `StockModal` pulls chart

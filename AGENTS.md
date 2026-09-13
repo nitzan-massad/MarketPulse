@@ -17,6 +17,7 @@ touching the pipeline — in particular, **never key "is this file stale?" off m
 
 ## Data files
 
-- `src/data/{stocks,seen,meta,sectors,industries,ticker-industry}.json` — refreshed automatically by CI. Don't hand-edit.
+- `src/data/{stocks,seen,meta,sectors}.json` — refreshed automatically by CI. Don't hand-edit.
+  (`src/data/pinned.json` is the exception — hand-maintained.)
 - `public/bullbear/<T>.json`, `public/forecasts/<T>.json` — refreshed automatically by CI on a
   `STALE_DAYS` rotation. Don't hand-edit. `public/forecasts/_asOf.json` is the refresh bookkeeping.
