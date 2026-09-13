@@ -131,6 +131,21 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
           aria-labelledby={titleId}
           tabIndex={-1}
         >
+          {/* C3: rides the panel's top-right corner, half outside it, so the header row
+              stays free for the title and Share. */}
+          <button
+            type="button"
+            className="fg-x"
+            aria-label="Close"
+            onClick={() => {
+              onOpenChange(false);
+              btnRef.current?.focus();
+            }}
+          >
+            &times;
+          </button>
+
+          <div className="fg-body">
           <div className="fg-head">
             <h2 className="fg-title" id={titleId}>Fear &amp; Greed Index</h2>
             <ShareButton what="the Fear &amp; Greed index" onShare={share.onShare} compact />
@@ -190,7 +205,7 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
             })}
           </ul>
 
-          <p className="fg-src">CNN Business · {fg.asOf.slice(0, 10)}</p>
+          </div>
 
           {share.burst && <ShareBurst id={share.burst} onDone={share.onBurstDone} />}
         </div>

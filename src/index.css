@@ -1257,7 +1257,7 @@ thead th:hover .col-resize::after{opacity:.6}
      measures ~560px with the dial, the trend and all seven components, and clipping it
      mid-row is worse than being tall. Cap on the viewport instead, so it only ever
      scrolls on a genuinely short window. */
-  max-height:calc(100vh - 130px); overflow:auto;
+  overflow:visible;
   background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:16px;
   box-shadow:0 22px 50px -24px rgba(19,26,36,.5), 0 4px 14px -8px rgba(19,26,36,.18);
   z-index:45; transform-origin:top right}
@@ -1267,6 +1267,24 @@ thead th:hover .col-resize::after{opacity:.6}
   .fg-pop{animation:fg-in .16s cubic-bezier(.2,.7,.2,1)}
 }
 @keyframes fg-in{from{opacity:0; transform:scale(.97) translateY(-4px)}to{opacity:1; transform:none}}
+
+/* The close rides the corner, half outside the panel (mockup C3). `overflow:visible` is
+   why it can hang out — but a burst throws particles past the panel edge, so .fg-pop
+   flips to overflow:hidden while one is running (rule below), and the × is tucked back
+   inside for those few hundred ms rather than being clipped mid-animation. */
+.fg-x{position:absolute; top:-11px; right:-11px; z-index:2; width:26px; height:26px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  border-radius:50%; border:1px solid var(--line); background:var(--bg); color:var(--muted);
+  font-size:17px; line-height:1; font-family:"Archivo",sans-serif;
+  box-shadow:0 3px 10px -3px rgba(19,26,36,.4); transition:color .15s, border-color .15s}
+.fg-x:hover{color:var(--ink); border-color:var(--gold-soft)}
+.fg-x:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+.fg-pop[data-burst] .fg-x{top:8px; right:8px; box-shadow:none}
+
+/* The scroller is the BODY, not the panel: the panel has to stay overflow:visible for the
+   corner × to hang outside it, and pinning the × above the scroll area is better anyway —
+   it cannot scroll out of reach on a short window. */
+.fg-body{max-height:calc(100vh - 150px); overflow:auto}
 
 .fg-head{display:flex; align-items:center; gap:10px; margin-bottom:10px}
 .fg-head .mp-share{margin-left:auto; flex:none}
@@ -1298,7 +1316,6 @@ thead th:hover .col-resize::after{opacity:.6}
 .fg-cval.gr,.fg-cband.gr{color:var(--fg-gr)} .fg-cbar i.gr{background:var(--fg-gr)}
 .fg-cval.eg,.fg-cband.eg{color:var(--fg-eg)} .fg-cbar i.eg{background:var(--fg-eg)}
 
-.fg-src{margin:12px 0 0; font-size:10px; color:var(--faint)}
 
 /* Below 640px an anchored 320px panel has nowhere to go — same fixed-sheet fallback
    the notification panel uses, and the header dial sheds its label to fit the row. */
