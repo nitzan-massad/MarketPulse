@@ -33,6 +33,7 @@ body{
     radial-gradient(900px 600px at 0% 110%, rgba(20,124,134,.05), transparent 55%);
   background-attachment:fixed;
   min-height:100vh;
+  min-height:100dvh; /* iOS Safari: vh ignores the URL bar, dvh follows it */
 }
 /* grain */
 body::before{
@@ -725,7 +726,7 @@ thead th:hover .col-resize::after{opacity:.6}
   display:flex; align-items:center; justify-content:center; padding:24px;
 }
 .mkm-modal{
-  position:relative; width:min(660px, calc(100vw - 32px)); max-height:calc(100vh - 48px);
+  position:relative; width:min(660px, calc(100vw - 32px)); max-height:calc(100dvh - 48px);
   background:var(--t-bg); border:1px solid var(--t-line); border-radius:14px; overflow:visible;
   box-shadow:0 30px 72px -26px rgba(27,29,24,.30), 0 2px 8px rgba(27,29,24,.06);
   font-family:Arial, "Helvetica Neue", Helvetica, sans-serif; color:var(--t-ink); font-size:14px; line-height:1.4;
@@ -1015,7 +1016,7 @@ thead th:hover .col-resize::after{opacity:.6}
   .mkm-matrix{grid-template-columns:repeat(2,1fr)}
   .mkm-readout{grid-template-columns:1fr}
   .mkm-kv{grid-template-columns:repeat(2,1fr)}
-  .mkm-modal{width:calc(100vw - 16px); max-height:calc(100vh - 24px)}
+  .mkm-modal{width:calc(100vw - 16px); max-height:calc(100dvh - 24px)}
   .mkm-px{margin-left:0}
 }
 @media(max-width:430px){
@@ -1049,7 +1050,7 @@ thead th:hover .col-resize::after{opacity:.6}
   background:rgba(255,255,255,.9);
   -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3);
   border-top:1px solid var(--line); box-shadow:0 -10px 30px -22px rgba(27,29,24,.5);
-  padding-bottom:env(safe-area-inset-bottom, 0px);
+  padding-bottom:max(env(safe-area-inset-bottom, 0px), 8px);
 }
 .nav-bottom-inner{max-width:560px; margin:0 auto; display:flex; align-items:stretch; position:relative}
 /* sliding "current section" indicator — a short bar over the active tab's top edge */
@@ -1289,7 +1290,7 @@ thead th:hover .col-resize::after{opacity:.6}
 /* The scroller is the BODY, not the panel: the panel has to stay overflow:visible for the
    corner × to hang outside it, and pinning the × above the scroll area is better anyway —
    it cannot scroll out of reach on a short window. */
-.fg-body{max-height:calc(100vh - 150px); overflow:auto}
+.fg-body{max-height:calc(100dvh - 150px); overflow:auto}
 
 .fg-head{display:flex; align-items:center; gap:10px; margin-bottom:10px}
 .fg-head .mp-share{margin-left:auto; flex:none}
