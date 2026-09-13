@@ -604,7 +604,10 @@ footer a{color:var(--gold-soft)}
   .wrap{padding:22px 14px calc(88px + env(safe-area-inset-bottom, 0px))}
 
   /* masthead headline + meta */
-  h1{font-size:clamp(34px,12vw,52px)}
+  /* H1: the masthead fits on ONE row again. At clamp(34,12vw,52) the wordmark measured
+     286px of a 365px row (78%), which is why the controls wrapped once the gauge was
+     added. Sized so wordmark + gauge + search + Sign in all fit with room to spare. */
+  h1{font-size:clamp(20px,5.4vw,30px)}
   .dek{font-size:15px; max-width:none}
   .metaline{gap:10px 18px; font-size:11.5px}
 
@@ -1329,12 +1332,12 @@ thead th:hover .col-resize::after{opacity:.6}
   .fg-pop{position:fixed; top:64px; left:12px; right:12px; width:auto; max-width:none;
     max-height:calc(100dvh - 96px)}
   .fg-dial.sm{width:78px; height:30px}
-  /* The masthead holds a 166px wordmark and had ~46px of slack at 390px — not enough for
-     a fourth control, and less still once a signed-in user adds the bell and avatar. So
-     the row wraps here and the controls take their own line, rather than the gauge being
-     dropped on phones or the page scrolling sideways. Desktop is untouched. */
-  .sitehead{flex-wrap:wrap; row-gap:4px}
-  .site-right{margin-left:auto}
+  /* The smaller wordmark (see h1 above) leaves room for all three controls on one line.
+     flex-wrap stays as a SAFETY NET, not the normal path: a signed-in user swaps the 74px
+     Sign in for a bell + avatar, and on a 320px phone that can still be a few px too wide.
+     Wrapping there degrades to two rows instead of overflowing the page sideways. */
+  .sitehead{gap:8px; flex-wrap:wrap; row-gap:2px}
+  .site-right{gap:4px; margin-left:auto}
 }
 
 /* ============================================================
