@@ -20,11 +20,17 @@ import {
   BURSTS,
   buildShareUrl,
   normalizeTicker,
+  PANELS,
+  panelTarget,
   parseShareHash,
   pickBurst,
   TICKER_MAX,
+  tickerTarget,
   type BurstId,
 } from "./share";
+
+/** Expected parse result for a symbol — parseShareHash returns a tagged target now. */
+const tk = (id: string) => ({ kind: "ticker", id });
 
 let failed = 0;
 function eq(label: string, got: unknown, want: unknown): void {
@@ -43,30 +49,30 @@ const ORIGIN = "https://nitzan-massad.github.io";
 // ---- 1. the base, both of them -------------------------------------------
 eq(
   "production base keeps the project path",
-  buildShareUrl("AAPL", ORIGIN, "/MarketPulse/"),
+  buildShareUrl(tickerTarget("AAPL"), ORIGIN, "/MarketPulse/"),
   "https://nitzan-massad.github.io/MarketPulse/#AAPL",
 );
-eq("dev base is a bare root", buildShareUrl("AAPL", "http://localhost:5173", "/"), "http://localhost:5173/#AAPL");
+eq("dev base is a bare root", buildShareUrl(tickerTarget("AAPL"), "http://localhost:5173", "/"), "http://localhost:5173/#AAPL");
 eq(
   "a base without its trailing slash still joins cleanly",
-  buildShareUrl("AAPL", ORIGIN, "/MarketPulse"),
+  buildShareUrl(tickerTarget("AAPL"), ORIGIN, "/MarketPulse"),
   "https://nitzan-massad.github.io/MarketPulse/#AAPL",
 );
 eq(
   "a base without its leading slash still joins cleanly",
-  buildShareUrl("AAPL", ORIGIN, "MarketPulse/"),
+  buildShareUrl(tickerTarget("AAPL"), ORIGIN, "MarketPulse/"),
   "https://nitzan-massad.github.io/MarketPulse/#AAPL",
 );
 eq(
   "a trailing slash on the origin never doubles up",
-  buildShareUrl("AAPL", ORIGIN + "/", "/MarketPulse/"),
+  buildShareUrl(tickerTarget("AAPL"), ORIGIN + "/", "/MarketPulse/"),
   "https://nitzan-massad.github.io/MarketPulse/#AAPL",
 );
-eq("no // ever appears after the host", buildShareUrl("AAPL", ORIGIN + "/", "/MarketPulse/").slice(8).includes("//"), false);
+eq("no // ever appears after the host", buildShareUrl(tickerTarget("AAPL"), ORIGIN + "/", "/MarketPulse/").slice(8).includes("//"), false);
 
 // ---- the link has to actually be short -----------------------------------
-eq("the whole production link stays under 50 chars", buildShareUrl("AAPL", ORIGIN, "/MarketPulse/").length <= 50, true);
-eq("the hash costs exactly one character more than the symbol", buildShareUrl("AAPL", ORIGIN, "/MarketPulse/").length - buildShareUrl("", ORIGIN, "/MarketPulse/").length, 5);
+eq("the whole production link stays under 50 chars", buildShareUrl(tickerTarget("AAPL"), ORIGIN, "/MarketPulse/").length <= 50, true);
+eq("the hash costs exactly one character more than the symbol", buildShareUrl(tickerTarget("AAPL"), ORIGIN, "/MarketPulse/").length - buildShareUrl(tickerTarget(""), ORIGIN, "/MarketPulse/").length, 5);
 
 // ---- 2. normalize / the whitelist ----------------------------------------
 eq("a lowercase symbol is uppercased", normalizeTicker("aapl"), "AAPL");
@@ -84,15 +90,15 @@ eq("markup is not a symbol", normalizeTicker("<img>"), "");
 eq(`over ${TICKER_MAX} chars is not a symbol`, normalizeTicker("ABCDEFGHIJ"), "");
 
 // a ticker we can't normalize must not produce a link into a modal that opens empty
-eq("garbage yields the bare app URL, not a broken deep link", buildShareUrl("section-2", ORIGIN, "/MarketPulse/"), "https://nitzan-massad.github.io/MarketPulse/");
-eq("...and that URL carries no hash at all", buildShareUrl("section-2", ORIGIN, "/MarketPulse/").includes("#"), false);
+eq("garbage yields the bare app URL, not a broken deep link", buildShareUrl(tickerTarget("section-2"), ORIGIN, "/MarketPulse/"), "https://nitzan-massad.github.io/MarketPulse/");
+eq("...and that URL carries no hash at all", buildShareUrl(tickerTarget("section-2"), ORIGIN, "/MarketPulse/").includes("#"), false);
 
 // ---- the hash parser -----------------------------------------------------
-eq("a plain hash resolves", parseShareHash("#AAPL"), "AAPL");
-eq("a lowercase hash resolves uppercased", parseShareHash("#aapl"), "AAPL");
-eq("the # is optional", parseShareHash("AAPL"), "AAPL");
-eq("a rewritten #/ form resolves", parseShareHash("#/AAPL"), "AAPL");
-eq("a percent-encoded share class resolves", parseShareHash("#BRK%2EB"), "BRK.B");
+eq("a plain hash resolves", parseShareHash("#AAPL"), tk("AAPL"));
+eq("a lowercase hash resolves uppercased", parseShareHash("#aapl"), tk("AAPL"));
+eq("the # is optional", parseShareHash("AAPL"), tk("AAPL"));
+eq("a rewritten #/ form resolves", parseShareHash("#/AAPL"), tk("AAPL"));
+eq("a percent-encoded share class resolves", parseShareHash("#BRK%2EB"), tk("BRK.B"));
 eq("an empty hash is not a share link", parseShareHash(""), null);
 eq("a bare # is not a share link", parseShareHash("#"), null);
 eq("null is not a share link", parseShareHash(null), null);
@@ -104,10 +110,33 @@ eq("a malformed escape is not a share link", parseShareHash("#%E0%A4%A"), null);
 
 // ---- 3. round trip -------------------------------------------------------
 for (const t of ["AAPL", "T", "GOOGL", "BRK.B", "ABC1"]) {
-  const url = buildShareUrl(t, ORIGIN, "/MarketPulse/");
-  eq(`round trip ${t}`, parseShareHash(url.slice(url.indexOf("#"))), t);
+  const url = buildShareUrl(tickerTarget(t), ORIGIN, "/MarketPulse/");
+  eq(`round trip ${t}`, parseShareHash(url.slice(url.indexOf("#"))), tk(t));
 }
-eq("a lowercase input round-trips to the canonical symbol", parseShareHash(buildShareUrl("aapl", ORIGIN, "/").replace(/^[^#]*/, "")), "AAPL");
+eq("a lowercase input round-trips to the canonical symbol", parseShareHash(buildShareUrl(tickerTarget("aapl"), ORIGIN, "/").replace(/^[^#]*/, "")), tk("AAPL"));
+
+// ---- 3b. the panel kind --------------------------------------------------
+// A second shareable kind had to be added WITHOUT making any of the four rejections
+// above start passing, and without changing what an existing `#AAPL` link does.
+eq("a panel link carries the sigil", buildShareUrl(panelTarget("feargreed"), ORIGIN, "/MarketPulse/"),
+  "https://nitzan-massad.github.io/MarketPulse/#!feargreed");
+eq("a panel hash resolves", parseShareHash("#!feargreed"), { kind: "panel", id: "feargreed" });
+eq("panel round trip", parseShareHash(buildShareUrl(panelTarget("feargreed"), ORIGIN, "/").replace(/^[^#]*/, "")),
+  { kind: "panel", id: "feargreed" });
+eq("a panel id is case-insensitive", parseShareHash("#!FearGreed"), { kind: "panel", id: "feargreed" });
+
+// the sigil is a whitelist too — an unknown panel is inert, not a blank overlay
+eq("an unknown panel is not a share link", parseShareHash("#!nope"), null);
+eq("a bare sigil is not a share link", parseShareHash("#!"), null);
+eq("an unknown panel yields the bare app URL", buildShareUrl({ kind: "panel", id: "nope" as never }, ORIGIN, "/"),
+  "http://localhost:5173/".replace("http://localhost:5173", ORIGIN));
+
+// the two kinds can never be confused for one another
+eq("the sigil can never be a symbol", normalizeTicker("!feargreed"), "");
+eq("a symbol is still the bare form, unchanged", buildShareUrl(tickerTarget("AAPL"), ORIGIN, "/MarketPulse/"),
+  "https://nitzan-massad.github.io/MarketPulse/#AAPL");
+eq("a symbol parses as a ticker, not a panel", parseShareHash("#AAPL"), tk("AAPL"));
+eq("every panel id is a usable CSS/attr value", PANELS.every((x) => /^[a-z]+$/.test(x)), true);
 
 // ---- 4. the burst roster and the pick -----------------------------------
 eq("twenty animations, as designed", BURSTS.length, 20);

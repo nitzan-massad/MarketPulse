@@ -29,25 +29,51 @@ export function normalizeTicker(raw: string | null | undefined): string {
   return t.toUpperCase();
 }
 
+// ---- what a link can point at ---------------------------------------------
+// Two kinds, and the split matters for back-compatibility: a ticker keeps the bare
+// `#AAPL` form it has always had, so every link already in the wild still resolves.
+// Anything else is namespaced behind a sigil that TICKER_RE can never match (it demands
+// a leading letter), which is what stops a panel link and a symbol link from colliding.
+export const PANEL_SIGIL = "!";
+
+/** Panels that can be deep-linked. A whitelist, for the same reason TICKER_RE is one. */
+export const PANELS = ["feargreed"] as const;
+export type PanelId = (typeof PANELS)[number];
+
+export type ShareTarget =
+  | { kind: "ticker"; id: string }
+  | { kind: "panel"; id: PanelId };
+
+export const tickerTarget = (id: string): ShareTarget => ({ kind: "ticker", id });
+export const panelTarget = (id: PanelId): ShareTarget => ({ kind: "panel", id });
+
 /**
- * The shareable URL for a ticker.
+ * The shareable URL for a target.
  * `base` is Vite's BASE_URL — "/" in dev, "/MarketPulse/" in the production build — so the
- * same code produces a working link in both. A ticker we can't normalize yields the bare
+ * same code produces a working link in both. A target we can't normalize yields the bare
  * app URL rather than a link to a modal that would open empty.
  */
-export function buildShareUrl(ticker: string, origin: string, base: string): string {
+export function buildShareUrl(target: ShareTarget, origin: string, base: string): string {
   const root = origin.replace(/\/+$/, "");
   const b = base.startsWith("/") ? base : "/" + base;
   const path = b.endsWith("/") ? b : b + "/";
-  const t = normalizeTicker(ticker);
+  if (target.kind === "panel") {
+    return (PANELS as readonly string[]).includes(target.id)
+      ? `${root}${path}#${PANEL_SIGIL}${target.id}`
+      : `${root}${path}`;
+  }
+  const t = normalizeTicker(target.id);
   return t ? `${root}${path}#${t}` : `${root}${path}`;
 }
 
 /**
- * The ticker a location hash points at, or null when the hash isn't a share link.
+ * What a location hash points at, or null when the hash isn't a share link.
  * Accepts the leading "#" and a leading "/" (some clients rewrite "#AAPL" to "#/AAPL").
+ *
+ * Callers MUST switch on `kind` rather than treating null as "close everything" — App.tsx
+ * used to do exactly that, which was only safe while sharing owned the whole hash space.
  */
-export function parseShareHash(hash: string | null | undefined): string | null {
+export function parseShareHash(hash: string | null | undefined): ShareTarget | null {
   const raw = (hash ?? "").replace(/^#/, "").replace(/^\/+/, "");
   if (!raw) return null;
   let decoded = raw;
@@ -56,7 +82,13 @@ export function parseShareHash(hash: string | null | undefined): string | null {
   } catch {
     return null; // a malformed %-escape is not a symbol
   }
-  return normalizeTicker(decoded) || null;
+  if (decoded.startsWith(PANEL_SIGIL)) {
+    const id = decoded.slice(PANEL_SIGIL.length).trim().toLowerCase();
+    // whitelist, so `#!whatever` is inert rather than opening something that isn't there
+    return (PANELS as readonly string[]).includes(id) ? { kind: "panel", id: id as PanelId } : null;
+  }
+  const t = normalizeTicker(decoded);
+  return t ? { kind: "ticker", id: t } : null;
 }
 
 /**
@@ -96,7 +128,7 @@ export async function copyText(text: string): Promise<boolean> {
 
 // ---- the copy-confirmation animations -------------------------------------
 // One of these fires on every successful copy. The ids are the CSS hooks:
-// index.css defines `.mkm-modal[data-burst="<id>"] …`, and ShareBurst.tsx builds the
+// index.css defines `[data-burst="<id>"] …` on whichever host is sharing, and ShareBurst.tsx builds the
 // particles for the ones that need them.
 export const BURSTS = [
   "confetti", "shock", "tape", "slam", "plane",

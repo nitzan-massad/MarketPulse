@@ -1,5 +1,9 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef } from "react";
 import data from "../data/feargreed.json";
+import { panelTarget } from "../share";
+import { useShare } from "../useShare";
+import ShareBurst from "./ShareBurst";
+import ShareButton, { ShareFail } from "./ShareButton";
 import { ariaSummary, bandOf, needlePoint, sparkPath, trend, type FearGreed } from "../feargreed";
 
 const fg = data as FearGreed;
@@ -61,13 +65,20 @@ function Dial({ score, big }: { score: number; big?: boolean }) {
   );
 }
 
-export default function FearGreedGauge() {
-  const [open, setOpen] = useState(false);
+interface Props {
+  /** Controlled by App so a `#!feargreed` link can open it. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export default function FearGreedGauge({ open, onOpenChange }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
   const titleId = useId();
+  // The panel is the shareable thing here, not a ticker — `#!feargreed` reopens it.
+  const share = useShare(panelTarget("feargreed"), open);
 
   // Non-modal: focus moves into the panel, but is not trapped. Escape and outside-press
   // both close, and Escape returns focus to the trigger (the panel has no focusable
@@ -76,11 +87,11 @@ export default function FearGreedGauge() {
     if (!open) return;
     panelRef.current?.focus();
     const onDoc = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) onOpenChange(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      setOpen(false);
+      onOpenChange(false);
       btnRef.current?.focus();
     };
     document.addEventListener("mousedown", onDoc);
@@ -89,7 +100,7 @@ export default function FearGreedGauge() {
       document.removeEventListener("mousedown", onDoc);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, onOpenChange]);
 
   const band = bandOf(fg.score);
   const t = trend(fg.score, fg.previous.week);
@@ -105,7 +116,7 @@ export default function FearGreedGauge() {
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => onOpenChange(!open)}
       >
         <Dial score={fg.score} />
       </button>
@@ -114,12 +125,17 @@ export default function FearGreedGauge() {
         <div
           className="fg-pop"
           id={panelId}
+          data-burst={share.burst ?? undefined}
           ref={panelRef}
           role="dialog"
           aria-labelledby={titleId}
           tabIndex={-1}
         >
-          <h2 className="fg-title" id={titleId}>Fear &amp; Greed Index</h2>
+          <div className="fg-head">
+            <h2 className="fg-title" id={titleId}>Fear &amp; Greed Index</h2>
+            <ShareButton what="the Fear &amp; Greed index" onShare={share.onShare} compact />
+          </div>
+          {share.copyFailed && <ShareFail url={share.url} />}
 
           <Dial score={fg.score} big />
 
@@ -175,6 +191,8 @@ export default function FearGreedGauge() {
           </ul>
 
           <p className="fg-src">CNN Business · {fg.asOf.slice(0, 10)}</p>
+
+          {share.burst && <ShareBurst id={share.burst} onDone={share.onBurstDone} />}
         </div>
       )}
     </div>

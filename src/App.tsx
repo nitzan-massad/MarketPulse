@@ -13,7 +13,7 @@ import Toolbar from "./components/Toolbar";
 import Watchlist from "./components/Watchlist";
 import stocksData from "./data/stocks.json";
 import { passes, sortRows, VIEWS } from "./lib";
-import { parseShareHash } from "./share";
+import { parseShareHash, type PanelId } from "./share";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
 import { useNotifications, type Notification } from "./useNotifications";
@@ -50,6 +50,7 @@ export default function App() {
   // analyst tab defaults to Strong Buy to match the real page
   const [consensuses, setConsensuses] = useState<string[]>(["StrongBuy"]);
   const [cap, setCap] = useState(0);
+  const [panel, setPanel] = useState<PanelId | null>(null);
   const [openStock, setOpenStock] = useState<Stock | null>(null);
   const [fcHighlight, setFcHighlight] = useState<string[] | null>(null); // review keys to glow when opened from a notification
   // the list the modal was opened from, so ‹ › can page prev/next in place
@@ -133,20 +134,32 @@ export default function App() {
   // server to rewrite /MarketPulse/AAPL, and it's one character cheaper than "?t=".
   // parseShareHash whitelists symbol-shaped hashes, so an unrelated "#section-2" or a
   // leftover OAuth fragment can't open a "No data" modal over the whole page on load.
+  // Two kinds of target share this hash now (a symbol, and `#!<panel>`), so this can no
+  // longer treat "not a ticker" as "close everything" — that blanket rule was only safe
+  // while a symbol was the sole thing a hash could mean. Each branch closes the OTHER
+  // kind, so switching between a stock link and a panel link never leaves both up.
   const syncFromHash = useCallback(() => {
-    const t = parseShareHash(location.hash);
-    if (!t) {
-      // The hash stopped naming a stock — Back out of a shared link, or a hand-edited
+    const target = parseShareHash(location.hash);
+
+    if (target?.kind === "panel") {
+      setOpenStock(null);
+      setFcHighlight(null);
+      setPanel(target.id);
+      return;
+    }
+    setPanel(null);
+
+    if (!target) {
+      // The hash stopped naming anything — Back out of a shared link, or a hand-edited
       // URL. Close, because the modal that is open is the one the hash put there and
-      // leaving it up makes Back look broken. Safe as a blanket rule: the share link is
-      // the app's only hash consumer, so no other navigation can trip this.
+      // leaving it up makes Back look broken.
       setOpenStock(null);
       setFcHighlight(null);
       return;
     }
-    const hit = STOCKS.find((s) => s.t === t);
+    const hit = STOCKS.find((s) => s.t === target.id);
     if (hit) handleOpen(hit, STOCKS);
-    else handleOpenTicker(t); // off-universe symbol: live price + chart, metrics marked N/A
+    else handleOpenTicker(target.id); // off-universe symbol: live price + chart, metrics N/A
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     syncFromHash();
@@ -159,11 +172,27 @@ export default function App() {
   // Closing a deep-linked modal drops the hash, so a reload doesn't reopen a modal the
   // user just dismissed. replaceState (not pushState, not location.hash = "") keeps it out
   // of history and fires no hashchange, which would otherwise reopen it immediately.
+  const dropHash = useCallback(() => {
+    // Only strip a hash this close actually owns — a blanket strip would wipe the other
+    // kind's link while it is still on screen.
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  }, []);
+
   const closeStock = useCallback(() => {
     setOpenStock(null);
     setFcHighlight(null);
-    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
-  }, []);
+    if (parseShareHash(location.hash)?.kind === "ticker") dropHash();
+  }, [dropHash]);
+
+  // The gauge owns its own open state until a link puts it there; from then on the hash
+  // is the source of truth, the same way it is for a deep-linked stock modal.
+  const setPanelOpen = useCallback(
+    (open: boolean) => {
+      setPanel(open ? "feargreed" : null);
+      if (!open && parseShareHash(location.hash)?.kind === "panel") dropHash();
+    },
+    [dropHash],
+  );
 
   const sectorOptions = useMemo(
     () => [...new Set(STOCKS.map((s) => s.sec).filter(Boolean))].sort(),
@@ -306,7 +335,7 @@ export default function App() {
       <header className="sitehead">
         <h1 id="title">Market <span className="em">Pulse</span></h1>
         <div className="site-right">
-          <FearGreedGauge />
+          <FearGreedGauge open={panel === "feargreed"} onOpenChange={setPanelOpen} />
           <Search onOpen={handleOpen} onOpenTicker={handleOpenTicker} />
           {authReady && user && (
             <NotificationBell
