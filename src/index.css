@@ -1282,9 +1282,14 @@ thead th:hover .col-resize::after{opacity:.6}
 .mp-close:hover{color:var(--ink); border-color:var(--gold-soft)}
 .mp-close:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
 [data-burst] .mp-close{top:8px; right:8px; box-shadow:none}
-/* On a phone the stock modal is calc(100vw - 32px), so an 11px overhang puts the button
-   flush against the screen edge (and under a rounded display corner). Pull it in. */
-@media(max-width:640px){ .mp-close{top:-8px; right:-8px} }
+/* On a phone the overhang has to go. Two reasons, and the first is a real collision: the
+   Fear & Greed panel becomes a fixed full-width sheet at top:64px, which puts its
+   top-right corner INSIDE the masthead — the × landed on top of the Sign in button
+   (× at x 362-388/y 57-83 vs Sign in at x 305-379/y 79-111 on a 393px iPhone). Second,
+   a full-width sheet is not a floating card; an inset close is the right pattern for it
+   either way. Same treatment for the stock modal, which at calc(100vw - 32px) would
+   otherwise sit flush against the screen edge and under a rounded display corner. */
+@media(max-width:640px){ .mp-close{top:8px; right:8px; box-shadow:none} }
 
 /* The scroller is the BODY, not the panel: the panel has to stay overflow:visible for the
    corner × to hang outside it, and pinning the × above the scroll area is better anyway —
@@ -1325,8 +1330,18 @@ thead th:hover .col-resize::after{opacity:.6}
 /* Below 640px an anchored 320px panel has nowhere to go — same fixed-sheet fallback
    the notification panel uses, and the header dial sheds its label to fit the row. */
 @media(max-width:640px){
-  .fg-pop{position:fixed; top:64px; left:12px; right:12px; width:auto; max-width:none;
-    max-height:calc(100dvh - 96px)}
+  /* Was `position:fixed; top:64px`, copied from the notification bell — but this panel's
+     masthead wraps on a phone, so 64px landed INSIDE the header and put the panel's
+     top-right corner (and its ×) on top of the Sign in button. Stay anchored to the
+     trigger instead: the panel then always opens below the header, whatever height it
+     wraps to, and 320px still fits a 360px screen. */
+  /* Dropping .fg-root's positioning hands the panel's containing block to .sitehead
+     (already position:relative), so `top:100%` means "below the whole header" however it
+     wraps, and `right:0` means the header's right edge — not the trigger's, which sits
+     mid-row once the controls wrap onto their own line. */
+  .fg-root{position:static}
+  .fg-pop{width:min(320px, calc(100vw - 24px)); max-width:none; top:calc(100% + 8px); right:0}
+  .fg-body{max-height:calc(100dvh - 190px)}
   .fg-dial.sm{width:78px; height:30px}
   /* The masthead holds a 166px wordmark and had ~46px of slack at 390px — not enough for
      a fourth control, and less still once a signed-in user adds the bell and avatar. So
