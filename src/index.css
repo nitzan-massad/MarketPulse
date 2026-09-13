@@ -726,7 +726,7 @@ thead th:hover .col-resize::after{opacity:.6}
 }
 .mkm-modal{
   position:relative; width:min(660px, calc(100vw - 32px)); max-height:calc(100vh - 48px);
-  background:var(--t-bg); border:1px solid var(--t-line); border-radius:14px; overflow:hidden;
+  background:var(--t-bg); border:1px solid var(--t-line); border-radius:14px; overflow:visible;
   box-shadow:0 30px 72px -26px rgba(27,29,24,.30), 0 2px 8px rgba(27,29,24,.06);
   font-family:Arial, "Helvetica Neue", Helvetica, sans-serif; color:var(--t-ink); font-size:14px; line-height:1.4;
   animation:mkm-pop .4s cubic-bezier(.2,.8,.2,1); display:flex; flex-direction:column;
@@ -738,15 +738,15 @@ thead th:hover .col-resize::after{opacity:.6}
 @keyframes mkm-skel{0%,100%{opacity:.35}50%{opacity:.85}}
 
 /* title bar */
-.mkm-titlebar{display:flex; align-items:center; gap:10px; padding:11px 16px; background:var(--t-panel); border-bottom:1px solid var(--t-line)}
+/* The modal no longer clips, so the title bar has to round its own top corners or its
+   fill would square off the modal's 14px radius. */
+.mkm-titlebar{display:flex; align-items:center; gap:10px; padding:11px 16px; background:var(--t-panel);
+  border-bottom:1px solid var(--t-line); border-radius:13px 13px 0 0}
+.mkm-modal[data-burst]{overflow:hidden}
 .mkm-path{font-size:13px; color:var(--t-faint); letter-spacing:.04em}
 .mkm-path b{color:var(--t-gold); font-weight:700}
 .mkm-live{margin-left:auto; font-size:10px; color:var(--t-green); letter-spacing:.1em}
 .mkm-live::before{content:"●"; margin-right:5px; animation:mkm-blink 1.6s infinite}
-.mkm-close{width:24px; height:24px; border-radius:6px; border:1px solid var(--t-line); background:none; color:var(--t-muted);
-  font-size:14px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; margin-left:auto; transition:.15s}
-.mkm-live ~ .mkm-close{margin-left:12px} /* LIVE already right-pushes the group; keep × beside it */
-.mkm-close:hover{color:var(--t-ink); border-color:var(--t-gold)}
 .mkm-star{appearance:none; background:none; border:0; cursor:pointer; font-size:17px; line-height:1;
   color:var(--t-faint); transition:.14s; padding:0 4px}
 .mkm-star:hover{color:var(--t-gold-soft, var(--t-gold))}
@@ -1268,18 +1268,23 @@ thead th:hover .col-resize::after{opacity:.6}
 }
 @keyframes fg-in{from{opacity:0; transform:scale(.97) translateY(-4px)}to{opacity:1; transform:none}}
 
-/* The close rides the corner, half outside the panel (mockup C3). `overflow:visible` is
-   why it can hang out — but a burst throws particles past the panel edge, so .fg-pop
-   flips to overflow:hidden while one is running (rule below), and the × is tucked back
-   inside for those few hundred ms rather than being clipped mid-animation. */
-.fg-x{position:absolute; top:-11px; right:-11px; z-index:2; width:26px; height:26px;
+/* The close rides its host's top-right corner, half outside it (mockup C3), so the
+   header row stays free for the title and Share. The host must be position:relative and
+   NOT overflow:hidden — both .fg-pop and .mkm-modal were changed to suit, each moving its
+   clipping to the moment a burst is running instead.
+   Position never transitions: during a burst the host DOES clip, and the × has to be
+   tucked back inside instantly rather than being sliced for the length of an animation. */
+.mp-close{position:absolute; top:-11px; right:-11px; z-index:56; width:26px; height:26px;
   display:flex; align-items:center; justify-content:center; cursor:pointer;
   border-radius:50%; border:1px solid var(--line); background:var(--bg); color:var(--muted);
-  font-size:17px; line-height:1; font-family:"Archivo",sans-serif;
+  font-size:17px; line-height:1; font-family:"Archivo",sans-serif; padding:0;
   box-shadow:0 3px 10px -3px rgba(19,26,36,.4); transition:color .15s, border-color .15s}
-.fg-x:hover{color:var(--ink); border-color:var(--gold-soft)}
-.fg-x:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
-.fg-pop[data-burst] .fg-x{top:8px; right:8px; box-shadow:none}
+.mp-close:hover{color:var(--ink); border-color:var(--gold-soft)}
+.mp-close:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+[data-burst] .mp-close{top:8px; right:8px; box-shadow:none}
+/* On a phone the stock modal is calc(100vw - 32px), so an 11px overhang puts the button
+   flush against the screen edge (and under a rounded display corner). Pull it in. */
+@media(max-width:640px){ .mp-close{top:-8px; right:-8px} }
 
 /* The scroller is the BODY, not the panel: the panel has to stay overflow:visible for the
    corner × to hang outside it, and pinning the × above the scroll area is better anyway —
@@ -1356,11 +1361,10 @@ thead th:hover .col-resize::after{opacity:.6}
 .mp-share:hover{background:var(--t-gold); color:#fff}
 .mp-share:active{transform:scale(.95)}
 .mp-share[disabled]{opacity:.55; cursor:default}
-/* LIVE already carries the margin-left:auto that right-pushes this group; and .mkm-close's
-   own auto has to be beaten, or × would take the free space and leave the chip mid-row. */
+/* LIVE already carries the margin-left:auto that right-pushes this group. The close used
+   to sit here too and fight for that space; it rides the modal's corner now (.mp-close). */
 .mkm-live ~ .mp-share{margin-left:12px}
-.mp-share ~ .mkm-close{margin-left:12px}
-/* Phones: 22px ticker + star + thumbs + LIVE + chip + × overflows a 344px modal, so the
+.mp-share ~ /* Phones: 22px ticker + star + thumbs + LIVE + chip + × overflows a 344px modal, so the
    label goes and the glyph stays. Not a graceful degradation — the icon alone is the
    same control, and a wrapped title bar would be worse than a wordless button. */
 @media(max-width:640px){

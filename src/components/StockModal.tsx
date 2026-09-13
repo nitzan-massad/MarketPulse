@@ -9,6 +9,7 @@ import { tickerTarget } from "../share";
 import { useShare } from "../useShare";
 import type { Mark, MarkEntry } from "../watchlist";
 import ShareBurst from "./ShareBurst";
+import CloseButton from "./CloseButton";
 import ShareButton, { ShareFail } from "./ShareButton";
 import ThumbMark from "./ThumbMark";
 
@@ -743,10 +744,9 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
           {!chromeOff && <ThumbMark mark={mark} onMark={onMark} both />}
           {!chromeOff && marketOpen() && <div className="mkm-live">LIVE</div>}
           {!chromeOff && <ShareButton what={stock.t} onShare={share.onShare} compact />}
-          <button className="mkm-close" aria-label="Close" onClick={onClose}>
-            &times;
-          </button>
         </div>
+
+        <CloseButton what={stock.t} onClose={onClose} />
 
         {share.copyFailed && <ShareFail url={share.url} />}
 

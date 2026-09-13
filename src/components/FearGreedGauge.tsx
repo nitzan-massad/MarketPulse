@@ -3,6 +3,7 @@ import data from "../data/feargreed.json";
 import { panelTarget } from "../share";
 import { useShare } from "../useShare";
 import ShareBurst from "./ShareBurst";
+import CloseButton from "./CloseButton";
 import ShareButton, { ShareFail } from "./ShareButton";
 import { ariaSummary, bandOf, needlePoint, sparkPath, trend, type FearGreed } from "../feargreed";
 
@@ -131,19 +132,13 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
           aria-labelledby={titleId}
           tabIndex={-1}
         >
-          {/* C3: rides the panel's top-right corner, half outside it, so the header row
-              stays free for the title and Share. */}
-          <button
-            type="button"
-            className="fg-x"
-            aria-label="Close"
-            onClick={() => {
+          <CloseButton
+            what="the Fear &amp; Greed index"
+            onClose={() => {
               onOpenChange(false);
               btnRef.current?.focus();
             }}
-          >
-            &times;
-          </button>
+          />
 
           <div className="fg-body">
           <div className="fg-head">
