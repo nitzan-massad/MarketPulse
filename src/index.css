@@ -6,6 +6,14 @@
   --gold:#1b3f73; --gold-soft:#2a5695;
   --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
   --teal:#147c86;
+  /* Fear & Greed ramp. Deliberately NOT red->amber->green: ColorBrewer flags RdYlGn as
+     colourblind-unsafe at every class count, amber->green is 1.43:1 under protanopia, and
+     no three-band ramp can clear 3:1 against each other AND the panel (that needs 27:1,
+     above the 21:1 maximum). So it diverges red -> neutral grey -> teal, reusing --red-2,
+     --red and --teal. Colour only ever reinforces: the band is also stated as a numeral
+     and a text label, never by hue alone (WCAG 1.4.1). Greed reading teal rather than
+     green is also truer — extreme greed is a sell signal, not a good thing. */
+  --fg-ef:#a72f22; --fg-fe:#c73a2b; --fg-nu:#8794a5; --fg-gr:#2a8f99; --fg-eg:#147c86;
   /* stock detail modal — echoes the steel palette */
   --t-bg:#ffffff; --t-panel:#eef1f5; --t-line:#d3dae3; --t-line-2:#e9edf2;
   --t-ink:#131a24; --t-muted:#3a4453; --t-faint:#5c6675;
@@ -1214,6 +1222,91 @@ thead th:hover .col-resize::after{opacity:.6}
 
 @media(max-width:640px){
   .nb-pop{position:fixed; top:64px; left:12px; right:12px; width:auto; max-width:none}
+}
+
+/* ============================================================
+   FEAR & GREED — header dial + its breakdown panel
+   ============================================================
+   Placement A2: joins search / bell / account in .site-right.
+   Anchoring C1: below the trigger, right edges flush — it grows inward from the
+   page edge, so it can never overflow the viewport and never needs a collision
+   shift. Same shape as .nb-pop, deliberately: one popover idiom in this app.
+   No caret — with right-edge alignment on a 134px trigger the relationship is
+   already unambiguous, and a caret only adds an offset to keep in sync.
+   The panel is ~380px tall against a 432px cap, so it never scrolls. */
+
+.fg-root{position:relative; display:flex}
+.fg-trigger{appearance:none; border:0; background:none; padding:3px 6px; border-radius:9px;
+  cursor:pointer; display:flex; align-items:center; transition:background .15s}
+.fg-trigger:hover{background:var(--panel)}
+.fg-trigger[aria-expanded="true"]{background:var(--panel)}
+.fg-trigger:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
+.fg-dial{display:block}
+.fg-dial.sm{width:118px; height:45px}
+.fg-dial.lg{width:184px; height:140px; margin:0 auto}
+/* numeral stays neutral ink: a coloured numeral on a light panel is the first thing to
+   fail contrast, and the band already reads from the label below it */
+.fg-num{font-family:"JetBrains Mono",monospace; font-weight:700; fill:var(--ink);
+  font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.fg-band{font-weight:700; letter-spacing:.2em; font-family:"Archivo",sans-serif}
+.fg-band.ef{fill:var(--fg-ef)} .fg-band.fe{fill:var(--fg-fe)} .fg-band.nu{fill:var(--fg-nu)}
+.fg-band.gr{fill:var(--fg-gr)} .fg-band.eg{fill:var(--fg-eg)}
+
+.fg-pop{position:absolute; top:calc(100% + 8px); right:0; width:320px; max-width:calc(100vw - 32px);
+  /* The 432px figure in the research is Primer's overlay token, not a law — this panel
+     measures ~560px with the dial, the trend and all seven components, and clipping it
+     mid-row is worse than being tall. Cap on the viewport instead, so it only ever
+     scrolls on a genuinely short window. */
+  max-height:calc(100vh - 130px); overflow:auto;
+  background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:16px;
+  box-shadow:0 22px 50px -24px rgba(19,26,36,.5), 0 4px 14px -8px rgba(19,26,36,.18);
+  z-index:45; transform-origin:top right}
+.fg-pop:focus{outline:none}
+.fg-pop:focus-visible{outline:2px solid var(--gold); outline-offset:-2px}
+@media(prefers-reduced-motion:no-preference){
+  .fg-pop{animation:fg-in .16s cubic-bezier(.2,.7,.2,1)}
+}
+@keyframes fg-in{from{opacity:0; transform:scale(.97) translateY(-4px)}to{opacity:1; transform:none}}
+
+.fg-title{margin:0 0 10px; font-size:13.5px; font-weight:700; color:var(--ink); font-family:"Archivo",sans-serif}
+.fg-rule{height:1px; background:var(--line); margin:13px 0 11px}
+.fg-sect{font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--faint);
+  font-weight:700; margin-bottom:7px}
+.fg-spark{display:block; width:100%; height:auto}
+.fg-cap{margin:5px 0 0; font-size:10.5px; color:var(--faint)}
+.fg-cap b{color:var(--muted); font-variant-numeric:tabular-nums}
+
+.fg-comps{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px}
+.fg-crow{display:grid; grid-template-columns:1fr auto auto; align-items:center; column-gap:9px}
+.fg-cname{font-size:11px; color:var(--muted); font-weight:600; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap}
+.fg-cval{font-family:"JetBrains Mono",monospace; font-size:11px; font-weight:700;
+  font-variant-numeric:tabular-nums; text-align:right; min-width:20px}
+.fg-cband{font-size:8px; font-weight:700; letter-spacing:.1em; text-align:right; min-width:60px;
+  font-family:"Archivo",sans-serif}
+.fg-cbar{grid-column:1 / -1; height:4px; border-radius:2px; background:var(--panel-2);
+  overflow:hidden; margin-top:3px}
+.fg-cbar i{display:block; height:100%; border-radius:2px}
+.fg-cval.ef,.fg-cband.ef{color:var(--fg-ef)} .fg-cbar i.ef{background:var(--fg-ef)}
+.fg-cval.fe,.fg-cband.fe{color:var(--fg-fe)} .fg-cbar i.fe{background:var(--fg-fe)}
+.fg-cval.nu,.fg-cband.nu{color:var(--fg-nu)} .fg-cbar i.nu{background:var(--fg-nu)}
+.fg-cval.gr,.fg-cband.gr{color:var(--fg-gr)} .fg-cbar i.gr{background:var(--fg-gr)}
+.fg-cval.eg,.fg-cband.eg{color:var(--fg-eg)} .fg-cbar i.eg{background:var(--fg-eg)}
+
+.fg-src{margin:12px 0 0; font-size:10px; color:var(--faint)}
+
+/* Below 640px an anchored 320px panel has nowhere to go — same fixed-sheet fallback
+   the notification panel uses, and the header dial sheds its label to fit the row. */
+@media(max-width:640px){
+  .fg-pop{position:fixed; top:64px; left:12px; right:12px; width:auto; max-width:none;
+    max-height:calc(100dvh - 96px)}
+  .fg-dial.sm{width:78px; height:30px}
+  /* The masthead holds a 166px wordmark and had ~46px of slack at 390px — not enough for
+     a fourth control, and less still once a signed-in user adds the bell and avatar. So
+     the row wraps here and the controls take their own line, rather than the gauge being
+     dropped on phones or the page scrolling sideways. Desktop is untouched. */
+  .sitehead{flex-wrap:wrap; row-gap:4px}
+  .site-right{margin-left:auto}
 }
 
 /* ============================================================

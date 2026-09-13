@@ -94,6 +94,16 @@ jobs:
           FLARESOLVERR_URL: http://localhost:8191/v1
         run: node ci/scrape-sectors.mjs
 
+      # CNN's Fear & Greed index — one plain GET, no key and no FlareSolverr (CNN is
+      # Fastly-fronted, not Cloudflare; a browser UA + a cnn.com Referer clears its bot
+      # gate). Browsers cannot send either header, which is why this runs here and the
+      # app reads the committed file. continue-on-error like every other scrape: a 418
+      # leaves yesterday's reading in place rather than failing the deploy.
+      - name: Refresh Fear & Greed index
+        if: github.event_name != 'push'
+        continue-on-error: true
+        run: node ci/scrape-feargreed.mjs
+
       # THE DATA GATE — the one that actually protects what ships. Everything above this
       # point is `continue-on-error`, and the pre-scrape `npm test` could only vet the
       # PREVIOUS snapshot, so without this step a mapping regression (the ÷10 AI-scale bug,

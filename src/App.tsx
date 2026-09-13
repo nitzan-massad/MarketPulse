@@ -3,6 +3,7 @@ import BestOfBest from "./components/BestOfBest";
 import NewArrivals from "./components/NewArrivals";
 import Masthead from "./components/Masthead";
 import NavMenu, { type NavId } from "./components/NavMenu";
+import FearGreedGauge from "./components/FearGreedGauge";
 import NotificationBell from "./components/NotificationBell";
 import Search from "./components/Search";
 import SignInModal from "./components/SignInModal";
@@ -305,6 +306,7 @@ export default function App() {
       <header className="sitehead">
         <h1 id="title">Market <span className="em">Pulse</span></h1>
         <div className="site-right">
+          <FearGreedGauge />
           <Search onOpen={handleOpen} onOpenTicker={handleOpenTicker} />
           {authReady && user && (
             <NotificationBell

@@ -1,0 +1,107 @@
+{
+ "score": 33.3,
+ "rating": "fear",
+ "asOf": "2026-09-11T23:59:53",
+ "previous": {
+  "close": 33.1,
+  "week": 45.2,
+  "month": 60.1,
+  "year": 60.3
+ },
+ "components": [
+  {
+   "key": "market_momentum_sp500",
+   "label": "Market momentum",
+   "score": 28.8,
+   "rating": "fear"
+  },
+  {
+   "key": "stock_price_strength",
+   "label": "Stock price strength",
+   "score": 5,
+   "rating": "extreme fear"
+  },
+  {
+   "key": "stock_price_breadth",
+   "label": "Stock price breadth",
+   "score": 12.6,
+   "rating": "extreme fear"
+  },
+  {
+   "key": "put_call_options",
+   "label": "Put / call ratio",
+   "score": 38.4,
+   "rating": "fear"
+  },
+  {
+   "key": "market_volatility_vix",
+   "label": "Market volatility",
+   "score": 50,
+   "rating": "neutral"
+  },
+  {
+   "key": "junk_bond_demand",
+   "label": "Junk bond demand",
+   "score": 68,
+   "rating": "greed"
+  },
+  {
+   "key": "safe_haven_demand",
+   "label": "Safe haven demand",
+   "score": 30.6,
+   "rating": "fear"
+  }
+ ],
+ "history": [
+  66.2,
+  51.3,
+  52.6,
+  30.1,
+  22.3,
+  32.5,
+  34.5,
+  20.4,
+  22.1,
+  5.7,
+  22.1,
+  40.8,
+  49.3,
+  54.9,
+  46.1,
+  48.6,
+  58.6,
+  54.8,
+  63.8,
+  34.9,
+  36.4,
+  42.3,
+  41.2,
+  25.3,
+  23.9,
+  11.6,
+  5.8,
+  21.6,
+  47.3,
+  67.6,
+  67.4,
+  67.3,
+  65.7,
+  59.3,
+  60.6,
+  54.6,
+  27.3,
+  32.9,
+  25.4,
+  32.5,
+  46.8,
+  37,
+  40.8,
+  39.6,
+  65.1,
+  64.3,
+  54.7,
+  53.7,
+  45.2,
+  33.3
+ ]
+}
