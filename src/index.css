@@ -40,7 +40,8 @@ body::before{
   content:""; position:fixed; inset:0; pointer-events:none; z-index:9; opacity:.045; mix-blend-mode:multiply;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-.wrap{max-width:1270px; margin:0 auto; padding:36px 28px calc(96px + env(safe-area-inset-bottom, 0px)); position:relative; z-index:1}
+.wrap{max-width:1270px; margin:0 auto; position:relative; z-index:1;
+  padding:calc(36px + env(safe-area-inset-top, 0px)) 28px calc(96px + env(safe-area-inset-bottom, 0px))}
 
 /* masthead */
 .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
@@ -1053,7 +1054,19 @@ thead th:hover .col-resize::after{opacity:.6}
   background:rgba(255,255,255,.9);
   -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3);
   border-top:1px solid var(--line); box-shadow:0 -10px 30px -22px rgba(27,29,24,.5);
-  padding-bottom:max(env(safe-area-inset-bottom, 0px), 8px);
+  padding-bottom:env(safe-area-inset-bottom, 0px);
+}
+/* iOS Safari paints the page in the strip BELOW the visual viewport, behind its own
+   translucent collapsed toolbar — measured on an iPhone: nav bottom 735 = visualViewport
+   height 735, while the screen is ~874 CSS px. No `bottom` value reaches that strip,
+   because CSS considers it outside the viewport, which is why table rows showed under the
+   nav. So the nav's background is extended past its own bottom edge to cover it.
+   `env(safe-area-inset-bottom)` cannot solve this: while Safari shows a toolbar, that
+   toolbar occupies the safe area and the inset reports 0. */
+.nav-bottom::after{
+  content:""; position:absolute; left:0; right:0; top:100%; height:160px;
+  background:inherit; -webkit-backdrop-filter:inherit; backdrop-filter:inherit;
+  pointer-events:none;
 }
 .nav-bottom-inner{max-width:560px; margin:0 auto; display:flex; align-items:stretch; position:relative}
 /* sliding "current section" indicator — a short bar over the active tab's top edge */

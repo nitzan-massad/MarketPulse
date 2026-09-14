@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- viewport-fit=cover is what makes env(safe-area-inset-*) return real numbers. Without
+     it iOS keeps the page inset from the screen, every inset resolves to 0, and Safari
+     paints the page itself in the leftover strip below the viewport — which is what put
+     table rows under the bottom nav. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Market Pulse</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
