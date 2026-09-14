@@ -1,7 +1,7 @@
 {
  "score": 31.1,
  "rating": "fear",
- "asOf": "2026-09-14T19:44:49",
+ "asOf": "2026-09-14T23:00:59",
  "previous": {
   "close": 33.3,
   "week": 45.2,
@@ -12,7 +12,7 @@
   {
    "key": "market_momentum_sp500",
    "label": "Market momentum",
-   "score": 26.2,
+   "score": 25.4,
    "rating": "fear"
   },
   {
@@ -24,7 +24,7 @@
   {
    "key": "stock_price_breadth",
    "label": "Stock price breadth",
-   "score": 8.6,
+   "score": 9,
    "rating": "extreme fear"
   },
   {
@@ -42,13 +42,13 @@
   {
    "key": "junk_bond_demand",
    "label": "Junk bond demand",
-   "score": 64,
+   "score": 64.6,
    "rating": "greed"
   },
   {
    "key": "safe_haven_demand",
    "label": "Safe haven demand",
-   "score": 29.6,
+   "score": 29,
    "rating": "fear"
   }
  ],
