@@ -185,9 +185,13 @@ thead th{
 thead th.l{text-align:left}
 thead th.c{text-align:center}
 /* consensus column centered (pill + the ▲●▼ breakdown) */
-td.con-cell{text-align:center}
+/* The pill alone is centred on the row — i.e. on the price line — and the ▲●▼ split is
+   taken out of flow so it hangs beneath instead of centring as a PAIR with the pill,
+   which is what used to lift the pill ~9px above every number beside it. */
+td.con-cell{text-align:center; position:relative}
 td.con-cell .pill{margin:0 auto}
-td.con-cell .dist{justify-content:center}
+td.con-cell .dist{position:absolute; left:0; right:0; top:50%; margin-top:12px;
+  justify-content:center; pointer-events:none}
 thead th:hover{color:var(--ink)}
 thead th .ar{color:var(--gold); margin-left:5px; opacity:0; font-size:9px}
 thead th.sorted .ar{opacity:1}
@@ -203,12 +207,10 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(27,63,115,.09), transparent 7
 .tk-top{display:flex; align-items:center; gap:6px}
 /* ticker cell = text block (left) + thumb badge (right, vertically centred),
    so the thumb's date sits in its own column and never overlaps the company name */
-/* Top-aligned, not centred. .tk-main is two lines (symbol + company name) while the
-   thumbs are one, so centring them against each other put the SYMBOL 8px above the
-   thumb buttons — the misalignment visible in the ticker cell. Aligning tops puts the
-   symbol, the star and the thumbs on one line, and lets the company name and the mark
-   date hang below. */
-.tk-inner{display:flex; align-items:flex-start; gap:8px}
+/* Centred, so the star and thumbs sit on the PRICE line (the row's middle) rather than
+   on the ticker symbol's line. The symbol is the top half of a two-line block, so it
+   reads a little higher — that is the text block doing its job, not a misalignment. */
+.tk-inner{display:flex; align-items:center; gap:8px}
 .tk-main{flex:1; min-width:0}
 /* thumbs "read & liked" mark — colored ticker (option 10) + thumb right of it */
 .tk .sym.mk-up{color:var(--green)}
