@@ -1,4 +1,5 @@
-// Pure logic for the Fear & Greed gauge: bands, needle geometry, sparkline path.
+import { DATE_LOCALE } from "./lib";
+// Pure logic for the Fear & Greed gauge: bands, needle geometry, trend chart.
 // No React, no fetch — paired with feargreed.check.ts, like lib/consensus/alertEngine.
 //
 // The 0-100 scale is CNN's and is never rescaled here (same rule as `ai`). Band cuts are
@@ -10,13 +11,18 @@ export interface Component {
   score: number;
   rating: string;
 }
+/** One weekly sample. `d` is CNN's own date — never derived by counting back. */
+export interface HistoryPoint {
+  d: string;
+  v: number;
+}
 export interface FearGreed {
   score: number;
   rating: string;
   asOf: string;
   previous: { close: number; week: number; month: number; year: number };
   components: Component[];
-  history: number[];
+  history: HistoryPoint[];
 }
 
 export type BandKey = "ef" | "fe" | "nu" | "gr" | "eg";
@@ -62,28 +68,78 @@ export function trend(score: number, prior: number): { dir: "up" | "down" | "fla
 
 export interface Spark {
   d: string;
+  /** y for the neutral 50 line — the fill is anchored here, not at the floor. */
+  mid: number;
   lastX: number;
   lastY: number;
-  min: number;
-  max: number;
+  /** y of the 52-week high and low, for the reference rules. */
+  hiY: number;
+  loY: number;
+  hi: number;
+  lo: number;
+  points: { x: number; y: number; i: number }[];
 }
 
 /**
- * Sparkline path across the full width, scaled to the series' own range.
- * A flat series would divide by zero, so it is drawn down the middle instead.
+ * The chart is drawn on a FIXED 0-100 axis, not scaled to the series' own range.
+ * The index is bounded by definition, so auto-scaling inflates every wiggle to full
+ * height — a year that ran 10-69 looked far more violent than it was, and a 10-point
+ * move read the same whether or not it crossed Neutral.
  */
-export function sparkPath(values: number[], w: number, h: number): Spark | null {
-  if (!values || values.length < 2) return null;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min;
-  const y = (v: number) => (span === 0 ? h / 2 : h - ((v - min) / span) * h);
+export const yOf = (v: number, h: number): number => h - (clamp01(v) / 100) * h;
+
+export function sparkPath(history: HistoryPoint[], w: number, h: number): Spark | null {
+  if (!history || history.length < 2) return null;
+  const vals = history.map((p) => p.v);
+  const hi = Math.max(...vals);
+  const lo = Math.min(...vals);
+  const points = history.map((p, i) => ({
+    x: (i / (history.length - 1)) * w,
+    y: yOf(p.v, h),
+    i,
+  }));
   let d = "";
-  for (let i = 0; i < values.length; i++) {
-    const x = (i / (values.length - 1)) * w;
-    d += (i ? " L " : "M ") + x.toFixed(1) + " " + y(values[i]).toFixed(1);
-  }
-  return { d, lastX: w, lastY: Number(y(values[values.length - 1]).toFixed(1)), min, max };
+  for (const pt of points) d += (d ? " L " : "M ") + pt.x.toFixed(1) + " " + pt.y.toFixed(1);
+  const last = points[points.length - 1];
+  return { d, mid: yOf(50, h), lastX: last.x, lastY: last.y, hiY: yOf(hi, h), loY: yOf(lo, h), hi, lo, points };
+}
+
+export interface Extremes {
+  peaks: number[];
+  troughs: number[];
+}
+
+/**
+ * The `count` highest peaks and `count` deepest troughs, as indices into `history`.
+ *
+ * `minGap` is the point of this: the two highest readings of the year were 68.7 and 68.5,
+ * one week apart — the same peak, which would get labelled twice. Requiring a gap between
+ * picks makes them read as distinct events instead.
+ */
+export function extremes(history: HistoryPoint[], count = 2, minGap = 6): Extremes {
+  const pick = (dir: 1 | -1): number[] => {
+    const order = history
+      .map((_, i) => i)
+      .sort((a, b) => dir * (history[b].v - history[a].v));
+    const out: number[] = [];
+    for (const i of order) {
+      if (out.length >= count) break;
+      if (out.every((j) => Math.abs(i - j) >= minGap)) out.push(i);
+    }
+    return out.sort((a, b) => a - b);
+  };
+  return { peaks: pick(1), troughs: pick(-1) };
+}
+
+/** "May 11" — the label under a peak. Parsed as UTC so it cannot slip a day by timezone. */
+export function shortDate(iso: string): string {
+  const [y, m, day] = iso.split("-").map(Number);
+  if (!y || !m || !day) return "";
+  return new Date(Date.UTC(y, m - 1, day)).toLocaleDateString(DATE_LOCALE, {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 /**

@@ -58,8 +58,16 @@ export function parseFearGreed(doc) {
   }
   // Sample weekly, oldest-first, and always keep the newest point so the sparkline's
   // last value matches the headline score rather than drifting up to a week behind it.
+  //
+  // Each point carries its own date rather than the app counting back a week per index:
+  // these are every 5th TRADING day, so holidays make the spacing drift, and the chart
+  // labels the dates of the year's high and low — a derived date would be quietly wrong.
   const history = [];
-  for (let i = raw.length - 1; i >= 0; i -= WEEKLY) history.unshift(r1(Number(raw[i].y)));
+  for (let i = raw.length - 1; i >= 0; i -= WEEKLY) {
+    const ms = Number(raw[i].x);
+    if (!Number.isFinite(ms)) throw new Error("history point has no timestamp — payload reshaped");
+    history.unshift({ d: new Date(ms).toISOString().slice(0, 10), v: score01(raw[i].y, "history point") });
+  }
 
   return {
     score: score01(fg.score, "headline"),

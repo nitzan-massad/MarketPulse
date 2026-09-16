@@ -5,13 +5,16 @@
 //   2. a score arriving on the wrong scale (the ÷10 class of bug that shipped once before)
 //   3. the sparkline's last point drifting away from the headline score
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import { parseFearGreed } from "./scrape-feargreed.mjs";
 
 const comp = (score, rating) => ({ score, rating, data: [{ x: 1, y: score, rating }] });
 
 function doc(over = {}) {
   const history = [];
-  for (let i = 0; i < 250; i++) history.push({ x: i, y: 20 + (i % 40) });
+  const DAY = 86400000;
+  const START = Date.UTC(2025, 8, 15);
+  for (let i = 0; i < 250; i++) history.push({ x: START + i * DAY, y: 20 + (i % 40) });
   history[history.length - 1].y = 33.3; // newest point matches the headline
   return {
     fear_and_greed: {
@@ -73,14 +76,60 @@ for (const c of fg.components) {
 // ── history ───────────────────────────────────────────────────────────────────
 assert.ok(fg.history.length >= 45 && fg.history.length <= 55,
   `250 daily points sample to ~52 weekly (got ${fg.history.length})`);
-assert.equal(fg.history[fg.history.length - 1], 33.3,
+assert.equal(fg.history[fg.history.length - 1].v, 33.3,
   "the newest point is always kept, so the sparkline ends on the headline score");
-assert.ok(fg.history.every((v) => typeof v === "number" && Number.isFinite(v)),
-  "history is bare numbers — no nulls, no objects");
+assert.ok(fg.history.every((p) => Number.isFinite(p.v) && p.v >= 0 && p.v <= 100),
+  "every history value is a finite 0-100 number");
+
+// ── history dates ─────────────────────────────────────────────────────────────
+// Each point carries its own date because the samples are every 5th TRADING day —
+// counting back a week per index drifts across holidays, and the chart labels the
+// dates of the year's high and low, so a derived date would be quietly wrong.
+assert.ok(fg.history.every((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.d)),
+  "every history point carries an ISO date");
+assert.equal(fg.history[fg.history.length - 1].d, "2026-05-22",
+  "the newest point keeps CNN's own timestamp, not a derived one");
+const times = fg.history.map((p) => Date.parse(p.d));
+assert.ok(times.every((t, i) => i === 0 || t > times[i - 1]),
+  "history runs oldest-first and strictly increases");
+
+const missingX = doc();
+missingX.fear_and_greed_historical.data = missingX.fear_and_greed_historical.data.map((p) => ({ y: p.y }));
+assert.throws(() => parseFearGreed(missingX), /no timestamp/,
+  "a history point without a timestamp fails the run rather than shipping a wrong date");
 
 // Too little history means a truncated payload; better to keep yesterday's file.
 const short = doc();
 short.fear_and_greed_historical.data = short.fear_and_greed_historical.data.slice(0, 30);
 assert.throws(() => parseFearGreed(short), /need 120/, "a truncated history is refused, not written");
+
+// ── the file that actually ships ──────────────────────────────────────────────
+// Everything above tests the parser against a fixture. This reads the COMMITTED file,
+// which is the thing the app imports and the thing a bad CI run (or a botched conflict
+// resolution) would corrupt. Added after a rebase committed a feargreed.json full of
+// merge-conflict markers and the whole suite still went green — `npm run build` caught
+// it, but the DATA GATE is supposed to catch it first.
+const OUT = "src/data/feargreed.json";
+if (existsSync(OUT)) {
+  const raw = readFileSync(OUT, "utf8");
+  assert.ok(!/^(<{7}|={7}|>{7})/m.test(raw), `${OUT} contains merge-conflict markers`);
+
+  let live;
+  assert.doesNotThrow(() => { live = JSON.parse(raw); }, `${OUT} is not valid JSON`);
+
+  assert.ok(live.score >= 0 && live.score <= 100, "shipped score is on the 0-100 scale");
+  assert.equal(live.components.length, 7, "shipped file carries all seven components");
+  assert.ok(live.components.every((c) => c.score >= 0 && c.score <= 100 && c.label),
+    "every shipped component has a label and a 0-100 score");
+
+  assert.ok(Array.isArray(live.history) && live.history.length >= 20,
+    "shipped history has enough points to draw a year");
+  assert.ok(live.history.every((p) => /^\d{4}-\d{2}-\d{2}$/.test(p.d) && Number.isFinite(p.v)),
+    "every shipped history point is {d: ISO date, v: number} — the shape the chart reads");
+  const t = live.history.map((p) => Date.parse(p.d));
+  assert.ok(t.every((x, i) => i === 0 || x > t[i - 1]), "shipped history is oldest-first");
+  assert.equal(live.history[live.history.length - 1].v, live.score,
+    "the newest history point matches the headline, so the chart ends where the dial points");
+}
 
 console.log("test-feargreed OK");

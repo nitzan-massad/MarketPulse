@@ -1317,7 +1317,13 @@ thead th:hover .col-resize::after{opacity:.6}
 .fg-rule{height:1px; background:var(--line); margin:13px 0 11px}
 .fg-sect{font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--faint);
   font-weight:700; margin-bottom:7px}
-.fg-spark{display:block; width:100%; height:auto}
+.fg-spark{display:block; width:100%; height:auto; overflow:visible}
+/* the 52-week high/low values, parked in the right margin so they never sit on the line */
+.fg-ax{font-family:"JetBrains Mono",monospace; font-size:7px; font-weight:700}
+.fg-ax.hi{fill:var(--fg-gr)} .fg-ax.lo{fill:var(--fg-ef)}
+/* dated peak and trough labels — peaks above the line, troughs below */
+.fg-pk{font-family:"Archivo",sans-serif; font-size:7.5px; font-weight:700; text-anchor:middle}
+.fg-pk.hi{fill:var(--fg-gr)} .fg-pk.lo{fill:var(--fg-ef)}
 .fg-cap{margin:5px 0 0; font-size:10.5px; color:var(--faint)}
 .fg-cap b{color:var(--muted); font-variant-numeric:tabular-nums}
 
