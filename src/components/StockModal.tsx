@@ -1226,10 +1226,8 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
         >
           <div className="mkm-titlebar">
             <div className="mkm-path"><b>{stock.t}</b> · Analyst Forecasts</div>
-            <button className="mkm-close" aria-label="Close" onClick={() => setFcOpen(false)}>
-              &times;
-            </button>
           </div>
+          <CloseButton what={`${stock.t} analyst forecasts`} onClose={() => setFcOpen(false)} />
           <div className="mkm-scroll">
             <div className="mkm-fcfull mkm-fcfull-modal">
               <div className="mkm-fctable">

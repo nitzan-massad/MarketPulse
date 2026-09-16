@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import CloseButton from "./CloseButton";
 import type { User } from "firebase/auth";
 import { AUTH_PROVIDERS } from "../watchlist";
 
@@ -75,9 +76,7 @@ export default function SignInModal({ user, signIn, signOut, onClose }: SignInMo
       }}
     >
       <div className="si-modal" role="dialog" aria-modal="true" aria-label="Sign in">
-        <button className="si-close" aria-label="Close" onClick={onClose}>
-          &times;
-        </button>
+        <CloseButton onClose={onClose} />
         <div className="si-badge" aria-hidden="true">★</div>
 
         {user ? (

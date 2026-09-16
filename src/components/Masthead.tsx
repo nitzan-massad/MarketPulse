@@ -31,7 +31,6 @@ export default function Masthead({ poolN, liveStatus, hasKey, onLive }: Masthead
     <div className="metaline">
       <span>Universe <b>{meta.universe.toLocaleString()}</b> US stocks</span>
       <span>Showing <b id="poolN">{poolN}</b> ranked names</span>
-      <span>Source <b>top-analyst price targets</b></span>
       <span className="live">Snapshot · {SNAPSHOT}</span>
       <button type="button" className={`livebadge ${liveStatus}`} onClick={onLive} title="Live Day % via Finnhub (your key, stored only in this browser)">
         {liveLabel}

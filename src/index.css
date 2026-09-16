@@ -486,9 +486,6 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(27,63,115,.09), transparent 7
 .si-modal{position:relative; width:min(380px, calc(100vw - 32px)); background:var(--panel); color:var(--ink);
   border:1px solid var(--line); border-radius:20px; padding:32px 28px 26px; text-align:center;
   box-shadow:0 30px 72px -26px rgba(27,29,24,.5); animation:mkm-pop .3s cubic-bezier(.2,.8,.2,1)}
-.si-close{position:absolute; top:14px; right:14px; width:26px; height:26px; border-radius:7px; border:1px solid var(--line);
-  background:none; color:var(--muted); font-size:15px; line-height:1; cursor:pointer; transition:.15s}
-.si-close:hover{color:var(--ink); border-color:var(--gold-soft)}
 .si-badge{width:52px; height:52px; border-radius:50%; margin:0 auto 12px; display:flex; align-items:center; justify-content:center;
   background:color-mix(in srgb, var(--gold) 14%, transparent); color:var(--gold); font-size:24px}
 .si-modal h3{font-family:"Fraunces",Georgia,serif; font-size:23px; font-weight:700; margin:0 0 6px; letter-spacing:-.01em}
