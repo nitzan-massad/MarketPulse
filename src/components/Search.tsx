@@ -1,26 +1,47 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import stocksData from "../data/stocks.json";
 import type { Stock } from "../types";
 import { consClass, consLabel, fmtPx } from "../lib";
+import { buildOptions, nextIndex, type SearchOption } from "../searchNav";
 
 const STOCKS = stocksData as Stock[];
 
 interface SearchProps {
   onOpen: (s: Stock, list?: Stock[]) => void;
   onOpenTicker: (ticker: string) => void; // off-universe ticker -> partial modal
+  /** Changing this clears the query — the app uses the current view, so moving page
+   *  discards the search while merely dismissing it does not. */
+  resetKey?: unknown;
 }
 
-export default function Search({ onOpen, onOpenTicker }: SearchProps) {
+export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [remote, setRemote] = useState<{ t: string; n: string }[]>([]); // Finnhub name/ticker lookups off the ranked set
+  const [active, setActive] = useState(-1); // -1 = nothing highlighted
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
 
+  // Dismissing keeps the query, so reopening resumes where you left off. Only acting on a
+  // result, changing view, or a reload discards it.
   const close = () => {
     setOpen(false);
-    setQ("");
+    setActive(-1);
   };
+  const clear = () => {
+    setQ("");
+    setActive(-1);
+    inputRef.current?.focus();
+  };
+
+  // moving page throws the search away
+  useEffect(() => {
+    setQ("");
+    setActive(-1);
+    setOpen(false);
+  }, [resetKey]);
 
   useEffect(() => {
     if (!open) return;
@@ -92,21 +113,46 @@ export default function Search({ onOpen, onOpenTicker }: SearchProps) {
     };
   }, [query, open]);
 
-  const pick = (s: Stock) => {
-    onOpen(s, results);
-    close();
-  };
-  const pickTicker = (t: string) => {
-    onOpenTicker(t);
+  // the three result sources as ONE list, in render order, so the arrow keys address the
+  // row the user is actually looking at
+  const options = useMemo(
+    () => buildOptions(results, remote, offUniverse ? upper : null),
+    [results, remote, offUniverse, upper],
+  );
+
+  // A new query invalidates the highlight — otherwise Enter would open whatever happened
+  // to sit at that index in the previous result set.
+  useEffect(() => setActive(-1), [query]);
+
+  // keep the highlighted row on screen when arrowing past the visible edge
+  useEffect(() => {
+    if (active < 0) return;
+    listRef.current?.querySelectorAll<HTMLElement>(".search-res")[active]
+      ?.scrollIntoView({ block: "nearest" });
+  }, [active]);
+
+  const choose = (o: SearchOption) => {
+    if (o.kind === "stock") onOpen(o.stock, results);
+    else onOpenTicker(o.ticker);
+    setQ(""); // acting on a result is not a dismissal — start clean next time
     close();
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key !== "Enter") return;
-    if (results[0]) pick(results[0]);
-    else if (remote[0]) pickTicker(remote[0].t);
-    else if (offUniverse) pickTicker(upper);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (!options.length) return;
+      e.preventDefault(); // stop the caret jumping to either end of the input
+      setActive((i) => nextIndex(i, options.length, e.key === "ArrowDown" ? 1 : -1));
+      return;
+    }
+    if (e.key === "Enter") {
+      // Enter with nothing highlighted takes the first row, which is what it did before
+      // arrow keys existed — typing and hitting Enter still opens the best match.
+      const o = active >= 0 ? options[active] : options[0];
+      if (o) choose(o);
+    }
   };
+  const optionId = (i: number) => `${listId}-opt-${i}`;
 
   return (
     <div className="hdr-search" ref={rootRef}>
@@ -131,35 +177,66 @@ export default function Search({ onOpen, onOpenTicker }: SearchProps) {
               onKeyDown={onKeyDown}
               placeholder="Search ticker or company…"
               aria-label="Search ticker or company"
+              role="combobox"
+              aria-expanded={!!query}
+              aria-controls={listId}
+              aria-autocomplete="list"
+              aria-activedescendant={active >= 0 ? optionId(active) : undefined}
             />
-            <button className="search-x" type="button" aria-label="Close search" onClick={close}>
+            <button
+              className="search-x"
+              type="button"
+              aria-label={q ? "Clear search" : "Close search"}
+              onClick={q ? clear : close}
+            >
               &times;
             </button>
           </div>
 
           {query && (
-            <div className="search-results" role="listbox">
-              {results.map((s) => (
-                <button key={s.t} type="button" className="search-res" role="option" onClick={() => pick(s)}>
-                  <span className="search-tk">{s.t}</span>
-                  <span className="search-co">{s.n}</span>
-                  <span className={`search-con ${consClass(s.con)}`}>{consLabel(s.con)}</span>
-                  <span className="search-px">{fmtPx(s.px)}</span>
-                </button>
-              ))}
-              {remote.map((s) => (
-                <button key={s.t} type="button" className="search-res off" role="option" onClick={() => pickTicker(s.t)}>
-                  <span className="search-tk">{s.t}</span>
-                  <span className="search-co">{s.n ? `${s.n} · not in the ranked set` : "not in the ranked set"}</span>
-                </button>
-              ))}
-              {offUniverse && !remote.length && (
-                <button type="button" className="search-res off" role="option" onClick={() => pickTicker(upper)}>
-                  <span className="search-tk">{upper}</span>
-                  <span className="search-co">Open — limited data (not in the ranked set)</span>
-                </button>
-              )}
-              {results.length === 0 && remote.length === 0 && !offUniverse && (
+            <div className="search-results" role="listbox" id={listId} ref={listRef}>
+              {/* Rendered straight from `options`, so a row's position here IS the index
+                  the arrow keys produce — the two cannot drift apart. */}
+              {options.map((o, i) => {
+                const on = i === active;
+                const cls = `search-res${o.kind === "ticker" ? " off" : ""}${on ? " on" : ""}`;
+                const common = {
+                  key: o.key,
+                  id: optionId(i),
+                  type: "button" as const,
+                  className: cls,
+                  role: "option",
+                  "aria-selected": on,
+                  // hovering moves the highlight so mouse and keyboard never disagree
+                  onMouseEnter: () => setActive(i),
+                  onClick: () => choose(o),
+                };
+                if (o.kind === "stock") {
+                  const s2 = o.stock;
+                  return (
+                    <button {...common}>
+                      <span className="search-tk">{s2.t}</span>
+                      <span className="search-co">{s2.n}</span>
+                      <span className={`search-con ${consClass(s2.con)}`}>{consLabel(s2.con)}</span>
+                      <span className="search-px">{fmtPx(s2.px)}</span>
+                    </button>
+                  );
+                }
+                const hit = remote.find((r) => r.t === o.ticker);
+                return (
+                  <button {...common}>
+                    <span className="search-tk">{o.ticker}</span>
+                    <span className="search-co">
+                      {hit
+                        ? hit.n
+                          ? `${hit.n} · not in the ranked set`
+                          : "not in the ranked set"
+                        : "Open — limited data (not in the ranked set)"}
+                    </span>
+                  </button>
+                );
+              })}
+              {options.length === 0 && (
                 <div className="search-empty">No matches. Try a ticker (NVDA) or company name (Apple).</div>
               )}
             </div>

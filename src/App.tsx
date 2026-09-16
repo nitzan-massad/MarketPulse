@@ -349,7 +349,7 @@ export default function App() {
         <h1 id="title">Market <span className="em">Pulse</span></h1>
         <div className="site-right">
           <FearGreedGauge open={panel === "feargreed"} onOpenChange={setPanelOpen} />
-          <Search onOpen={handleOpen} onOpenTicker={handleOpenTicker} />
+          <Search onOpen={handleOpen} onOpenTicker={handleOpenTicker} resetKey={nav} />
           {authReady && user && (
             <NotificationBell
               notifications={notif.notifications}
