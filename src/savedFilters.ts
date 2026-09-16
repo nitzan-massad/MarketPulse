@@ -18,6 +18,8 @@ export interface SavedFilters {
   sectorNot: boolean;
   consensuses?: string[];
   cap: number;
+  /** "all" | "up" | "down" | "reviewed" | "unseen" — optional so older records still load. */
+  markFilter?: string;
   sector?: string; // legacy
   consensus?: string; // legacy
 }
@@ -43,6 +45,15 @@ export function useSavedFilters(
   // serialized value we last loaded or wrote — guards against the write→read→
   // write loop when a remote/local load triggers the save effect
   const lastSynced = useRef<string>("");
+  // Set by a load, cleared by the next save. Effects run in declaration order, so on
+  // mount the hydrate below calls onLoad (which only SCHEDULES a state update) and then
+  // the save effect runs in the same commit — still seeing the component's INITIAL
+  // filters, which it would write straight over the record just loaded. The hydrate
+  // effect then re-runs when `user` resolves, reads back the value it clobbered, and
+  // applies that. Any filter whose default differed from the saved value could therefore
+  // never survive a reload. Skipping exactly one save per load closes the window, and it
+  // is a window no user input can land in — it is the same tick as the load.
+  const skipNextSave = useRef(false);
   const onLoadRef = useRef(onLoad);
   onLoadRef.current = onLoad;
 
@@ -56,6 +67,7 @@ export function useSavedFilters(
           lastSynced.current = JSON.stringify(v);
           onLoadRef.current(v);
         }
+        skipNextSave.current = true; // even when the account has no record yet
       });
     }
     const local = readLocal();
@@ -63,10 +75,15 @@ export function useSavedFilters(
       lastSynced.current = JSON.stringify(local);
       onLoadRef.current(local);
     }
+    skipNextSave.current = true; // nothing stored is still a completed load
   }, [user]);
 
   // persist on change (skip the value we just loaded)
   useEffect(() => {
+    if (skipNextSave.current) {
+      skipNextSave.current = false;
+      return; // this run still holds the pre-load filters — writing it would clobber
+    }
     const s = JSON.stringify(filters);
     if (s === lastSynced.current) return;
     lastSynced.current = s;

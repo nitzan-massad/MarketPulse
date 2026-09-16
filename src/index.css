@@ -191,7 +191,13 @@ td.con-cell .dist{justify-content:center}
 thead th:hover{color:var(--ink)}
 thead th .ar{color:var(--gold); margin-left:5px; opacity:0; font-size:9px}
 thead th.sorted .ar{opacity:1}
-tbody td{padding:13px 14px; border-bottom:1px solid #dde3ea; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums}
+/* vertical-align:top, not the default middle. With middle, a cell holding two lines
+   (ticker + company, or the consensus pill + its ▲●▼ split) centres the PAIR, which
+   pushes its primary ~9px above the single-line cells next to it — so no two primaries
+   in a row ever sat on the same line. Top-aligning makes every first line start at the
+   same y and lets the secondary lines hang below. */
+tbody td{padding:13px 14px; border-bottom:1px solid #dde3ea; text-align:right; white-space:nowrap;
+  font-variant-numeric:tabular-nums; vertical-align:top}
 tbody tr:last-child td{border-bottom:none}
 tbody tr{transition:background .12s}
 tbody tr:hover{background:#e6ebf2}
@@ -411,8 +417,6 @@ tbody tr.hl{background:linear-gradient(90deg, rgba(27,63,115,.09), transparent 7
    row heights the drop target is computed from move under the pointer. */
 .wl-table tbody tr.wl-dropabove td{box-shadow:inset 0 2px 0 0 var(--gold)}
 .wl-table tbody tr.wl-dropbelow td{box-shadow:inset 0 -2px 0 0 var(--gold)}
-.wl-hint{margin:12px 0 0; padding:0 14px; font-size:12px; color:var(--faint)}
-.wl-hint span{font-family:"JetBrains Mono",monospace; color:var(--muted)}
 @media(prefers-reduced-motion:reduce){
   .wl-table tbody tr.wl-dragging{box-shadow:none; outline:2px solid var(--gold)}
 }
@@ -745,7 +749,7 @@ thead th:hover .col-resize::after{opacity:.6}
 /* title bar */
 /* The modal no longer clips, so the title bar has to round its own top corners or its
    fill would square off the modal's 14px radius. */
-.mkm-titlebar{display:flex; align-items:center; gap:10px; padding:11px 16px; background:var(--t-panel);
+.mkm-titlebar{position:relative; display:flex; align-items:center; gap:10px; padding:11px 16px; background:var(--t-panel);
   border-bottom:1px solid var(--t-line); border-radius:13px 13px 0 0}
 .mkm-modal[data-burst]{overflow:hidden}
 .mkm-path{font-size:13px; color:var(--t-faint); letter-spacing:.04em}
@@ -1291,14 +1295,19 @@ thead th:hover .col-resize::after{opacity:.6}
    clipping to the moment a burst is running instead.
    Position never transitions: during a burst the host DOES clip, and the × has to be
    tucked back inside instantly rather than being sliced for the length of an animation. */
-.mp-close{position:absolute; top:-11px; right:-11px; z-index:56; width:26px; height:26px;
+/* Centred on the host's HEADER ROW rather than on the box corner. Anchoring to the
+   corner put it 28px above the Share chip in the stock modal (whose title bar is 61px
+   tall), so the two controls read as a pair that does not line up. `top:50%` of the
+   header row keeps them on one axis in both hosts, and the negative `right` keeps the
+   corner overhang that was the point of the treatment. */
+.mp-close{position:absolute; top:50%; transform:translateY(-50%); right:-11px; z-index:56; width:26px; height:26px;
   display:flex; align-items:center; justify-content:center; cursor:pointer;
   border-radius:50%; border:1px solid var(--line); background:var(--bg); color:var(--muted);
   font-size:17px; line-height:1; font-family:"Archivo",sans-serif; padding:0;
   box-shadow:0 3px 10px -3px rgba(19,26,36,.4); transition:color .15s, border-color .15s}
 .mp-close:hover{color:var(--ink); border-color:var(--gold-soft)}
 .mp-close:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
-[data-burst] .mp-close{top:8px; right:8px; box-shadow:none}
+[data-burst] .mp-close{right:8px; box-shadow:none}
 /* On a phone the stock modal is calc(100vw - 32px), so an 11px overhang puts the button
    flush against the screen edge (and under a rounded display corner). Pull it in. */
 @media(max-width:640px){ .mp-close{top:-8px; right:-8px} }
@@ -1308,7 +1317,7 @@ thead th:hover .col-resize::after{opacity:.6}
    it cannot scroll out of reach on a short window. */
 .fg-body{max-height:calc(100dvh - 150px); overflow:auto}
 
-.fg-head{display:flex; align-items:center; gap:10px; margin-bottom:10px}
+.fg-head{position:relative; display:flex; align-items:center; gap:10px; margin-bottom:10px}
 .fg-head .mp-share{margin-left:auto; flex:none}
 /* The panel scrolls only on a short viewport, but a burst throws particles past its
    edges — clip them for the duration rather than letting them raise a scrollbar. */

@@ -744,9 +744,8 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
           {!chromeOff && <ThumbMark mark={mark} onMark={onMark} both />}
           {!chromeOff && marketOpen() && <div className="mkm-live">LIVE</div>}
           {!chromeOff && <ShareButton what={stock.t} onShare={share.onShare} compact />}
+          <CloseButton what={stock.t} onClose={onClose} />
         </div>
-
-        <CloseButton what={stock.t} onClose={onClose} />
 
         {share.copyFailed && <ShareFail url={share.url} />}
 

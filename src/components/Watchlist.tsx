@@ -262,10 +262,6 @@ export default function Watchlist({
               ))}
             </tbody>
           </table>
-          <p className="wl-hint">
-            Newest star sits at the bottom. Drag <span aria-hidden="true">⠿</span> to reorder —
-            the order syncs to your other devices.
-          </p>
           {missing.length > 0 && (
             <div className="wl-missing">
               <span>Also tracking (not in the current ranked list):</span>

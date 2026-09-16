@@ -23,6 +23,9 @@ import { useSavedFilters, type SavedFilters } from "./savedFilters";
 import { initAnalytics, track, trackUser } from "./analytics";
 
 export type MarkFilter = "all" | "up" | "down" | "reviewed" | "unseen";
+/** Whitelist for the persisted value — a stale or hand-edited record must not set a
+ *  filter the toolbar has no button for, which would hide rows with no way to clear it. */
+const MARK_FILTERS: MarkFilter[] = ["all", "up", "down", "reviewed", "unseen"];
 
 const STOCKS = stocksData as Stock[];
 // Baked-in Finnhub key (injected at build from the FINNHUB_KEY Actions secret),
@@ -118,10 +121,13 @@ export default function App() {
     toggleMark(ticker, v);
   }
 
-  // marks are cleared on sign-out, so drop any mark-based filter too
+  // Marks are cleared on sign-out, so drop any mark-based filter too — but only once
+  // auth has actually resolved. `user` is null for a moment on every load while it does,
+  // and firing then reset the filter the saved record had just restored, which the save
+  // effect then wrote back as "all". That is why this filter never survived a reload.
   useEffect(() => {
-    if (!user) setMarkFilter("all");
-  }, [user]);
+    if (authReady && !user) setMarkFilter("all");
+  }, [authReady, user]);
   const [liveKey, setLiveKey] = useState<string | null>(
     () => localStorage.getItem("mp_finnhub") || BAKED_KEY || null,
   );
@@ -207,7 +213,10 @@ export default function App() {
 
   const rows = useMemo(() => {
     let filtered = STOCKS.filter((s) => passes(s, { q, sectors, sectorNot, consensuses, cap }));
-    if (markFilter !== "all") {
+    // Gated on `user` because the toolbar only shows this control when signed in. Now
+    // that the value persists, a restored "Liked" would otherwise hide every row for a
+    // signed-out visitor — who has no marks and no button to clear it with.
+    if (user && markFilter !== "all") {
       filtered = filtered.filter((s) => {
         const m = marks[s.t]?.v;
         if (markFilter === "up") return m === "up";
@@ -217,7 +226,7 @@ export default function App() {
       });
     }
     return sortRows(filtered, sort, dir);
-  }, [q, sectors, sectorNot, consensuses, cap, sort, dir, markFilter, marks]);
+  }, [q, sectors, sectorNot, consensuses, cap, sort, dir, markFilter, marks, user]);
 
   // "clean" filter state = the view's own default (analyst view starts on Strong Buy)
   const consensusDefault = useMemo(() => (view === "analyst" ? ["StrongBuy"] : []), [view]);
@@ -227,7 +236,8 @@ export default function App() {
     (q !== "" ? 1 : 0) +
     (sectors.length ? 1 : 0) +
     (sameSet(consensuses, consensusDefault) ? 0 : 1) +
-    (cap !== 0 ? 1 : 0);
+    (cap !== 0 ? 1 : 0) +
+    (user && markFilter !== "all" ? 1 : 0);
   const filtersActive = activeCount > 0;
   function resetFilters() {
     setQ("");
@@ -235,13 +245,14 @@ export default function App() {
     setSectorNot(false);
     setCap(0);
     setConsensuses(consensusDefault);
+    setMarkFilter("all");
   }
 
   // filters follow the user across sessions/devices (DB when signed in, else
   // localStorage). Restored on load; written on every change.
   const filters = useMemo<SavedFilters>(
-    () => ({ q, sectors, sectorNot, consensuses, cap }),
-    [q, sectors, sectorNot, consensuses, cap],
+    () => ({ q, sectors, sectorNot, consensuses, cap, markFilter }),
+    [q, sectors, sectorNot, consensuses, cap, markFilter],
   );
   const applyFilters = useCallback((f: SavedFilters) => {
     setQ(f.q ?? "");
@@ -250,6 +261,8 @@ export default function App() {
     setSectorNot(!!f.sectorNot);
     setConsensuses(f.consensuses ?? bucketToList(f.consensus));
     setCap(f.cap ?? 0);
+    // absent in records written before this filter was saved — fall back to "all"
+    setMarkFilter(MARK_FILTERS.includes(f.markFilter as MarkFilter) ? (f.markFilter as MarkFilter) : "all");
   }, []);
   useSavedFilters(user, filters, applyFilters);
 
