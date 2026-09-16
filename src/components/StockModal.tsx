@@ -598,6 +598,10 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   // over the new ticker, which would read as "this one was copied too".
   const share = useShare(tickerTarget(stock.t), stock.t);
 
+  // `button` only when there are forecasts to show — an empty card must not be focusable
+  // or announce itself as something you can activate.
+  const CardTag = (forecasts ? "button" : "div") as "button";
+
   // ---- derived display values (live extras layered over the snapshot row) ----
   const price = quote?.c ?? stock.px;
   const dayPct = quote?.dp ?? stock.chg;
@@ -984,19 +988,23 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
                 <span className="mkm-dchip s">Sell <b>{stock.s}</b> · {Math.round(rowPct(stock.s))}%</span>
               </div>
             </div>
-            <div className="mkm-rp">
+            {/* The whole card is the control, not just the pill — a real <button> rather
+                than a clickable div, so focus and Enter/Space come from the platform. The
+                pill is a <span> inside it: a button within a button is invalid. */}
+            <CardTag
+              className={`mkm-rp${forecasts ? " mkm-rp-open" : ""}`}
+              {...(forecasts
+                ? {
+                    type: "button" as const,
+                    "aria-haspopup": "dialog" as const,
+                    "aria-label": `See all ${forecasts.length} analyst forecasts`,
+                    onClick: () => setFcOpen(true),
+                  }
+                : {})}
+            >
               <div className="mkm-fchdr">
                 <span className="mkm-rphdr" style={{ marginBottom: 0 }}>Analyst Forecasts</span>
-                {forecasts && (
-                  <button
-                    type="button"
-                    className="mkm-fcpill"
-                    aria-haspopup="dialog"
-                    onClick={() => setFcOpen(true)}
-                  >
-                    See all {forecasts.length} →
-                  </button>
-                )}
+                {forecasts && <span className="mkm-fcpill">See all {forecasts.length} →</span>}
               </div>
               {forecasts ? (
                 <div className="mkm-fclist">
@@ -1023,7 +1031,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
               ) : (
                 <div className="mkm-bbna">No analyst forecasts for this stock.</div>
               )}
-            </div>
+            </CardTag>
           </div>
 
           {/* stats block */}
