@@ -472,23 +472,20 @@ export default function App() {
         />
       )}
 
-      {openStock && (() => {
-        const i = openList.findIndex((x) => x.t === openStock.t);
-        return (
+      {openStock && (
           <StockModal
             stock={openStock}
             onClose={closeStock}
-            tracked={watchlist.includes(openStock.t)}
-            onToggleTrack={() => requestToggle(openStock.t)}
-            covered={STOCKS.some((s) => s.t === openStock.t)}
-            mark={marks[openStock.t]}
-            onMark={(v) => requestMark(openStock.t, v)}
+            isTracked={(t) => watchlist.includes(t)}
+            onToggleTrack={requestToggle}
+            isCovered={(t) => STOCKS.some((s) => s.t === t)}
+            markOf={(t) => marks[t]}
+            onMark={requestMark}
             highlightReviews={fcHighlight}
-            onPrev={i > 0 ? () => setOpenStock(openList[i - 1]) : undefined}
-            onNext={i >= 0 && i < openList.length - 1 ? () => setOpenStock(openList[i + 1]) : undefined}
+            list={openList}
+            onIndex={(n) => setOpenStock(openList[n])}
           />
-        );
-      })()}
+      )}
 
       {signInOpen && syncReady && (
         <SignInModal

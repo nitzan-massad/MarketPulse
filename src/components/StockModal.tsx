@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { easternNow, type EasternNow, fmtMin, marketOpen, nearestIndex, sessionSlice } from "../chartSession";
 import { fetchForecasts, type Forecast } from "../forecasts";
 import sectorPe from "../data/sectors.json";
@@ -426,18 +427,37 @@ function buildChart(
 
 interface StockModalProps {
   stock: Stock;
+  /** The whole open list. Every row is a slide, so the track is continuous and the scroll
+   *  position IS the index — nothing re-centres, so paging never waits on a mount. */
+  list: Stock[];
+  onIndex: (i: number) => void; // page to list[i]
   onClose: () => void;
-  tracked: boolean;
-  onToggleTrack: () => void;
-  covered?: boolean; // in the TipRanks ranked set? false => live data only
-  mark?: MarkEntry;
-  onMark: (v: Mark) => void;
-  onPrev?: () => void; // page to previous stock in the list (undefined = none)
-  onNext?: () => void; // page to next stock
+  /* Several cards are mounted at once, so anything per-ticker arrives as a resolver. */
+  isTracked: (t: string) => boolean;
+  onToggleTrack: (t: string) => void;
+  isCovered: (t: string) => boolean; // in the TipRanks ranked set? false => live data only
+  markOf: (t: string) => MarkEntry | undefined;
+  onMark: (t: string, v: Mark) => void;
   highlightReviews?: string[] | null; // opened from a review notification: open forecasts + glow these rows
 }
 
-export default function StockModal({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext, highlightReviews }: StockModalProps) {
+interface StockCardProps {
+  stock: Stock;
+  onClose: () => void;
+  tracked: boolean;
+  onToggleTrack: () => void;
+  covered?: boolean;
+  mark?: MarkEntry;
+  onMark: (v: Mark) => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  highlightReviews?: string[] | null;
+  /** The card the user is actually looking at. The off-screen two still fetch — that is the
+   *  whole point of mounting them — but they take no keyboard and open no overlay. */
+  active: boolean;
+}
+
+function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext, highlightReviews, active }: StockCardProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
@@ -456,6 +476,10 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
   const highlightDone = useRef<string[] | null>(null);
   const [liveDesc, setLiveDesc] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // paging to another ticker starts that stock at the top, not wherever the last one was scrolled
+  useEffect(() => { scrollRef.current?.scrollTo({ top: 0 }); }, [stock.t]);
 
   // chart scrubber: hover (mouse) or drag (touch) snaps to the nearest plotted point
   const [scrub, setScrub] = useState<number | null>(null);
@@ -475,8 +499,9 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
     return () => window.removeEventListener("resize", updateRangeFade);
   }, [updateRangeFade]);
 
-  // close on Escape
+  // close on Escape. Only the active card binds, or all three would answer one keypress.
   useEffect(() => {
+    if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (fcOpen) setFcOpen(false); // close the forecasts modal first
@@ -489,19 +514,13 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, fcOpen, onPrev, onNext]);
+  }, [active, onClose, fcOpen, onPrev, onNext]);
 
-  // lock body scroll while open
+  // fetch quote + metric on open (per ticker, cached). Gated on `active`: the neighbours
+  // render immediately from the snapshot row and only reach for the network once you land
+  // on them, so a swipe is never waiting on three stocks' worth of requests.
   useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, []);
-
-  // fetch quote + metric on open (per ticker, cached)
-  useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     setQmLoading(true);
     fetchQuoteMetric(stock.t)
@@ -520,7 +539,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
     return () => {
       cancelled = true;
     };
-  }, [stock.t]);
+  }, [stock.t, active]);
 
   // fetch Bulls Say / Bears Say snapshot + reset the panel/description on ticker change
   useEffect(() => {
@@ -532,6 +551,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
     setForecasts(null);
     setFcOpen(false);
     setLiveDesc(null);
+    if (!active) return;
     fetchBullBear(stock.t).then((r) => {
       if (!cancelled) setBb(r);
     });
@@ -547,7 +567,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
     return () => {
       cancelled = true;
     };
-  }, [stock.t, stock.desc]);
+  }, [stock.t, stock.desc, active]);
 
   // opened from a review notification: once forecasts load, open the forecast view and
   // glow the new rows for 2s, then let the CSS transition fade them out. Fires once per
@@ -564,6 +584,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
 
   // fetch series for the active range (default 1M on open; others on tab click)
   useEffect(() => {
+    if (!active) return;
     let cancelled = false;
     setSeriesLoading(true);
     setSeriesError(false);
@@ -583,14 +604,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
     return () => {
       cancelled = true;
     };
-  }, [stock.t, range]);
-
-  const onBackdrop = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.target === e.currentTarget) onClose();
-    },
-    [onClose],
-  );
+  }, [stock.t, range, active]);
 
   // The copy flow (clipboard, burst pick, failure state) is shared with every other
   // share button in the app — see useShare. `stock.t` is the reset key, so a burst still
@@ -715,13 +729,6 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
 
   return (
     <>
-    <div className="mkm-scrim" onMouseDown={onBackdrop}>
-      <div className="mkm-stage">
-        {onPrev && (
-          <button type="button" className="mkm-nav prev" aria-label="Previous stock" onClick={onPrev}>
-            ‹
-          </button>
-        )}
       <div
         className="mkm-modal"
         role="dialog"
@@ -754,7 +761,7 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
 
         {share.copyFailed && <ShareFail url={share.url} />}
 
-        <div className="mkm-scroll">
+        <div className="mkm-scroll" ref={scrollRef}>
           {loadingUncovered ? (
             <div className="mkm-loading" role="status" aria-label="Loading">
               <span className="mkm-spinner" />
@@ -821,7 +828,10 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
             </div>
 
             <div
-              className="mkm-plotbox"
+              /* The box claims horizontal drags so they scrub the chart instead of paging the
+                 track — but only once there is a chart. While it is loading or absent, the
+                 gesture belongs to the swipe. */
+              className={`mkm-plotbox${chartAvailable ? "" : " idle"}`}
               ref={plotRef}
               onPointerDown={onScrub}
               onPointerMove={onScrub}
@@ -1210,16 +1220,10 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
 
         {share.burst && <ShareBurst id={share.burst} onDone={share.onBurstDone} />}
       </div>
-        {onNext && (
-          <button type="button" className="mkm-nav next" aria-label="Next stock" onClick={onNext}>
-            ›
-          </button>
-        )}
-      </div>
-    </div>
 
-    {/* full analyst forecast list — opens as a separate modal on top */}
-    {fcOpen && forecasts && (
+    {/* Full analyst forecast list. Portalled to the body because the card now lives inside
+        the snap track, and an overlay rendered in there would be clipped by it. */}
+    {active && fcOpen && forecasts && createPortal(
       <div
         className="mkm-scrim mkm-scrim-top"
         onMouseDown={(e) => {
@@ -1276,8 +1280,113 @@ export default function StockModal({ stock, onClose, tracked, onToggleTrack, cov
             </div>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body,
     )}
     </>
+  );
+}
+
+/* The shell: scrim, the ‹ › buttons, and the scroll-snap track.
+
+   The track holds one slide per stock in the open list, so scrolling never runs out of
+   runway and the scroll offset alone says which stock you are on — there is no window to
+   shift and no re-centring, which is what used to make you wait a beat between swipes.
+   Only the slides within one of the live one render a card; the rest are empty boxes of the
+   same width, so a hard fling flies past blanks and fills in the moment it slows down.
+
+   Everything a card shows except the chart and the live quote is already bundled, so a
+   neighbour costs a render and no network. The fetch happens when you land (see `active`
+   in StockCard) and is cancelled when you leave. */
+const MOUNT_RADIUS = 1;
+
+export default function StockModal({
+  stock, list, onIndex, onClose, isTracked, onToggleTrack, isCovered, markOf, onMark, highlightReviews,
+}: StockModalProps) {
+  const swipeRef = useRef<HTMLDivElement>(null);
+  const idx = Math.max(0, list.findIndex((s) => s.t === stock.t));
+  const idxRef = useRef(idx);
+  idxRef.current = idx;
+
+  // Place the track on the open stock once. After that the scroll belongs to the user.
+  const placed = useRef(false);
+  useLayoutEffect(() => {
+    const el = swipeRef.current;
+    if (!el || placed.current) return;
+    el.scrollLeft = idx * el.clientWidth;
+    placed.current = true;
+  }, [idx]);
+
+  // Crossing a slide boundary is the page — no settle timer, so a continuous flick keeps up.
+  const onSwipeScroll = useCallback(() => {
+    const el = swipeRef.current;
+    if (!el) return;
+    const i = Math.round(el.scrollLeft / (el.clientWidth || 1));
+    if (i !== idxRef.current && i >= 0 && i < list.length) onIndex(i);
+  }, [list.length, onIndex]);
+
+  /* The ‹ › buttons and the arrow keys scroll the same track a finger does, so every route
+     between stocks animates identically. */
+  const slideTo = useCallback((i: number) => {
+    const el = swipeRef.current;
+    if (!el) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollTo({ left: i * el.clientWidth, behavior: reduce ? "auto" : "smooth" });
+  }, []);
+  const goPrev = idx > 0 ? () => slideTo(idx - 1) : undefined;
+  const goNext = idx < list.length - 1 ? () => slideTo(idx + 1) : undefined;
+
+  // lock body scroll while open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
+  const onBackdrop = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (e.target === e.currentTarget) onClose();
+    },
+    [onClose],
+  );
+
+  return (
+    <div className="mkm-scrim" onMouseDown={onBackdrop}>
+      <div className="mkm-stage">
+        {goPrev && (
+          <button type="button" className="mkm-nav prev" aria-label="Previous stock" onClick={goPrev}>
+            ‹
+          </button>
+        )}
+        <div className="mkm-swipe" ref={swipeRef} onScroll={onSwipeScroll}>
+          {list.map((s, i) => (
+            <div className="mkm-slide" key={s.t}>
+              {Math.abs(i - idx) <= MOUNT_RADIUS && (
+                <StockCard
+                  stock={s}
+                  active={i === idx}
+                  onClose={onClose}
+                  tracked={isTracked(s.t)}
+                  onToggleTrack={() => onToggleTrack(s.t)}
+                  covered={isCovered(s.t)}
+                  mark={markOf(s.t)}
+                  onMark={(v) => onMark(s.t, v)}
+                  onPrev={goPrev}
+                  onNext={goNext}
+                  highlightReviews={i === idx ? highlightReviews : null}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+        {goNext && (
+          <button type="button" className="mkm-nav next" aria-label="Next stock" onClick={goNext}>
+            ›
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

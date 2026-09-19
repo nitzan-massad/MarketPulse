@@ -748,7 +748,7 @@ thead th:hover .col-resize::after{opacity:.6}
   display:flex; align-items:center; justify-content:center; padding:24px;
 }
 .mkm-modal{
-  position:relative; width:min(660px, calc(100vw - 32px)); max-height:calc(100dvh - 48px);
+  position:relative; width:100%; max-height:calc(100dvh - 48px);
   background:var(--t-bg); border:1px solid var(--t-line); border-radius:14px; overflow:visible;
   box-shadow:0 30px 72px -26px rgba(27,29,24,.30), 0 2px 8px rgba(27,29,24,.06);
   font-family:Arial, "Helvetica Neue", Helvetica, sans-serif; color:var(--t-ink); font-size:14px; line-height:1.4;
@@ -785,6 +785,36 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-thumb:focus-visible{outline:2px solid var(--t-gold); outline-offset:1px}
 
 /* prev/next side rails (float just outside the modal; overlay inside on narrow screens) */
+/* Stock paging is a native scroll-snap track holding three real modals — the live one and
+   both neighbours — so the browser owns the drag, the fling and the snap, and a swipe
+   reveals a loaded modal rather than a spinner.
+
+   The track has to be an overflow container for any of that to work, and .mp-close rides
+   ~11px OUTSIDE the modal's top-right corner (see CloseButton.tsx), so a track sized to the
+   modal would slice the X in half. Instead it runs --ov larger on every side and is pulled
+   back by the same amount in margin: the clip edge lands outside the modal, the layout box
+   does not move, and the modal keeps exactly the width and height it has in production.
+
+   --mw mirrors production's modal width at each breakpoint. Slide pitch is --mw + gap,
+   which is exactly clientWidth — that is what keeps round(scrollLeft/clientWidth) honest. */
+.mkm-swipe{
+  /* Production declares calc(100vw - 32px) here, but .mkm-stage{max-width:100%} clamps it
+     to the scrim's content box (100vw - 48px at this breakpoint). The track does not shrink,
+     so the clamp has to be written out or it renders wider than production. */
+  --mw:min(660px, calc(100vw - 48px));
+  --ov:14px;
+  flex:none; width:calc(var(--mw) + var(--ov) * 2);
+  margin:-18px calc(var(--ov) * -1); padding:18px var(--ov);
+  display:flex; align-items:center; gap:calc(var(--ov) * 2);
+  overflow-x:auto; overflow-y:hidden; scroll-snap-type:x mandatory;
+  overscroll-behavior-x:contain;
+  scrollbar-width:none; -ms-overflow-style:none;
+}
+.mkm-swipe::-webkit-scrollbar{display:none}
+/* min-width:0 stops a flex item exceeding its 100% basis, which would clip the modal and
+   throw the landing maths off. */
+.mkm-slide{flex:0 0 100%; min-width:0; scroll-snap-align:center; display:flex; align-items:center}
+
 .mkm-stage{position:relative; display:flex; align-items:center; justify-content:center; max-width:100%}
 .mkm-nav{position:absolute; top:50%; transform:translateY(-50%); z-index:55; width:46px; height:46px; border-radius:50%;
   border:1px solid var(--t-line); background:var(--t-bg); color:var(--t-ink); font-size:24px; line-height:1; cursor:pointer;
@@ -841,6 +871,8 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-scrubdot{fill:var(--t-gold); stroke:var(--t-bg); stroke-width:2}
 /* pan-y: a vertical swipe still scrolls the modal; horizontal drags scrub */
 .mkm-plotbox{background:var(--t-panel); border:1px solid var(--t-line); border-radius:8px; padding:8px 8px 4px; position:relative; overflow:hidden; min-height:96px; touch-action:pan-y; cursor:crosshair}
+/* nothing to scrub yet: hand the gesture back to the swipe track */
+.mkm-plotbox.idle{touch-action:auto; cursor:default}
 .mkm-plotbox svg{display:block; width:100%; height:auto}
 .mkm-gridln{stroke:var(--t-line); stroke-width:1}
 .mkm-baseln{stroke:var(--t-faint); stroke-width:1; stroke-dasharray:3 3; opacity:.55}
@@ -1045,12 +1077,14 @@ thead th:hover .col-resize::after{opacity:.6}
   .mkm-matrix{grid-template-columns:repeat(2,1fr)}
   .mkm-readout{grid-template-columns:1fr}
   .mkm-kv{grid-template-columns:repeat(2,1fr)}
-  .mkm-modal{width:calc(100vw - 16px); max-height:calc(100dvh - 24px)}
+  .mkm-swipe{--mw:calc(100vw - 48px)} /* prod declares -16px; the stage clamps it to -48px */
+  .mkm-modal{max-height:calc(100dvh - 24px)}
   .mkm-px{margin-left:0}
 }
 @media(max-width:430px){
   .mkm-scrim{padding:10px}
-  .mkm-modal{width:calc(100vw - 20px); max-width:100%; max-height:92vh}
+  .mkm-swipe{--mw:calc(100vw - 20px); --ov:10px}
+  .mkm-modal{max-width:100%; max-height:92vh}
   .mkm-head{padding:14px 16px 12px; gap:10px}
   .mkm-tbtk{font-size:20px}
   .mkm-headsym{font-size:22px}
