@@ -1,5 +1,5 @@
 {
- "asOf": "2026-09-18",
+ "asOf": "2026-09-19",
  "sectors": {
   "BasicMaterials": {
    "pe": 20.75,
@@ -19,7 +19,7 @@
   },
   "Energy": {
    "pe": 14.18,
-   "fpe": 12.68
+   "fpe": 12.67
   },
   "Financial": {
    "pe": 14.85,
