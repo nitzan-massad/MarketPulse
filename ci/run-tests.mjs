@@ -189,6 +189,13 @@ if (tsChecks.length) {
       "--target", "es2020",
       "--lib", "es2020,dom",
       "--jsx", "react-jsx",
+      // --strict, because tsconfig.json sets "strict": true and `npm run build` runs
+      // `tsc && vite build` against it. Without this flag the DATA GATE compiled the
+      // checks more permissively than the build it exists to protect: a posts.json with
+      // several hook kinds passed `npm test` 29/29 and then failed the build with TS2352,
+      // after the commit-and-push step had already put it on main. The gate must never be
+      // weaker than the build.
+      "--strict",
       "--esModuleInterop",
       "--resolveJsonModule",
       "--skipLibCheck",

@@ -165,7 +165,16 @@ function PostArt({ post }: { post: Post }) {
 }
 
 export function PostFeed() {
-  const items = sortNewestFirst(posts as Post[]);
+  // `as unknown as Post[]`, not `as Post[]`. With resolveJsonModule, tsc infers a UNION of
+  // one object type per post in the file, and every branch of that union gets `key?: undefined`
+  // for the `facts` keys the other branches have. Those optional-undefined members are not
+  // assignable to `Record<string, string | number | boolean>`, so under `strict` a direct cast
+  // is rejected with TS2352 — but only once posts.json holds two or more DIFFERENT hook kinds,
+  // which is why an empty or single-kind file compiled fine. The inferred union is an artifact
+  // of whatever happens to be in the committed JSON, not the runtime shape: ci/hooks.mjs emits
+  // a flat bag of primitives per kind, which is exactly `Post["facts"]`. Widening through
+  // `unknown` says that once, here, instead of making the type lie.
+  const items = sortNewestFirst(posts as unknown as Post[]);
 
   if (!items.length) {
     return (
