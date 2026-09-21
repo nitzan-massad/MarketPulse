@@ -76,12 +76,12 @@ export function scorePost(text, ctx = {}) {
   // matches "Netflix, Inc." and "Praxis" matches "Praxis Precision Medicines".
   if (hook?.ticker || hook?.name) {
     const stem = nameStem(hook?.name);
-    const named =
-      (hook?.ticker && s.includes(hook.ticker)) ||
-      (stem && lower.includes(stem.toLowerCase()));
-    if (named) {
+    const tickerMatch = hook?.ticker && s.includes(hook.ticker);
+    const nameMatch = stem && lower.includes(stem.toLowerCase());
+    if (tickerMatch || nameMatch) {
       score += 10;
-      reasons.push(`names ${hook.ticker ?? stem}`);
+      const matched = tickerMatch ? hook.ticker : stem;
+      reasons.push(`names ${matched}`);
     } else {
       score -= 20;
       reasons.push(`does not name ${hook.ticker ?? stem}`);
@@ -115,14 +115,15 @@ export function scorePost(text, ctx = {}) {
 
   const w = words(s);
   let worst = 0;
+  let tickerRepeat = false;
   for (const r of recent) {
-    const sim = jaccard(w, words(r?.text));
+    const sim = jaccard(w, words(r?.text ?? ""));
     if (sim > worst) worst = sim;
-    if (r?.ticker && hook?.ticker && r.ticker === hook.ticker) {
-      score -= 12;
-      reasons.push(`${hook.ticker} appeared in a recent post`);
-      break;
-    }
+    if (!tickerRepeat && r?.ticker && hook?.ticker && r.ticker === hook.ticker) tickerRepeat = true;
+  }
+  if (tickerRepeat) {
+    score -= 12;
+    reasons.push(`${hook.ticker} appeared in a recent post`);
   }
   if (worst > 0.35) {
     score -= Math.round(worst * 80);

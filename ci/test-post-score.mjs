@@ -45,6 +45,18 @@ assert.ok(Number.isFinite(MIN_PUBLISHABLE), "there is a publish floor");
   assert.ok(repeat.reasons.some((r) => /dup|repeat|recent/i.test(r)), "the reasons say why");
 }
 
+// --- dedupe scans entire list despite ticker match early
+{
+  const candidate = "NVDA target $210 — 42% upside, 38 analysts covering.";
+  const recent = [
+    { text: "NVDA is great.", ticker: "NVDA" },  // shares ticker but different text
+    { text: "NVDA target $210 — 42% upside, 38 analysts covering.", ticker: "OTHER" },  // duplicate but different ticker
+  ];
+  const result = scorePost(candidate, ctx(recent));
+  assert.ok(result.reasons.some((r) => /appeared in a recent post/i.test(r)), "ticker-repeat penalty applied");
+  assert.ok(result.reasons.some((r) => /duplicate.*word overlap/i.test(r)), "duplicate penalty also detected despite ticker match");
+}
+
 // --- naming: ticker OR company name --------------------------------------------
 // The feed shows company names, so a ticker-only rule punished the right copy. This is the
 // exact NFLX candidate that scored 10 with "missing NFLX" in Task 0.
@@ -89,10 +101,26 @@ assert.equal(pickBest([], ctx()), null, "no candidates means no post");
 assert.equal(pickBest(["Let's dive in! In the world of finance, a game-changer. Delve deeper!"], ctx()), null,
   "an all-slop field publishes nothing rather than shipping junk");
 
+// --- hashtag spam penalty -------------------------------------------------------
+{
+  const clean = scorePost("NVDA target $210 — 42% upside, 38 analysts.", ctx());
+  const spam = scorePost("NVDA target $210 — 42% upside, 38 analysts. #stocks #nvda #trading #tech #finance #bullish", ctx());
+  assert.ok(spam.score < clean.score, "posts with many hashtags are penalised");
+  assert.ok(spam.reasons.some((r) => /hashtags/i.test(r)), "hashtag penalty is in reasons");
+}
+
+// --- exclamation mark density penalty -------------------------------------------
+{
+  const clean = scorePost("NVDA target $210 — 42% upside, 38 analysts.", ctx());
+  const dense = scorePost("NVDA target $210! 42% upside! 38 analysts! Amazing!", ctx());
+  assert.ok(dense.score < clean.score, "posts with many exclamation marks are penalised");
+  assert.ok(dense.reasons.some((r) => /exclamation/i.test(r)), "exclamation penalty is in reasons");
+}
+
 // --- determinism ----------------------------------------------------------------
 {
   const t = "NVDA target $210 — 42% upside.";
   assert.deepEqual(scorePost(t, ctx()), scorePost(t, ctx()), "same input, same score");
 }
 
-console.log("post-score OK — banned phrases, numbers, length, dedupe, pickBest floor, determinism");
+console.log("post-score OK — banned phrases, numbers, length, dedupe, full-list scan, hashtags, exclamations, pickBest floor, determinism");
