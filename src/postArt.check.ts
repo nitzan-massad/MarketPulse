@@ -20,7 +20,9 @@ function eq(label: string, got: unknown, want: unknown) {
 // one this check still passes (it falls back), but the mapping below is where to add it.
 for (const sec of ["Healthcare", "Technology", "Financial", "Industrials", "Energy",
                    "Consumer Cyclical", "Consumer Defensive", "Basic Materials",
-                   "Real Estate", "Utilities", "Communication Services", "General"]) {
+                   "Real Estate", "Utilities", "Communication Services", "General",
+                   "ConsumerCyclical", "ConsumerDefensive", "BasicMaterials",
+                   "CommunicationServices", "RealEstate"]) {
   const scene = sceneFor(sec);
   if (!SCENES[scene]) { console.log(`FAIL ${sec} -> "${scene}", which is not a drawable scene`); failed++; }
 }
@@ -39,7 +41,8 @@ eq("fallback is drawable", typeof SCENES[sceneFor("")], "function");
   const take = (f: () => number) => [f(), f(), f(), f()];
   const first = take(a);
   eq("deterministic per seed", take(b), first);
-  eq("different seed differs", take(c) === first, false);
+  const diffSeed = take(c);
+  eq("different seed differs", JSON.stringify(diffSeed) === JSON.stringify(first), false);
   for (const v of first) {
     if (!(v >= 0 && v < 1)) { console.log(`FAIL prng out of range: ${v}`); failed++; }
   }

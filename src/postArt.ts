@@ -188,17 +188,17 @@ const earth: Draw = (c, w, h, r) => {
   const bands = 9;
   for (let i = 0; i < bands; i++) {
     const y = (i / bands) * h;
-    const phase = r() * Math.PI * 2;
+    const phase = r() * Math.PI * 2, ampMult = 0.8 + r() * 0.4;
     c.beginPath(); c.moveTo(0, y);
-    for (let x = 0; x <= w; x += 8) c.lineTo(x, y + Math.sin(x / (30 + i * 9) + i + phase) * (4 + i) * (0.8 + r() * 0.4));
+    for (let x = 0; x <= w; x += 8) c.lineTo(x, y + Math.sin(x / (30 + i * 9) + i + phase) * (4 + i) * ampMult);
     c.lineTo(w, h); c.lineTo(0, h); c.closePath();
     c.fillStyle = ["#6b4a2a", "#4a3220", "#8a5c2e", "#2f2015"][i % 4];
     c.globalAlpha = 0.45 + (i / bands) * 0.5; c.fill();
   }
   c.globalAlpha = 1;
-  const seamY = h * (0.48 + r() * 0.2), seamWave = 5 + r() * 9;
+  const seamY = h * (0.48 + r() * 0.2), seamWave = 5 + r() * 9, seamFreq = 30 + r() * 10;
   c.beginPath(); c.moveTo(0, seamY);
-  for (let x = 0; x <= w; x += 10) c.lineTo(x, seamY + Math.sin(x / (30 + r() * 10)) * seamWave);
+  for (let x = 0; x <= w; x += 10) c.lineTo(x, seamY + Math.sin(x / seamFreq) * seamWave);
   c.strokeStyle = "#e0a41a"; c.lineWidth = 2.4; c.stroke();
 };
 
