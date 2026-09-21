@@ -1799,10 +1799,24 @@ thead th:hover .col-resize::after{opacity:.6}
    on the card and read by the pill; art is drawn by src/postArt.ts. */
 .feed { list-style: none; margin: 0; padding: 0; }
 
+/* One accent per hook kind, all nine. Six of them used to fall through to the default and
+   rendered an identical navy pill, which made most of the feed look like one kind of post.
+   Every value is a token that already exists in :root — nothing new is invented here, and
+   note --gold is navy #1b3f73, not gold. --acc is only ever the pill (9px uppercase text on
+   a 12% tint of itself), so --faint and --fg-nu are deliberately NOT used: they are far
+   lighter than anything the three original kinds use. --gold stays the fallback for a kind
+   that has no rule; ci/test-feed-kinds.mjs fails if a kind ci/generate-posts.mjs knows about
+   is missing one, or if two kinds share an accent. */
 .feed-card { --acc: var(--gold); padding: 14px 13px 15px; border-bottom: 1px solid var(--t-line-2); }
 .feed-card.k-contrarian { --acc: var(--amber); }
 .feed-card.k-surprise   { --acc: var(--green); }
 .feed-card.k-movement   { --acc: var(--teal); }
+.feed-card.k-record     { --acc: var(--green-2); }   /* a window high */
+.feed-card.k-trend      { --acc: var(--fg-gr); }     /* a drift across days */
+.feed-card.k-steady     { --acc: var(--gold-soft); } /* held its ground — the house accent */
+.feed-card.k-churn      { --acc: var(--red); }       /* the quant model cannot settle */
+.feed-card.k-newcomer   { --acc: var(--red-2); }     /* arrived mid-window */
+.feed-card.k-list       { --acc: var(--muted); }     /* a board, no single subject */
 
 .feed-card-head { display: flex; align-items: center; gap: 8px; }
 
