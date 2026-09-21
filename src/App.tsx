@@ -5,6 +5,7 @@ import Masthead from "./components/Masthead";
 import NavMenu, { type NavId } from "./components/NavMenu";
 import FearGreedGauge from "./components/FearGreedGauge";
 import NotificationBell from "./components/NotificationBell";
+import { PostFeed } from "./components/PostFeed";
 import Search from "./components/Search";
 import SignInModal from "./components/SignInModal";
 import StockModal from "./components/StockModal";
@@ -12,6 +13,7 @@ import StockTable from "./components/StockTable";
 import Toolbar from "./components/Toolbar";
 import Watchlist from "./components/Watchlist";
 import stocksData from "./data/stocks.json";
+import { flagOn } from "./featureFlags";
 import { passes, sortRows, VIEWS } from "./lib";
 import { parseShareHash, type PanelId } from "./share";
 import type { Stock, ViewId } from "./types";
@@ -31,6 +33,9 @@ const STOCKS = stocksData as Stock[];
 // Baked-in Finnhub key (injected at build from the FINNHUB_KEY Actions secret),
 // so live Day% works for everyone with no key entry. localStorage can override.
 const BAKED_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
+// Belt-and-braces: the NavMenu item is already gated behind the same flag, but this keeps
+// the feed unreachable even if something else ever sets `nav` to "feed" directly.
+const FEED_ON = flagOn("feed");
 
 // map a legacy single-select consensus bucket to the new discrete-rating list
 function bucketToList(b: string | undefined): string[] {
@@ -455,6 +460,8 @@ export default function App() {
         <BestOfBest onOpen={handleOpen} marks={marks} onMark={requestMark} />
       ) : nav === "new" ? (
         <NewArrivals onOpen={handleOpen} onOpenReview={openReview} marks={marks} onMark={requestMark} />
+      ) : nav === "feed" ? (
+        FEED_ON ? <PostFeed /> : null
       ) : (
         <Watchlist
           watchlist={watchlist}

@@ -188,7 +188,7 @@ if (tsChecks.length) {
       "--module", "commonjs",
       "--target", "es2020",
       "--lib", "es2020,dom",
-      "--jsx", "react",
+      "--jsx", "react-jsx",
       "--esModuleInterop",
       "--resolveJsonModule",
       "--skipLibCheck",
