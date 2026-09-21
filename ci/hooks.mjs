@@ -116,12 +116,17 @@ export function detectHooks(history, opts = {}) {
       const flipped = p.con !== r.con;
       if (Math.abs(dSs) >= 2 || Math.abs(dUp) >= 15 || flipped) {
         const mag = Math.abs(dSs) * 25 + Math.abs(dUp) * 1.5 + (flipped ? 40 : 0);
-        hooks.push(base(r, "movement", mag * prom * damp("movement"), {
-          smartScoreFrom: p.ss ?? 0, smartScoreTo: r.ss ?? 0,
+        const facts = {
           upsideFrom: round(p.up ?? 0), upsideTo: round(r.up),
           consensusFrom: p.con, consensusTo: r.con,
           price: r.px, priceTarget: r.pt, analysts: coverage(r), sector: r.sec,
-        }));
+        };
+        // Include Smart Score only when both readings are finite — null is data, not a gap.
+        if (isNum(p.ss) && isNum(r.ss)) {
+          facts.smartScoreFrom = p.ss;
+          facts.smartScoreTo = r.ss;
+        }
+        hooks.push(base(r, "movement", mag * prom * damp("movement"), facts));
       }
     }
 
@@ -177,11 +182,16 @@ export function detectHooks(history, opts = {}) {
     // 8. NEWCOMER — absent when the window opened, here now.
     const firstSeen = hist[0].i;
     if (firstSeen >= earlyCut) {
-      hooks.push(base(r, "newcomer", 55 * prom * damp("newcomer"), {
+      const facts = {
         seenIn: hist.length, windowSnapshots: snaps.length,
         days: round(((snaps.length - firstSeen) * 5) / 24),
-        upside: round(r.up), smartScore: r.ss ?? 0, consensus: r.con, analysts: coverage(r),
-      }));
+        upside: round(r.up), consensus: r.con, analysts: coverage(r),
+      };
+      // Include Smart Score only when it exists — null is data, not a gap.
+      if (isNum(r.ss)) {
+        facts.smartScore = r.ss;
+      }
+      hooks.push(base(r, "newcomer", 55 * prom * damp("newcomer"), facts));
     }
   }
 

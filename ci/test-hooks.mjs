@@ -20,6 +20,8 @@ assert.equal(eligible(row({ px: 0.806 })), false, "a sub-$3 stock is filtered ou
 assert.equal(eligible(row({ up: 9825.6 })), false, "an absurd upside is filtered out");
 // Task 0, Finding 3: AGEN, a $900M name at $7.85, showed 148% upside on TWO analysts.
 assert.equal(eligible(row({ b: 2, h: 0, s: 0, up: 148 })), false, "thin coverage is filtered out");
+assert.equal(eligible(row({ up: 0 })), false, "zero upside is filtered out");
+assert.equal(eligible(row({ up: -5 })), false, "negative upside is filtered out");
 assert.equal(coverage(row({ b: 3, h: 2, s: 1 })), 6, "coverage sums buy/hold/sell");
 assert.ok(SANE_MAX_UPSIDE > 0 && SANE_MAX_UPSIDE < 1000, "sanity band is a real bound");
 assert.ok(MIN_WINDOW >= 2, "the window rules need a real series");
@@ -61,6 +63,27 @@ assert.ok(MIN_WINDOW >= 2, "the window rules need a real series");
 }
 assert.equal(detectHooks([[row({ t: "NEW" })]]).filter((h) => h.kind === "movement").length, 0,
   "with a window of one there are no movement hooks");
+{
+  // Movement hook from upside delta when one row has null Smart Score — must not coerce to 0
+  const hooks = detectHooks([
+    [row({ t: "NULLSS", ss: null, up: 20 })],
+    [row({ t: "NULLSS", ss: null, up: 40 })],
+  ]).filter((h) => h.kind === "movement");
+  assert.ok(hooks.length >= 1, "a 20-point upside jump fires a movement hook even with null Smart Score");
+  assert.equal("smartScoreFrom" in hooks[0].facts, false, "smartScoreFrom is omitted when ss is null");
+  assert.equal("smartScoreTo" in hooks[0].facts, false, "smartScoreTo is omitted when ss is null");
+  assert.ok("upsideFrom" in hooks[0].facts && "upsideTo" in hooks[0].facts, "upside facts are still present");
+}
+{
+  // Movement hook with one null and one finite Smart Score — both keys must be absent
+  const hooks = detectHooks([
+    [row({ t: "MIXED", ss: 5, up: 20 })],
+    [row({ t: "MIXED", ss: null, up: 40 })],
+  ]).filter((h) => h.kind === "movement");
+  assert.ok(hooks.length >= 1, "a upside jump fires a movement hook even when ss goes null");
+  assert.equal("smartScoreFrom" in hooks[0].facts, false, "smartScoreFrom is omitted when either is null");
+  assert.equal("smartScoreTo" in hooks[0].facts, false, "smartScoreTo is omitted when either is null");
+}
 
 // ============================ WINDOW RULES ====================================
 // Everything below needs MIN_WINDOW snapshots. These are the rules that justify
