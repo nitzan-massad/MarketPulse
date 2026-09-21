@@ -6,6 +6,11 @@
 // things that make a post read as machine-written: stock LLM phrasing, no concrete
 // numbers, and saying what we already said last run.
 //
+// It also kills the one thing that would be worse than a machine-written post: a number
+// that is not true of the company being named. See `unverifiedNumbers` below — that check
+// is the only rule here about TRUTH rather than style, and it is a hard rejection, not a
+// deduction, because posts.json ships to public main and into the JS bundle.
+//
 // Validated in Task 0 against real candidates: slop scored -93, good copy 86. It does NOT
 // separate fine from great — three good candidates tied at 86 because the digit bonus
 // caps at +16 and saturates, and ties break alphabetically. That ceiling is accepted on
@@ -47,6 +52,93 @@ const jaccard = (a, b) => {
   return hit / (a.size + b.size - hit);
 };
 
+/** A number written the way a person writes one: 38, 38.6, 1,240, $174.25 (the `$` and `%`
+ *  are not part of the token). No sign — "-5%" yields 5, and the fact side is compared on
+ *  absolute value so that still lines up. */
+const NUM_TOKEN_RE = /\d[\d,]*(?:\.\d+)?/g;
+
+/** Every number the hook actually vouches for, INCLUDING the ones packed inside string facts —
+ *  the `list` kind puts its whole board in one string ("IRD (120.4% to $41), PRAX (98.1% to
+ *  $732)"), and those are real, sourced numbers a candidate is entitled to quote. */
+export function factNumbers(facts) {
+  const out = new Set();
+  const walk = (v) => {
+    if (typeof v === "number") {
+      if (Number.isFinite(v)) out.add(Math.abs(v));
+    } else if (typeof v === "string") {
+      for (const m of v.match(NUM_TOKEN_RE) ?? []) {
+        const n = Number(m.replace(/,/g, ""));
+        if (Number.isFinite(n)) out.add(Math.abs(n));
+      }
+    } else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+  };
+  walk(facts ?? {});
+  return out;
+}
+
+/** Roundings a writer may legitimately apply to a sourced number: nearest integer,
+ *  truncation, and one decimal place. Deliberately NOT `Math.ceil` — "$175" must not be
+ *  allowed to stand in for a $174.25 price target. */
+const vouchedBy = (n, vouched) => {
+  for (const f of vouched) {
+    if (n === f || n === Math.round(f) || n === Math.trunc(f) || n === Math.round(f * 10) / 10) return true;
+  }
+  return false;
+};
+
+/**
+ * NUMBER VERIFICATION — the one rule in this file that is about truth rather than style.
+ *
+ * `src/data/posts.json` is committed to public `main` AND `import`ed into the JS bundle, so a
+ * post claiming a number that is not true of the company it names is publicly retrievable even
+ * with the feature flag off. Everything else here rewards digits (+2 each, capped +16) without
+ * ever asking whether they are real, so before this check the only guard against a fabricated
+ * figure was one line of prompt text enforced by an 8B model at temperature 0.95.
+ *
+ * A candidate number is accepted when it is in `hook.facts` (or is a legitimate rounding of one
+ * — see `vouchedBy`). Two idioms are exempt because they state a SCALE, not a claim about the
+ * company: "out of 10" / "1/10" (Smart Score is 1-10) and "out of 100" (AI Score is 0-100),
+ * which Task 0's best-scoring candidate uses; and a bare four-digit year. The exemption is
+ * idiom-scoped on purpose — a bare "$100 target" on a $412 name is still caught.
+ *
+ * Fails CLOSED: a hook that carries no facts vouches for nothing, so every number in the
+ * candidate is unverified. Every hook `ci/hooks.mjs` emits carries facts. With no hook at all
+ * there is nothing to check against and nothing is claimed about any company, so it is skipped.
+ *
+ * The predicate is `unverifiedNumbers(text, hook).length === 0`.
+ *
+ * @returns {string[]} the offending tokens, in order of appearance. Empty means clean.
+ */
+export function unverifiedNumbers(text, hook) {
+  if (!hook) return [];
+  const s = String(text ?? "");
+  const vouched = factNumbers(hook.facts);
+  const bad = [];
+
+  for (const m of s.matchAll(NUM_TOKEN_RE)) {
+    const tok = m[0];
+    const n = Number(tok.replace(/,/g, ""));
+    if (!Number.isFinite(n)) continue;
+    if (vouchedBy(n, vouched)) continue;
+
+    // "…out of 10", "…out of 100", "8/10" — the scale, not a claim.
+    const before = s.slice(Math.max(0, m.index - 8), m.index);
+    if ((n === 10 || n === 100) && /(?:out of|\/)\s*$/i.test(before)) continue;
+    // A bare year. Never "$2000" (a price) and never "2000%" (an upside).
+    if (/^\d{4}$/.test(tok) && n >= 1900 && n <= 2100 &&
+        !before.endsWith("$") && s[m.index + tok.length] !== "%") continue;
+
+    bad.push(tok);
+  }
+  return bad;
+}
+
+/** A fabricated number is not a style flaw, it is a false public claim, so this has to beat
+ *  every bonus in `scorePost` combined (ceiling 50 + 16 + 10 + 10 = 86) by a clear margin.
+ *  A rejected candidate lands at most at -64, well under MIN_PUBLISHABLE. */
+export const FABRICATION_PENALTY = 150;
+
 export function scorePost(text, ctx = {}) {
   const { hook, recent = [] } = ctx;
   const s = String(text ?? "").trim();
@@ -68,6 +160,15 @@ export function scorePost(text, ctx = {}) {
   } else {
     score += Math.min(digits * 2, 16);
     reasons.push(`${digits} digits of concrete detail`);
+  }
+
+  // …and now check that those digits are TRUE, not just present. Decisive, not a nudge.
+  const invented = unverifiedNumbers(s, hook);
+  if (invented.length) {
+    score -= FABRICATION_PENALTY;
+    reasons.push(
+      `unverified number${invented.length === 1 ? "" : "s"} not in the hook's facts: ${invented.join(", ")}`,
+    );
   }
 
   // Ticker OR company name. The feed cards show "Netflix", not "NFLX", so a ticker-only
