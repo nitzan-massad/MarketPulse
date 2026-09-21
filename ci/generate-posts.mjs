@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { detectHooks } from "./hooks.mjs";
+import { detectHooks, MIN_WINDOW } from "./hooks.mjs";
 import { pickBest } from "./post-score.mjs";
 import { makeProvider } from "./provider.mjs";
 
@@ -152,6 +152,22 @@ function loadWindow(n) {
   if (last && JSON.stringify(last) === JSON.stringify(current)) window.pop();
 
   window.push(current);
+
+  // LOUD, because the failure mode is silent. `git log` exits 0 on a shallow clone and
+  // simply returns one sha, so the catch above never fires: the window quietly collapses
+  // to 2 and record/trend/steady/churn/newcomer stop firing with nothing in the log to
+  // say why. That is exactly what a default `actions/checkout@v4` (fetch-depth: 1) used
+  // to do to this step. MIN_WINDOW is imported from ci/hooks.mjs rather than restated
+  // here, so the threshold can never drift between the detector and this warning.
+  if (window.length < MIN_WINDOW) {
+    console.error(
+      `  WARNING: only ${window.length} snapshot(s) in the window, below MIN_WINDOW=${MIN_WINDOW} — ` +
+      "the record/trend/steady/churn/newcomer rules will NOT fire this run. " +
+      `git log returned ${shas.length} commit(s) for src/data/stocks.json; ` +
+      "the usual cause is a shallow clone (set fetch-depth: 0 on actions/checkout).",
+    );
+  }
+
   return window;
 }
 

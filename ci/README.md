@@ -17,17 +17,30 @@ uses whatever is on `main`.
   a blocked fetch fails the step but not the run — the site still deploys the last data).
 - **Commit step** stages the refreshed data and commits `chore: refresh TipRanks snapshot [skip ci]`.
 - **Build** (`npm run build`) with the Finnhub/TwelveData/FMP keys from repo secrets, then deploy to GitHub Pages.
-- **`ci/generate-posts.mjs`** turns the fresh snapshot into one social post for the in-app feed:
-  `ci/hooks.mjs` diffs `HEAD:src/data/stocks.json` against the working copy and emits scored,
-  structured hooks (no LLM — same snapshots always give the same hooks); the provider in
-  `ci/provider.mjs` writes `POST_CANDIDATES` variations; `ci/post-score.mjs` picks the best one
-  deterministically and writes it to `src/data/posts.json` (rolling, newest first, `POSTS_KEEP` max).
-  `continue-on-error` like the other scrapes. Publishing nothing is a valid outcome — a skipped
-  run beats a bad post.
+- **`ci/generate-posts.mjs`** turns the fresh snapshot into one social post for the in-app feed.
+  `loadWindow()` (in `generate-posts.mjs`, **not** in `hooks.mjs`) reads the last `POST_WINDOW`
+  snapshots out of git history — `git log -30 --format=%H -- src/data/stocks.json`, then
+  `git show <sha>:src/data/stocks.json` for each — and appends the working copy as the current
+  one. `ci/hooks.mjs` runs **no git at all**: it is handed that array of snapshots, oldest first,
+  and emits scored, structured hooks (no LLM — the same window always gives the same hooks).
+  Then the provider in `ci/provider.mjs` writes `POST_CANDIDATES` variations; `ci/post-score.mjs`
+  picks the best one deterministically and writes it to `src/data/posts.json` (rolling, newest
+  first, `POSTS_KEEP` max). `continue-on-error` like the other scrapes. Publishing nothing is a
+  valid outcome — a skipped run beats a bad post.
+
+  **The window is why the checkout is not shallow.** Five of the nine hook kinds — `record`,
+  `trend`, `steady`, `churn`, `newcomer` — refuse to fire below `MIN_WINDOW` (10) snapshots,
+  because a "30-run high" off four readings is not a fact. A default `actions/checkout@v4`
+  clones at `fetch-depth: 1`, so `git log` returns exactly ONE sha and exits 0: the window
+  collapses to 2 and those five kinds go silently dead in the only environment that runs them.
+  `site.yml` therefore pins `fetch-depth: 0`, and `loadWindow()` prints a WARNING naming the
+  count when the window comes back under `MIN_WINDOW`. **Do not make the checkout shallow.**
 
   **Knobs** (env in `.github/workflows/site.yml`): `POSTS_PER_RUN` (default 1), `POST_CANDIDATES`
-  (default 5), `POSTS_KEEP` (default 200), `POST_PROVIDER` (`cloudflare` free-tier default,
-  `anthropic` for quality, `stub` for offline runs). Secrets: `CF_ACCOUNT_ID`, `CF_API_TOKEN`.
+  (default 5), `POST_WINDOW` (default 30 — snapshots pulled from git history), `POSTS_KEEP`
+  (default 200), `POST_PROVIDER` (`cloudflare` free-tier default, `anthropic` for quality,
+  `stub` for offline runs), `POSTS_ENABLED` (set `false` to stop writing posts).
+  Secrets: `CF_ACCOUNT_ID`, `CF_API_TOKEN`.
 
 `scripts/refresh-data.mjs` is the **local** manual equivalent (uses Playwright instead of
 FlareSolverr) — a dev tool, not part of CI.
