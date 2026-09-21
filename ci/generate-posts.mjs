@@ -20,11 +20,21 @@ const STOCKS = path.join(ROOT, "src", "data", "stocks.json");
 const POSTS = path.join(ROOT, "src", "data", "posts.json");
 const CORPUS = path.join(ROOT, "ci", "style-corpus.json");
 
-const KIND_BRIEF = {
+/** The ANGLE — one line per hook kind, telling the model what makes this particular hook
+ *  postable. Without it a kind falls through to "Report the fact.", which throws away the
+ *  entire reason the rule fired: a `record` post that does not say "highest in the window"
+ *  is just another upside number. One entry per kind ci/hooks.mjs can emit, all nine —
+ *  ci/test-generate-posts.mjs fails if a kind is ever added without one. */
+export const KIND_BRIEF = {
   surprise: "The number is the story. Lead with it.",
   contrarian: "Two models disagree. Name the disagreement, do not resolve it.",
   list: "A short ranked list. No preamble before the first name.",
   movement: "Something changed since five hours ago. Say what, and from what to what.",
+  record: "This is the highest reading of the whole window. Say it is a high, and say how far it came.",
+  trend: "One direction across days, not a single jump. Give both ends and which way it went.",
+  steady: "Nothing moved, and that is the story. Say what it has held and for how long.",
+  churn: "The quant model keeps changing its mind. Say how many different scores, and the range.",
+  newcomer: "This name was not on the board when the window opened. Say it is new, and how long it has been here.",
 };
 
 export function buildPrompt(hook, exemplars = []) {

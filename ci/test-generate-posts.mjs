@@ -3,7 +3,7 @@
 // from the provider it is handed, which is the whole reason it is shaped that way.
 
 import assert from "node:assert";
-import { buildPrompt, generate } from "./generate-posts.mjs";
+import { buildPrompt, generate, KIND_BRIEF } from "./generate-posts.mjs";
 
 const row = (over = {}) => ({
   t: "AAA", n: "Alpha Inc", sec: "Technology", px: 100, chg: 1, pt: 160, up: 60,
@@ -98,4 +98,28 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   assert.equal(posts.length, 0, "penny-stock-only snapshot produces nothing");
 }
 
-console.log("generate-posts OK — prompt shape, best-of-N, cadence config, empty-field and penny-stock safety");
+// --- every hook kind has an angle, not just the original four -----------------------------
+// The generic "Report the fact." fallback throws away the reason the rule fired at all — a
+// `record` post that never says "window high" is indistinguishable from a plain upside post.
+// This list is the nine kinds ci/hooks.mjs emits; adding a tenth there must fail here.
+{
+  const KINDS = ["surprise", "contrarian", "movement", "list",
+                 "record", "trend", "steady", "churn", "newcomer"];
+  for (const kind of KINDS) {
+    assert.ok(typeof KIND_BRIEF[kind] === "string" && KIND_BRIEF[kind].length > 20,
+      `${kind} has a real angle line`);
+    const { prompt } = buildPrompt(
+      { kind, ticker: "AAA", name: "Alpha Inc", sec: "Technology", facts: { upside: 60 } });
+    assert.ok(prompt.includes(`Angle: ${KIND_BRIEF[kind]}`), `${kind}'s angle reaches the prompt`);
+    assert.equal(prompt.includes("Angle: Report the fact."), false,
+      `${kind} does not fall through to the generic angle`);
+  }
+  assert.equal(Object.keys(KIND_BRIEF).length, KINDS.length,
+    "KIND_BRIEF covers the nine kinds and nothing else");
+  // The fallback still exists for a kind that is not in the map at all.
+  const { prompt } = buildPrompt({ kind: "nosuchkind", ticker: "AAA", name: "Alpha Inc",
+                                   sec: "Technology", facts: { upside: 60 } });
+  assert.ok(prompt.includes("Angle: Report the fact."), "an unknown kind still gets the fallback");
+}
+
+console.log("generate-posts OK — prompt shape, angle per hook kind, best-of-N, cadence config, empty-field and penny-stock safety");
