@@ -85,6 +85,81 @@ assert.equal(detectHooks([[row({ t: "NEW" })]]).filter((h) => h.kind === "moveme
   assert.equal("smartScoreTo" in hooks[0].facts, false, "smartScoreTo is omitted when either is null");
 }
 
+// --- movement facts: no coercion, and an eligible baseline ----------------------
+// CLAUDE.md: an explicit null from TipRanks is data, not a gap. These facts go verbatim into
+// the writer prompt, so a coerced `upsideFrom: 0` or a stringified `consensusFrom: null` is a
+// false statement about a real company, not a cosmetic wart. 0 of 159 movement firings hit
+// this on the live data — it is prevention, which is exactly why it needs a test.
+{
+  // Baseline: every reading present. This pins the exact fact bag, so a future "tidy-up"
+  // cannot quietly drop or rename a key for the ordinary case.
+  const hooks = detectHooks([
+    [row({ t: "FULL", ss: 4, con: "Hold", up: 10, pt: 110, px: 100, b: 10, h: 2, s: 0 })],
+    [row({ t: "FULL", ss: 9, con: "StrongBuy", up: 40, pt: 140, px: 100, b: 10, h: 2, s: 0 })],
+  ]).filter((h) => h.kind === "movement");
+  assert.equal(hooks.length, 1, "a fully-populated pair still fires exactly one movement hook");
+  assert.deepEqual(hooks[0].facts, {
+    upsideFrom: 10, upsideTo: 40,
+    consensusFrom: "Hold", consensusTo: "StrongBuy",
+    price: 100, priceTarget: 140, analysts: 12, sector: "Technology",
+    smartScoreFrom: 4, smartScoreTo: 9,
+  }, "present readings are written exactly as before");
+}
+{
+  // A withdrawn consensus on the PREVIOUS row: the flip is still the news, but there is no
+  // "from" to quote. Omit the key rather than send the string "null" to the writer.
+  const hooks = detectHooks([
+    [row({ t: "NOCON", con: null, up: 20 })],
+    [row({ t: "NOCON", con: "StrongBuy", up: 20 })],
+  ]).filter((h) => h.kind === "movement");
+  assert.equal(hooks.length, 1, "a flip out of no-rating is still a movement hook");
+  assert.equal("consensusFrom" in hooks[0].facts, false, "consensusFrom is omitted, not null");
+  assert.equal(hooks[0].facts.consensusTo, "StrongBuy", "the side that exists is still reported");
+}
+{
+  // ...and the mirror: a rating withdrawn between runs.
+  const hooks = detectHooks([
+    [row({ t: "LOSTCON", con: "Buy", up: 20 })],
+    [row({ t: "LOSTCON", con: null, up: 20 })],
+  ]).filter((h) => h.kind === "movement");
+  assert.equal(hooks.length, 1, "a flip into no-rating is still a movement hook");
+  assert.equal(hooks[0].facts.consensusFrom, "Buy", "the side that exists is still reported");
+  assert.equal("consensusTo" in hooks[0].facts, false, "consensusTo is omitted, not null");
+}
+{
+  // A withdrawn price target must not reach the prompt at all.
+  const hooks = detectHooks([
+    [row({ t: "NOPT", up: 20, pt: 120 })],
+    [row({ t: "NOPT", up: 40, pt: null })],
+  ]).filter((h) => h.kind === "movement");
+  assert.equal(hooks.length, 1, "an upside jump fires even with no price target");
+  assert.equal("priceTarget" in hooks[0].facts, false, "priceTarget is omitted when null");
+  assert.equal(hooks[0].facts.upsideFrom, 20, "the upside pair is unaffected");
+}
+{
+  // No movement fact may ever be null or undefined — that is the whole rule, stated once.
+  const windows = [
+    [[row({ t: "X", con: null, ss: null, pt: null, up: 20 })], [row({ t: "X", con: "Buy", ss: null, pt: null, up: 40 })]],
+    [[row({ t: "X", con: "Buy", ss: 3, pt: 120, up: 20 })], [row({ t: "X", con: null, ss: null, pt: null, up: 40 })]],
+  ];
+  for (const w of windows) {
+    for (const h of detectHooks(w).filter((x) => x.kind === "movement")) {
+      for (const [k, v] of Object.entries(h.facts)) {
+        assert.ok(v !== null && v !== undefined, `movement fact ${k} is never null`);
+      }
+    }
+  }
+}
+{
+  // The baseline itself must be an ELIGIBLE reading. A sub-$3 penny yesterday is not a
+  // "from" anything can be quoted against, so no movement hook comes out of that pair.
+  const hooks = detectHooks([
+    [row({ t: "WASPENNY", px: 0.8, up: 10 })],
+    [row({ t: "WASPENNY", px: 100, up: 40 })],
+  ]).filter((h) => h.kind === "movement");
+  assert.equal(hooks.length, 0, "an ineligible previous row is not a movement baseline");
+}
+
 // ============================ WINDOW RULES ====================================
 // Everything below needs MIN_WINDOW snapshots. These are the rules that justify
 // loading 30 of them, and none of them can be expressed with two.

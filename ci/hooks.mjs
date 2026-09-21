@@ -58,8 +58,11 @@ export function detectHooks(history, opts = {}) {
   const rows = curr.filter((r) => eligible(r, o));
   if (!rows.length) return [];
 
+  // ELIGIBLE rows only, exactly like the window series below. An ineligible previous reading
+  // (a name that was a sub-$3 penny, or had no upside at all) is not a baseline anything can
+  // legitimately be quoted "from".
   const prevSnap = snaps.length >= 2 ? snaps[snaps.length - 2] : null;
-  const before = new Map((prevSnap ?? []).map((r) => [r.t, r]));
+  const before = new Map((prevSnap ?? []).filter((r) => eligible(r, o)).map((r) => [r.t, r]));
 
   // Per-ticker series across the window, eligible readings only, oldest first.
   const series = new Map();
@@ -116,12 +119,30 @@ export function detectHooks(history, opts = {}) {
       const flipped = p.con !== r.con;
       if (Math.abs(dSs) >= 2 || Math.abs(dUp) >= 15 || flipped) {
         const mag = Math.abs(dSs) * 25 + Math.abs(dUp) * 1.5 + (flipped ? 40 : 0);
-        const facts = {
-          upsideFrom: round(p.up ?? 0), upsideTo: round(r.up),
-          consensusFrom: p.con, consensusTo: r.con,
-          price: r.px, priceTarget: r.pt, analysts: coverage(r), sector: r.sec,
-        };
-        // Include Smart Score only when both readings are finite — null is data, not a gap.
+        // NO COERCION, on any key. These facts go verbatim into the writer prompt, and the
+        // model is told to use the numbers it is given, so `?? 0` would put "upsideFrom: 0"
+        // into a post about a name whose target was merely withdrawn, and a null consensus
+        // would arrive as the literal string "null". CLAUDE.md's standing rule for `ss`
+        // applies to `up`, `con` and `pt` the same way: an explicit null from TipRanks is
+        // data, not a gap — omit the key rather than invent a value for it. Every key below
+        // is written exactly as before when the reading is present.
+        // Built key by key, in the order they used to be written, so the prompt reads the
+        // same for a row with every reading present. `upsideFrom` is also guarded even
+        // though `before` is now eligible-filtered (which already guarantees a finite `up`)
+        // — defence in depth, and it costs nothing.
+        const facts = {};
+        if (isNum(p.up)) facts.upsideFrom = round(p.up);
+        facts.upsideTo = round(r.up);
+        // Consensus is per-side, not a pair: a flip out of "no rating" into Strong Buy is
+        // real news, and dropping `consensusTo` with it would leave the hook with nothing to
+        // say. Smart Score stays a pair — `dSs` is 0 unless BOTH readings are finite, so a
+        // hook can never fire on a half-known Smart Score the way it can on a consensus flip.
+        if (p.con) facts.consensusFrom = p.con;
+        if (r.con) facts.consensusTo = r.con;
+        facts.price = r.px;
+        if (isNum(r.pt)) facts.priceTarget = r.pt;
+        facts.analysts = coverage(r);
+        facts.sector = r.sec;
         if (isNum(p.ss) && isNum(r.ss)) {
           facts.smartScoreFrom = p.ss;
           facts.smartScoreTo = r.ss;
