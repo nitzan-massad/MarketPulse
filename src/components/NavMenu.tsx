@@ -52,14 +52,17 @@ const ITEMS: { id: NavId; label: string }[] = [
 
 export default function NavMenu({ nav, onNav }: NavMenuProps) {
   const activeIdx = Math.max(0, ITEMS.findIndex((it) => it.id === nav));
+  const tabPct = 100 / ITEMS.length;
   return (
     <nav className="nav-bottom" aria-label="Sections">
       <div className="nav-bottom-inner">
-        {/* sliding indicator: centred over the active tab (each tab = 25% wide) */}
+        {/* sliding indicator: centred over the active tab (each tab is tabPct wide —
+            derived from ITEMS.length, not hardcoded, so a tab count change never
+            silently misplaces it) */}
         <span
           className="nav-ind"
           aria-hidden="true"
-          style={{ left: `calc(${activeIdx * 25 + 12.5}% - 14px)` }}
+          style={{ left: `calc(${activeIdx * tabPct + tabPct / 2}% - 14px)` }}
         />
         {ITEMS.map((it) => (
           <button
