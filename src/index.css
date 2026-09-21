@@ -815,6 +815,42 @@ thead th:hover .col-resize::after{opacity:.6}
    throw the landing maths off. */
 .mkm-slide{flex:0 0 100%; min-width:0; scroll-snap-align:center; display:flex; align-items:center}
 
+/* First-open swipe coachmark. The scrim itself is pointer-events:none so the gesture it is
+   teaching still works underneath it — only the button takes clicks. */
+.mkm-coach{position:absolute; inset:0; z-index:58; display:grid; place-items:center;
+  background:rgba(27,29,24,.55); backdrop-filter:blur(1.5px); border-radius:14px;
+  pointer-events:none; animation:mkm-coach-life 2.2s ease-out forwards}
+/* 2.2s total, matching COACH_MS in StockModal.tsx — it fades itself out as React drops it */
+@keyframes mkm-coach-life{0%{opacity:0} 8%{opacity:1} 84%{opacity:1} 100%{opacity:0}}
+.mkm-coach-in{display:flex; flex-direction:column; align-items:center; gap:13px; color:#fff; text-align:center}
+.mkm-coach-puck{width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,.96);
+  box-shadow:0 0 0 10px rgba(255,255,255,.2), 0 2px 10px rgba(27,29,24,.35);
+  animation:mkm-coach-sweep 2s cubic-bezier(.4,0,.2,1) both}
+@keyframes mkm-coach-sweep{
+  0%{transform:translateX(68px); opacity:0} 16%{opacity:1}
+  74%{transform:translateX(-68px); opacity:1} 100%{transform:translateX(-68px); opacity:0}}
+/* the no-touch variant: name the controls instead of miming a gesture a mouse cannot do */
+.mkm-coach-keys{display:flex; gap:9px}
+.mkm-coach-keys b{width:34px; height:34px; border-radius:50%; display:grid; place-items:center;
+  border:1px solid rgba(255,255,255,.5); color:#fff; font-size:19px; font-weight:400; line-height:1;
+  animation:mkm-coach-key 1.6s ease-in-out both}
+.mkm-coach-keys b:last-child{animation-delay:.4s}
+@keyframes mkm-coach-key{0%,100%{transform:translateX(0); opacity:.65}
+  50%{transform:translateX(var(--kx,0)); opacity:1}}
+.mkm-coach-keys b:first-child{--kx:-5px} .mkm-coach-keys b:last-child{--kx:5px}
+.mkm-coach small{font-family:Arial, "Helvetica Neue", Helvetica, sans-serif; font-size:12px;
+  font-weight:700; letter-spacing:.09em}
+.mkm-coach button{pointer-events:auto; font:inherit; font-size:12px; letter-spacing:.04em;
+  padding:7px 18px; border-radius:99px; border:1px solid rgba(255,255,255,.55);
+  background:transparent; color:#fff; cursor:pointer}
+.mkm-coach button:hover{background:rgba(255,255,255,.14)}
+.mkm-coach button:focus-visible{outline:2px solid #fff; outline-offset:2px}
+@media (prefers-reduced-motion:reduce){
+  .mkm-coach-puck{animation:none; opacity:1}
+  .mkm-coach-keys b{animation:none; opacity:1}
+  .mkm-coach{animation:none; opacity:1}
+}
+
 .mkm-stage{position:relative; display:flex; align-items:center; justify-content:center; max-width:100%}
 .mkm-nav{position:absolute; top:50%; transform:translateY(-50%); z-index:55; width:46px; height:46px; border-radius:50%;
   border:1px solid var(--t-line); background:var(--t-bg); color:var(--t-ink); font-size:24px; line-height:1; cursor:pointer;

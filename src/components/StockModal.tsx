@@ -1300,6 +1300,44 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
    in StockCard) and is cancelled when you leave. */
 const MOUNT_RADIUS = 1;
 
+/* First-open coachmark. Sign-in is optional in this app and a first-time visitor usually has
+   no uid, so "once" can only mean once per browser — localStorage is the only store that
+   reaches the people this hint is for. A blocked or cleared store reads as "already seen":
+   showing the hint twice is a nuisance, nagging someone every visit is worse. */
+const COACH_KEY = "mp-swipe-coach";
+const COACH_MS = 2200; // keep in step with the mkm-coach-life keyframes
+function coachSeen(): boolean {
+  try {
+    return localStorage.getItem(COACH_KEY) === "1";
+  } catch {
+    return true; // private window / blocked storage — stay quiet rather than ask every time
+  }
+}
+
+/* The scrim takes no pointer events, so the gesture it is teaching works straight through it —
+   you can follow the instruction without dismissing it first, and doing so dismisses it.
+
+   A mouse cannot drag a scroll container, so "swipe" is a lie on a desktop with no trackpad.
+   `pointer: coarse` is the closest the platform gets to "the primary pointer is a finger";
+   everywhere else the hint names the controls that definitely work instead. */
+function SwipeCoach({ onDismiss }: { onDismiss: () => void }) {
+  const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+  const label = touch ? "Swipe for the next stock" : "Use the arrows for the next stock";
+  return (
+    <div className="mkm-coach" role="note" aria-label={label}>
+      <div className="mkm-coach-in">
+        {touch ? (
+          <span className="mkm-coach-puck" />
+        ) : (
+          <span className="mkm-coach-keys" aria-hidden="true"><b>‹</b><b>›</b></span>
+        )}
+        <small>{touch ? "SWIPE FOR THE NEXT STOCK" : "ARROWS FOR THE NEXT STOCK"}</small>
+        <button type="button" onClick={onDismiss}>Got it</button>
+      </div>
+    </div>
+  );
+}
+
 export default function StockModal({
   stock, list, onIndex, onClose, isTracked, onToggleTrack, isCovered, markOf, onMark, highlightReviews,
 }: StockModalProps) {
@@ -1345,6 +1383,36 @@ export default function StockModal({
     };
   }, []);
 
+  // Show the swipe hint on the very first modal ever opened, and only when there is somewhere
+  // to swipe to. Performing the swipe counts as learning it, so a page dismisses it too.
+  const [coach, setCoach] = useState(() => list.length > 1 && !coachSeen());
+  const dismissCoach = useCallback(() => {
+    setCoach(false);
+    try {
+      localStorage.setItem(COACH_KEY, "1");
+    } catch {
+      /* nothing to persist to; the hint simply returns next visit */
+    }
+  }, []);
+  const openedOn = useRef(stock.t);
+  useEffect(() => {
+    if (stock.t !== openedOn.current) dismissCoach();
+  }, [stock.t, dismissCoach]);
+
+  // It bows out on its own after 1.5s, and any touch anywhere takes it away early. The tap
+  // listener is capture-phase and passive: it dismisses without consuming the event, so the
+  // press still lands on whatever was underneath — the hint never costs you a tap.
+  useEffect(() => {
+    if (!coach) return;
+    const timer = window.setTimeout(dismissCoach, COACH_MS);
+    const tap = () => dismissCoach();
+    window.addEventListener("pointerdown", tap, { capture: true });
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("pointerdown", tap, { capture: true });
+    };
+  }, [coach, dismissCoach]);
+
   const onBackdrop = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target === e.currentTarget) onClose();
@@ -1378,6 +1446,7 @@ export default function StockModal({
                   highlightReviews={i === idx ? highlightReviews : null}
                 />
               )}
+              {coach && i === idx && <SwipeCoach onDismiss={dismissCoach} />}
             </div>
           ))}
         </div>
