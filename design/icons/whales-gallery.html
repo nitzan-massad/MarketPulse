@@ -1,0 +1,703 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales Nav Icon — 10 candidates at true nav size</title>
+<meta name="description" content="Ten candidate icons for a fifth 'Whales' bottom-nav tab, each rendered at 21px inside a real MarketPulse nav bar, active and inactive.">
+<style>
+  :root{
+    --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+    --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+    --gold:#1b3f73; --gold-soft:#2a5695;
+    --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+    --teal:#147c86;
+    --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+    --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  html{overflow-x:hidden}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--f-ui);
+    font-size:14px; line-height:1.4; -webkit-font-smoothing:antialiased; min-height:100vh;
+    background-image:
+      radial-gradient(1200px 500px at 78% -8%, rgba(27,63,115,.08), transparent 60%),
+      radial-gradient(900px 600px at 0% 110%, rgba(20,124,134,.05), transparent 55%);
+    background-attachment:fixed;
+    overflow-x:hidden;
+  }
+  .wrap{max-width:1270px; margin:0 auto; padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+  @media(min-width:641px){ .wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))} }
+
+  /* ---------- masthead ---------- */
+  .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+  h1.bob-title{
+    font-family:var(--f-head); font-weight:800; font-optical-sizing:auto;
+    font-size:clamp(22px,7vw,32px); line-height:1; letter-spacing:-.015em; margin:.22em 0 .16em;
+  }
+  @media(min-width:641px){ h1.bob-title{font-size:clamp(28px,4vw,40px)} }
+  h1.bob-title .em{font-style:italic; font-weight:500; color:var(--gold)}
+  .bob-dek{font-family:var(--f-head); font-style:italic; font-size:clamp(15px,2.6vw,19px);
+    color:var(--muted); font-weight:500; margin:0 0 10px; max-width:60ch}
+  .bob-counts{display:flex; gap:9px; align-items:baseline; font-size:12px; color:var(--muted); flex-wrap:wrap}
+  .bob-counts b{color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums}
+  .bob-counts .dot{color:var(--faint)}
+
+  /* ---------- sections ---------- */
+  .bob-section{margin-top:26px}
+  @media(min-width:641px){ .bob-section{margin-top:34px} }
+  .bob-sechdr h2{font-family:var(--f-head); font-size:22px; font-weight:800; margin:0 0 3px; letter-spacing:-.01em}
+  .bob-sechdr p{font-size:12.5px; color:var(--muted); margin:0 0 14px; max-width:70ch}
+
+  /* ---------- the confusion strip ---------- */
+  .confusion{
+    border:1px solid var(--line); border-radius:14px; background:var(--panel);
+    padding:14px 12px 12px;
+  }
+  .conf-row{display:flex; flex-wrap:wrap; gap:10px}
+  .conf-cell{
+    flex:0 0 auto; width:66px; display:flex; flex-direction:column; align-items:center; gap:6px;
+    padding:8px 2px 7px; border-radius:10px; background:var(--bg); border:1px solid var(--line);
+    color:var(--muted);
+  }
+  .conf-cell.ship{border-style:dashed; border-color:var(--gold-soft); background:var(--panel-2)}
+  .conf-cell .cap{font-size:8.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--faint); text-align:center; line-height:1.2}
+  .conf-cell.ship .cap{color:var(--gold-soft)}
+  .conf-legend{margin-top:11px; font-size:11px; color:var(--muted); display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+  .conf-legend .key{font-size:8.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    border:1px dashed var(--gold-soft); color:var(--gold-soft); border-radius:999px; padding:1px 7px}
+
+  /* ---------- concept block ---------- */
+  .concept{margin-top:30px; padding-top:22px; border-top:1px solid var(--line)}
+  .concept:first-of-type{border-top:0}
+  .cx-index{font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:var(--faint); font-weight:700}
+  .cx-name{font-family:var(--f-head); font-size:20px; font-weight:800; margin:2px 0 4px; letter-spacing:-.01em}
+  .cx-name .kind{font-family:var(--f-ui); font-size:9px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--muted); border:1px solid var(--line); border-radius:999px;
+    padding:2px 8px; vertical-align:middle; margin-left:8px; white-space:nowrap}
+  .cx-desc{font-size:13px; color:var(--muted); margin:0 0 8px; max-width:66ch}
+  .cx-risk{
+    font-size:12px; color:var(--ink); margin:0 0 16px; max-width:66ch;
+    border-left:3px solid var(--amber); padding:5px 0 5px 10px;
+    background:linear-gradient(90deg, color-mix(in srgb, var(--amber) 10%, transparent), transparent 70%);
+  }
+  .cx-risk .rk{font-size:9px; letter-spacing:.1em; text-transform:uppercase; color:var(--amber); font-weight:700;
+    display:block; margin-bottom:1px}
+  .cx-risk b{font-weight:700; color:var(--ink)}
+
+  .cx-body{display:grid; grid-template-columns:1fr; gap:18px; align-items:start}
+  @media(min-width:900px){ .cx-body{grid-template-columns:minmax(0,1fr) 214px} }
+
+  .navpair{display:grid; grid-template-columns:1fr; gap:16px}
+  @media(min-width:660px){ .navpair{grid-template-columns:1fr 1fr} }
+
+  .navcap{font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--faint); margin-bottom:6px; display:flex; align-items:center; gap:6px}
+  .navcap .state{color:var(--gold-soft)}
+  .navcap .state.off{color:var(--muted)}
+
+  /* ---------- the real nav chrome ---------- */
+  .navbar{
+    background:rgba(255,255,255,.9);
+    -webkit-backdrop-filter:blur(14px) saturate(1.3);
+    backdrop-filter:blur(14px) saturate(1.3);
+    border-top:1px solid var(--line);
+    box-shadow:0 -10px 30px -22px rgba(27,29,24,.5);
+  }
+  .navbar-inner{max-width:560px; margin:0 auto; display:flex; align-items:stretch; position:relative}
+  .nav-ind{position:absolute; top:0; width:28px; height:3px; border-radius:0 0 3px 3px; background:var(--gold)}
+  .navtab{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:9px 6px 8px;
+    font-family:var(--f-ui); font-size:10.5px; font-weight:600; letter-spacing:.01em;
+    color:var(--muted); text-align:center;
+  }
+  .navtab .ic{display:flex; opacity:.9}
+  .navtab.on{color:var(--gold-soft)}
+  .navtab.on .ic{opacity:1}
+  .navtab .lb{white-space:nowrap}
+
+  /* ---------- size ladder ---------- */
+  .ladder{
+    display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap;
+    border:1px solid var(--line); border-radius:13px; background:var(--panel);
+    padding:13px; color:var(--muted);
+  }
+  @media(min-width:900px){ .ladder{gap:14px} }
+  .rung{display:flex; flex-direction:column; align-items:center; gap:7px}
+  .rung .dim{font-family:var(--f-mono); font-size:9px; font-weight:700; letter-spacing:.04em;
+    color:var(--faint); font-variant-numeric:tabular-nums}
+  .rung .box{display:flex; align-items:center; justify-content:center}
+  .ladder-note{flex:1 1 100%; font-size:10.5px; color:var(--faint); margin-top:2px; min-width:0}
+
+  footer{margin-top:36px; padding-top:16px; border-top:1px solid var(--line);
+    font-size:11px; color:var(--faint); line-height:1.6}
+  footer code{font-family:var(--f-mono); font-size:10.5px; color:var(--muted)}
+
+  @media(prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<!-- ============================================================
+     Inline SVG sprite. The icons MUST be inline markup — an icon
+     pulled in through an image element cannot inherit currentColor
+     and would render black in the nav bar. Path data below is
+     copied verbatim from the standalone whale-N.svg files here.
+     ============================================================ -->
+<svg width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true" focusable="false">
+  <!-- the four shipping nav icons, from src/components/NavMenu.tsx -->
+  <symbol id="i-stocks" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M5 21V11"/><path d="M12 21V4"/><path d="M19 21v-6"/>
+    </g>
+  </symbol>
+  <symbol id="i-best" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M12 2l2.9 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l7.1-1.01z"/>
+  </symbol>
+  <symbol id="i-new" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M12 1.8l1.9 7.3 7.3 1.9-7.3 1.9L12 20.2l-1.9-7.3L2.8 11l7.3-1.9z"/>
+  </symbol>
+  <symbol id="i-watch" viewBox="0 0 24 24">
+    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M6 3h12v18l-6-4-6 4z"/>
+  </symbol>
+
+  <!-- the ten candidates -->
+  <symbol id="w1" viewBox="0 0 24 24">
+    <path fill="currentColor" fill-rule="evenodd" d="M2 12.6C2 9 5 7.4 9 7.4C11.8 7.4 14 8.6 15.2 10.8C16.6 8 18.8 5.4 21.4 4.2C20.6 7 19.6 9.4 18.2 11.2C19.4 11.8 20.6 12.6 21.6 13.6C19.8 14.8 17.4 14.6 15 13.4C14 15.8 12.6 17.1 11 17.6L10.2 19.9L8 17.3C4.8 16.8 2 15.4 2 12.6ZM6.4 11A1 1 0 1 1 4.4 11A1 1 0 1 1 6.4 11Z"/>
+  </symbol>
+  <symbol id="w2" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 12.6H21"/>
+      <path d="M8 12.6C8.8 8.8 10.8 5.8 14.8 4.4C13 6.6 11.6 9.4 11.6 12.6"/>
+      <path d="M12.6 16.6C14.6 19 18 19.4 20.4 17.8"/>
+    </g>
+  </symbol>
+  <symbol id="w3" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M2.2 5C3.6 3.8 5.6 3.8 7.4 5.4C9.2 7.2 10.8 9.8 12 12.6C13.2 9.8 14.8 7.2 16.6 5.4C18.4 3.8 20.4 3.8 21.8 5C19.2 8.8 16.4 12.6 13.8 15.6L13.8 18L10.2 18L10.2 15.6C7.6 12.6 4.8 8.8 2.2 5Z"/>
+    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M5 21H19"/>
+  </symbol>
+  <symbol id="w4" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 18.6C3 13.2 6.8 10 11.2 10C14.8 10 17.4 11.8 18.6 14.8L20.8 12.2"/>
+      <path d="M18.6 14.8L20.8 16.4"/>
+      <path d="M8 9.6V5.8"/>
+      <path d="M7.2 9.4L4.2 7.6"/>
+      <path d="M8.8 9.4L11.8 7.6"/>
+    </g>
+  </symbol>
+  <symbol id="w5" viewBox="0 0 24 24">
+    <g fill="currentColor">
+      <circle cx="8.8" cy="12" r="5.6"/>
+      <circle cx="19" cy="7" r="1.8"/>
+      <circle cx="20" cy="12.6" r="1.8"/>
+      <circle cx="18.6" cy="18.4" r="1.8"/>
+    </g>
+  </symbol>
+  <symbol id="w6" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M13.6 4.8L16 10.5L10 10.5Z"/>
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 11.5H21"/>
+      <path d="M4.8 11.5L12.2 20.6L19.4 11.5"/>
+    </g>
+  </symbol>
+  <symbol id="w7" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 9.6L12 4L21 9.6Z"/>
+      <path d="M7 9.6V19.4"/>
+      <path d="M12 9.6V19.4"/>
+      <path d="M17 9.6V19.4"/>
+      <path d="M3.4 19.4H20.6"/>
+    </g>
+  </symbol>
+  <symbol id="w8" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="13" cy="12" r="6.6"/>
+      <path d="M7.1 6.1L18.9 17.9"/>
+      <path d="M18.9 6.1L7.1 17.9"/>
+      <path d="M3.2 12H6.4"/>
+    </g>
+  </symbol>
+  <symbol id="w9" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M2.8 6C2.8 4.3 5 3.1 8 3.1C10.4 3.1 12.2 3.7 13.2 4.8L19.4 2.2L17.6 5.6L20 9L12.8 7C11.8 8.2 10.2 8.9 8 8.9C5 8.9 2.8 7.6 2.8 6Z"/>
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M5.5 20.4V17.4"/>
+      <path d="M12 20.4V15"/>
+      <path d="M18.5 20.4V12.4"/>
+    </g>
+  </symbol>
+  <symbol id="w10" viewBox="0 0 24 24">
+    <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2.8V4.4"/>
+      <path d="M10 4.4H14V12H10Z"/>
+      <path d="M12 12V14.6"/>
+      <path d="M12 14.6C10.4 17.8 7.4 20.2 3.6 18.8"/>
+      <path d="M12 14.6C13.6 17.8 16.6 20.2 20.4 18.8"/>
+    </g>
+  </symbol>
+</svg>
+
+<div class="wrap">
+
+  <header>
+    <div class="kicker">MarketPulse · Whales Nav Icon</div>
+    <h1 class="bob-title">Ten marks for one <span class="em">slot</span>.</h1>
+    <p class="bob-dek">Every candidate is shown at its true 21&nbsp;px nav size, inside the real bottom-bar chrome, active and inactive — because that is the only size at which this decision is actually made.</p>
+    <div class="bob-counts">
+      <span><b>10</b> candidates</span><span class="dot">·</span>
+      <span><b>21</b> px in the bar</span><span class="dot">·</span>
+      <span><b>24</b> × 24 grid</span><span class="dot">·</span>
+      <span><b>5</b> tabs once Whales ships</span>
+    </div>
+  </header>
+
+  <!-- ===================== CONFUSION CHECK ===================== -->
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Confusion check</h2>
+      <p>The four shipping icons first (dashed outline), then all ten candidates — every one at 21&nbsp;px in <code>--muted</code>, the inactive nav colour. Scan the row: which candidates look like they were drawn by the same hand as Stocks / Best / New / Watchlist, and which two are about to be mistaken for one of them?</p>
+    </div>
+    <div class="confusion">
+      <div class="conf-row">
+        <div class="conf-cell ship"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg><span class="cap">Stocks</span></div>
+        <div class="conf-cell ship"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg><span class="cap">Best</span></div>
+        <div class="conf-cell ship"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg><span class="cap">New</span></div>
+        <div class="conf-cell ship"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg><span class="cap">Watch</span></div>
+
+        <div class="conf-cell"><svg width="21" height="21" aria-hidden="true"><use href="#w1"/></svg><span class="cap">01 Whale</span></div>
+        <div class="conf-cell"><svg width="21" height="21" aria-hidden="true"><use href="#w2"/></svg><span class="cap">02 Fin</span></div>
+        <div class="conf-cell"><svg width="21" height="21" aria-hidden="true"><use href="#w3"/></svg><span class="cap">03 Fluke</span></div>
+        <div class="conf-cell"><svg width="21" height="21" aria-hidden="true"><use href="#w4"/></svg><span class="cap">04 Spout</span></div>
+        <div class="conf-cell"><svg width="21" height="21" aria-hidden="true"><use href="#w5"/></svg><span class="cap">05 Scale</span></div>
+        <div class="conf-cell"><svg width="21" height="21" aria-hidden="true"><use href="#w6"/></svg><span class="cap">06 Berg</span></div>
+        <div class="conf-cell"><svg width="21" height="21" aria-hidden="true"><use href="#w7"/></svg><span class="cap">07 Portico</span></div>
+        <div class="conf-cell"><svg width="21" height="21" aria-hidden="true"><use href="#w8"/></svg><span class="cap">08 Vault</span></div>
+        <div class="conf-cell"><svg width="21" height="21" aria-hidden="true"><use href="#w9"/></svg><span class="cap">09 Bars</span></div>
+        <div class="conf-cell"><svg width="21" height="21" aria-hidden="true"><use href="#w10"/></svg><span class="cap">10 Candle</span></div>
+      </div>
+      <div class="conf-legend">
+        <span class="key">Dashed = shipping</span>
+        <span>Everything else is a candidate. Same colour, same size, no cards — nothing to hide behind.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== THE HONEST TEST ===================== -->
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>The honest test</h2>
+      <p>Each concept below sits in a full-fidelity nav bar twice: once with <b>Whales active</b> (navy, indicator bar overhead) and once with <b>Whales inactive</b> (muted, 90% opacity, Stocks holding the indicator). The inactive state is the one that matters — that is where a weak mark stops being a whale and starts being a smudge. Bars sit on the page background, not on a card, so the translucent chrome reads honestly.</p>
+    </div>
+
+    <!-- ---------- 01 ---------- -->
+    <article class="concept">
+      <div class="cx-index">Concept 01</div>
+      <h3 class="cx-name">Whale <span class="kind">Filled</span></h3>
+      <p class="cx-desc">The literal mark: a side-profile whale with a rounded back, a swept-back pectoral fin and a curved two-lobe fluke. A cut-out eye fixes the reading direction.</p>
+      <p class="cx-risk"><span class="rk">Risk</span>At nav size this reads as a generic <b>fish</b>, not specifically a whale — the two-lobe fluke is the only thing separating it from a goldfish, and the pectoral fin sits exactly where a fish’s ventral fin would. The eye cut-out is 1.75 px wide and closes up on a 1× display.</p>
+      <div class="cx-body">
+        <div class="navpair">
+          <div>
+            <div class="navcap">Whales <span class="state">active</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(70% - 14px)"></span>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w1"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+          <div>
+            <div class="navcap">Whales <span class="state off">inactive</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(10% - 14px)"></span>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w1"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+        </div>
+        <div class="ladder">
+          <div class="rung"><span class="box"><svg width="21" height="21" aria-hidden="true"><use href="#w1"/></svg></span><span class="dim">21 px</span></div>
+          <div class="rung"><span class="box"><svg width="28" height="28" aria-hidden="true"><use href="#w1"/></svg></span><span class="dim">28 px</span></div>
+          <div class="rung"><span class="box"><svg width="48" height="48" aria-hidden="true"><use href="#w1"/></svg></span><span class="dim">48 px</span></div>
+          <div class="ladder-note">21 px is nav size. Judge from the left.</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ---------- 02 ---------- -->
+    <article class="concept">
+      <div class="cx-index">Concept 02</div>
+      <h3 class="cx-name">Surfacing fin <span class="kind">Stroke 2</span></h3>
+      <p class="cx-desc">A dorsal fin cresting a full-width waterline, with the submerged body implied by a shorter arc trailing behind it. The most restrained option and the most native to the set's stroke language.</p>
+      <p class="cx-risk"><span class="rk">Risk</span>A triangle above a line with an arc below is a <b>sailboat</b> before it is a whale. Offsetting the arc to the right fights that, but the read stays fragile. The fin’s interior also fills solid at 21 px, so it is a filled mark wearing a stroke costume.</p>
+      <div class="cx-body">
+        <div class="navpair">
+          <div>
+            <div class="navcap">Whales <span class="state">active</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(70% - 14px)"></span>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w2"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+          <div>
+            <div class="navcap">Whales <span class="state off">inactive</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(10% - 14px)"></span>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w2"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+        </div>
+        <div class="ladder">
+          <div class="rung"><span class="box"><svg width="21" height="21" aria-hidden="true"><use href="#w2"/></svg></span><span class="dim">21 px</span></div>
+          <div class="rung"><span class="box"><svg width="28" height="28" aria-hidden="true"><use href="#w2"/></svg></span><span class="dim">28 px</span></div>
+          <div class="rung"><span class="box"><svg width="48" height="48" aria-hidden="true"><use href="#w2"/></svg></span><span class="dim">48 px</span></div>
+          <div class="ladder-note">Waterline-to-arc gap is exactly 2 units — the tightest legal gap in the set.</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ---------- 03 ---------- -->
+    <article class="concept">
+      <div class="cx-index">Concept 03</div>
+      <h3 class="cx-name">Fluke <span class="kind">Filled + stroke</span></h3>
+      <p class="cx-desc">Just the tail, mid-dive: two broad lobes with upswept tips, a deep central notch, a stock entering a stroked waterline. The single most recognisable whale shape there is — no body needed.</p>
+      <p class="cx-risk"><span class="rk">Risk</span>The clearest whale in the file at 48 px — but at 21 px it compresses into a <b>Y over a rule</b>, and the lobe tips taper past the 1.5-unit floor. It also carries the largest filled area of any candidate, so it shouts in the active state.</p>
+      <div class="cx-body">
+        <div class="navpair">
+          <div>
+            <div class="navcap">Whales <span class="state">active</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(70% - 14px)"></span>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w3"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+          <div>
+            <div class="navcap">Whales <span class="state off">inactive</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(10% - 14px)"></span>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w3"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+        </div>
+        <div class="ladder">
+          <div class="rung"><span class="box"><svg width="21" height="21" aria-hidden="true"><use href="#w3"/></svg></span><span class="dim">21 px</span></div>
+          <div class="rung"><span class="box"><svg width="28" height="28" aria-hidden="true"><use href="#w3"/></svg></span><span class="dim">28 px</span></div>
+          <div class="rung"><span class="box"><svg width="48" height="48" aria-hidden="true"><use href="#w3"/></svg></span><span class="dim">48 px</span></div>
+          <div class="ladder-note">Watch the lobe tips as you scan right-to-left.</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ---------- 04 ---------- -->
+    <article class="concept">
+      <div class="cx-index">Concept 04</div>
+      <h3 class="cx-name">Spout <span class="kind">Stroke 2</span></h3>
+      <p class="cx-desc">A rounded back with an upturned fluke and a three-stroke spout rising from the blowhole. The most literal and the friendliest reading of the whole set.</p>
+      <p class="cx-risk"><span class="rk">Risk</span>Five separate strokes, more than any shipping icon uses. At 21 px the spout reads as <b>antennae</b> and the fluke as a beak; the mark dissolves into a squiggle. Friendliest concept here, and the least serious for a 13F tab.</p>
+      <div class="cx-body">
+        <div class="navpair">
+          <div>
+            <div class="navcap">Whales <span class="state">active</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(70% - 14px)"></span>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w4"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+          <div>
+            <div class="navcap">Whales <span class="state off">inactive</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(10% - 14px)"></span>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w4"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+        </div>
+        <div class="ladder">
+          <div class="rung"><span class="box"><svg width="21" height="21" aria-hidden="true"><use href="#w4"/></svg></span><span class="dim">21 px</span></div>
+          <div class="rung"><span class="box"><svg width="28" height="28" aria-hidden="true"><use href="#w4"/></svg></span><span class="dim">28 px</span></div>
+          <div class="rung"><span class="box"><svg width="48" height="48" aria-hidden="true"><use href="#w4"/></svg></span><span class="dim">48 px</span></div>
+          <div class="ladder-note">The spout survives at 48. Check whether it still exists at 21.</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ---------- 05 ---------- -->
+    <article class="concept">
+      <div class="cx-index">Concept 05</div>
+      <h3 class="cx-name">Scale <span class="kind">Filled</span></h3>
+      <p class="cx-desc">One large disc and three small ones. Scale-of-capital as pure abstraction — no marine literalism, no metaphor to decode, just size asymmetry.</p>
+      <p class="cx-risk"><span class="rk">Risk</span>Nothing in it says “whale” or “13F” without the label doing all the work, and a big disc beside three small ones is one hard glance away from a <b>loading indicator</b> or a bulleted-list glyph.</p>
+      <div class="cx-body">
+        <div class="navpair">
+          <div>
+            <div class="navcap">Whales <span class="state">active</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(70% - 14px)"></span>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w5"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+          <div>
+            <div class="navcap">Whales <span class="state off">inactive</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(10% - 14px)"></span>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w5"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+        </div>
+        <div class="ladder">
+          <div class="rung"><span class="box"><svg width="21" height="21" aria-hidden="true"><use href="#w5"/></svg></span><span class="dim">21 px</span></div>
+          <div class="rung"><span class="box"><svg width="28" height="28" aria-hidden="true"><use href="#w5"/></svg></span><span class="dim">28 px</span></div>
+          <div class="rung"><span class="box"><svg width="48" height="48" aria-hidden="true"><use href="#w5"/></svg></span><span class="dim">48 px</span></div>
+          <div class="ladder-note">Scales perfectly. That is not the same as communicating.</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ---------- 06 ---------- -->
+    <article class="concept">
+      <div class="cx-index">Concept 06</div>
+      <h3 class="cx-name">Iceberg <span class="kind">Stroke + filled peak</span></h3>
+      <p class="cx-desc">A solid peak above a full-width waterline and a larger hollow mass below it. The fill/stroke contrast does the arguing: what a 13F shows you is a fraction of the position.</p>
+      <p class="cx-risk"><span class="rk">Risk</span>Reads as an <b>hourglass</b> before it reads as an iceberg — and an iceberg is not a whale. The waterline clears the underwater V by only ~1.8 units per side, so the “full-width surface” idea barely survives at nav size.</p>
+      <div class="cx-body">
+        <div class="navpair">
+          <div>
+            <div class="navcap">Whales <span class="state">active</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(70% - 14px)"></span>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w6"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+          <div>
+            <div class="navcap">Whales <span class="state off">inactive</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(10% - 14px)"></span>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w6"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+        </div>
+        <div class="ladder">
+          <div class="rung"><span class="box"><svg width="21" height="21" aria-hidden="true"><use href="#w6"/></svg></span><span class="dim">21 px</span></div>
+          <div class="rung"><span class="box"><svg width="28" height="28" aria-hidden="true"><use href="#w6"/></svg></span><span class="dim">28 px</span></div>
+          <div class="rung"><span class="box"><svg width="48" height="48" aria-hidden="true"><use href="#w6"/></svg></span><span class="dim">48 px</span></div>
+          <div class="ladder-note">Filled peak vs. hollow mass — does the contrast hold at 21?</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ---------- 07 ---------- -->
+    <article class="concept">
+      <div class="cx-index">Concept 07</div>
+      <h3 class="cx-name">Portico <span class="kind">Stroke 2</span></h3>
+      <p class="cx-desc">Pediment, three columns, base. The clearest “institutional money” reading in the file and the one that needs no explanation to anyone who has ever seen a bank.</p>
+      <p class="cx-risk"><span class="rk">Risk</span>Highest confusion risk in the file, by a distance: three even verticals sitting one tab away from Stocks’ three uneven verticals. The pediment is the entire distinction and it is 5.6 units tall — squint and this is <b>Stocks with a hat</b>.</p>
+      <div class="cx-body">
+        <div class="navpair">
+          <div>
+            <div class="navcap">Whales <span class="state">active</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(70% - 14px)"></span>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w7"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+          <div>
+            <div class="navcap">Whales <span class="state off">inactive</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(10% - 14px)"></span>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w7"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+        </div>
+        <div class="ladder">
+          <div class="rung"><span class="box"><svg width="21" height="21" aria-hidden="true"><use href="#w7"/></svg></span><span class="dim">21 px</span></div>
+          <div class="rung"><span class="box"><svg width="28" height="28" aria-hidden="true"><use href="#w7"/></svg></span><span class="dim">28 px</span></div>
+          <div class="rung"><span class="box"><svg width="48" height="48" aria-hidden="true"><use href="#w7"/></svg></span><span class="dim">48 px</span></div>
+          <div class="ladder-note">Compare directly against Stocks in the nav bars above.</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ---------- 08 ---------- -->
+    <article class="concept">
+      <div class="cx-index">Concept 08</div>
+      <h3 class="cx-name">Vault <span class="kind">Stroke 2</span></h3>
+      <p class="cx-desc">A circular vault door with a four-spoke handle breaking the rim and a hinge stub on the left. Where the big money actually sits — heavy, closed, deliberate.</p>
+      <p class="cx-risk"><span class="rk">Risk</span>Spokes breaking the rim pull it away from a “close / error” glyph and straight into a <b>ship’s wheel</b>. At 21 px inactive it is still a circle with an X in it — the most overloaded shape in the UI vocabulary.</p>
+      <div class="cx-body">
+        <div class="navpair">
+          <div>
+            <div class="navcap">Whales <span class="state">active</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(70% - 14px)"></span>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w8"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+          <div>
+            <div class="navcap">Whales <span class="state off">inactive</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(10% - 14px)"></span>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w8"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+        </div>
+        <div class="ladder">
+          <div class="rung"><span class="box"><svg width="21" height="21" aria-hidden="true"><use href="#w8"/></svg></span><span class="dim">21 px</span></div>
+          <div class="rung"><span class="box"><svg width="28" height="28" aria-hidden="true"><use href="#w8"/></svg></span><span class="dim">28 px</span></div>
+          <div class="rung"><span class="box"><svg width="48" height="48" aria-hidden="true"><use href="#w8"/></svg></span><span class="dim">48 px</span></div>
+          <div class="ladder-note">Dial-to-rim clearance is 2.2 units. It holds — the meaning is the problem.</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ---------- 09 ---------- -->
+    <article class="concept">
+      <div class="cx-index">Concept 09</div>
+      <h3 class="cx-name">Whale over bars <span class="kind">Mixed</span></h3>
+      <p class="cx-desc">A compressed whale silhouette riding above three ascending stroke bars. The only candidate that states the product thesis outright: big money, moving the market.</p>
+      <p class="cx-risk"><span class="rk">Risk</span>Two marks fighting over 21 px. The whale is 6.2 units tall and reads as a <b>fish</b>, while the bars under it alias into the Stocks icon three tabs to the left. The clearest demonstration in this file of why hero sizes lie.</p>
+      <div class="cx-body">
+        <div class="navpair">
+          <div>
+            <div class="navcap">Whales <span class="state">active</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(70% - 14px)"></span>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w9"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+          <div>
+            <div class="navcap">Whales <span class="state off">inactive</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(10% - 14px)"></span>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w9"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+        </div>
+        <div class="ladder">
+          <div class="rung"><span class="box"><svg width="21" height="21" aria-hidden="true"><use href="#w9"/></svg></span><span class="dim">21 px</span></div>
+          <div class="rung"><span class="box"><svg width="28" height="28" aria-hidden="true"><use href="#w9"/></svg></span><span class="dim">28 px</span></div>
+          <div class="rung"><span class="box"><svg width="48" height="48" aria-hidden="true"><use href="#w9"/></svg></span><span class="dim">48 px</span></div>
+          <div class="ladder-note">The clearest illustration of why hero sizes lie.</div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ---------- 10 ---------- -->
+    <article class="concept">
+      <div class="cx-index">Concept 10</div>
+      <h3 class="cx-name">Fluke candle <span class="kind">Stroke 2</span></h3>
+      <p class="cx-desc">A single candlestick whose lower wick forks into a whale tail. The most brand-able mark in the file — market language and whale language folded into one glyph.</p>
+      <p class="cx-risk"><span class="rk">Risk</span>Widest tail here (17.4 units) and it still reads as a <b>floor lamp</b> or a standing figure before it reads as a candlestick-fluke. The body’s 2 × 5.6 counter closes up at 21 px. Most brand-able idea, least legible execution.</p>
+      <div class="cx-body">
+        <div class="navpair">
+          <div>
+            <div class="navcap">Whales <span class="state">active</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(70% - 14px)"></span>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w10"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+          <div>
+            <div class="navcap">Whales <span class="state off">inactive</span></div>
+            <div class="navbar"><div class="navbar-inner">
+              <span class="nav-ind" style="left:calc(10% - 14px)"></span>
+              <div class="navtab on"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-stocks"/></svg></span><span class="lb">Stocks</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-best"/></svg></span><span class="lb">Best</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-new"/></svg></span><span class="lb">New</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#w10"/></svg></span><span class="lb">Whales</span></div>
+              <div class="navtab"><span class="ic"><svg width="21" height="21" aria-hidden="true"><use href="#i-watch"/></svg></span><span class="lb">Watchlist</span></div>
+            </div></div>
+          </div>
+        </div>
+        <div class="ladder">
+          <div class="rung"><span class="box"><svg width="21" height="21" aria-hidden="true"><use href="#w10"/></svg></span><span class="dim">21 px</span></div>
+          <div class="rung"><span class="box"><svg width="28" height="28" aria-hidden="true"><use href="#w10"/></svg></span><span class="dim">28 px</span></div>
+          <div class="rung"><span class="box"><svg width="48" height="48" aria-hidden="true"><use href="#w10"/></svg></span><span class="dim">48 px</span></div>
+          <div class="ladder-note">The candle counter is the thing to watch as the size drops.</div>
+        </div>
+      </div>
+    </article>
+
+  </section>
+
+  <footer>
+    The standalone <code>whale-1.svg</code> … <code>whale-10.svg</code> files in this folder are the source of truth.
+    The markup above is an inline copy of the same path data, byte-for-byte — icons referenced through
+    <code>&lt;img src&gt;</code> cannot inherit <code>currentColor</code> and would render black in the nav bar,
+    so every mark here is drawn from an inline <code>&lt;symbol&gt;</code> sprite instead.<br>
+    All ten are 24 × 24, single-path-family, <code>currentColor</code> only — no gradients, no second colour,
+    no hard-coded hex. Stroked marks use width 2 with round caps and joins, matching Stocks and Watchlist;
+    filled marks use solid silhouettes, matching Best and New.<br>
+    Design mockup only. Nothing in <code>src/</code> is wired to these files.
+  </footer>
+
+</div>

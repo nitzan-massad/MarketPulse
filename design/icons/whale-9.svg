@@ -1,0 +1,9 @@
+<!-- Concept 09 — Whale over bar chart: filled whale riding three ascending stroke bars -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Whale above a rising bar chart">
+  <path fill="currentColor" d="M2.8 6C2.8 4.3 5 3.1 8 3.1C10.4 3.1 12.2 3.7 13.2 4.8L19.4 2.2L17.6 5.6L20 9L12.8 7C11.8 8.2 10.2 8.9 8 8.9C5 8.9 2.8 7.6 2.8 6Z"/>
+  <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <path d="M5.5 20.4V17.4"/>
+    <path d="M12 20.4V15"/>
+    <path d="M18.5 20.4V12.4"/>
+  </g>
+</svg>

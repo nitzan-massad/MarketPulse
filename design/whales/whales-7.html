@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales 7 — Allocation Weights</title>
+<style>
+:root{
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--f-ui);
+  font-size:14px; line-height:1.4; -webkit-font-smoothing:antialiased; min-height:100vh;
+  background-image:
+    radial-gradient(1200px 500px at 78% -8%, rgba(27,63,115,.08), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(20,124,134,.05), transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1270px; margin:0 auto; padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+@media(min-width:641px){ .wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))} }
+
+/* masthead */
+.bob-eyebrow{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+.bob-title{font-family:var(--f-head); font-weight:800; font-size:clamp(22px,7vw,32px); line-height:1.02;
+  letter-spacing:-.02em; margin:.16em 0 .18em}
+.bob-title .em{font-style:italic; font-weight:500; color:var(--gold)}
+.bob-dek{font-family:var(--f-head); font-style:italic; font-size:clamp(15px,2vw,20px); color:var(--muted);
+  font-weight:500; margin:0 0 10px}
+.bob-counts{display:flex; gap:10px; align-items:baseline; font-size:12px; color:var(--muted); flex-wrap:wrap}
+.bob-counts b{color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums; font-family:var(--f-mono)}
+.bob-counts .dot{color:var(--faint)}
+
+.bob-section{margin-top:22px}
+.bob-sechdr{margin-bottom:10px}
+.bob-sechdr h2{font-family:var(--f-head); font-weight:800; font-size:22px; letter-spacing:-.02em; margin:0 0 3px}
+.bob-sechdr p{margin:0; font-size:12.5px; color:var(--muted)}
+
+/* ------------- manager card ------------- */
+.mcard{background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden}
+.mcard-hd{padding:13px; border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg, var(--panel-2), var(--panel))}
+.mcard-id{display:flex; align-items:center; gap:10px}
+.mc-init{width:38px; height:38px; border-radius:10px; flex:none; display:flex; align-items:center;
+  justify-content:center; font-family:var(--f-mono); font-weight:700; font-size:13px;
+  background:var(--gold); color:#fff; letter-spacing:-.02em}
+.mc-nm{min-width:0}
+.mc-nm h3{font-family:var(--f-head); font-weight:800; font-size:17px; letter-spacing:-.02em; margin:0}
+.mc-nm .meta{font-family:var(--f-mono); font-size:10px; color:var(--muted); letter-spacing:.02em; margin-top:2px}
+.mc-nm .meta .dot{color:var(--faint); margin:0 4px}
+
+/* shape / concentration readout — blocks are shape, not colour */
+.shape{display:flex; align-items:center; gap:8px; margin-top:11px; flex-wrap:wrap;
+  font-size:10.5px; color:var(--muted)}
+.shape .k{font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.meter{display:inline-flex; gap:2px}
+.meter i{display:block; width:9px; height:11px; border:1px solid var(--gold); border-radius:2px}
+.meter i.f{background:var(--gold)}
+.shape b{font-family:var(--f-mono); color:var(--ink); font-weight:700; font-variant-numeric:tabular-nums}
+
+/* ------------- stacked allocation bar ------------- */
+.stackwrap{padding:13px 13px 4px}
+.stack{display:flex; width:100%; height:26px; border:1px solid var(--line); border-radius:8px;
+  overflow:hidden; background:var(--panel-2)}
+.stack span{display:block; height:100%; border-right:1px solid rgba(255,255,255,.75); min-width:2px}
+.stack span:last-child{border-right:0}
+.sg-new{background:var(--gold)}
+.sg-add{background:var(--green)}
+.sg-trim{background:repeating-linear-gradient(135deg, var(--amber) 0 4px, color-mix(in srgb, var(--amber) 42%, #ffffff) 4px 8px)}
+.sg-exit{background:repeating-linear-gradient(135deg, var(--red) 0 4px, color-mix(in srgb, var(--red) 42%, #ffffff) 4px 8px)}
+.sg-held{background:var(--faint)}
+.sg-rest{background:var(--panel-2)}
+/* inline labels for the top 3 segments */
+.stacklabels{display:flex; width:100%; margin-top:5px}
+.slab{min-width:0; padding-right:5px; border-left:1px solid var(--line); padding-left:4px; overflow:hidden}
+.slab .t{font-family:var(--f-mono); font-size:9.5px; font-weight:700; color:var(--ink);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block}
+.slab .p{font-family:var(--f-mono); font-size:9.5px; color:var(--muted); font-variant-numeric:tabular-nums;
+  white-space:nowrap; display:block}
+.slab.rest{border-left:1px dashed var(--line)}
+.slab.rest .t{color:var(--faint); font-weight:400}
+
+/* ------------- weight rows ------------- */
+.alist{list-style:none; margin:0; padding:0}
+.arow{display:grid; grid-template-columns:1fr 66px; gap:6px 10px; padding:11px 13px;
+  border-top:1px solid var(--line); transition:background .12s;
+  opacity:0; animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards}
+.arow:hover{background:var(--panel-2)}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+.a-name{grid-column:1; grid-row:1; display:flex; align-items:baseline; gap:7px; min-width:0}
+.a-co{font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.a-pct{grid-column:2; grid-row:1/3; align-self:center; justify-self:end; text-align:right;
+  font-family:var(--f-head); font-weight:800; font-size:21px; line-height:1; letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums}
+.a-pct small{display:block; font-family:var(--f-ui); font-size:8.5px; font-weight:700; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--faint); margin-top:3px}
+.a-bar{grid-column:1; grid-row:2; height:13px; border-radius:5px; background:var(--panel-2);
+  border:1px solid var(--line); overflow:hidden; position:relative}
+.a-bar i{display:block; height:100%}
+.f-gold{background:var(--gold)}
+.f-trim{background:repeating-linear-gradient(135deg, var(--amber) 0 5px, color-mix(in srgb, var(--amber) 40%, #ffffff) 5px 10px)}
+.a-sub{grid-column:1/-1; grid-row:3; display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.a-val{font-family:var(--f-mono); font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums}
+.a-sh{font-family:var(--f-mono); font-size:10px; color:var(--faint); font-variant-numeric:tabular-nums}
+
+/* ghost row — the EXITED position has 0% weight and would otherwise be invisible */
+.arow.ghost{background:repeating-linear-gradient(135deg, transparent 0 9px, rgba(199,58,43,.045) 9px 18px)}
+.arow.ghost .a-pct{color:var(--faint)}
+.a-bar.ghostbar{background:transparent; border:1px dashed color-mix(in srgb, var(--red) 48%, transparent);
+  display:flex; align-items:center; padding:0 6px; gap:5px; height:15px}
+.a-bar.ghostbar em{font-style:normal; font-family:var(--f-ui); font-size:8.5px; font-weight:700;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--red);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1}
+.a-val.was{color:var(--faint); text-decoration:line-through}
+
+/* ticker treatments */
+a.sym{font-family:var(--f-mono); font-weight:700; font-size:14px; color:var(--gold); text-decoration:none;
+  border-bottom:1px solid color-mix(in srgb, var(--gold) 38%, transparent); transition:.14s; white-space:nowrap}
+a.sym:hover{color:var(--gold-soft); border-bottom-color:var(--gold-soft)}
+a.sym:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px; border-radius:3px}
+a.sym .cv{margin-left:3px}
+.sym.unc{font-family:var(--f-mono); font-weight:400; font-size:14px; color:var(--muted);
+  border-bottom:1px dotted var(--faint); white-space:nowrap}
+.untr{font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); font-weight:700}
+
+/* state badge */
+.st{display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; padding:3px 8px; border-radius:999px; border:1px solid; white-space:nowrap}
+.st .g{font-size:9.5px; line-height:1}
+.st .d{font-family:var(--f-mono); font-size:9px; letter-spacing:0}
+.st.new{color:var(--gold); background:color-mix(in srgb, var(--gold) 12%, transparent); border-color:color-mix(in srgb, var(--gold) 34%, transparent)}
+.st.add{color:var(--green); background:color-mix(in srgb, var(--green) 12%, transparent); border-color:color-mix(in srgb, var(--green) 34%, transparent)}
+.st.trim{color:var(--amber); background:color-mix(in srgb, var(--amber) 12%, transparent); border-color:color-mix(in srgb, var(--amber) 34%, transparent)}
+.st.exit{color:var(--red); background:color-mix(in srgb, var(--red) 12%, transparent); border-color:color-mix(in srgb, var(--red) 34%, transparent)}
+.st.held{color:var(--muted); background:transparent; border-color:var(--line)}
+
+/* legend */
+.legend{display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; align-items:center}
+.lg{display:inline-flex; align-items:center; gap:5px; font-size:9px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:3px 8px}
+.lg i{width:14px; height:9px; border-radius:2px; display:block}
+
+.src{margin:22px 0 0; padding-top:14px; border-top:1px solid var(--line); font-size:11px; color:var(--faint); line-height:1.55}
+
+/* note */
+.note{position:fixed; left:16px; bottom:78px; z-index:60; max-width:236px; font-size:11px; color:var(--muted);
+  background:var(--bg); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; line-height:1.45}
+.note b{color:var(--ink)}
+@media(max-width:640px){ .note{position:static; margin-top:16px; max-width:none} }
+
+/* bottom nav */
+.nav-bottom{position:fixed; left:0; right:0; bottom:0; z-index:40; background:rgba(255,255,255,.9);
+  -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3);
+  border-top:1px solid var(--line); box-shadow:0 -10px 30px -22px rgba(27,29,24,.5);
+  padding-bottom:env(safe-area-inset-bottom, 0px)}
+.nav-bottom-inner{max-width:560px; margin:0 auto; display:flex; align-items:stretch; position:relative}
+.nav-tab{position:relative; appearance:none; background:none; border:0; cursor:pointer; flex:1; text-decoration:none;
+  display:flex; flex-direction:column; align-items:center; gap:4px; padding:9px 6px 8px;
+  color:var(--muted); font-family:var(--f-ui); font-size:10.5px; font-weight:600; letter-spacing:.01em; transition:.14s}
+.nav-tab .nav-tab-ic{display:flex; opacity:.9; transition:.14s}
+.nav-tab:hover{color:var(--ink)}
+.nav-tab.on{color:var(--gold-soft)}
+.nav-tab.on .nav-tab-ic{opacity:1}
+.nav-tab.on::before{content:""; position:absolute; top:0; left:50%; transform:translateX(-50%);
+  width:28px; height:3px; border-radius:0 0 3px 3px; background:var(--gold)}
+.nav-tab:focus-visible{outline:2px solid var(--gold-soft); outline-offset:-3px; border-radius:10px}
+
+@media(min-width:900px){
+  .books{display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start}
+  .bob-section{margin-top:26px}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div class="bob-eyebrow">13F Filings · Q1 2026</div>
+    <h1 class="bob-title">Smart <span class="em">Money</span></h1>
+    <p class="bob-dek">Not what they bought — how much of the book they were willing to bet on it.</p>
+    <div class="bob-counts">
+      <span><b>24</b> managers filed</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>1,847</b> positions parsed</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>112</b> of our <b>355</b> covered</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>$482B</b> aggregate</span><span class="dot" aria-hidden="true">·</span>
+      <span>last filing <b>May 15, 2026</b></span>
+    </div>
+  </header>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Portfolio shape</h2>
+      <p>Each bar is one book, segment width = weight, fill = what changed this quarter. Top 3 labelled.</p>
+    </div>
+
+    <div class="legend" aria-hidden="true">
+      <span class="lg"><i class="sg-new"></i>✛ New</span>
+      <span class="lg"><i class="sg-add"></i>▲ Added</span>
+      <span class="lg"><i class="sg-trim"></i>▼ Trimmed</span>
+      <span class="lg"><i class="sg-exit"></i>✕ Exited</span>
+      <span class="lg"><i class="sg-held"></i>— Held</span>
+      <span class="lg"><i class="sg-rest" style="border:1px dashed var(--line)"></i>Rest of book</span>
+    </div>
+
+    <div class="books" style="margin-top:14px; display:grid; gap:20px">
+
+      <!-- ================= BERKSHIRE — very concentrated ================= -->
+      <article class="mcard">
+        <div class="mcard-hd">
+          <div class="mcard-id">
+            <span class="mc-init" aria-hidden="true">BH</span>
+            <div class="mc-nm">
+              <h3>Berkshire Hathaway</h3>
+              <div class="meta">CIK 0001067983<span class="dot" aria-hidden="true">·</span>$312.4B<span class="dot" aria-hidden="true">·</span>41 positions<span class="dot" aria-hidden="true">·</span>Filed May 15, 2026</div>
+            </div>
+          </div>
+          <div class="shape">
+            <span class="k">Shape</span>
+            <span class="meter" role="img" aria-label="Steepness 4 of 5">
+              <i class="f"></i><i class="f"></i><i class="f"></i><i class="f"></i><i></i>
+            </span>
+            <span><b>STEEP</b> — top name is <b>8.0×</b> the 7th; <b>34</b> other names split the last <b>31.2%</b></span>
+          </div>
+        </div>
+
+        <div class="stackwrap">
+          <div class="stack" role="img" aria-label="Berkshire Hathaway allocation: AAPL 22.4%, AXP 15.1%, BAC 9.2%, KO 8.8%, CVX 6.3%, OXY 4.2%, CB 2.8%, 34 other positions 31.2%">
+            <span class="sg-trim" style="width:22.4%" title="AAPL · 22.4% · Trimmed −15.0%"></span>
+            <span class="sg-held" style="width:15.1%" title="AXP · 15.1% · Held"></span>
+            <span class="sg-trim" style="width:9.2%"  title="BAC · 9.2% · Trimmed −7.2%"></span>
+            <span class="sg-held" style="width:8.8%"  title="KO · 8.8% · Held"></span>
+            <span class="sg-add"  style="width:6.3%"  title="CVX · 6.3% · Added +8.4%"></span>
+            <span class="sg-add"  style="width:4.2%"  title="OXY · 4.2% · Added +2.1%"></span>
+            <span class="sg-new"  style="width:2.8%"  title="CB · 2.8% · New position"></span>
+            <span class="sg-rest" style="width:31.2%" title="34 other positions · 31.2%"></span>
+          </div>
+          <div class="stacklabels" aria-hidden="true">
+            <span class="slab" style="width:22.4%"><span class="t">AAPL</span><span class="p">22.4%</span></span>
+            <span class="slab" style="width:15.1%"><span class="t">AXP</span><span class="p">15.1%</span></span>
+            <span class="slab" style="width:9.2%"><span class="t">BAC</span><span class="p">9.2%</span></span>
+            <span class="slab rest" style="width:53.3%"><span class="t">rest of book</span><span class="p">53.3%</span></span>
+          </div>
+        </div>
+
+        <ol class="alist">
+          <li class="arow" style="animation-delay:.02s">
+            <div class="a-name"><a class="sym" href="#" title="Open AAPL in MarketPulse">AAPL<span class="cv" aria-hidden="true">›</span></a><span class="a-co">Apple Inc.</span></div>
+            <div class="a-pct">22.4%<small>of book</small></div>
+            <div class="a-bar"><i class="f-trim" style="width:89.6%"></i></div>
+            <div class="a-sub"><span class="a-val">$69.9B</span><span class="a-sh">300,000,000 sh</span><span class="st trim"><span class="g" aria-hidden="true">▼</span>Trimmed<span class="d">−15.0%</span></span></div>
+          </li>
+          <li class="arow" style="animation-delay:.06s">
+            <div class="a-name"><a class="sym" href="#" title="Open AXP in MarketPulse">AXP<span class="cv" aria-hidden="true">›</span></a><span class="a-co">American Express</span></div>
+            <div class="a-pct">15.1%<small>of book</small></div>
+            <div class="a-bar"><i class="f-gold" style="width:60.4%"></i></div>
+            <div class="a-sub"><span class="a-val">$47.2B</span><span class="a-sh">151,610,700 sh</span><span class="st held"><span class="g" aria-hidden="true">—</span>Held<span class="d">0.0%</span></span></div>
+          </li>
+          <li class="arow" style="animation-delay:.1s">
+            <div class="a-name"><a class="sym" href="#" title="Open BAC in MarketPulse">BAC<span class="cv" aria-hidden="true">›</span></a><span class="a-co">Bank of America</span></div>
+            <div class="a-pct">9.2%<small>of book</small></div>
+            <div class="a-bar"><i class="f-trim" style="width:36.8%"></i></div>
+            <div class="a-sub"><span class="a-val">$28.6B</span><span class="a-sh">605,267,200 sh</span><span class="st trim"><span class="g" aria-hidden="true">▼</span>Trimmed<span class="d">−7.2%</span></span></div>
+          </li>
+          <li class="arow" style="animation-delay:.14s">
+            <div class="a-name"><a class="sym" href="#" title="Open KO in MarketPulse">KO<span class="cv" aria-hidden="true">›</span></a><span class="a-co">Coca-Cola Co.</span></div>
+            <div class="a-pct">8.8%<small>of book</small></div>
+            <div class="a-bar"><i class="f-gold" style="width:35.2%"></i></div>
+            <div class="a-sub"><span class="a-val">$27.4B</span><span class="a-sh">400,000,000 sh</span><span class="st held"><span class="g" aria-hidden="true">—</span>Held<span class="d">0.0%</span></span></div>
+          </li>
+          <li class="arow" style="animation-delay:.18s">
+            <div class="a-name"><a class="sym" href="#" title="Open CVX in MarketPulse">CVX<span class="cv" aria-hidden="true">›</span></a><span class="a-co">Chevron Corp.</span></div>
+            <div class="a-pct">6.3%<small>of book</small></div>
+            <div class="a-bar"><i class="f-gold" style="width:25.2%"></i></div>
+            <div class="a-sub"><span class="a-val">$19.8B</span><span class="a-sh">122,061,700 sh</span><span class="st add"><span class="g" aria-hidden="true">▲</span>Added<span class="d">+8.4%</span></span></div>
+          </li>
+          <li class="arow" style="animation-delay:.22s">
+            <div class="a-name"><a class="sym" href="#" title="Open OXY in MarketPulse">OXY<span class="cv" aria-hidden="true">›</span></a><span class="a-co">Occidental Petroleum</span></div>
+            <div class="a-pct">4.2%<small>of book</small></div>
+            <div class="a-bar"><i class="f-gold" style="width:16.8%"></i></div>
+            <div class="a-sub"><span class="a-val">$13.1B</span><span class="a-sh">264,941,400 sh</span><span class="st add"><span class="g" aria-hidden="true">▲</span>Added<span class="d">+2.1%</span></span></div>
+          </li>
+          <li class="arow" style="animation-delay:.26s">
+            <div class="a-name"><span class="sym unc">CB</span><span class="a-co">Chubb Ltd.</span><span class="untr">not tracked</span></div>
+            <div class="a-pct">2.8%<small>of book</small></div>
+            <div class="a-bar"><i class="f-gold" style="width:11.2%"></i></div>
+            <div class="a-sub"><span class="a-val">$8.9B</span><span class="a-sh">27,033,784 sh</span><span class="st new"><span class="g" aria-hidden="true">✛</span>New</span></div>
+          </li>
+          <li class="arow ghost" style="animation-delay:.3s">
+            <div class="a-name"><span class="sym unc">PARA</span><span class="a-co">Paramount Skydance</span><span class="untr">not tracked</span></div>
+            <div class="a-pct">0.0%<small>of book</small></div>
+            <div class="a-bar ghostbar"><span aria-hidden="true" style="color:var(--red);font-size:9px;font-weight:700">✕</span><em>position closed — 0% weight</em></div>
+            <div class="a-sub"><span class="a-val was">$1.24B</span><span class="a-sh">63,300,000 sh → 0</span><span class="st exit"><span class="g" aria-hidden="true">✕</span>Exited<span class="d">−100%</span></span></div>
+          </li>
+        </ol>
+      </article>
+
+      <!-- ================= SCION — flat-ish ================= -->
+      <article class="mcard">
+        <div class="mcard-hd">
+          <div class="mcard-id">
+            <span class="mc-init" aria-hidden="true">SA</span>
+            <div class="mc-nm">
+              <h3>Scion Asset Management</h3>
+              <div class="meta">CIK 0001649339<span class="dot" aria-hidden="true">·</span>$186.4M<span class="dot" aria-hidden="true">·</span>12 positions<span class="dot" aria-hidden="true">·</span>Filed May 15, 2026</div>
+            </div>
+          </div>
+          <div class="shape">
+            <span class="k">Shape</span>
+            <span class="meter" role="img" aria-label="Steepness 2 of 5">
+              <i class="f"></i><i class="f"></i><i></i><i></i><i></i>
+            </span>
+            <span><b>EVEN</b> — top name is <b>3.6×</b> the 7th; only <b>5</b> other names share the last <b>19.3%</b></span>
+          </div>
+        </div>
+
+        <div class="stackwrap">
+          <div class="stack" role="img" aria-label="Scion Asset Management allocation: BABA 22.1%, JD 16.0%, ETSY 12.0%, HCA 10.0%, BRKR 7.6%, MOH 6.9%, CI 6.1%, 5 other positions 19.3%">
+            <span class="sg-add"  style="width:22.1%" title="BABA · 22.1% · Added +75.0%"></span>
+            <span class="sg-held" style="width:16.0%" title="JD · 16.0% · Held"></span>
+            <span class="sg-new"  style="width:12.0%" title="ETSY · 12.0% · New position"></span>
+            <span class="sg-trim" style="width:10.0%" title="HCA · 10.0% · Trimmed −33.3%"></span>
+            <span class="sg-new"  style="width:7.6%"  title="BRKR · 7.6% · New position"></span>
+            <span class="sg-add"  style="width:6.9%"  title="MOH · 6.9% · Added +50.0%"></span>
+            <span class="sg-held" style="width:6.1%"  title="CI · 6.1% · Held"></span>
+            <span class="sg-rest" style="width:19.3%" title="5 other positions · 19.3%"></span>
+          </div>
+          <div class="stacklabels" aria-hidden="true">
+            <span class="slab" style="width:22.1%"><span class="t">BABA</span><span class="p">22.1%</span></span>
+            <span class="slab" style="width:16.0%"><span class="t">JD</span><span class="p">16.0%</span></span>
+            <span class="slab" style="width:12.0%"><span class="t">ETSY</span><span class="p">12.0%</span></span>
+            <span class="slab rest" style="width:49.9%"><span class="t">rest of book</span><span class="p">49.9%</span></span>
+          </div>
+        </div>
+
+        <ol class="alist">
+          <li class="arow" style="animation-delay:.02s">
+            <div class="a-name"><span class="sym unc">BABA</span><span class="a-co">Alibaba Group ADR</span><span class="untr">not tracked</span></div>
+            <div class="a-pct">22.1%<small>of book</small></div>
+            <div class="a-bar"><i class="f-gold" style="width:88.4%"></i></div>
+            <div class="a-sub"><span class="a-val">$41.2M</span><span class="a-sh">350,000 sh</span><span class="st add"><span class="g" aria-hidden="true">▲</span>Added<span class="d">+75.0%</span></span></div>
+          </li>
+          <li class="arow" style="animation-delay:.06s">
+            <div class="a-name"><span class="sym unc">JD</span><span class="a-co">JD.com Inc. ADR</span><span class="untr">not tracked</span></div>
+            <div class="a-pct">16.0%<small>of book</small></div>
+            <div class="a-bar"><i class="f-gold" style="width:64%"></i></div>
+            <div class="a-sub"><span class="a-val">$29.8M</span><span class="a-sh">900,000 sh</span><span class="st held"><span class="g" aria-hidden="true">—</span>Held<span class="d">0.0%</span></span></div>
+          </li>
+          <li class="arow" style="animation-delay:.1s">
+            <div class="a-name"><a class="sym" href="#" title="Open ETSY in MarketPulse">ETSY<span class="cv" aria-hidden="true">›</span></a><span class="a-co">Etsy Inc.</span></div>
+            <div class="a-pct">12.0%<small>of book</small></div>
+            <div class="a-bar"><i class="f-gold" style="width:48%"></i></div>
+            <div class="a-sub"><span class="a-val">$22.4M</span><span class="a-sh">400,000 sh</span><span class="st new"><span class="g" aria-hidden="true">✛</span>New</span></div>
+          </li>
+          <li class="arow" style="animation-delay:.14s">
+            <div class="a-name"><a class="sym" href="#" title="Open HCA in MarketPulse">HCA<span class="cv" aria-hidden="true">›</span></a><span class="a-co">HCA Healthcare</span></div>
+            <div class="a-pct">10.0%<small>of book</small></div>
+            <div class="a-bar"><i class="f-trim" style="width:40%"></i></div>
+            <div class="a-sub"><span class="a-val">$18.6M</span><span class="a-sh">50,000 sh</span><span class="st trim"><span class="g" aria-hidden="true">▼</span>Trimmed<span class="d">−33.3%</span></span></div>
+          </li>
+          <li class="arow" style="animation-delay:.18s">
+            <div class="a-name"><span class="sym unc">BRKR</span><span class="a-co">Bruker Corp.</span><span class="untr">not tracked</span></div>
+            <div class="a-pct">7.6%<small>of book</small></div>
+            <div class="a-bar"><i class="f-gold" style="width:30.4%"></i></div>
+            <div class="a-sub"><span class="a-val">$14.1M</span><span class="a-sh">300,000 sh</span><span class="st new"><span class="g" aria-hidden="true">✛</span>New</span></div>
+          </li>
+          <li class="arow" style="animation-delay:.22s">
+            <div class="a-name"><a class="sym" href="#" title="Open MOH in MarketPulse">MOH<span class="cv" aria-hidden="true">›</span></a><span class="a-co">Molina Healthcare</span></div>
+            <div class="a-pct">6.9%<small>of book</small></div>
+            <div class="a-bar"><i class="f-gold" style="width:27.6%"></i></div>
+            <div class="a-sub"><span class="a-val">$12.9M</span><span class="a-sh">45,000 sh</span><span class="st add"><span class="g" aria-hidden="true">▲</span>Added<span class="d">+50.0%</span></span></div>
+          </li>
+          <li class="arow" style="animation-delay:.26s">
+            <div class="a-name"><a class="sym" href="#" title="Open CI in MarketPulse">CI<span class="cv" aria-hidden="true">›</span></a><span class="a-co">The Cigna Group</span></div>
+            <div class="a-pct">6.1%<small>of book</small></div>
+            <div class="a-bar"><i class="f-gold" style="width:24.4%"></i></div>
+            <div class="a-sub"><span class="a-val">$11.3M</span><span class="a-sh">35,000 sh</span><span class="st held"><span class="g" aria-hidden="true">—</span>Held<span class="d">0.0%</span></span></div>
+          </li>
+          <li class="arow ghost" style="animation-delay:.3s">
+            <div class="a-name"><span class="sym unc">EL</span><span class="a-co">Estée Lauder Cos.</span><span class="untr">not tracked</span></div>
+            <div class="a-pct">0.0%<small>of book</small></div>
+            <div class="a-bar ghostbar"><span aria-hidden="true" style="color:var(--red);font-size:9px;font-weight:700">✕</span><em>position closed — 0% weight</em></div>
+            <div class="a-sub"><span class="a-val was">$9.8M</span><span class="a-sh">62,000 sh → 0</span><span class="st exit"><span class="g" aria-hidden="true">✕</span>Exited<span class="d">−100%</span></span></div>
+          </li>
+        </ol>
+      </article>
+
+    </div>
+  </section>
+
+  <p class="src">Source: SEC EDGAR Form 13F-HR. Positions are as of quarter end and lag up to 45 days.
+  Long US equity positions only — shorts, bonds and non-US holdings are not disclosed.</p>
+
+  <div class="note"><b>Allocation weights:</b> weight is the headline — a stacked book bar plus per-row
+  weight bars make conviction and portfolio shape legible at a glance. <b>Trade-off:</b> an EXITED
+  position weighs 0% and would vanish entirely, so it needs a special dashed "ghost" row to exist at all.</div>
+
+</div>
+
+<nav class="nav-bottom" aria-label="Primary">
+  <div class="nav-bottom-inner">
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 21V11"/><path d="M12 21V4"/><path d="M19 21v-6"/></svg></span>Stocks</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l7.1-1.01z"/></svg></span>Best</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.8l1.9 7.3 7.3 1.9-7.3 1.9L12 20.2l-1.9-7.3L2.8 11l7.3-1.9z"/></svg></span>New</a>
+    <a class="nav-tab on" href="#" aria-current="page"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18.6 3.2c-5.6 1.4-8.6 5.4-8.1 10.7 2.6-.3 4.7-1.4 6.1-3.2 1.4-1.9 2-4.4 2-7.5z" fill="currentColor"/><path d="M2.5 18.2c2.2 0 2.2 1.7 4.4 1.7s2.2-1.7 4.4-1.7 2.2 1.7 4.4 1.7 2.2-1.7 4.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>Whales</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></span>Watchlist</a>
+  </div>
+</nav>
+
+</body>
+</html>

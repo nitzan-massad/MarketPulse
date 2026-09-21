@@ -32,7 +32,7 @@ const SECTOR_SCENE: Record<string, SceneName> = {
   "communication services": "screens",
   "communicationservices": "screens",
   "industrials": "freight",
-  "general": "freight",
+  "general": "market", // TipRanks unclassified bucket, not an industry — fallback is honest
   "consumer cyclical": "grid",
   "consumercyclical": "grid",
   "consumer defensive": "grid",

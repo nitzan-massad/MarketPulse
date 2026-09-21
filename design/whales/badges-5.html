@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales 5 — Share-Count Sparkline</title>
+<style>
+:root{
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.4;
+  -webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden;
+  padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));
+  background-image:radial-gradient(1200px 500px at 78% -8%,rgba(27,63,115,.08),transparent 60%),
+                   radial-gradient(900px 600px at 0% 110%,rgba(20,124,134,.05),transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1270px;margin:0 auto;padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+@media(min-width:641px){.wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))}}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.bob-eyebrow{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);font-weight:700}
+.bob-title{font-family:var(--f-head);font-weight:800;font-size:clamp(22px,7vw,32px);line-height:1.08;letter-spacing:-.01em;margin:7px 0 0}
+.bob-title .em{font-style:italic;color:var(--gold)}
+.bob-dek{font-family:var(--f-head);font-style:italic;color:var(--muted);font-size:14.5px;margin:8px 0 0;max-width:62ch}
+.bob-section{margin-top:22px}
+.bob-sechdr h2{font-family:var(--f-head);font-size:22px;font-weight:800;margin:0}
+.bob-sechdr p{font-size:12.5px;color:var(--muted);margin:3px 0 10px;max-width:66ch}
+
+.na-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.mgrbar{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding:11px 12px;background:var(--panel-2);border-bottom:1px solid var(--line)}
+.mgrbar .mgr{font-family:var(--f-head);font-weight:800;font-size:15.5px}
+.mgrbar .sep{color:var(--faint)}
+.mgrbar .meta{font-size:11.5px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.mgrbar .meta b{color:var(--gold);font-weight:700}
+
+.tk .sym{font-family:var(--f-mono);font-weight:700;font-size:14px;color:var(--ink);text-decoration:none}
+a.sym{color:var(--gold);border-bottom:1px solid color-mix(in srgb,var(--gold) 45%,transparent);display:inline-flex;align-items:center;gap:2px;transition:color .15s}
+a.sym:hover{color:var(--gold-soft);border-bottom-color:var(--gold-soft)}
+span.sym.untracked{color:var(--muted);font-weight:400;border-bottom:1px dotted var(--faint);display:inline-block}
+.tk .co{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:24ch}
+.untag{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+
+.a11y{margin-top:16px;border:1px dashed var(--line);border-radius:12px;padding:12px 13px;font-size:11px;color:var(--faint);background:color-mix(in srgb,var(--panel) 55%,transparent)}
+.a11y h3{margin:0 0 6px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;font-family:var(--f-ui)}
+.a11y ul{margin:0;padding-left:15px}
+.a11y li{margin:2px 0}
+.a11y b{color:var(--muted);font-weight:700}
+.foot{margin-top:18px;font-size:11px;color:var(--faint);max-width:74ch}
+
+.note{border:1px dashed var(--line);border-radius:12px;background:var(--panel);padding:11px 13px;font-size:11.5px;color:var(--muted);margin-top:18px;position:static}
+.note b{display:block;color:var(--gold);font-weight:700;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
+@media(min-width:641px){.note{position:fixed;left:18px;bottom:18px;width:280px;margin:0;z-index:30;box-shadow:0 18px 40px -26px rgba(19,26,36,.55)}}
+
+.strip{border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:12px}
+.stripcap{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+
+/* ---- MECHANISM 5: sparkline + two-letter code ---- */
+.spk{display:block;width:56px;height:20px;flex:0 0 56px}
+.spk .base{stroke:var(--line);stroke-width:1;stroke-dasharray:2 2}
+.spk .ln{fill:none;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.s-new .ln{stroke:var(--gold)} .s-add .ln{stroke:var(--green)}
+.s-trim .ln{stroke:var(--amber)} .s-exit .ln{stroke:var(--red)} .s-held .ln{stroke:var(--faint)}
+.s-new .dot{fill:var(--gold)} .s-add .dot{fill:var(--green)}
+.s-trim .dot{fill:var(--amber)} .s-exit .dot{fill:var(--red)} .s-held .dot{fill:var(--faint)}
+.hollow{fill:var(--bg);stroke-width:1.4}
+.s-new .hollow{stroke:var(--gold)} .s-exit .hollow{stroke:var(--red)}
+
+.code{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid;border-radius:5px;font-family:var(--f-mono);font-size:9.5px;font-weight:700;letter-spacing:.03em;flex:0 0 26px}
+.code.new{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 45%,transparent);background:color-mix(in srgb,var(--gold) 9%,transparent)}
+.code.add{color:var(--green);border-color:color-mix(in srgb,var(--green) 45%,transparent);background:color-mix(in srgb,var(--green) 9%,transparent)}
+.code.trim{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 48%,transparent);background:color-mix(in srgb,var(--amber) 9%,transparent)}
+.code.exit{color:var(--red);border-color:color-mix(in srgb,var(--red) 45%,transparent);background:color-mix(in srgb,var(--red) 9%,transparent)}
+.code.held{color:var(--muted);border-color:var(--line);background:transparent}
+
+.sig{display:flex;align-items:center;gap:9px}
+.sigtxt{display:flex;flex-direction:column;gap:1px;min-width:0}
+.sigw{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.sigm{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:11.5px;font-weight:700}
+.s-new .sigm{color:var(--gold)} .s-add .sigm{color:var(--green)}
+.s-trim .sigm{color:var(--amber)} .s-exit .sigm{color:var(--red)} .s-held .sigm{color:var(--faint)}
+
+.rows{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:1fr auto;gap:8px 10px;padding:11px 12px;border-bottom:1px solid var(--line);min-height:70px;align-items:center;align-content:center;opacity:0;animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--panel-2)}
+.r-tk{grid-column:1;grid-row:1;min-width:0}
+.r-val{grid-column:2;grid-row:1;text-align:right}
+.r-sig{grid-column:1 / -1;grid-row:2}
+.v{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px;font-weight:700}
+.pct{font-size:11px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+@media(min-width:790px){
+  .row{grid-template-columns:minmax(160px,1.4fr) 104px minmax(210px,1.2fr) 140px}
+  .r-tk{grid-row:1;grid-column:1}
+  .r-val{grid-row:1;grid-column:2}
+  .r-sig{grid-row:1;grid-column:3}
+  .r-sh{grid-row:1;grid-column:4;text-align:right}
+}
+.r-sh{grid-column:2;grid-row:3;text-align:right;display:none}
+@media(min-width:790px){.r-sh{display:block}}
+.sh{font-size:10.5px;color:var(--faint);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.colhdr{display:none}
+@media(min-width:790px){
+  .colhdr{display:grid;grid-template-columns:minmax(160px,1.4fr) 104px minmax(210px,1.2fr) 140px;gap:10px;padding:7px 12px;background:var(--panel-2);border-bottom:1px solid var(--line);font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .colhdr span:nth-child(2),.colhdr span:nth-child(4){text-align:right}
+}
+.qlabels{display:flex;justify-content:space-between;padding:6px 12px;background:var(--panel-2);border-bottom:1px solid var(--line);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-family:var(--f-mono);font-weight:700}
+
+.isorow{display:flex;flex-wrap:wrap;gap:9px}
+.iso{flex:1 1 128px;min-width:128px;min-height:70px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);display:flex;flex-direction:column;justify-content:center;gap:8px}
+
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="bob-eyebrow">Whales · Holding Row</div>
+    <h1 class="bob-title">Sparkline <span class="em">Trace</span></h1>
+    <p class="bob-dek">A four-quarter share-count trace replaces the badge, paired with a two-letter code in a bordered square so the state is still nameable without reading the curve.</p>
+  </header>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Live rows</h2>
+      <p>Each trace runs Q2 2025 → Q1 2026 and is normalised to its own row, so shape reads but height does not compare across rows.</p>
+    </div>
+
+    <div class="na-wrap">
+      <div class="mgrbar">
+        <span class="mgr">Berkshire Hathaway</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta">Q1 2026</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta"><b>$312.4B</b></span>
+      </div>
+      <div class="qlabels"><span>Q2 ’25</span><span>Q3 ’25</span><span>Q4 ’25</span><span>Q1 ’26</span></div>
+
+      <div class="colhdr" aria-hidden="true">
+        <span>Holding</span><span>Value</span><span>Share-count trace</span><span>Shares</span>
+      </div>
+
+      <ul class="rows">
+
+        <li class="row" style="animation-delay:.02s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open AAPL in MarketPulse">AAPL<span aria-hidden="true">›</span></a>
+            <div class="co">Apple Inc.</div>
+          </div>
+          <div class="r-val"><div class="v">$69.9B</div><div class="pct">22.4%</div></div>
+          <div class="r-sig">
+            <div class="sig s-trim">
+              <span class="code trim" aria-hidden="true">TR</span>
+              <svg class="spk" viewBox="0 0 56 20" role="img" aria-label="Share count fell from 400 million to 300 million over four quarters">
+                <line class="base" x1="0" y1="19" x2="56" y2="19"></line>
+                <polyline class="ln" points="3,3 20.3,3 37.7,9.6 53,17"></polyline>
+                <circle class="dot" cx="53" cy="17" r="2.2"></circle>
+              </svg>
+              <span class="sigtxt"><span class="sigw">Trimmed</span><span class="sigm">−15.0%</span></span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">300,000,000 sh</span></div>
+        </li>
+
+        <li class="row" style="animation-delay:.06s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open CVX in MarketPulse">CVX<span aria-hidden="true">›</span></a>
+            <div class="co">Chevron Corp.</div>
+          </div>
+          <div class="r-val"><div class="v">$19.8B</div><div class="pct">6.3%</div></div>
+          <div class="r-sig">
+            <div class="sig s-add">
+              <span class="code add" aria-hidden="true">AD</span>
+              <svg class="spk" viewBox="0 0 56 20" role="img" aria-label="Share count rose to 122.1 million over four quarters">
+                <line class="base" x1="0" y1="19" x2="56" y2="19"></line>
+                <polyline class="ln" points="3,17 20.3,11.4 37.7,9 53,3"></polyline>
+                <circle class="dot" cx="53" cy="3" r="2.2"></circle>
+              </svg>
+              <span class="sigtxt"><span class="sigw">Added</span><span class="sigm">+8.4%</span></span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">122,061,700 sh</span></div>
+        </li>
+
+        <li class="row" style="animation-delay:.1s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open KO in MarketPulse">KO<span aria-hidden="true">›</span></a>
+            <div class="co">Coca-Cola Co.</div>
+          </div>
+          <div class="r-val"><div class="v">$27.4B</div><div class="pct">8.8%</div></div>
+          <div class="r-sig">
+            <div class="sig s-held">
+              <span class="code held" aria-hidden="true">HD</span>
+              <svg class="spk" viewBox="0 0 56 20" role="img" aria-label="Share count flat at 400 million across four quarters">
+                <line class="base" x1="0" y1="19" x2="56" y2="19"></line>
+                <polyline class="ln" points="3,10 20.3,10 37.7,10 53,10"></polyline>
+                <circle class="dot" cx="53" cy="10" r="2.2"></circle>
+              </svg>
+              <span class="sigtxt"><span class="sigw">Held</span><span class="sigm">0.0%</span></span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">400,000,000 sh</span></div>
+        </li>
+
+        <li class="row" style="animation-delay:.14s">
+          <div class="r-tk tk">
+            <span class="sym untracked">CB</span>
+            <div class="co">Chubb Ltd. · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">$8.9B</div><div class="pct">2.8%</div></div>
+          <div class="r-sig">
+            <div class="sig s-new">
+              <span class="code new" aria-hidden="true">NW</span>
+              <svg class="spk" viewBox="0 0 56 20" role="img" aria-label="No position for three quarters, then 27.0 million shares">
+                <line class="base" x1="0" y1="19" x2="56" y2="19"></line>
+                <polyline class="ln" points="3,17 20.3,17 37.7,17 53,3"></polyline>
+                <circle class="hollow" cx="3" cy="17" r="2.4"></circle>
+                <circle class="dot" cx="53" cy="3" r="2.2"></circle>
+              </svg>
+              <span class="sigtxt"><span class="sigw">New</span><span class="sigm">new</span></span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">27,033,784 sh</span></div>
+        </li>
+
+        <li class="row" style="animation-delay:.18s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open OXY in MarketPulse">OXY<span aria-hidden="true">›</span></a>
+            <div class="co">Occidental Petroleum</div>
+          </div>
+          <div class="r-val"><div class="v">$13.1B</div><div class="pct">4.2%</div></div>
+          <div class="r-sig">
+            <div class="sig s-add">
+              <span class="code add" aria-hidden="true">AD</span>
+              <svg class="spk" viewBox="0 0 56 20" role="img" aria-label="Share count rose steadily to 264.9 million over four quarters">
+                <line class="base" x1="0" y1="19" x2="56" y2="19"></line>
+                <polyline class="ln" points="3,17 20.3,11 37.7,7.5 53,3"></polyline>
+                <circle class="dot" cx="53" cy="3" r="2.2"></circle>
+              </svg>
+              <span class="sigtxt"><span class="sigw">Added</span><span class="sigm">+2.1%</span></span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">264,941,400 sh</span></div>
+        </li>
+
+        <li class="row" style="animation-delay:.22s">
+          <div class="r-tk tk">
+            <span class="sym untracked">BRKR</span>
+            <div class="co">Bruker Corp. · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">$14.1M</div><div class="pct">7.6%</div></div>
+          <div class="r-sig">
+            <div class="sig s-new">
+              <span class="code new" aria-hidden="true">NW</span>
+              <svg class="spk" viewBox="0 0 56 20" role="img" aria-label="No position for three quarters, then 300 thousand shares">
+                <line class="base" x1="0" y1="19" x2="56" y2="19"></line>
+                <polyline class="ln" points="3,17 20.3,17 37.7,17 53,3"></polyline>
+                <circle class="hollow" cx="3" cy="17" r="2.4"></circle>
+                <circle class="dot" cx="53" cy="3" r="2.2"></circle>
+              </svg>
+              <span class="sigtxt"><span class="sigw">New</span><span class="sigm">new</span></span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">300,000 sh</span></div>
+        </li>
+
+        <li class="row" style="animation-delay:.26s">
+          <div class="r-tk tk">
+            <span class="sym untracked">PARA</span>
+            <div class="co">Paramount Skydance · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">—</div><div class="pct">—</div></div>
+          <div class="r-sig">
+            <div class="sig s-exit">
+              <span class="code exit" aria-hidden="true">EX</span>
+              <svg class="spk" viewBox="0 0 56 20" role="img" aria-label="Share count fell from 78.5 million to zero">
+                <line class="base" x1="0" y1="19" x2="56" y2="19"></line>
+                <polyline class="ln" points="3,3 20.3,4.5 37.7,5.7 53,17"></polyline>
+                <circle class="hollow" cx="53" cy="17" r="2.4"></circle>
+              </svg>
+              <span class="sigtxt"><span class="sigw">Exited</span><span class="sigm">−100%</span></span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">0 sh · was 63,300,000</span></div>
+        </li>
+
+      </ul>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Magnitude range</h2>
+      <p>Drawn here on one shared ±75% slope scale so the traces can be compared directly — the steeper the line, the bigger the move.</p>
+    </div>
+    <div class="strip">
+      <div class="isorow">
+        <div class="iso"><div class="sig s-add"><svg class="spk" viewBox="0 0 56 20" aria-hidden="true"><polyline class="ln" points="3,10 20.3,9.93 37.7,9.87 53,9.8"></polyline><circle class="dot" cx="53" cy="9.8" r="2.2"></circle></svg><span class="sigm">+2.1%</span></div><span class="stripcap">Small add</span></div>
+        <div class="iso"><div class="sig s-add"><svg class="spk" viewBox="0 0 56 20" aria-hidden="true"><polyline class="ln" points="3,10 20.3,9.73 37.7,9.47 53,9.2"></polyline><circle class="dot" cx="53" cy="9.2" r="2.2"></circle></svg><span class="sigm">+8.4%</span></div><span class="stripcap">Mid add</span></div>
+        <div class="iso"><div class="sig s-add"><svg class="spk" viewBox="0 0 56 20" aria-hidden="true"><polyline class="ln" points="3,10 20.3,7.67 37.7,5.33 53,3"></polyline><circle class="dot" cx="53" cy="3" r="2.2"></circle></svg><span class="sigm">+75.0%</span></div><span class="stripcap">Large add</span></div>
+        <div class="iso"><div class="sig s-trim"><svg class="spk" viewBox="0 0 56 20" aria-hidden="true"><polyline class="ln" points="3,10 20.3,10.28 37.7,10.57 53,10.85"></polyline><circle class="dot" cx="53" cy="10.85" r="2.2"></circle></svg><span class="sigm">−9.1%</span></div><span class="stripcap">Small trim</span></div>
+        <div class="iso"><div class="sig s-trim"><svg class="spk" viewBox="0 0 56 20" aria-hidden="true"><polyline class="ln" points="3,10 20.3,11.03 37.7,12.07 53,13.1"></polyline><circle class="dot" cx="53" cy="13.1" r="2.2"></circle></svg><span class="sigm">−33.3%</span></div><span class="stripcap">Large trim</span></div>
+        <div class="iso"><div class="sig s-new"><svg class="spk" viewBox="0 0 56 20" aria-hidden="true"><line class="base" x1="0" y1="19" x2="56" y2="19"></line><polyline class="ln" points="3,17 20.3,17 37.7,17 53,3"></polyline><circle class="hollow" cx="3" cy="17" r="2.4"></circle><circle class="dot" cx="53" cy="3" r="2.2"></circle></svg><span class="sigm">new</span></div><span class="stripcap">No prior</span></div>
+        <div class="iso"><div class="sig s-exit"><svg class="spk" viewBox="0 0 56 20" aria-hidden="true"><line class="base" x1="0" y1="19" x2="56" y2="19"></line><polyline class="ln" points="3,3 20.3,4.5 37.7,5.7 53,17"></polyline><circle class="hollow" cx="53" cy="17" r="2.4"></circle></svg><span class="sigm">−100%</span></div><span class="stripcap">To zero</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>States, isolated</h2>
+      <p>Code square plus trace, at row size.</p>
+    </div>
+    <div class="strip">
+      <div class="isorow">
+        <div class="iso"><div class="sig s-new"><span class="code new" aria-hidden="true">NW</span><svg class="spk" viewBox="0 0 56 20" aria-hidden="true"><line class="base" x1="0" y1="19" x2="56" y2="19"></line><polyline class="ln" points="3,17 20.3,17 37.7,17 53,3"></polyline><circle class="hollow" cx="3" cy="17" r="2.4"></circle><circle class="dot" cx="53" cy="3" r="2.2"></circle></svg></div><span class="stripcap">New</span></div>
+        <div class="iso"><div class="sig s-add"><span class="code add" aria-hidden="true">AD</span><svg class="spk" viewBox="0 0 56 20" aria-hidden="true"><line class="base" x1="0" y1="19" x2="56" y2="19"></line><polyline class="ln" points="3,17 20.3,11.4 37.7,9 53,3"></polyline><circle class="dot" cx="53" cy="3" r="2.2"></circle></svg></div><span class="stripcap">Added</span></div>
+        <div class="iso"><div class="sig s-trim"><span class="code trim" aria-hidden="true">TR</span><svg class="spk" viewBox="0 0 56 20" aria-hidden="true"><line class="base" x1="0" y1="19" x2="56" y2="19"></line><polyline class="ln" points="3,3 20.3,3 37.7,9.6 53,17"></polyline><circle class="dot" cx="53" cy="17" r="2.2"></circle></svg></div><span class="stripcap">Trimmed</span></div>
+        <div class="iso"><div class="sig s-exit"><span class="code exit" aria-hidden="true">EX</span><svg class="spk" viewBox="0 0 56 20" aria-hidden="true"><line class="base" x1="0" y1="19" x2="56" y2="19"></line><polyline class="ln" points="3,3 20.3,4.5 37.7,5.7 53,17"></polyline><circle class="hollow" cx="53" cy="17" r="2.4"></circle></svg></div><span class="stripcap">Exited</span></div>
+        <div class="iso"><div class="sig s-held"><span class="code held" aria-hidden="true">HD</span><svg class="spk" viewBox="0 0 56 20" aria-hidden="true"><line class="base" x1="0" y1="19" x2="56" y2="19"></line><polyline class="ln" points="3,10 20.3,10 37.7,10 53,10"></polyline><circle class="dot" cx="53" cy="10" r="2.2"></circle></svg></div><span class="stripcap">Held</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="a11y">
+    <h3>Non-color cues</h3>
+    <ul>
+      <li><b>NEW</b> — code <code>NW</code>, trace starts on the baseline with a hollow first dot, word <em>New</em>.</li>
+      <li><b>ADDED</b> — code <code>AD</code>, trace ends higher than it starts, filled end dot, word <em>Added</em>.</li>
+      <li><b>TRIMMED</b> — code <code>TR</code>, trace ends lower than it starts, filled end dot, word <em>Trimmed</em>.</li>
+      <li><b>EXITED</b> — code <code>EX</code>, trace drops to the baseline with a hollow end dot, word <em>Exited</em>.</li>
+      <li><b>HELD</b> — code <code>HD</code>, trace is a flat horizontal line, word <em>Held</em>.</li>
+      <li><b>Covered</b> — ticker is a link with a solid underline and a trailing <code>›</code> chevron.</li>
+      <li><b>Not covered</b> — ticker is plain text with a dotted underline and the words <em>not tracked</em>.</li>
+    </ul>
+  </div>
+
+  <p class="foot">Source: SEC EDGAR Form 13F-HR. Positions are as of quarter end and lag up to 45 days. Long US equity positions only — shorts, bonds and non-US holdings are not disclosed.</p>
+
+  <aside class="note">
+    <b>Concept</b>
+    Show the last four quarters of share count so the reader sees the trajectory, not just this quarter's delta. Trade-off: per-row normalisation means a 2.1% add and a 75% add can draw identical slopes — the trace tells a story but lies about size.
+  </aside>
+
+</div>
+</body>
+</html>

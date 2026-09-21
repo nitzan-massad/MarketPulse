@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales 6 — Glyph Tile + Magnitude Meter</title>
+<style>
+:root{
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.4;
+  -webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden;
+  padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));
+  background-image:radial-gradient(1200px 500px at 78% -8%,rgba(27,63,115,.08),transparent 60%),
+                   radial-gradient(900px 600px at 0% 110%,rgba(20,124,134,.05),transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1270px;margin:0 auto;padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+@media(min-width:641px){.wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))}}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.bob-eyebrow{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);font-weight:700}
+.bob-title{font-family:var(--f-head);font-weight:800;font-size:clamp(22px,7vw,32px);line-height:1.08;letter-spacing:-.01em;margin:7px 0 0}
+.bob-title .em{font-style:italic;color:var(--gold)}
+.bob-dek{font-family:var(--f-head);font-style:italic;color:var(--muted);font-size:14.5px;margin:8px 0 0;max-width:62ch}
+.bob-section{margin-top:22px}
+.bob-sechdr h2{font-family:var(--f-head);font-size:22px;font-weight:800;margin:0}
+.bob-sechdr p{font-size:12.5px;color:var(--muted);margin:3px 0 10px;max-width:66ch}
+
+.bob-card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px;display:flex;flex-direction:column;gap:11px}
+.cardhdr{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding-bottom:11px;border-bottom:1px solid var(--line)}
+.cardhdr .mgr{font-family:var(--f-head);font-weight:800;font-size:16px}
+.cardhdr .sep{color:var(--faint)}
+.cardhdr .meta{font-size:11.5px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.cardhdr .meta b{color:var(--gold);font-weight:700}
+
+.tk .sym{font-family:var(--f-mono);font-weight:700;font-size:14px;color:var(--ink);text-decoration:none}
+a.sym{color:var(--gold);border-bottom:1px solid color-mix(in srgb,var(--gold) 45%,transparent);display:inline-flex;align-items:center;gap:2px;transition:color .15s}
+a.sym:hover{color:var(--gold-soft);border-bottom-color:var(--gold-soft)}
+span.sym.untracked{color:var(--muted);font-weight:400;border-bottom:1px dotted var(--faint);display:inline-block}
+.tk .co{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:24ch}
+.untag{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+
+.a11y{margin-top:16px;border:1px dashed var(--line);border-radius:12px;padding:12px 13px;font-size:11px;color:var(--faint);background:color-mix(in srgb,var(--panel) 55%,transparent)}
+.a11y h3{margin:0 0 6px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;font-family:var(--f-ui)}
+.a11y ul{margin:0;padding-left:15px}
+.a11y li{margin:2px 0}
+.a11y b{color:var(--muted);font-weight:700}
+.foot{margin-top:18px;font-size:11px;color:var(--faint);max-width:74ch}
+
+.note{border:1px dashed var(--line);border-radius:12px;background:var(--panel);padding:11px 13px;font-size:11.5px;color:var(--muted);margin-top:18px;position:static}
+.note b{display:block;color:var(--gold);font-weight:700;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
+@media(min-width:641px){.note{position:fixed;left:18px;bottom:18px;width:280px;margin:0;z-index:30;box-shadow:0 18px 40px -26px rgba(19,26,36,.55)}}
+
+.strip{border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:12px}
+.stripcap{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+
+/* ---- MECHANISM 6: glyph tile + 5-pip magnitude meter ---- */
+.tile{width:30px;height:30px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;border:1px solid;flex:0 0 30px}
+.tile svg{width:16px;height:16px;display:block}
+.tile svg *{stroke-linecap:round;stroke-linejoin:round;fill:none;stroke-width:1.9}
+.t-new{color:var(--gold);background:color-mix(in srgb,var(--gold) 12%,transparent);border-color:color-mix(in srgb,var(--gold) 34%,transparent)}
+.t-add{color:var(--green);background:color-mix(in srgb,var(--green) 12%,transparent);border-color:color-mix(in srgb,var(--green) 34%,transparent)}
+.t-trim{color:var(--amber);background:color-mix(in srgb,var(--amber) 12%,transparent);border-color:color-mix(in srgb,var(--amber) 34%,transparent)}
+.t-exit{color:var(--red);background:color-mix(in srgb,var(--red) 12%,transparent);border-color:color-mix(in srgb,var(--red) 34%,transparent)}
+.t-held{color:var(--muted);background:color-mix(in srgb,var(--faint) 14%,transparent);border-color:color-mix(in srgb,var(--faint) 42%,transparent)}
+.tile svg *{stroke:currentColor}
+
+.meter{display:flex;align-items:flex-end;gap:3px}
+.pip{width:7px;height:11px;border-radius:2px;border:1px solid var(--line);background:transparent}
+.pip.on{background:currentColor;border-color:currentColor}
+.pip.outline{background:transparent;border:1.5px solid currentColor}
+.m-new{color:var(--gold)} .m-add{color:var(--green)} .m-trim{color:var(--amber)}
+.m-exit{color:var(--red)} .m-held{color:var(--faint)}
+
+.sigblock{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.sigw{font-size:9px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.sigm{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:12px;font-weight:700;color:var(--ink)}
+
+.rows{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:30px 1fr auto;gap:6px 10px;padding:10px 2px;border-bottom:1px solid var(--line);min-height:66px;align-items:center;opacity:0;animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--panel-2);border-radius:8px}
+.r-tile{grid-column:1;grid-row:1 / span 2;align-self:center}
+.r-tk{grid-column:2;grid-row:1;min-width:0}
+.r-val{grid-column:3;grid-row:1;text-align:right}
+.r-sig{grid-column:2;grid-row:2}
+.r-sh{grid-column:3;grid-row:2;text-align:right}
+.v{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px;font-weight:700}
+.pct{font-size:11px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.sh{font-size:10.5px;color:var(--faint);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+@media(min-width:820px){
+  .row{grid-template-columns:30px minmax(150px,1.3fr) 96px minmax(180px,1fr) 140px}
+  .r-tile{grid-column:1;grid-row:1}
+  .r-tk{grid-column:2;grid-row:1}
+  .r-val{grid-column:3;grid-row:1;text-align:right}
+  .r-sig{grid-column:4;grid-row:1}
+  .r-sh{grid-column:5;grid-row:1;text-align:right}
+}
+.buckets{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:9.5px;color:var(--faint);font-family:var(--f-mono);letter-spacing:.04em;padding-top:2px}
+.buckets b{color:var(--muted);font-weight:700}
+
+.isorow{display:flex;flex-wrap:wrap;gap:9px}
+.iso{flex:1 1 118px;min-width:118px;min-height:74px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);display:flex;flex-direction:column;justify-content:center;gap:8px}
+
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="bob-eyebrow">Whales · Holding Row</div>
+    <h1 class="bob-title">Glyph <span class="em">Tiles</span></h1>
+    <p class="bob-dek">Shape carries the state and pips carry the size — a 30px tinted tile holds a different drawn mark per state, and a five-pip meter beside it fills by magnitude bucket.</p>
+  </header>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Live rows</h2>
+      <p>The tile is the same size in every row, so the eye lands on the mark first and reads the bucket second.</p>
+    </div>
+
+    <div class="bob-card">
+      <div class="cardhdr">
+        <span class="mgr">Berkshire Hathaway</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta">Q1 2026</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta"><b>$312.4B</b></span>
+      </div>
+
+      <ul class="rows">
+
+        <li class="row" style="animation-delay:.02s">
+          <div class="r-tile">
+            <span class="tile t-trim" aria-hidden="true"><svg viewBox="0 0 14 14"><polyline points="3,5 7,9.5 11,5"></polyline></svg></span>
+          </div>
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open AAPL in MarketPulse">AAPL<span aria-hidden="true">›</span></a>
+            <div class="co">Apple Inc.</div>
+          </div>
+          <div class="r-val"><div class="v">$69.9B</div><div class="pct">22.4%</div></div>
+          <div class="r-sig">
+            <div class="sigblock">
+              <span class="meter m-trim" role="img" aria-label="Magnitude bucket 2 of 4: 5 to 15 percent">
+                <span class="pip on"></span><span class="pip on"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span>
+              </span>
+              <span class="sigw">Trimmed</span><span class="sigm">−15.0%</span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">300,000,000 sh</span></div>
+        </li>
+
+        <li class="row" style="animation-delay:.06s">
+          <div class="r-tile">
+            <span class="tile t-add" aria-hidden="true"><svg viewBox="0 0 14 14"><polyline points="3,9.5 7,5 11,9.5"></polyline></svg></span>
+          </div>
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open CVX in MarketPulse">CVX<span aria-hidden="true">›</span></a>
+            <div class="co">Chevron Corp.</div>
+          </div>
+          <div class="r-val"><div class="v">$19.8B</div><div class="pct">6.3%</div></div>
+          <div class="r-sig">
+            <div class="sigblock">
+              <span class="meter m-add" role="img" aria-label="Magnitude bucket 2 of 4: 5 to 15 percent">
+                <span class="pip on"></span><span class="pip on"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span>
+              </span>
+              <span class="sigw">Added</span><span class="sigm">+8.4%</span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">122,061,700 sh</span></div>
+        </li>
+
+        <li class="row" style="animation-delay:.1s">
+          <div class="r-tile">
+            <span class="tile t-held" aria-hidden="true"><svg viewBox="0 0 14 14"><line x1="3" y1="7" x2="11" y2="7"></line></svg></span>
+          </div>
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open KO in MarketPulse">KO<span aria-hidden="true">›</span></a>
+            <div class="co">Coca-Cola Co.</div>
+          </div>
+          <div class="r-val"><div class="v">$27.4B</div><div class="pct">8.8%</div></div>
+          <div class="r-sig">
+            <div class="sigblock">
+              <span class="meter m-held" role="img" aria-label="Magnitude bucket 0: no change">
+                <span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span>
+              </span>
+              <span class="sigw">Held</span><span class="sigm">0.0%</span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">400,000,000 sh</span></div>
+        </li>
+
+        <li class="row" style="animation-delay:.14s">
+          <div class="r-tile">
+            <span class="tile t-new" aria-hidden="true"><svg viewBox="0 0 14 14"><line x1="7" y1="2.5" x2="7" y2="11.5"></line><line x1="2.5" y1="7" x2="11.5" y2="7"></line><line x1="3.8" y1="3.8" x2="10.2" y2="10.2"></line><line x1="10.2" y1="3.8" x2="3.8" y2="10.2"></line></svg></span>
+          </div>
+          <div class="r-tk tk">
+            <span class="sym untracked">CB</span>
+            <div class="co">Chubb Ltd. · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">$8.9B</div><div class="pct">2.8%</div></div>
+          <div class="r-sig">
+            <div class="sigblock">
+              <span class="meter m-new" role="img" aria-label="New position: no prior magnitude, all five pips outlined">
+                <span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span>
+              </span>
+              <span class="sigw">New</span><span class="sigm">new</span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">27,033,784 sh</span></div>
+        </li>
+
+        <li class="row" style="animation-delay:.18s">
+          <div class="r-tile">
+            <span class="tile t-add" aria-hidden="true"><svg viewBox="0 0 14 14"><polyline points="3,9.5 7,5 11,9.5"></polyline></svg></span>
+          </div>
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open OXY in MarketPulse">OXY<span aria-hidden="true">›</span></a>
+            <div class="co">Occidental Petroleum</div>
+          </div>
+          <div class="r-val"><div class="v">$13.1B</div><div class="pct">4.2%</div></div>
+          <div class="r-sig">
+            <div class="sigblock">
+              <span class="meter m-add" role="img" aria-label="Magnitude bucket 1 of 4: under 5 percent">
+                <span class="pip on"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span>
+              </span>
+              <span class="sigw">Added</span><span class="sigm">+2.1%</span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">264,941,400 sh</span></div>
+        </li>
+
+        <li class="row" style="animation-delay:.22s">
+          <div class="r-tile">
+            <span class="tile t-new" aria-hidden="true"><svg viewBox="0 0 14 14"><line x1="7" y1="2.5" x2="7" y2="11.5"></line><line x1="2.5" y1="7" x2="11.5" y2="7"></line><line x1="3.8" y1="3.8" x2="10.2" y2="10.2"></line><line x1="10.2" y1="3.8" x2="3.8" y2="10.2"></line></svg></span>
+          </div>
+          <div class="r-tk tk">
+            <span class="sym untracked">BRKR</span>
+            <div class="co">Bruker Corp. · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">$14.1M</div><div class="pct">7.6%</div></div>
+          <div class="r-sig">
+            <div class="sigblock">
+              <span class="meter m-new" role="img" aria-label="New position: no prior magnitude, all five pips outlined">
+                <span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span>
+              </span>
+              <span class="sigw">New</span><span class="sigm">new</span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">300,000 sh</span></div>
+        </li>
+
+        <li class="row" style="animation-delay:.26s">
+          <div class="r-tile">
+            <span class="tile t-exit" aria-hidden="true"><svg viewBox="0 0 14 14"><line x1="3.5" y1="3.5" x2="10.5" y2="10.5"></line><line x1="10.5" y1="3.5" x2="3.5" y2="10.5"></line></svg></span>
+          </div>
+          <div class="r-tk tk">
+            <span class="sym untracked">PARA</span>
+            <div class="co">Paramount Skydance · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">—</div><div class="pct">—</div></div>
+          <div class="r-sig">
+            <div class="sigblock">
+              <span class="meter m-exit" role="img" aria-label="Exited: full magnitude, all five pips outlined">
+                <span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span>
+              </span>
+              <span class="sigw">Exited</span><span class="sigm">−100%</span>
+            </div>
+          </div>
+          <div class="r-sh"><span class="sh">0 sh · was 63,300,000</span></div>
+        </li>
+
+      </ul>
+
+      <div class="buckets">
+        <span><b>0</b> no pips</span><span><b>&lt;5%</b> 1 pip</span><span><b>5–15%</b> 2 pips</span>
+        <span><b>15–50%</b> 3 pips</span><span><b>&gt;50%</b> 4 pips</span><span><b>new / exited</b> 5 outlined</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Magnitude range</h2>
+      <p>The tile never changes; only the meter does. Bucketing means the jump from 8.4% to 75% is two visible steps, not a continuous ramp.</p>
+    </div>
+    <div class="strip">
+      <div class="isorow">
+        <div class="iso"><span class="meter m-add"><span class="pip on"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></span><span class="sigm">+2.1%</span><span class="stripcap">1 pip · &lt;5%</span></div>
+        <div class="iso"><span class="meter m-add"><span class="pip on"></span><span class="pip on"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></span><span class="sigm">+8.4%</span><span class="stripcap">2 pips · 5–15%</span></div>
+        <div class="iso"><span class="meter m-add"><span class="pip on"></span><span class="pip on"></span><span class="pip on"></span><span class="pip on"></span><span class="pip"></span></span><span class="sigm">+75.0%</span><span class="stripcap">4 pips · &gt;50%</span></div>
+        <div class="iso"><span class="meter m-trim"><span class="pip on"></span><span class="pip on"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></span><span class="sigm">−9.1%</span><span class="stripcap">2 pips · 5–15%</span></div>
+        <div class="iso"><span class="meter m-trim"><span class="pip on"></span><span class="pip on"></span><span class="pip on"></span><span class="pip"></span><span class="pip"></span></span><span class="sigm">−33.3%</span><span class="stripcap">3 pips · 15–50%</span></div>
+        <div class="iso"><span class="meter m-new"><span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span></span><span class="sigm">new</span><span class="stripcap">5 outlined</span></div>
+        <div class="iso"><span class="meter m-exit"><span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span><span class="pip outline"></span></span><span class="sigm">−100%</span><span class="stripcap">5 outlined</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>States, isolated</h2>
+      <p>Five tiles at real size — the drawn marks are deliberately unrelated shapes, not one shape rotated.</p>
+    </div>
+    <div class="strip">
+      <div class="isorow">
+        <div class="iso"><span class="tile t-new" aria-hidden="true"><svg viewBox="0 0 14 14"><line x1="7" y1="2.5" x2="7" y2="11.5"></line><line x1="2.5" y1="7" x2="11.5" y2="7"></line><line x1="3.8" y1="3.8" x2="10.2" y2="10.2"></line><line x1="10.2" y1="3.8" x2="3.8" y2="10.2"></line></svg></span><span class="sigw">New</span><span class="stripcap">Eight-point cross</span></div>
+        <div class="iso"><span class="tile t-add" aria-hidden="true"><svg viewBox="0 0 14 14"><polyline points="3,9.5 7,5 11,9.5"></polyline></svg></span><span class="sigw">Added</span><span class="stripcap">Up chevron</span></div>
+        <div class="iso"><span class="tile t-trim" aria-hidden="true"><svg viewBox="0 0 14 14"><polyline points="3,5 7,9.5 11,5"></polyline></svg></span><span class="sigw">Trimmed</span><span class="stripcap">Down chevron</span></div>
+        <div class="iso"><span class="tile t-exit" aria-hidden="true"><svg viewBox="0 0 14 14"><line x1="3.5" y1="3.5" x2="10.5" y2="10.5"></line><line x1="10.5" y1="3.5" x2="3.5" y2="10.5"></line></svg></span><span class="sigw">Exited</span><span class="stripcap">Saltire</span></div>
+        <div class="iso"><span class="tile t-held" aria-hidden="true"><svg viewBox="0 0 14 14"><line x1="3" y1="7" x2="11" y2="7"></line></svg></span><span class="sigw">Held</span><span class="stripcap">Horizontal bar</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="a11y">
+    <h3>Non-color cues</h3>
+    <ul>
+      <li><b>NEW</b> — eight-point cross in the tile, five outlined pips, word <em>New</em>.</li>
+      <li><b>ADDED</b> — up chevron, 1–4 solid pips, word <em>Added</em> and a <code>+</code> figure.</li>
+      <li><b>TRIMMED</b> — down chevron, 1–4 solid pips, word <em>Trimmed</em> and a <code>−</code> figure.</li>
+      <li><b>EXITED</b> — saltire (diagonal ✕), five outlined pips, word <em>Exited</em>.</li>
+      <li><b>HELD</b> — single horizontal bar, zero filled pips, word <em>Held</em>.</li>
+      <li><b>Covered</b> — ticker is a link with a solid underline and a trailing <code>›</code> chevron.</li>
+      <li><b>Not covered</b> — ticker is plain text with a dotted underline and the words <em>not tracked</em>.</li>
+    </ul>
+  </div>
+
+  <p class="foot">Source: SEC EDGAR Form 13F-HR. Positions are as of quarter end and lag up to 45 days. Long US equity positions only — shorts, bonds and non-US holdings are not disclosed.</p>
+
+  <aside class="note">
+    <b>Concept</b>
+    Split the job: an unmistakable shape says which state, a five-pip meter says how big. Trade-off: two marks per row is a lot of furniture, and bucketing throws away the difference between 16% and 49%.
+  </aside>
+
+</div>
+</body>
+</html>

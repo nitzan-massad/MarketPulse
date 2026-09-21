@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales 10 — Quarterly Digest</title>
+<style>
+:root{
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--f-ui);
+  font-size:14px; line-height:1.4; -webkit-font-smoothing:antialiased; min-height:100vh;
+  background-image:
+    radial-gradient(1200px 500px at 78% -8%, rgba(27,63,115,.08), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(20,124,134,.05), transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1270px; margin:0 auto; padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+@media(min-width:641px){ .wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))} }
+
+/* masthead */
+.bob-eyebrow{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+.bob-title{font-family:var(--f-head); font-weight:800; font-size:clamp(22px,7vw,32px); line-height:1.02;
+  letter-spacing:-.02em; margin:.16em 0 .18em}
+.bob-title .em{font-style:italic; font-weight:500; color:var(--gold)}
+.bob-dek{font-family:var(--f-head); font-style:italic; font-size:clamp(15px,2vw,20px); color:var(--muted);
+  font-weight:500; margin:0 0 10px}
+.bob-counts{display:flex; gap:10px; align-items:baseline; font-size:12px; color:var(--muted); flex-wrap:wrap}
+.bob-counts b{color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums; font-family:var(--f-mono)}
+.bob-counts .dot{color:var(--faint)}
+.bob-counts.zeroed b{color:var(--faint)}
+
+.bob-section{margin-top:22px}
+.bob-sechdr{margin-bottom:12px}
+.bob-sechdr h2{font-family:var(--f-head); font-weight:800; font-size:22px; letter-spacing:-.02em; margin:0 0 3px}
+.bob-sechdr p{margin:0; font-size:12.5px; color:var(--muted)}
+
+/* ---------- lede ---------- */
+.lede{font-family:var(--f-head); font-size:17px; line-height:1.72; color:var(--muted); max-width:62ch;
+  margin:18px 0 0; font-weight:500}
+.stat{font-family:var(--f-head); font-weight:800; font-size:1.4em; line-height:1; color:var(--gold);
+  letter-spacing:-.03em; font-variant-numeric:tabular-nums; vertical-align:baseline;
+  padding:0 1px; white-space:nowrap}
+.lede .tick{font-family:var(--f-mono); font-size:.86em; font-weight:700; color:var(--ink)}
+
+/* ---------- three moves ---------- */
+.moves{display:grid; gap:12px; margin-top:14px}
+.move{background:var(--panel); border:1px solid var(--line); border-radius:13px; padding:13px;
+  display:flex; flex-direction:column; gap:10px; transition:.15s}
+.move:hover{border-color:var(--gold-soft); background:var(--panel-2); transform:translateY(-2px);
+  box-shadow:0 18px 40px -26px rgba(27,29,24,.4)}
+.move-num{display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px;
+  border-radius:8px; background:var(--gold); color:#fff; font-family:var(--f-mono); font-size:11px;
+  font-weight:700; flex:none}
+.move h3{font-family:var(--f-head); font-weight:800; font-size:17.5px; line-height:1.22;
+  letter-spacing:-.02em; margin:0}
+.move p{margin:0; font-size:12.5px; color:var(--muted); line-height:1.55}
+.ev{display:flex; align-items:center; gap:7px; flex-wrap:wrap; padding-top:10px;
+  border-top:1px dashed var(--line); font-size:10.5px; color:var(--muted)}
+.ev .who{font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--faint)}
+.ev .dot{color:var(--faint)}
+.ev .val{font-family:var(--f-mono); font-weight:700; font-size:11.5px; color:var(--ink);
+  font-variant-numeric:tabular-nums}
+
+/* ---------- ledger table ---------- */
+.na-wrap{margin-top:12px; overflow-x:auto; border:1px solid var(--line); border-radius:14px; background:var(--panel)}
+.na-table{border-collapse:collapse; font-size:12px; width:100%; min-width:330px}
+.na-table th{text-align:right; padding:8px 6px; font-family:var(--f-ui); font-size:9px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--faint); background:var(--panel-2);
+  border-bottom:1px solid var(--line); white-space:nowrap}
+.na-table th.l{text-align:left}
+.na-table th.c{text-align:center}
+.na-table td{padding:8px 6px; text-align:right; border-bottom:1px solid var(--line);
+  vertical-align:middle; font-variant-numeric:tabular-nums}
+.na-table td.l{text-align:left}
+.na-table tbody tr:last-child td{border-bottom:0}
+.na-table tbody tr{transition:background .12s; opacity:0;
+  animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards}
+.na-table tbody tr:hover{background:var(--panel-2)}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+.mgr-cell{font-size:9.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--muted);
+  white-space:nowrap}
+.na-table td:first-child{padding-left:11px}
+.na-table th:first-child{padding-left:11px}
+.na-table td:last-child{padding-right:11px}
+.na-table td.c .st{padding:3px 6px; gap:3px}
+.na-table td.c{padding-left:3px}
+.na-table th:last-child{padding-right:11px}
+.v-mono{font-family:var(--f-mono); font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap}
+.v-mono.was{color:var(--faint); text-decoration:line-through; font-weight:500}
+.co{display:block; font-size:9.5px; color:var(--faint); white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; max-width:84px; margin-top:1px}
+
+/* ticker treatments */
+a.sym{font-family:var(--f-mono); font-weight:700; font-size:13px; color:var(--gold); text-decoration:none;
+  border-bottom:1px solid color-mix(in srgb, var(--gold) 38%, transparent); transition:.14s; white-space:nowrap}
+a.sym:hover{color:var(--gold-soft); border-bottom-color:var(--gold-soft)}
+a.sym:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px; border-radius:3px}
+a.sym .cv{margin-left:2px}
+.sym.unc{font-family:var(--f-mono); font-weight:400; font-size:13px; color:var(--muted);
+  border-bottom:1px dotted var(--faint); white-space:nowrap}
+.untr{font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); font-weight:700;
+  white-space:nowrap}
+
+/* state badge */
+.st{display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; padding:3px 8px; border-radius:999px; border:1px solid; white-space:nowrap}
+.st .g{font-size:9.5px; line-height:1}
+.st .d{font-family:var(--f-mono); font-size:9px; letter-spacing:0}
+.st.new{color:var(--gold); background:color-mix(in srgb, var(--gold) 12%, transparent); border-color:color-mix(in srgb, var(--gold) 34%, transparent)}
+.st.add{color:var(--green); background:color-mix(in srgb, var(--green) 12%, transparent); border-color:color-mix(in srgb, var(--green) 34%, transparent)}
+.st.trim{color:var(--amber); background:color-mix(in srgb, var(--amber) 12%, transparent); border-color:color-mix(in srgb, var(--amber) 34%, transparent)}
+.st.exit{color:var(--red); background:color-mix(in srgb, var(--red) 12%, transparent); border-color:color-mix(in srgb, var(--red) 34%, transparent)}
+.st.held{color:var(--muted); background:transparent; border-color:var(--line)}
+
+/* ---------- labelled divider ---------- */
+.divider{display:flex; align-items:center; gap:12px; margin:36px 0 20px;
+  font-size:10px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--faint)}
+.divider::before,.divider::after{content:""; flex:1; border-top:1px dashed var(--line)}
+
+/* ---------- empty state ---------- */
+.bob-empty{margin-top:14px; padding:34px 22px; text-align:center; color:var(--muted);
+  font-family:var(--f-head); font-style:italic; font-size:16px; border:1px dashed var(--line);
+  border-radius:12px; background:var(--panel)}
+.bob-empty .fin{color:var(--faint); margin-bottom:12px; display:block}
+.bob-empty h3{font-family:var(--f-head); font-style:normal; font-weight:800; font-size:20px;
+  letter-spacing:-.02em; color:var(--ink); margin:0 0 8px}
+.bob-empty p{margin:0 auto; max-width:46ch; font-size:14.5px; line-height:1.6}
+.ghostbtn{display:inline-flex; align-items:center; gap:7px; min-height:40px; margin-top:18px;
+  padding:10px 18px; border-radius:10px; border:1px solid var(--line); background:var(--bg);
+  color:var(--gold-soft); font-family:var(--f-ui); font-style:normal; font-size:12px; font-weight:700;
+  text-decoration:none; cursor:pointer; transition:.15s}
+.ghostbtn:hover{border-color:var(--gold-soft); background:var(--panel-2); color:var(--gold)}
+.ghostbtn:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px}
+
+.src{margin:22px 0 0; padding-top:14px; border-top:1px solid var(--line); font-size:11px; color:var(--faint); line-height:1.55}
+
+/* note */
+.note{position:fixed; left:16px; bottom:78px; z-index:60; max-width:236px; font-size:11px; color:var(--muted);
+  background:var(--bg); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; line-height:1.45}
+.note b{color:var(--ink)}
+@media(max-width:640px){ .note{position:static; margin-top:16px; max-width:none} }
+
+/* bottom nav */
+.nav-bottom{position:fixed; left:0; right:0; bottom:0; z-index:40; background:rgba(255,255,255,.9);
+  -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3);
+  border-top:1px solid var(--line); box-shadow:0 -10px 30px -22px rgba(27,29,24,.5);
+  padding-bottom:env(safe-area-inset-bottom, 0px)}
+.nav-bottom-inner{max-width:560px; margin:0 auto; display:flex; align-items:stretch; position:relative}
+.nav-tab{position:relative; appearance:none; background:none; border:0; cursor:pointer; flex:1; text-decoration:none;
+  display:flex; flex-direction:column; align-items:center; gap:4px; padding:9px 6px 8px;
+  color:var(--muted); font-family:var(--f-ui); font-size:10.5px; font-weight:600; letter-spacing:.01em; transition:.14s}
+.nav-tab .nav-tab-ic{display:flex; opacity:.9; transition:.14s}
+.nav-tab:hover{color:var(--ink)}
+.nav-tab.on{color:var(--gold-soft)}
+.nav-tab.on .nav-tab-ic{opacity:1}
+.nav-tab.on::before{content:""; position:absolute; top:0; left:50%; transform:translateX(-50%);
+  width:28px; height:3px; border-radius:0 0 3px 3px; background:var(--gold)}
+.nav-tab:focus-visible{outline:2px solid var(--gold-soft); outline-offset:-3px; border-radius:10px}
+
+@media(min-width:760px){
+  .lede{font-size:19px}
+  .moves{grid-template-columns:repeat(3,1fr); align-items:start}
+  .move h3{font-size:18px}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ==================== THE DIGEST ==================== -->
+  <header>
+    <div class="bob-eyebrow">13F Filings · Q1 2026</div>
+    <h1 class="bob-title">The Quarterly <span class="em">Digest</span></h1>
+    <p class="bob-dek">What 24 institutional managers reported owning on March 31 — and what changed.</p>
+    <div class="bob-counts">
+      <span><b>24</b> managers filed</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>1,847</b> positions parsed</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>112</b> of our <b>355</b> covered</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>$482B</b> aggregate</span><span class="dot" aria-hidden="true">·</span>
+      <span>last filing <b>May 15, 2026</b></span>
+    </div>
+  </header>
+
+  <p class="lede">
+    Twenty-four managers filed by the May 15 deadline, and we parsed <span class="stat">1,847</span>
+    positions worth <span class="stat">$482B</span> between them. The quarter's shape was rotation, not
+    retreat: <span class="tick">NVDA</span> picked up <span class="stat">+4</span> holders while
+    <span class="tick">AAPL</span> shed <span class="stat">−3</span>, and Berkshire cut
+    <span class="stat">15.0%</span> off the largest single position in the whole dataset. Of our
+    <span class="stat">355</span> covered tickers, <span class="stat">112</span> now sit in at least one
+    whale's book — the six loudest names that don't are simply not ours to show.
+  </p>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Three moves that mattered</h2>
+      <p>Ranked by how much the position changes what we already knew about the manager.</p>
+    </div>
+
+    <div class="moves">
+
+      <article class="move">
+        <span class="move-num" aria-hidden="true">1</span>
+        <h3>Buffett opened a $8.9B insurance position</h3>
+        <p>Chubb lands at 2.8% of a $312.4B book — the largest single new name Berkshire disclosed this
+        quarter, and the only one of its eight top holdings that wasn't there in Q4 2025.</p>
+        <div class="ev">
+          <span class="who">Berkshire Hathaway</span><span class="dot" aria-hidden="true">·</span>
+          <span class="sym unc">CB</span><span class="untr">not tracked</span><span class="dot" aria-hidden="true">·</span>
+          <span class="val">$8.9B</span>
+          <span class="st new"><span class="g" aria-hidden="true">✛</span>New</span>
+        </div>
+      </article>
+
+      <article class="move">
+        <span class="move-num" aria-hidden="true">2</span>
+        <h3>Ackman put Alphabet into a nine-name book</h3>
+        <p>At 8.1% of the portfolio, GOOGL arrives as a full-size position in one of the most concentrated
+        books we track. It lands the same quarter Nike leaves — $1.41B closed to zero.</p>
+        <div class="ev">
+          <span class="who">Pershing Square</span><span class="dot" aria-hidden="true">·</span>
+          <a class="sym" href="#" title="Open GOOGL in MarketPulse">GOOGL<span class="cv" aria-hidden="true">›</span></a><span class="dot" aria-hidden="true">·</span>
+          <span class="val">$1.12B</span>
+          <span class="st new"><span class="g" aria-hidden="true">✛</span>New</span>
+        </div>
+      </article>
+
+      <article class="move">
+        <span class="move-num" aria-hidden="true">3</span>
+        <h3>Burry added 75% to Alibaba and cut HCA by a third</h3>
+        <p>BABA is now 22.1% of a twelve-name book on a 75% share increase, while HCA comes down 33.3% —
+        the deepest single trim in the set. Two of Scion's three largest names are ADRs we don't cover.</p>
+        <div class="ev">
+          <span class="who">Scion Asset Mgmt</span><span class="dot" aria-hidden="true">·</span>
+          <span class="sym unc">BABA</span><span class="untr">not tracked</span><span class="dot" aria-hidden="true">·</span>
+          <span class="val">$41.2M</span>
+          <span class="st add"><span class="g" aria-hidden="true">▲</span>Added<span class="d">+75.0%</span></span>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>The ledger</h2>
+      <p>Every notable move from the two largest books that filed, quietly, in full.</p>
+    </div>
+
+    <div class="na-wrap">
+      <table class="na-table">
+        <thead>
+          <tr>
+            <th class="l" scope="col">Manager</th>
+            <th class="l" scope="col">Ticker</th>
+            <th scope="col">Value</th>
+            <th class="c" scope="col">Change</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="animation-delay:.02s">
+            <td class="l mgr-cell">Berkshire</td>
+            <td class="l"><a class="sym" href="#" title="Open AAPL in MarketPulse">AAPL<span class="cv" aria-hidden="true">›</span></a><span class="co">Apple Inc.</span></td>
+            <td class="v-mono">$69.9B</td>
+            <td class="c"><span class="st trim"><span class="g" aria-hidden="true">▼</span>Trimmed<span class="d">−15.0%</span></span></td>
+          </tr>
+          <tr style="animation-delay:.05s">
+            <td class="l mgr-cell">Berkshire</td>
+            <td class="l"><a class="sym" href="#" title="Open BAC in MarketPulse">BAC<span class="cv" aria-hidden="true">›</span></a><span class="co">Bank of America</span></td>
+            <td class="v-mono">$28.6B</td>
+            <td class="c"><span class="st trim"><span class="g" aria-hidden="true">▼</span>Trimmed<span class="d">−7.2%</span></span></td>
+          </tr>
+          <tr style="animation-delay:.08s">
+            <td class="l mgr-cell">Berkshire</td>
+            <td class="l"><a class="sym" href="#" title="Open CVX in MarketPulse">CVX<span class="cv" aria-hidden="true">›</span></a><span class="co">Chevron Corp.</span></td>
+            <td class="v-mono">$19.8B</td>
+            <td class="c"><span class="st add"><span class="g" aria-hidden="true">▲</span>Added<span class="d">+8.4%</span></span></td>
+          </tr>
+          <tr style="animation-delay:.11s">
+            <td class="l mgr-cell">Berkshire</td>
+            <td class="l"><a class="sym" href="#" title="Open OXY in MarketPulse">OXY<span class="cv" aria-hidden="true">›</span></a><span class="co">Occidental Petroleum</span></td>
+            <td class="v-mono">$13.1B</td>
+            <td class="c"><span class="st add"><span class="g" aria-hidden="true">▲</span>Added<span class="d">+2.1%</span></span></td>
+          </tr>
+          <tr style="animation-delay:.14s">
+            <td class="l mgr-cell">Berkshire</td>
+            <td class="l"><span class="sym unc">CB</span> <span class="untr">not tracked</span><span class="co">Chubb Ltd.</span></td>
+            <td class="v-mono">$8.9B</td>
+            <td class="c"><span class="st new"><span class="g" aria-hidden="true">✛</span>New</span></td>
+          </tr>
+          <tr style="animation-delay:.17s">
+            <td class="l mgr-cell">Berkshire</td>
+            <td class="l"><span class="sym unc">PARA</span> <span class="untr">not tracked</span><span class="co">Paramount Skydance</span></td>
+            <td class="v-mono was">$1.24B</td>
+            <td class="c"><span class="st exit"><span class="g" aria-hidden="true">✕</span>Exited<span class="d">−100%</span></span></td>
+          </tr>
+          <tr style="animation-delay:.2s">
+            <td class="l mgr-cell">Pershing</td>
+            <td class="l"><span class="sym unc">BN</span> <span class="untr">not tracked</span><span class="co">Brookfield Corp.</span></td>
+            <td class="v-mono">$2.24B</td>
+            <td class="c"><span class="st add"><span class="g" aria-hidden="true">▲</span>Added<span class="d">+12.5%</span></span></td>
+          </tr>
+          <tr style="animation-delay:.23s">
+            <td class="l mgr-cell">Pershing</td>
+            <td class="l"><a class="sym" href="#" title="Open CMG in MarketPulse">CMG<span class="cv" aria-hidden="true">›</span></a><span class="co">Chipotle Mexican Grill</span></td>
+            <td class="v-mono">$1.63B</td>
+            <td class="c"><span class="st trim"><span class="g" aria-hidden="true">▼</span>Trimmed<span class="d">−18.4%</span></span></td>
+          </tr>
+          <tr style="animation-delay:.26s">
+            <td class="l mgr-cell">Pershing</td>
+            <td class="l"><a class="sym" href="#" title="Open GOOGL in MarketPulse">GOOGL<span class="cv" aria-hidden="true">›</span></a><span class="co">Alphabet Inc. Cl A</span></td>
+            <td class="v-mono">$1.12B</td>
+            <td class="c"><span class="st new"><span class="g" aria-hidden="true">✛</span>New</span></td>
+          </tr>
+          <tr style="animation-delay:.29s">
+            <td class="l mgr-cell">Pershing</td>
+            <td class="l"><a class="sym" href="#" title="Open NKE in MarketPulse">NKE<span class="cv" aria-hidden="true">›</span></a><span class="co">Nike Inc. Cl B</span></td>
+            <td class="v-mono was">$1.41B</td>
+            <td class="c"><span class="st exit"><span class="g" aria-hidden="true">✕</span>Exited<span class="d">−100%</span></span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ==================== EMPTY STATE ==================== -->
+  <div class="divider" role="separator" aria-label="Empty state variant">— Empty state —</div>
+
+  <section aria-label="Quarterly Digest, empty state">
+    <header>
+      <div class="bob-eyebrow">13F Filings · Q2 2026</div>
+      <h1 class="bob-title">The Quarterly <span class="em">Digest</span></h1>
+      <p class="bob-dek">What 24 institutional managers reported owning on June 30 — and what changed.</p>
+      <div class="bob-counts zeroed">
+        <span><b>0</b> managers filed</span><span class="dot" aria-hidden="true">·</span>
+        <span><b>0</b> positions parsed</span><span class="dot" aria-hidden="true">·</span>
+        <span><b>0</b> of our <b>355</b> covered</span><span class="dot" aria-hidden="true">·</span>
+        <span><b>$0</b> aggregate</span><span class="dot" aria-hidden="true">·</span>
+        <span>deadline <b>Aug 14, 2026</b></span>
+      </div>
+    </header>
+
+    <div class="bob-empty">
+      <span class="fin" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M18.6 3.2c-5.6 1.4-8.6 5.4-8.1 10.7 2.6-.3 4.7-1.4 6.1-3.2 1.4-1.9 2-4.4 2-7.5z" fill="currentColor"/>
+          <path d="M2.5 18.2c2.2 0 2.2 1.7 4.4 1.7s2.2-1.7 4.4-1.7 2.2 1.7 4.4 1.7 2.2-1.7 4.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <h3>No filings yet for Q2 2026</h3>
+      <p>13F filings are due 45 days after quarter end. Q2 2026 filings start landing August 14, 2026 —
+      we parse them within an hour.</p>
+      <a class="ghostbtn" href="#">Browse Q1 2026 <span aria-hidden="true">›</span></a>
+    </div>
+  </section>
+
+  <p class="src">Source: SEC EDGAR Form 13F-HR. Positions are as of quarter end and lag up to 45 days.
+  Long US equity positions only — shorts, bonds and non-US holdings are not disclosed.</p>
+
+  <div class="note"><b>Quarterly digest:</b> an editorial brief — lede with inline stat callouts, three
+  written-up moves, then a quiet ledger — the most persuasive and most shareable version of the page.
+  <b>Trade-off:</b> it is generated prose, not a data render, so it needs writing logic behind it.</div>
+
+</div>
+
+<nav class="nav-bottom" aria-label="Primary">
+  <div class="nav-bottom-inner">
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 21V11"/><path d="M12 21V4"/><path d="M19 21v-6"/></svg></span>Stocks</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l7.1-1.01z"/></svg></span>Best</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.8l1.9 7.3 7.3 1.9-7.3 1.9L12 20.2l-1.9-7.3L2.8 11l7.3-1.9z"/></svg></span>New</a>
+    <a class="nav-tab on" href="#" aria-current="page"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18.6 3.2c-5.6 1.4-8.6 5.4-8.1 10.7 2.6-.3 4.7-1.4 6.1-3.2 1.4-1.9 2-4.4 2-7.5z" fill="currentColor"/><path d="M2.5 18.2c2.2 0 2.2 1.7 4.4 1.7s2.2-1.7 4.4-1.7 2.2 1.7 4.4 1.7 2.2-1.7 4.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>Whales</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></span>Watchlist</a>
+  </div>
+</nav>
+
+</body>
+</html>

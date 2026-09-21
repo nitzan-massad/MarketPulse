@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales 3 — Position-Size Delta Bar</title>
+<style>
+:root{
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.4;
+  -webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden;
+  padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));
+  background-image:radial-gradient(1200px 500px at 78% -8%,rgba(27,63,115,.08),transparent 60%),
+                   radial-gradient(900px 600px at 0% 110%,rgba(20,124,134,.05),transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1270px;margin:0 auto;padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+@media(min-width:641px){.wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))}}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.bob-eyebrow{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);font-weight:700}
+.bob-title{font-family:var(--f-head);font-weight:800;font-size:clamp(22px,7vw,32px);line-height:1.08;letter-spacing:-.01em;margin:7px 0 0}
+.bob-title .em{font-style:italic;color:var(--gold)}
+.bob-dek{font-family:var(--f-head);font-style:italic;color:var(--muted);font-size:14.5px;margin:8px 0 0;max-width:62ch}
+.bob-section{margin-top:22px}
+.bob-sechdr h2{font-family:var(--f-head);font-size:22px;font-weight:800;margin:0}
+.bob-sechdr p{font-size:12.5px;color:var(--muted);margin:3px 0 10px;max-width:66ch}
+
+.na-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.mgrbar{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding:11px 12px;background:var(--panel-2);border-bottom:1px solid var(--line)}
+.mgrbar .mgr{font-family:var(--f-head);font-weight:800;font-size:15.5px}
+.mgrbar .sep{color:var(--faint)}
+.mgrbar .meta{font-size:11.5px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.mgrbar .meta b{color:var(--gold);font-weight:700}
+
+.tk .sym{font-family:var(--f-mono);font-weight:700;font-size:14px;color:var(--ink);text-decoration:none}
+a.sym{color:var(--gold);border-bottom:1px solid color-mix(in srgb,var(--gold) 45%,transparent);display:inline-flex;align-items:center;gap:2px;transition:color .15s}
+a.sym:hover{color:var(--gold-soft);border-bottom-color:var(--gold-soft)}
+span.sym.untracked{color:var(--muted);font-weight:400;border-bottom:1px dotted var(--faint);display:inline-block}
+.tk .co{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:24ch}
+.untag{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+
+.a11y{margin-top:16px;border:1px dashed var(--line);border-radius:12px;padding:12px 13px;font-size:11px;color:var(--faint);background:color-mix(in srgb,var(--panel) 55%,transparent)}
+.a11y h3{margin:0 0 6px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;font-family:var(--f-ui)}
+.a11y ul{margin:0;padding-left:15px}
+.a11y li{margin:2px 0}
+.a11y b{color:var(--muted);font-weight:700}
+.foot{margin-top:18px;font-size:11px;color:var(--faint);max-width:74ch}
+
+.note{border:1px dashed var(--line);border-radius:12px;background:var(--panel);padding:11px 13px;font-size:11.5px;color:var(--muted);margin-top:18px;position:static}
+.note b{display:block;color:var(--gold);font-weight:700;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
+@media(min-width:641px){.note{position:fixed;left:18px;bottom:18px;width:280px;margin:0;z-index:30;box-shadow:0 18px 40px -26px rgba(19,26,36,.55)}}
+
+.strip{border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:12px}
+.stripcap{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+
+/* ---- MECHANISM 3: position-size delta bar ---- */
+.scaleline{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 12px;background:var(--panel-2);border-bottom:1px solid var(--line);font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-family:var(--f-mono)}
+
+.rows{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:1fr auto;gap:8px 10px;padding:11px 12px;border-bottom:1px solid var(--line);min-height:72px;align-content:center;opacity:0;animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--panel-2)}
+.r-tk{grid-column:1;grid-row:1;min-width:0}
+.r-val{grid-column:2;grid-row:1;text-align:right}
+.r-bar{grid-column:1 / -1;grid-row:2}
+.v{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px;font-weight:700}
+.pct{font-size:11px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+@media(min-width:800px){
+  .row{grid-template-columns:minmax(160px,1.1fr) 104px minmax(240px,2fr)}
+  .r-tk{grid-row:1;grid-column:1}
+  .r-val{grid-row:1;grid-column:2}
+  .r-bar{grid-row:1;grid-column:3}
+}
+
+.track{position:relative;display:flex;align-items:stretch;height:13px;background:var(--panel-2);border:1px solid var(--line);border-radius:3px;width:100%}
+.na-wrap .row:hover .track{background:var(--panel)}
+.seg{display:block;min-width:4px;height:100%}
+.seg.keep{background:var(--gold)}
+.seg.grow{background:var(--green);border-left:1px solid var(--bg)}
+.seg.lost{
+  background:repeating-linear-gradient(135deg,
+    color-mix(in srgb,var(--amber) 55%,transparent) 0 2px,
+    transparent 2px 5px);
+  border:1px dashed color-mix(in srgb,var(--amber) 65%,transparent);
+  border-left:0;
+}
+.seg.ghost{
+  background:repeating-linear-gradient(135deg,
+    color-mix(in srgb,var(--red) 55%,transparent) 0 2px,
+    transparent 2px 5px);
+  border:1px dashed color-mix(in srgb,var(--red) 70%,transparent);
+  border-radius:2px;
+}
+.track.isnew::before{content:"";position:absolute;left:-1px;top:-3px;bottom:-3px;width:3px;background:var(--gold);border-radius:2px}
+.xcap{display:inline-flex;align-items:center;justify-content:center;width:14px;font-size:10px;font-weight:700;color:var(--red);margin-left:2px;line-height:1}
+
+.barcap{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:5px}
+.w{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.w.new{color:var(--gold)} .w.add{color:var(--green)} .w.trim{color:var(--amber)}
+.w.exit{color:var(--red)} .w.held{color:var(--faint)}
+.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:10.5px;color:var(--muted)}
+.num b{color:var(--ink);font-weight:700}
+.offscale{font-size:8.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:1px 7px;border-radius:999px;border:1px dashed var(--line);color:var(--faint)}
+
+.legend{display:flex;flex-wrap:wrap;gap:10px 16px;padding:10px 12px;border-top:1px solid var(--line);background:var(--panel-2)}
+.lg{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--muted)}
+.swatch{width:22px;height:10px;border-radius:2px;border:1px solid var(--line)}
+.swatch.keep{background:var(--gold);border-color:var(--gold)}
+.swatch.grow{background:var(--green);border-color:var(--green)}
+.swatch.lost{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--amber) 55%,transparent) 0 2px,transparent 2px 5px);border:1px dashed color-mix(in srgb,var(--amber) 65%,transparent)}
+.swatch.ghost{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--red) 55%,transparent) 0 2px,transparent 2px 5px);border:1px dashed color-mix(in srgb,var(--red) 70%,transparent)}
+
+.mgrid{display:grid;grid-template-columns:1fr;gap:11px}
+.mcell{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px}
+.mcell .stripcap{display:block;margin-bottom:6px}
+@media(min-width:560px){.mgrid{grid-template-columns:1fr 1fr}}
+@media(min-width:960px){.mgrid{grid-template-columns:repeat(4,1fr)}}
+
+.isorow{display:flex;flex-wrap:wrap;gap:9px}
+.iso{flex:1 1 132px;min-width:132px;min-height:64px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);display:flex;flex-direction:column;justify-content:center;gap:7px}
+
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="bob-eyebrow">Whales · Holding Row</div>
+    <h1 class="bob-title">Delta <span class="em">Bars</span></h1>
+    <p class="bob-dek">The bar is the badge — a shared-scale share-count track where the retained block is navy, growth extends in solid green, and everything sold shows as a hatched ghost beyond the current end.</p>
+  </header>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Live rows</h2>
+      <p>All seven bars share one scale, so the length comparison across rows is real, not per-row normalised.</p>
+    </div>
+
+    <div class="na-wrap">
+      <div class="mgrbar">
+        <span class="mgr">Berkshire Hathaway</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta">Q1 2026</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta"><b>$312.4B</b></span>
+      </div>
+
+      <div class="scaleline"><span>Shares · 0</span><span>shared scale → 400M</span></div>
+
+      <ul class="rows">
+
+        <li class="row" style="animation-delay:.02s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open AAPL in MarketPulse">AAPL<span aria-hidden="true">›</span></a>
+            <div class="co">Apple Inc.</div>
+          </div>
+          <div class="r-val"><div class="v">$69.9B</div><div class="pct">22.4%</div></div>
+          <div class="r-bar">
+            <div class="track" role="img" aria-label="Trimmed: 352.9 million shares down to 300.0 million, a 15.0 percent decrease">
+              <span class="seg keep" style="width:75%"></span>
+              <span class="seg lost" style="width:13.2%"></span>
+            </div>
+            <div class="barcap">
+              <span class="w trim">Trimmed</span>
+              <span class="num">352.9M → <b>300.0M</b> · −15.0%</span>
+            </div>
+          </div>
+        </li>
+
+        <li class="row" style="animation-delay:.06s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open CVX in MarketPulse">CVX<span aria-hidden="true">›</span></a>
+            <div class="co">Chevron Corp.</div>
+          </div>
+          <div class="r-val"><div class="v">$19.8B</div><div class="pct">6.3%</div></div>
+          <div class="r-bar">
+            <div class="track" role="img" aria-label="Added: 112.6 million shares up to 122.1 million, an 8.4 percent increase">
+              <span class="seg keep" style="width:28.2%"></span>
+              <span class="seg grow" style="width:2.4%"></span>
+            </div>
+            <div class="barcap">
+              <span class="w add">Added</span>
+              <span class="num">112.6M → <b>122.1M</b> · +8.4%</span>
+            </div>
+          </div>
+        </li>
+
+        <li class="row" style="animation-delay:.1s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open KO in MarketPulse">KO<span aria-hidden="true">›</span></a>
+            <div class="co">Coca-Cola Co.</div>
+          </div>
+          <div class="r-val"><div class="v">$27.4B</div><div class="pct">8.8%</div></div>
+          <div class="r-bar">
+            <div class="track" role="img" aria-label="Held: 400.0 million shares, unchanged">
+              <span class="seg keep" style="width:100%"></span>
+            </div>
+            <div class="barcap">
+              <span class="w held">Held</span>
+              <span class="num">400.0M → <b>400.0M</b> · 0.0%</span>
+            </div>
+          </div>
+        </li>
+
+        <li class="row" style="animation-delay:.14s">
+          <div class="r-tk tk">
+            <span class="sym untracked">CB</span>
+            <div class="co">Chubb Ltd. · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">$8.9B</div><div class="pct">2.8%</div></div>
+          <div class="r-bar">
+            <div class="track isnew" role="img" aria-label="New position: 27.0 million shares opened from zero">
+              <span class="seg keep" style="width:6.8%"></span>
+            </div>
+            <div class="barcap">
+              <span class="w new">New</span>
+              <span class="num">— → <b>27.0M</b> · opened from zero</span>
+            </div>
+          </div>
+        </li>
+
+        <li class="row" style="animation-delay:.18s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open OXY in MarketPulse">OXY<span aria-hidden="true">›</span></a>
+            <div class="co">Occidental Petroleum</div>
+          </div>
+          <div class="r-val"><div class="v">$13.1B</div><div class="pct">4.2%</div></div>
+          <div class="r-bar">
+            <div class="track" role="img" aria-label="Added: 259.5 million shares up to 264.9 million, a 2.1 percent increase">
+              <span class="seg keep" style="width:64.9%"></span>
+              <span class="seg grow" style="width:1.4%"></span>
+            </div>
+            <div class="barcap">
+              <span class="w add">Added</span>
+              <span class="num">259.5M → <b>264.9M</b> · +2.1%</span>
+            </div>
+          </div>
+        </li>
+
+        <li class="row" style="animation-delay:.22s">
+          <div class="r-tk tk">
+            <span class="sym untracked">BRKR</span>
+            <div class="co">Bruker Corp. · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">$14.1M</div><div class="pct">7.6%</div></div>
+          <div class="r-bar">
+            <div class="track isnew" role="img" aria-label="New position: 300 thousand shares opened from zero, below the drawable scale">
+              <span class="seg keep" style="width:0.1%"></span>
+            </div>
+            <div class="barcap">
+              <span class="w new">New</span>
+              <span class="num">— → <b>0.3M</b> · opened from zero</span>
+              <span class="offscale">below scale</span>
+            </div>
+          </div>
+        </li>
+
+        <li class="row" style="animation-delay:.26s">
+          <div class="r-tk tk">
+            <span class="sym untracked">PARA</span>
+            <div class="co">Paramount Skydance · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">—</div><div class="pct">—</div></div>
+          <div class="r-bar">
+            <div class="track" role="img" aria-label="Exited: 63.3 million shares sold down to zero">
+              <span class="seg ghost" style="width:15.8%"></span>
+              <span class="xcap" aria-hidden="true">✕</span>
+            </div>
+            <div class="barcap">
+              <span class="w exit">Exited</span>
+              <span class="num">63.3M → <b>0</b> · −100%</span>
+            </div>
+          </div>
+        </li>
+
+      </ul>
+
+      <div class="legend">
+        <span class="lg"><span class="swatch keep"></span>Retained shares</span>
+        <span class="lg"><span class="swatch grow"></span>Bought this quarter</span>
+        <span class="lg"><span class="swatch lost"></span>Sold — hatched ghost</span>
+        <span class="lg"><span class="swatch ghost"></span>Fully exited</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Magnitude range</h2>
+      <p>Held constant at a 100-unit prior position so the growth and loss geometry is directly comparable.</p>
+    </div>
+    <div class="strip">
+      <div class="mgrid">
+        <div class="mcell"><span class="stripcap">+2.1%</span>
+          <div class="track"><span class="seg keep" style="width:60%"></span><span class="seg grow" style="width:1.3%"></span></div>
+        </div>
+        <div class="mcell"><span class="stripcap">+8.4%</span>
+          <div class="track"><span class="seg keep" style="width:60%"></span><span class="seg grow" style="width:5%"></span></div>
+        </div>
+        <div class="mcell"><span class="stripcap">+75.0%</span>
+          <div class="track"><span class="seg keep" style="width:60%"></span><span class="seg grow" style="width:40%"></span></div>
+        </div>
+        <div class="mcell"><span class="stripcap">−9.1%</span>
+          <div class="track"><span class="seg keep" style="width:54.5%"></span><span class="seg lost" style="width:5.5%"></span></div>
+        </div>
+        <div class="mcell"><span class="stripcap">−33.3%</span>
+          <div class="track"><span class="seg keep" style="width:40%"></span><span class="seg lost" style="width:20%"></span></div>
+        </div>
+        <div class="mcell"><span class="stripcap">New — no prior</span>
+          <div class="track isnew"><span class="seg keep" style="width:34%"></span></div>
+        </div>
+        <div class="mcell"><span class="stripcap">Exited — to zero</span>
+          <div class="track"><span class="seg ghost" style="width:60%"></span><span class="xcap" aria-hidden="true">✕</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>States, isolated</h2>
+      <p>Each bar form on its own, with the caption word it carries.</p>
+    </div>
+    <div class="strip">
+      <div class="isorow">
+        <div class="iso"><div class="track isnew"><span class="seg keep" style="width:36%"></span></div><span class="w new">New</span><span class="stripcap">Position opened</span></div>
+        <div class="iso"><div class="track"><span class="seg keep" style="width:52%"></span><span class="seg grow" style="width:16%"></span></div><span class="w add">Added</span><span class="stripcap">Increased</span></div>
+        <div class="iso"><div class="track"><span class="seg keep" style="width:44%"></span><span class="seg lost" style="width:18%"></span></div><span class="w trim">Trimmed</span><span class="stripcap">Decreased</span></div>
+        <div class="iso"><div class="track"><span class="seg ghost" style="width:58%"></span><span class="xcap" aria-hidden="true">✕</span></div><span class="w exit">Exited</span><span class="stripcap">Sold out</span></div>
+        <div class="iso"><div class="track"><span class="seg keep" style="width:60%"></span></div><span class="w held">Held</span><span class="stripcap">Unchanged</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="a11y">
+    <h3>Non-color cues</h3>
+    <ul>
+      <li><b>NEW</b> — bar starts at zero with a 3px navy leading cap overshooting the track, caption <em>New</em>, count reads <code>— → 27.0M</code>.</li>
+      <li><b>ADDED</b> — a second solid segment extends past the retained block; caption <em>Added</em> and a <code>+</code> percentage.</li>
+      <li><b>TRIMMED</b> — a 135° hatched, dashed-outline segment sits beyond the current end; caption <em>Trimmed</em>.</li>
+      <li><b>EXITED</b> — the whole bar is hatched with a trailing ✕ end cap; caption <em>Exited</em>, count ends in <code>0</code>.</li>
+      <li><b>HELD</b> — a single unbroken solid block, no second segment; caption <em>Held</em>.</li>
+      <li><b>Covered</b> — ticker is a link with a solid underline and a trailing <code>›</code> chevron.</li>
+      <li><b>Not covered</b> — ticker is plain text with a dotted underline and the words <em>not tracked</em>.</li>
+    </ul>
+  </div>
+
+  <p class="foot">Source: SEC EDGAR Form 13F-HR. Positions are as of quarter end and lag up to 45 days. Long US equity positions only — shorts, bonds and non-US holdings are not disclosed.</p>
+
+  <aside class="note">
+    <b>Concept</b>
+    Draw the share count itself and let hatching stand for what was sold, so state and size are one mark. Trade-off: a single shared scale flattens small holdings — BRKR's 0.3M is literally below the drawable minimum.
+  </aside>
+
+</div>
+</body>
+</html>

@@ -30,6 +30,8 @@ for (const sec of ["Healthcare", "Technology", "Financial", "Industrials", "Ener
 eq("healthcare", sceneFor("Healthcare"), "bio");
 eq("tech", sceneFor("Technology"), "screens");
 eq("case-insensitive", sceneFor("hEaLtHcArE"), "bio");
+eq("industrials stays freight", sceneFor("Industrials"), "freight"); // Do not confuse with General
+eq("general is unclassified", sceneFor("General"), "market"); // TipRanks unclassified bucket, not an industry
 eq("unknown falls back", sceneFor("Nonexistent Sector"), "market");
 eq("empty falls back", sceneFor(""), "market");
 eq("null falls back", sceneFor(null as unknown as string), "market");
