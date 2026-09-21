@@ -53,16 +53,20 @@ assert.doesNotThrow(
 }
 
 // --- http error responses are handled (res.ok === false) ---------------------------
+// Non-ok responses must never be consumed as model output, even if they contain a parseable
+// payload. We inject a 429 with a cloudflare-shaped success body to catch the case where
+// the res.ok guard is deleted: without it, the error body would be extracted and leak through.
 {
   let call = 0;
   const fetchImpl = async () => {
     call++;
-    if (call === 2) return { ok: false, status: 429 };
+    if (call === 2) return { ok: false, status: 429, json: async () => ({ result: { response: "ERROR BODY LEAKED" } }) };
     return { ok: true, json: async () => ({ result: { response: `candidate ${call}` } }) };
   };
   const gen = makeProvider({ POST_PROVIDER: "cloudflare", CF_ACCOUNT_ID: "a", CF_API_TOKEN: "t" }, fetchImpl);
   const out = await gen({ system: "s", prompt: "p", n: 3 });
-  assert.equal(out.length, 2, "429 error is caught and dropped; successful calls are kept");
+  assert.equal(out.length, 2, "two of three calls succeeded; 429 is dropped");
+  assert.ok(!out.some((c) => c.includes("ERROR BODY LEAKED")), "error bodies never leak into output");
 }
 
 // --- anthropic response shape is extracted correctly --------------------------------
