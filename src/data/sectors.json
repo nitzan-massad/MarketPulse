@@ -7,10 +7,10 @@
   },
   "CommunicationServices": {
    "pe": 18.72,
-   "fpe": 20.41
+   "fpe": 20.42
   },
   "ConsumerCyclical": {
-   "pe": 24.19,
+   "pe": 24.18,
    "fpe": 19.97
   },
   "ConsumerDefensive": {
@@ -22,8 +22,8 @@
    "fpe": 12.4
   },
   "Financial": {
-   "pe": 14.93,
-   "fpe": 13.9
+   "pe": 14.92,
+   "fpe": 13.89
   },
   "Healthcare": {
    "pe": 32.17,
@@ -35,7 +35,7 @@
   },
   "RealEstate": {
    "pe": 32.03,
-   "fpe": 28.29
+   "fpe": 28.3
   },
   "Technology": {
    "pe": 32.97,
