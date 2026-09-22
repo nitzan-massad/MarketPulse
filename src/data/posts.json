@@ -1,5 +1,30 @@
 [
   {
+    "id": "COP-2026-09-22T18:55:16.504Z",
+    "ts": "2026-09-22T18:55:16.504Z",
+    "kind": "trend",
+    "ticker": "COP",
+    "name": "Conocophillips",
+    "sector": "Energy",
+    "text": "Conocophillips (COP) smartScore fell from 9 to 5 in 6.5 days.",
+    "score": 78,
+    "reasons": [
+      "4 digits of concrete detail",
+      "names COP",
+      "length in band"
+    ],
+    "facts": {
+      "smartScoreFrom": 9,
+      "smartScoreTo": 5,
+      "direction": "down",
+      "snapshots": 31,
+      "days": 6.5,
+      "upside": 18.2,
+      "consensus": "StrongBuy",
+      "analysts": 17
+    }
+  },
+  {
     "id": "ALAB-2026-09-22T14:35:30.122Z",
     "ts": "2026-09-22T14:35:30.122Z",
     "kind": "movement",
