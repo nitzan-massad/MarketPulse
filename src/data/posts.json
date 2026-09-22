@@ -1,5 +1,26 @@
 [
   {
+    "id": "IRD-2026-09-22T22:39:35.550Z",
+    "ts": "2026-09-22T22:39:35.550Z",
+    "kind": "list",
+    "ticker": "IRD",
+    "name": "Opus Genetics",
+    "sector": "Healthcare",
+    "text": "IRD soars 151.7% to $13.14, leading a 5-name healthcare pack.",
+    "score": 86,
+    "reasons": [
+      "9 digits of concrete detail",
+      "names IRD",
+      "length in band"
+    ],
+    "facts": {
+      "members": "IRD (151.7% to $13.14), FRVO (149% to $41.91), PRAX (145.1% to $732.38), VERA (129.6% to $78.63), TNGX (115% to $48)",
+      "count": 5,
+      "leader": "IRD",
+      "leaderUpside": 151.7
+    }
+  },
+  {
     "id": "COP-2026-09-22T18:55:16.504Z",
     "ts": "2026-09-22T18:55:16.504Z",
     "kind": "trend",
