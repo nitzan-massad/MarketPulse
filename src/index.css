@@ -1797,7 +1797,11 @@ thead th:hover .col-resize::after{opacity:.6}
 /* ---------------------------------------------------------------- feed --
    Layout 01, single stream: one post per row, newest first. Kind accent is set
    on the card and read by the pill; art is drawn by src/postArt.ts. */
-.feed { list-style: none; margin: 0; padding: 0; }
+/* A reading column, not the whole window. Every social feed converges on roughly this width
+   because a post is read, not scanned across — at 1900px a single card becomes a billboard and
+   the 4:3 art turns into a wall. 560px matches .nav-bottom-inner, so the feed lines up with the
+   bottom bar above it. */
+.feed { list-style: none; margin: 0 auto; padding: 0; max-width: 560px; }
 
 /* One accent per hook kind, all nine. Six of them used to fall through to the default and
    rendered an identical navy pill, which made most of the feed look like one kind of post.
