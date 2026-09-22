@@ -35,13 +35,34 @@ assert.ok(Number.isFinite(MIN_PUBLISHABLE), "there is a publish floor");
   assert.ok(withNum.score > without.score, "concrete numbers beat vibes");
 }
 
-// --- length band ---------------------------------------------------------------
+// --- length band: 8 WORDS, not characters ---------------------------------------
+// The feed card now overlays the post text as a headline, so the band moved from a
+// character count to a word count (MAX_WORDS=8, MIN_WORDS=3, both exported).
 {
-  const good = scorePost("NVDA target $210, 42% upside. 38 analysts, none bearish.", ctx());
-  const tooShort = scorePost("NVDA up 42%.", ctx());
-  const tooLong = scorePost(`NVDA target $210 42% upside. ${"filler words here ".repeat(60)}`, ctx());
+  const good = scorePost("NVDA target $210, 42% upside.", ctx()); // 5 words, in band
+  const tooShort = scorePost("NVDA up.", ctx()); // 2 words, below MIN_WORDS
+  const tooLong = scorePost(
+    "NVDA hits $210 target on 42% upside today with 38 analysts covering.", ctx(),
+  ); // 12 words, 4 over MAX_WORDS
   assert.ok(good.score > tooShort.score, "a too-short post is penalised");
   assert.ok(good.score > tooLong.score, "a too-long post is penalised");
+  assert.ok(tooShort.reasons.some((r) => /too short.*word/.test(r)), "the reason counts words, not characters");
+  assert.ok(tooLong.reasons.some((r) => /too long.*word/.test(r)), "the reason counts words, not characters");
+}
+
+// --- the task's own worked example: an 8-word candidate must beat a 12-word one, and
+// both must beat a 1-2 word fragment, even though the longer ones carry more digits ------
+{
+  const eightWords = scorePost("NVDA hits $210 target on 42% upside today.", ctx()); // 8 words
+  const twelveWords = scorePost(
+    "NVDA hits $210 target on 42% upside today with 38 analysts covering.", ctx(),
+  ); // 12 words — same digits-and-naming shape, just longer
+  const fragment = scorePost("NVDA up.", ctx()); // 2 words
+  assert.ok(eightWords.score > twelveWords.score, "an 8-word candidate beats a 12-word one");
+  assert.ok(eightWords.score > fragment.score, "an 8-word candidate beats a 1-2 word fragment");
+  assert.ok(eightWords.score >= MIN_PUBLISHABLE, "the 8-word candidate clears the publish floor");
+  assert.ok(twelveWords.score < MIN_PUBLISHABLE, "the 12-word candidate does not");
+  assert.ok(fragment.score < MIN_PUBLISHABLE, "the fragment does not either");
 }
 
 // --- dedupe against what already shipped ---------------------------------------
@@ -65,16 +86,20 @@ assert.ok(Number.isFinite(MIN_PUBLISHABLE), "there is a publish floor");
   assert.ok(result.reasons.some((r) => /duplicate.*word overlap/i.test(r)), "duplicate penalty also detected despite ticker match");
 }
 
-// --- naming: ticker OR company name --------------------------------------------
-// The feed shows company names, so a ticker-only rule punished the right copy. This is the
-// exact NFLX candidate that scored 10 with "missing NFLX" in Task 0.
+// --- naming: company name good, TICKER BAD (inverted from the old rule) --------------
+// The feed shows company names, not tickers, and the post text now sits large on the same
+// card — so naming the ticker instead of the company is now a penalty, not a reward.
 {
   const nflx = { kind: "movement", ticker: "NFLX", name: "Netflix" };
   const byTicker = scorePost("NFLX: Smart Score 8 to 6, upside 28% to 34%.", { hook: nflx });
   const byName = scorePost("Netflix: Smart Score 8 to 6, upside 28% to 34%.", { hook: nflx });
-  const neither = scorePost("Smart Score 8 to 6, upside 28% to 34%. Quite a week.", { hook: nflx });
-  assert.equal(byTicker.score, byName.score, "naming the company scores like naming the ticker");
-  assert.ok(byName.score > neither.score, "naming nothing is still penalised");
+  // Same word/digit shape as byTicker, so the only thing distinguishing it is naming
+  // neither: this isolates the naming rule's own effect.
+  const neither = scorePost("Smart Score 8 to 6, upside 28% to 34% overall.", { hook: nflx });
+  assert.ok(byName.score > byTicker.score, "naming the company now beats naming the ticker (inverted from the old rule)");
+  assert.ok(byTicker.reasons.some((r) => /names the ticker/i.test(r)), "the reason names the ticker penalty");
+  assert.equal(byTicker.score, neither.score, "using the ticker is worth exactly as little as naming nothing, word count held equal");
+  assert.ok(byName.score > neither.score, "naming the company still beats naming nothing");
   assert.ok(neither.reasons.some((r) => /does not name/.test(r)), "and the reason says so");
 }
 {
@@ -82,6 +107,28 @@ assert.ok(Number.isFinite(MIN_PUBLISHABLE), "there is a publish floor");
   const prax = { kind: "surprise", ticker: "PRAX", name: "Praxis Precision Medicines, Inc." };
   const r = scorePost("$299 to $732. That is 13 analysts' call on Praxis.", { hook: prax });
   assert.ok(r.reasons.some((r2) => /names/.test(r2)), "the leading word counts as naming it");
+}
+{
+  // The trap: a ticker that is a substring of an ordinary word must not fire (word
+  // boundaries), and a ticker that is only a case-different spelling of the company name
+  // it legitimately uses must not double as a penalty on top of the name reward.
+  const gm = { kind: "surprise", ticker: "GM", name: "General Motors" };
+  const ordinary = scorePost("General Motors reported strong sales at 9am GMT today.", { hook: gm });
+  assert.equal(ordinary.reasons.some((r) => /names the ticker/i.test(r)), false,
+    "the ticker GM inside the ordinary word GMT does not fire — word boundaries hold");
+  assert.ok(ordinary.reasons.some((r) => /^names General$/.test(r)), "and the company name is still credited");
+
+  const ird = { kind: "surprise", ticker: "IRD", name: "Ird Holdings" };
+  const sameSpelling = scorePost("IRD is up 42% on 11 analysts today.", { hook: ird });
+  assert.ok(sameSpelling.reasons.some((r) => /^names Ird$/.test(r)), "the name reward fires");
+  assert.equal(sameSpelling.reasons.some((r) => /names the ticker/i.test(r)), false,
+    "and the ticker penalty does not also fire for the same word — the name IS the ticker's spelling here");
+}
+{
+  // A standalone ticker inside otherwise-clean copy is still a penalty even when a name
+  // match is not in play at all (name absent from the hook).
+  const r = scorePost("NVDA target $210, 42% upside.", { hook: { kind: "surprise", ticker: "NVDA" } });
+  assert.ok(r.reasons.some((r2) => /names the ticker NVDA/.test(r2)), "a bare ticker mention is flagged");
 }
 assert.equal(nameStem("Xpo, Inc."), "Xpo", "stem is the leading word");
 assert.equal(nameStem("Praxis Precision Medicines"), "Praxis", "multi-word name stems to the first");

@@ -26,10 +26,13 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
 }
 
 // --- happy path: one post, best of the candidates -----------------------------------
+// Candidates are now judged on words (max 8) and penalise the ticker, not just the old
+// banned-phrase / digit rules, so both fixtures below stay within the new headline limit
+// and name the company ("Alpha Inc"), never the ticker ("AAA").
 {
   const provider = async ({ n }) => [
     "Let's dive in! AAA is a game-changer!!!",
-    "Alpha Inc (AAA) trades at $100. The Street's target is $160 — 60% upside, 21 analysts, one hold.",
+    "Alpha Inc target $160, 60% upside, 21 analysts.",
   ].slice(0, n);
   const posts = await generate({ history: [curr], recent: [], provider, exemplars,
                                  config: { postsPerRun: 1, candidates: 2 } });
@@ -43,7 +46,7 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
 
 // --- cadence is configuration, not code ---------------------------------------------
 {
-  const provider = async () => ["Alpha Inc (AAA) at $100 against a $160 Street target — 60% upside, 21 analysts."];
+  const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
   const posts = await generate({ history: [curr], recent: [], provider, exemplars,
                                  config: { postsPerRun: 2, candidates: 1 } });
   assert.ok(posts.length <= 2, "postsPerRun caps the output");

@@ -29,11 +29,24 @@ export const BANNED = [
 /** Below this, publish nothing. A skipped run beats a bad post. */
 export const MIN_PUBLISHABLE = 30;
 
-// ULTRA SHORT. Validated in Task 0: the winning posts land at 51-62 characters.
-// 110 is a hard ceiling, not a target — a post at 105 scores no worse than one at 55,
-// so the system prompt and the corpus are what actually pull length down; this band
-// only rejects the outliers.
-const IDEAL = { min: 25, max: 110 };
+// THE HEADLINE LIMIT — 8 WORDS, not characters. The feed card (src/components/PostFeed.tsx)
+// now overlays the post text large and bold directly on the image; it reads as a headline,
+// not a caption, and has to be readable at a glance. This replaces the old character band
+// (`IDEAL = { min: 25, max: 110 }`): a post can pack five numeral-heavy words into 60
+// characters, or one long compound word into 12 — character count never tracked "does this
+// read like a headline", word count does.
+//
+// MAX_WORDS=8 is a hard ceiling: over it is penalised hard enough that a 12-word candidate
+// loses to an 8-word one even after the longer one's larger digit bonus (see the worked
+// example in ci/test-post-score.mjs). MIN_WORDS=3 is the floor below which a "post" is a
+// fragment, not a claim — enough for "$NAME up 42%." to be a complete sentence, not enough
+// for a bare "NVDA up." to earn a pass.
+export const MAX_WORDS = 8;
+export const MIN_WORDS = 3;
+
+/** A word is a run of non-space characters — "$174.25" and "42%" each count as one word,
+ *  the way a person reading the sentence aloud would count them. */
+const wordCount = (s) => (String(s).trim().match(/\S+/g) ?? []).length;
 
 /** The distinctive leading word of a company name, so a post can name the company instead of
  *  the ticker. "Xpo, Inc." -> "Xpo"; "Praxis Precision Medicines" -> "Praxis". Corporate
@@ -171,30 +184,56 @@ export function scorePost(text, ctx = {}) {
     );
   }
 
-  // Ticker OR company name. The feed cards show "Netflix", not "NFLX", so a ticker-only
-  // rule punishes exactly the copy we want — it scored the good NFLX candidate at 10 with
-  // "missing NFLX" during Task 0. `nameStem` is the distinctive first word, so "Netflix"
-  // matches "Netflix, Inc." and "Praxis" matches "Praxis Precision Medicines".
+  // Company name good, ticker BAD. The feed cards show "Netflix", not "NFLX", and the post
+  // text now sits large on the card right next to that name — a ticker there reads as the
+  // wrong identifier, not a stylistic quirk, so this INVERTS the old rule (which rewarded
+  // either one equally). `nameStem` is the distinctive first word, so "Netflix" matches
+  // "Netflix, Inc." and "Praxis" matches "Praxis Precision Medicines".
+  //
+  // The ticker check is a STANDALONE-TOKEN, CASE-SENSITIVE match (`\bTICKER\b`), not a
+  // substring test, for two reasons pulling opposite ways:
+  //   - a short ticker is often a substring of an ordinary word ("ALL" inside "call"); word
+  //     boundaries stop that. Case-sensitivity also stops a common lowercase word from
+  //     tripping a ticker that happens to be a real English word ("on" vs the ON ticker) —
+  //     a person writing a ticker symbol writes it in caps.
+  //   - some companies' names ARE (or start with) their own ticker, spelled identically
+  //     apart from case — hook `IRD` / "Ird Holdings" is a real example already covered
+  //     below. Naming the company there ALSO satisfies `\bIRD\b` case-insensitively, so
+  //     `tickerIsTheName` recognises that coincidence and lets the name reward stand
+  //     without also charging the ticker penalty for the same word.
   if (hook?.ticker || hook?.name) {
     const stem = nameStem(hook?.name);
-    const tickerMatch = hook?.ticker && s.includes(hook.ticker);
-    const nameMatch = stem && lower.includes(stem.toLowerCase());
-    if (tickerMatch || nameMatch) {
+    const ticker = hook?.ticker;
+    const tickerHit = Boolean(ticker && new RegExp(`\\b${ticker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(s));
+    const nameMatch = Boolean(stem && lower.includes(stem.toLowerCase()));
+    const tickerIsTheName = Boolean(stem && ticker && stem.toUpperCase() === ticker.toUpperCase());
+    const tickerMatch = tickerHit && !tickerIsTheName;
+
+    if (nameMatch) {
       score += 10;
-      const matched = tickerMatch ? hook.ticker : stem;
-      reasons.push(`names ${matched}`);
-    } else {
+      reasons.push(`names ${stem}`);
+    }
+    if (tickerMatch) {
       score -= 20;
-      reasons.push(`does not name ${hook.ticker ?? stem}`);
+      reasons.push(`names the ticker ${ticker} instead of the company`);
+    }
+    if (!nameMatch && !tickerMatch) {
+      score -= 20;
+      reasons.push(`does not name ${ticker ?? stem}`);
     }
   }
 
-  if (s.length < IDEAL.min) {
+  const nWords = wordCount(s);
+  if (nWords < MIN_WORDS) {
     score -= 25;
-    reasons.push(`too short (${s.length} < ${IDEAL.min})`);
-  } else if (s.length > IDEAL.max) {
-    score -= Math.min(Math.ceil((s.length - IDEAL.max) / 20) * 5, 40);
-    reasons.push(`too long (${s.length} > ${IDEAL.max})`);
+    reasons.push(`too short (${nWords} word${nWords === 1 ? "" : "s"} < ${MIN_WORDS})`);
+  } else if (nWords > MAX_WORDS) {
+    // Same shape as the old character penalty: escalates with the overage, capped so this
+    // one rule is never the sole reason a candidate is or isn't publishable. 4 words over
+    // (the task's own worked example, 12 vs. 8) costs 48 — comfortably more than the length
+    // band's own +10 best case plus the digit bonus a longer sentence tends to also pick up.
+    score -= Math.min((nWords - MAX_WORDS) * 12, 60);
+    reasons.push(`too long (${nWords} words > ${MAX_WORDS})`);
   } else {
     score += 10;
     reasons.push("length in band");

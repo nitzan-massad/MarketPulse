@@ -41,7 +41,9 @@ export function buildPrompt(hook, exemplars = []) {
   const system = [
     "You write short posts for a stock-data feed, in the voice of a finance person on X.",
     "Rules, all of them hard:",
-    "- ONE sentence. Under 110 characters. Aim for 50 to 70. Shorter always wins.",
+    "- MAXIMUM 8 WORDS. Count them before you answer. 9 words is a failure, not a rounding error.",
+    "- Good 8-word example: \"Astera Labs upside halved. Smart Score doubled.\" — that is 8 words, uses the company name, and uses two of the numbers you were given.",
+    "- Use the company's NAME, never its ticker symbol. Say \"Astera Labs\", not \"ALAB\".",
     "- Open with the fact. No greeting, no preamble, no 'Let's dive in'.",
     "- Use the exact numbers you are given. Never invent a number.",
     "- No hashtags beyond one. No emoji. At most one exclamation mark, ideally zero.",
