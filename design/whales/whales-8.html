@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales 8 — Whale Radar Feed</title>
+<style>
+:root{
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--f-ui);
+  font-size:14px; line-height:1.4; -webkit-font-smoothing:antialiased; min-height:100vh;
+  background-image:
+    radial-gradient(1200px 500px at 78% -8%, rgba(27,63,115,.08), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(20,124,134,.05), transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1270px; margin:0 auto; padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+@media(min-width:641px){ .wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))} }
+
+/* masthead */
+.bob-eyebrow{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+.bob-title{font-family:var(--f-head); font-weight:800; font-size:clamp(22px,7vw,32px); line-height:1.02;
+  letter-spacing:-.02em; margin:.16em 0 .18em}
+.bob-title .em{font-style:italic; font-weight:500; color:var(--gold)}
+.bob-dek{font-family:var(--f-head); font-style:italic; font-size:clamp(15px,2vw,20px); color:var(--muted);
+  font-weight:500; margin:0 0 10px}
+.bob-counts{display:flex; gap:10px; align-items:baseline; font-size:12px; color:var(--muted); flex-wrap:wrap}
+.bob-counts b{color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums; font-family:var(--f-mono)}
+.bob-counts .dot{color:var(--faint)}
+
+/* filter chip rail */
+.chipwrap{position:relative; overflow:hidden; margin-top:16px}
+.chipwrap::before,.chipwrap::after{content:""; position:absolute; top:0; bottom:0; width:22px;
+  pointer-events:none; z-index:2}
+.chipwrap::before{left:0; background:linear-gradient(90deg,var(--bg),rgba(249,250,251,0))}
+.chipwrap::after{right:0; background:linear-gradient(270deg,var(--bg),rgba(249,250,251,0))}
+.chips{display:flex; gap:7px; overflow-x:auto; scrollbar-width:none; -ms-overflow-style:none; padding:2px 2px 4px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none; appearance:none; font:inherit; cursor:pointer; min-height:40px;
+  display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; letter-spacing:.02em;
+  padding:8px 14px; border-radius:999px; border:1px solid var(--line); background:var(--panel);
+  color:var(--muted); transition:.15s}
+.chip:hover{border-color:var(--gold-soft); color:var(--ink); background:var(--panel-2)}
+.chip[aria-pressed="true"]{background:var(--gold); border-color:var(--gold); color:#fff}
+.chip .n{font-family:var(--f-mono); font-size:10px; opacity:.75; font-variant-numeric:tabular-nums}
+
+/* ---------- feed ---------- */
+.fgroup{margin-top:14px; border:1px solid var(--line); border-radius:14px; background:var(--panel)}
+.fdate{position:sticky; top:0; z-index:10; margin:0;
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  background:var(--panel-2); border-bottom:1px solid var(--line); border-radius:13px 13px 0 0;
+  padding:9px 13px; font-family:var(--f-ui); font-size:10px; font-weight:700; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--muted)}
+.fdate span{font-family:var(--f-mono); letter-spacing:.02em; color:var(--faint); font-size:9.5px}
+.feed{list-style:none; margin:0; padding:0}
+.fi{display:grid; grid-template-columns:30px minmax(0,1fr) auto; gap:10px; align-items:start;
+  padding:12px 13px; border-top:1px solid var(--line); transition:background .12s;
+  opacity:0; animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards}
+.feed li:first-child{border-top:0}
+.fi:hover{background:var(--panel-2)}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+.med{width:30px; height:30px; border-radius:9px; flex:none; display:flex; align-items:center;
+  justify-content:center; font-size:13px; font-weight:700; line-height:1; border:1px solid}
+.med.new{color:var(--gold); background:color-mix(in srgb, var(--gold) 12%, transparent); border-color:color-mix(in srgb, var(--gold) 40%, transparent)}
+.med.add{color:var(--green); background:color-mix(in srgb, var(--green) 12%, transparent); border-color:color-mix(in srgb, var(--green) 40%, transparent)}
+.med.trim{color:var(--amber); background:color-mix(in srgb, var(--amber) 12%, transparent); border-color:color-mix(in srgb, var(--amber) 40%, transparent)}
+.med.exit{color:var(--red); background:color-mix(in srgb, var(--red) 12%, transparent); border-color:color-mix(in srgb, var(--red) 40%, transparent)}
+.fs{margin:0; font-size:13px; line-height:1.55}
+.fs .mgr{color:var(--ink); font-weight:700}
+.fs .vb{color:var(--muted)}
+.fmeta{margin-top:5px; display:flex; align-items:center; gap:7px; flex-wrap:wrap}
+.tag{font-size:8.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+  padding:2px 7px; border-radius:999px; border:1px solid var(--line); color:var(--muted)}
+.tag.new{color:var(--gold); border-color:color-mix(in srgb, var(--gold) 34%, transparent)}
+.tag.add{color:var(--green); border-color:color-mix(in srgb, var(--green) 34%, transparent)}
+.tag.trim{color:var(--amber); border-color:color-mix(in srgb, var(--amber) 34%, transparent)}
+.tag.exit{color:var(--red); border-color:color-mix(in srgb, var(--red) 34%, transparent)}
+.fsh{font-family:var(--f-mono); font-size:10px; color:var(--faint); font-variant-numeric:tabular-nums}
+.fval{font-family:var(--f-mono); font-weight:700; font-size:13px; font-variant-numeric:tabular-nums;
+  text-align:right; white-space:nowrap; padding-top:1px}
+.fval small{display:block; font-family:var(--f-ui); font-size:8.5px; font-weight:700; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--faint); margin-top:2px}
+.fval.was{color:var(--faint)}
+.fval.was b{text-decoration:line-through; font-weight:700}
+
+/* ticker treatments */
+a.sym{font-family:var(--f-mono); font-weight:700; font-size:13.5px; color:var(--gold); text-decoration:none;
+  border-bottom:1px solid color-mix(in srgb, var(--gold) 38%, transparent); transition:.14s; white-space:nowrap}
+a.sym:hover{color:var(--gold-soft); border-bottom-color:var(--gold-soft)}
+a.sym:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px; border-radius:3px}
+a.sym .cv{margin-left:2px}
+.sym.unc{font-family:var(--f-mono); font-weight:400; font-size:13.5px; color:var(--muted);
+  border-bottom:1px dotted var(--faint); white-space:nowrap}
+.untr{font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); font-weight:700;
+  white-space:nowrap}
+
+.feednote{margin-top:12px; padding:11px 13px; border:1px solid var(--line); border-radius:12px;
+  background:var(--panel); font-size:11.5px; color:var(--muted); line-height:1.5}
+.feednote b{color:var(--ink)}
+.feednote .g{font-family:var(--f-mono); color:var(--faint)}
+
+.src{margin:22px 0 0; padding-top:14px; border-top:1px solid var(--line); font-size:11px; color:var(--faint); line-height:1.55}
+
+/* note */
+.note{position:fixed; left:16px; bottom:78px; z-index:60; max-width:236px; font-size:11px; color:var(--muted);
+  background:var(--bg); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; line-height:1.45}
+.note b{color:var(--ink)}
+@media(max-width:640px){ .note{position:static; margin-top:16px; max-width:none} }
+
+/* bottom nav */
+.nav-bottom{position:fixed; left:0; right:0; bottom:0; z-index:40; background:rgba(255,255,255,.9);
+  -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3);
+  border-top:1px solid var(--line); box-shadow:0 -10px 30px -22px rgba(27,29,24,.5);
+  padding-bottom:env(safe-area-inset-bottom, 0px)}
+.nav-bottom-inner{max-width:560px; margin:0 auto; display:flex; align-items:stretch; position:relative}
+.nav-tab{position:relative; appearance:none; background:none; border:0; cursor:pointer; flex:1; text-decoration:none;
+  display:flex; flex-direction:column; align-items:center; gap:4px; padding:9px 6px 8px;
+  color:var(--muted); font-family:var(--f-ui); font-size:10.5px; font-weight:600; letter-spacing:.01em; transition:.14s}
+.nav-tab .nav-tab-ic{display:flex; opacity:.9; transition:.14s}
+.nav-tab:hover{color:var(--ink)}
+.nav-tab.on{color:var(--gold-soft)}
+.nav-tab.on .nav-tab-ic{opacity:1}
+.nav-tab.on::before{content:""; position:absolute; top:0; left:50%; transform:translateX(-50%);
+  width:28px; height:3px; border-radius:0 0 3px 3px; background:var(--gold)}
+.nav-tab:focus-visible{outline:2px solid var(--gold-soft); outline-offset:-3px; border-radius:10px}
+
+@media(min-width:900px){ .fs{font-size:14px} .fgroup{margin-top:18px} }
+@media(prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div class="bob-eyebrow">13F Filings · Q1 2026</div>
+    <h1 class="bob-title">Whale <span class="em">Radar</span></h1>
+    <p class="bob-dek">Every move worth reading, newest filing first — one line per decision.</p>
+    <div class="bob-counts">
+      <span><b>24</b> managers filed</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>1,847</b> positions parsed</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>112</b> of our <b>355</b> covered</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>$482B</b> aggregate</span><span class="dot" aria-hidden="true">·</span>
+      <span>deadline <b>May 15, 2026</b></span>
+    </div>
+  </header>
+
+  <div class="chipwrap">
+    <div class="chips" role="group" aria-label="Filter moves">
+      <button class="chip" type="button" aria-pressed="true">All moves <span class="n">15</span></button>
+      <button class="chip" type="button" aria-pressed="false"><span aria-hidden="true">✛</span> New only <span class="n">6</span></button>
+      <button class="chip" type="button" aria-pressed="false"><span aria-hidden="true">✕</span> Exits <span class="n">4</span></button>
+      <button class="chip" type="button" aria-pressed="false">Our 355 <span class="n">8</span></button>
+    </div>
+  </div>
+
+  <!-- ==================== MAY 15 ==================== -->
+  <section class="fgroup" aria-label="Filed May 15, 2026">
+    <h2 class="fdate">Filed May 15, 2026 <span>8 moves · 2 managers</span></h2>
+    <ol class="feed">
+
+      <li class="fi" style="animation-delay:.02s">
+        <span class="med new" aria-hidden="true">✛</span>
+        <div>
+          <p class="fs"><b class="mgr">Berkshire Hathaway</b> <span class="vb">opened</span>
+            <span class="sym unc">CB</span> <span class="untr">not tracked</span>
+            <span class="vb">— 2.8% of portfolio</span></p>
+          <div class="fmeta"><span class="tag new">New</span><span class="fsh">27,033,784 sh · Chubb Ltd.</span></div>
+        </div>
+        <div class="fval">$8.9B<small>value</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.05s">
+        <span class="med exit" aria-hidden="true">✕</span>
+        <div>
+          <p class="fs"><b class="mgr">Berkshire Hathaway</b> <span class="vb">exited</span>
+            <span class="sym unc">PARA</span> <span class="untr">not tracked</span>
+            <span class="vb">— sold the whole stake</span></p>
+          <div class="fmeta"><span class="tag exit">Exited</span><span class="fsh">63,300,000 sh → 0 · Paramount Skydance</span></div>
+        </div>
+        <div class="fval was"><b>$1.24B</b><small>was</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.08s">
+        <span class="med trim" aria-hidden="true">▼</span>
+        <div>
+          <p class="fs"><b class="mgr">Berkshire Hathaway</b> <span class="vb">trimmed</span>
+            <a class="sym" href="#" title="Open AAPL in MarketPulse">AAPL<span class="cv" aria-hidden="true">›</span></a>
+            <span class="vb">by 15.0% — still 22.4% of the book</span></p>
+          <div class="fmeta"><span class="tag trim">Trimmed</span><span class="fsh">300,000,000 sh · Apple Inc.</span></div>
+        </div>
+        <div class="fval">$69.9B<small>value</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.11s">
+        <span class="med add" aria-hidden="true">▲</span>
+        <div>
+          <p class="fs"><b class="mgr">Berkshire Hathaway</b> <span class="vb">added to</span>
+            <a class="sym" href="#" title="Open CVX in MarketPulse">CVX<span class="cv" aria-hidden="true">›</span></a>
+            <span class="vb">by 8.4% — a fourth straight quarter of buying</span></p>
+          <div class="fmeta"><span class="tag add">Added</span><span class="fsh">122,061,700 sh · Chevron Corp.</span></div>
+        </div>
+        <div class="fval">$19.8B<small>value</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.14s">
+        <span class="med new" aria-hidden="true">✛</span>
+        <div>
+          <p class="fs"><b class="mgr">Scion Asset Management</b> <span class="vb">opened</span>
+            <a class="sym" href="#" title="Open ETSY in MarketPulse">ETSY<span class="cv" aria-hidden="true">›</span></a>
+            <span class="vb">— 12.0% of portfolio, straight to third-largest</span></p>
+          <div class="fmeta"><span class="tag new">New</span><span class="fsh">400,000 sh · Etsy Inc.</span></div>
+        </div>
+        <div class="fval">$22.4M<small>value</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.17s">
+        <span class="med new" aria-hidden="true">✛</span>
+        <div>
+          <p class="fs"><b class="mgr">Scion Asset Management</b> <span class="vb">opened</span>
+            <span class="sym unc">BRKR</span> <span class="untr">not tracked</span>
+            <span class="vb">— 7.6% of portfolio</span></p>
+          <div class="fmeta"><span class="tag new">New</span><span class="fsh">300,000 sh · Bruker Corp.</span></div>
+        </div>
+        <div class="fval">$14.1M<small>value</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.2s">
+        <span class="med exit" aria-hidden="true">✕</span>
+        <div>
+          <p class="fs"><b class="mgr">Scion Asset Management</b> <span class="vb">exited</span>
+            <span class="sym unc">EL</span> <span class="untr">not tracked</span>
+            <span class="vb">— out after two quarters</span></p>
+          <div class="fmeta"><span class="tag exit">Exited</span><span class="fsh">62,000 sh → 0 · Estée Lauder Cos.</span></div>
+        </div>
+        <div class="fval was"><b>$9.8M</b><small>was</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.23s">
+        <span class="med trim" aria-hidden="true">▼</span>
+        <div>
+          <p class="fs"><b class="mgr">Scion Asset Management</b> <span class="vb">trimmed</span>
+            <a class="sym" href="#" title="Open HCA in MarketPulse">HCA<span class="cv" aria-hidden="true">›</span></a>
+            <span class="vb">by 33.3% — the quarter's deepest cut in the set</span></p>
+          <div class="fmeta"><span class="tag trim">Trimmed</span><span class="fsh">50,000 sh · HCA Healthcare</span></div>
+        </div>
+        <div class="fval">$18.6M<small>value</small></div>
+      </li>
+
+    </ol>
+  </section>
+
+  <!-- ==================== MAY 14 ==================== -->
+  <section class="fgroup" aria-label="Filed May 14, 2026">
+    <h2 class="fdate">Filed May 14, 2026 <span>7 moves · 2 managers</span></h2>
+    <ol class="feed">
+
+      <li class="fi" style="animation-delay:.02s">
+        <span class="med new" aria-hidden="true">✛</span>
+        <div>
+          <p class="fs"><b class="mgr">Pershing Square</b> <span class="vb">opened</span>
+            <a class="sym" href="#" title="Open GOOGL in MarketPulse">GOOGL<span class="cv" aria-hidden="true">›</span></a>
+            <span class="vb">— 8.1% of a nine-name book</span></p>
+          <div class="fmeta"><span class="tag new">New</span><span class="fsh">6,500,000 sh · Alphabet Inc. Cl A</span></div>
+        </div>
+        <div class="fval">$1.12B<small>value</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.05s">
+        <span class="med exit" aria-hidden="true">✕</span>
+        <div>
+          <p class="fs"><b class="mgr">Pershing Square</b> <span class="vb">exited</span>
+            <a class="sym" href="#" title="Open NKE in MarketPulse">NKE<span class="cv" aria-hidden="true">›</span></a>
+            <span class="vb">— the whole position, gone</span></p>
+          <div class="fmeta"><span class="tag exit">Exited</span><span class="fsh">21,900,000 sh → 0 · Nike Inc. Cl B</span></div>
+        </div>
+        <div class="fval was"><b>$1.41B</b><small>was</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.08s">
+        <span class="med trim" aria-hidden="true">▼</span>
+        <div>
+          <p class="fs"><b class="mgr">Pershing Square</b> <span class="vb">trimmed</span>
+            <a class="sym" href="#" title="Open CMG in MarketPulse">CMG<span class="cv" aria-hidden="true">›</span></a>
+            <span class="vb">by 18.4% — still 11.8% of the book</span></p>
+          <div class="fmeta"><span class="tag trim">Trimmed</span><span class="fsh">26,600,000 sh · Chipotle Mexican Grill</span></div>
+        </div>
+        <div class="fval">$1.63B<small>value</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.11s">
+        <span class="med add" aria-hidden="true">▲</span>
+        <div>
+          <p class="fs"><b class="mgr">Pershing Square</b> <span class="vb">added to</span>
+            <span class="sym unc">BN</span> <span class="untr">not tracked</span>
+            <span class="vb">by 12.5% — now the second-largest holding</span></p>
+          <div class="fmeta"><span class="tag add">Added</span><span class="fsh">34,000,000 sh · Brookfield Corp.</span></div>
+        </div>
+        <div class="fval">$2.24B<small>value</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.14s">
+        <span class="med new" aria-hidden="true">✛</span>
+        <div>
+          <p class="fs"><b class="mgr">Duquesne Family Office</b> <span class="vb">opened</span>
+            <a class="sym" href="#" title="Open TEVA in MarketPulse">TEVA<span class="cv" aria-hidden="true">›</span></a>
+            <span class="vb">— 6.3% of portfolio</span></p>
+          <div class="fmeta"><span class="tag new">New</span><span class="fsh">9,400,000 sh · Teva Pharmaceutical</span></div>
+        </div>
+        <div class="fval">$196.3M<small>value</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.17s">
+        <span class="med new" aria-hidden="true">✛</span>
+        <div>
+          <p class="fs"><b class="mgr">Duquesne Family Office</b> <span class="vb">opened</span>
+            <span class="sym unc">FLUT</span> <span class="untr">not tracked</span>
+            <span class="vb">— 4.1% of portfolio</span></p>
+          <div class="fmeta"><span class="tag new">New</span><span class="fsh">480,000 sh · Flutter Entertainment</span></div>
+        </div>
+        <div class="fval">$128.4M<small>value</small></div>
+      </li>
+
+      <li class="fi" style="animation-delay:.2s">
+        <span class="med exit" aria-hidden="true">✕</span>
+        <div>
+          <p class="fs"><b class="mgr">Duquesne Family Office</b> <span class="vb">exited</span>
+            <span class="sym unc">SEA</span> <span class="untr">not tracked</span>
+            <span class="vb">— closed after one quarter</span></p>
+          <div class="fmeta"><span class="tag exit">Exited</span><span class="fsh">1,340,000 sh → 0 · Sea Limited ADR</span></div>
+        </div>
+        <div class="fval was"><b>$206.7M</b><small>was</small></div>
+      </li>
+
+    </ol>
+  </section>
+
+  <p class="feednote"><b>HELD positions are not in the radar.</b> A move only enters the stream when the
+  share count changed — anything filed at <span class="g">0.0%</span> share change is filtered out. Unchanged
+  positions are still counted in each manager's book and in the <b>1,847</b> parsed total.</p>
+
+  <p class="src">Source: SEC EDGAR Form 13F-HR. Positions are as of quarter end and lag up to 45 days.
+  Long US equity positions only — shorts, bonds and non-US holdings are not disclosed.</p>
+
+  <div class="note"><b>Whale radar feed:</b> a cross-manager, newest-first stream of individual moves under
+  sticky filing-date headers, so the interesting 20% surfaces without hunting. <b>Trade-off:</b> it reads
+  like news, but it is not a portfolio view — you can never see any single manager's whole book.</div>
+
+</div>
+
+<nav class="nav-bottom" aria-label="Primary">
+  <div class="nav-bottom-inner">
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 21V11"/><path d="M12 21V4"/><path d="M19 21v-6"/></svg></span>Stocks</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l7.1-1.01z"/></svg></span>Best</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.8l1.9 7.3 7.3 1.9-7.3 1.9L12 20.2l-1.9-7.3L2.8 11l7.3-1.9z"/></svg></span>New</a>
+    <a class="nav-tab on" href="#" aria-current="page"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18.6 3.2c-5.6 1.4-8.6 5.4-8.1 10.7 2.6-.3 4.7-1.4 6.1-3.2 1.4-1.9 2-4.4 2-7.5z" fill="currentColor"/><path d="M2.5 18.2c2.2 0 2.2 1.7 4.4 1.7s2.2-1.7 4.4-1.7 2.2 1.7 4.4 1.7 2.2-1.7 4.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>Whales</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></span>Watchlist</a>
+  </div>
+</nav>
+
+</body>
+</html>

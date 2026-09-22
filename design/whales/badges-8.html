@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales 8 — Diverging Bar</title>
+<style>
+:root{
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.4;
+  -webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden;
+  padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));
+  background-image:radial-gradient(1200px 500px at 78% -8%,rgba(27,63,115,.08),transparent 60%),
+                   radial-gradient(900px 600px at 0% 110%,rgba(20,124,134,.05),transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1270px;margin:0 auto;padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+@media(min-width:641px){.wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))}}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.bob-eyebrow{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);font-weight:700}
+.bob-title{font-family:var(--f-head);font-weight:800;font-size:clamp(22px,7vw,32px);line-height:1.08;letter-spacing:-.01em;margin:7px 0 0}
+.bob-title .em{font-style:italic;color:var(--gold)}
+.bob-dek{font-family:var(--f-head);font-style:italic;color:var(--muted);font-size:14.5px;margin:8px 0 0;max-width:62ch}
+.bob-section{margin-top:22px}
+.bob-sechdr h2{font-family:var(--f-head);font-size:22px;font-weight:800;margin:0}
+.bob-sechdr p{font-size:12.5px;color:var(--muted);margin:3px 0 10px;max-width:66ch}
+
+.na-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.mgrbar{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding:11px 12px;background:var(--panel-2);border-bottom:1px solid var(--line)}
+.mgrbar .mgr{font-family:var(--f-head);font-weight:800;font-size:15.5px}
+.mgrbar .sep{color:var(--faint)}
+.mgrbar .meta{font-size:11.5px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.mgrbar .meta b{color:var(--gold);font-weight:700}
+
+.tk .sym{font-family:var(--f-mono);font-weight:700;font-size:14px;color:var(--ink);text-decoration:none}
+a.sym{color:var(--gold);border-bottom:1px solid color-mix(in srgb,var(--gold) 45%,transparent);display:inline-flex;align-items:center;gap:2px;transition:color .15s}
+a.sym:hover{color:var(--gold-soft);border-bottom-color:var(--gold-soft)}
+span.sym.untracked{color:var(--muted);font-weight:400;border-bottom:1px dotted var(--faint);display:inline-block}
+.tk .co{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:24ch}
+.untag{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+
+.a11y{margin-top:16px;border:1px dashed var(--line);border-radius:12px;padding:12px 13px;font-size:11px;color:var(--faint);background:color-mix(in srgb,var(--panel) 55%,transparent)}
+.a11y h3{margin:0 0 6px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;font-family:var(--f-ui)}
+.a11y ul{margin:0;padding-left:15px}
+.a11y li{margin:2px 0}
+.a11y b{color:var(--muted);font-weight:700}
+.foot{margin-top:18px;font-size:11px;color:var(--faint);max-width:74ch}
+
+.note{border:1px dashed var(--line);border-radius:12px;background:var(--panel);padding:11px 13px;font-size:11.5px;color:var(--muted);margin-top:18px;position:static}
+.note b{display:block;color:var(--gold);font-weight:700;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
+@media(min-width:641px){.note{position:fixed;left:18px;bottom:18px;width:280px;margin:0;z-index:30;box-shadow:0 18px 40px -26px rgba(19,26,36,.55)}}
+
+.strip{border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:12px}
+.stripcap{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+
+/* ---- MECHANISM 8: center-zero diverging bar ---- */
+.dvcol{padding:0 16px}
+.dv{position:relative;height:18px;background:linear-gradient(to bottom,transparent 0 6px,color-mix(in srgb,var(--line) 45%,transparent) 6px 12px,transparent 12px 18px)}
+.dv::before{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;width:1px;background:var(--faint);transform:translateX(-.5px)}
+.dv .q{position:absolute;top:1px;bottom:1px;width:1px;background:color-mix(in srgb,var(--faint) 45%,transparent)}
+.dv .q.l25{left:25%} .dv .q.r25{left:75%}
+.dbar{position:absolute;top:4px;bottom:4px;border-radius:2px;min-width:3px}
+.dbar.right{left:50%}
+.dbar.left{right:50%}
+.dbar.add{background:var(--green)}
+.dbar.trim{background:var(--amber)}
+.dbar.isnew{background:color-mix(in srgb,var(--gold) 85%,transparent)}
+.dbar.isexit{background:var(--red)}
+.dtick{position:absolute;left:50%;top:0;bottom:0;width:3px;border-radius:2px;background:var(--faint);transform:translateX(-1.5px)}
+.endcap{position:absolute;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;line-height:1}
+.endcap.r{left:calc(100% + 3px)}
+.endcap.l{right:calc(100% + 3px)}
+.endcap.navy{color:var(--gold)}
+.endcap.red{color:var(--red)}
+.ocaret{position:absolute;top:50%;transform:translateY(-50%);font-size:13px;font-weight:700;line-height:1}
+.ocaret.r{left:calc(100% + 2px);color:var(--green)}
+.ocaret.l{right:calc(100% + 2px);color:var(--amber)}
+
+.ruler{display:flex;justify-content:space-between;padding:6px 16px;background:var(--panel-2);border-bottom:1px solid var(--line);font-size:9px;font-weight:700;letter-spacing:.06em;color:var(--faint);font-family:var(--f-mono)}
+
+.dvlbl{display:flex;align-items:baseline;gap:8px;margin-top:5px;flex-wrap:wrap}
+.dw{font-size:9px;font-weight:700;letter-spacing:.13em;text-transform:uppercase}
+.dw.new{color:var(--gold)} .dw.add{color:var(--green)} .dw.trim{color:var(--amber)}
+.dw.exit{color:var(--red)} .dw.held{color:var(--faint)}
+.dm{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:11.5px;font-weight:700;color:var(--muted)}
+
+.rows{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:1fr auto;gap:8px 10px;padding:11px 12px;border-bottom:1px solid var(--line);min-height:74px;align-content:center;opacity:0;animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards}
+.row:last-child{border-bottom:0}
+.row:hover{background:var(--panel-2)}
+.r-tk{grid-column:1;grid-row:1;min-width:0}
+.r-val{grid-column:2;grid-row:1;text-align:right}
+.r-dv{grid-column:1 / -1;grid-row:2}
+.v{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px;font-weight:700}
+.pct{font-size:11px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.sh{font-size:10.5px;color:var(--faint);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+@media(min-width:800px){
+  .row{grid-template-columns:minmax(150px,1.1fr) 96px minmax(240px,2fr);align-items:center}
+  .r-tk{grid-row:1;grid-column:1}
+  .r-val{grid-row:1;grid-column:2}
+  .r-dv{grid-row:1;grid-column:3}
+}
+
+.mcol{display:flex;flex-direction:column;gap:12px}
+.mline{border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 4px}
+.mline .stripcap{display:block;padding:0 16px 6px}
+
+.isorow{display:flex;flex-wrap:wrap;gap:9px}
+.iso{flex:1 1 140px;min-width:140px;min-height:74px;padding:10px 4px;border:1px solid var(--line);border-radius:10px;background:var(--bg);display:flex;flex-direction:column;justify-content:center;gap:6px}
+.iso .stripcap{padding:0 16px}
+
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="bob-eyebrow">Whales · Holding Row</div>
+    <h1 class="bob-title">Diverging <span class="em">Axis</span></h1>
+    <p class="bob-dek">One shared centre-zero axis runs down the whole table — buys grow right in green, trims grow left in amber, and because every row is on the same ruler you can rank magnitudes at a glance.</p>
+  </header>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Live rows</h2>
+      <p>Scaled to ±50%; anything past the end of the ruler keeps its bar pinned and gains an overflow caret.</p>
+    </div>
+
+    <div class="na-wrap">
+      <div class="mgrbar">
+        <span class="mgr">Berkshire Hathaway</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta">Q1 2026</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta"><b>$312.4B</b></span>
+      </div>
+      <div class="ruler" aria-hidden="true"><span>−50%</span><span>−25%</span><span>0</span><span>+25%</span><span>+50%</span></div>
+
+      <ul class="rows">
+
+        <li class="row" style="animation-delay:.02s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open AAPL in MarketPulse">AAPL<span aria-hidden="true">›</span></a>
+            <div class="co">Apple Inc.</div>
+          </div>
+          <div class="r-val"><div class="v">$69.9B</div><div class="pct">22.4%</div></div>
+          <div class="r-dv">
+            <div class="dvcol">
+              <div class="dv" role="img" aria-label="Trimmed 15.0 percent — bar extends left of zero">
+                <span class="q l25"></span><span class="q r25"></span>
+                <span class="dbar left trim" style="width:15%"></span>
+              </div>
+            </div>
+            <div class="dvlbl"><span class="dw trim">Trimmed</span><span class="dm">−15.0% · 300,000,000 sh</span></div>
+          </div>
+        </li>
+
+        <li class="row" style="animation-delay:.06s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open CVX in MarketPulse">CVX<span aria-hidden="true">›</span></a>
+            <div class="co">Chevron Corp.</div>
+          </div>
+          <div class="r-val"><div class="v">$19.8B</div><div class="pct">6.3%</div></div>
+          <div class="r-dv">
+            <div class="dvcol">
+              <div class="dv" role="img" aria-label="Added 8.4 percent — bar extends right of zero">
+                <span class="q l25"></span><span class="q r25"></span>
+                <span class="dbar right add" style="width:8.4%"></span>
+              </div>
+            </div>
+            <div class="dvlbl"><span class="dw add">Added</span><span class="dm">+8.4% · 122,061,700 sh</span></div>
+          </div>
+        </li>
+
+        <li class="row" style="animation-delay:.1s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open KO in MarketPulse">KO<span aria-hidden="true">›</span></a>
+            <div class="co">Coca-Cola Co.</div>
+          </div>
+          <div class="r-val"><div class="v">$27.4B</div><div class="pct">8.8%</div></div>
+          <div class="r-dv">
+            <div class="dvcol">
+              <div class="dv" role="img" aria-label="Held — a single tick sits on the zero axis">
+                <span class="q l25"></span><span class="q r25"></span>
+                <span class="dtick"></span>
+              </div>
+            </div>
+            <div class="dvlbl"><span class="dw held">Held</span><span class="dm">0.0% · 400,000,000 sh</span></div>
+          </div>
+        </li>
+
+        <li class="row" style="animation-delay:.14s">
+          <div class="r-tk tk">
+            <span class="sym untracked">CB</span>
+            <div class="co">Chubb Ltd. · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">$8.9B</div><div class="pct">2.8%</div></div>
+          <div class="r-dv">
+            <div class="dvcol">
+              <div class="dv" role="img" aria-label="New position — bar fills the full right side with a cross end cap">
+                <span class="q l25"></span><span class="q r25"></span>
+                <span class="dbar right isnew" style="width:50%"></span>
+                <span class="endcap r navy" aria-hidden="true">✛</span>
+              </div>
+            </div>
+            <div class="dvlbl"><span class="dw new">New</span><span class="dm">NEW · 27,033,784 sh</span></div>
+          </div>
+        </li>
+
+        <li class="row" style="animation-delay:.18s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open OXY in MarketPulse">OXY<span aria-hidden="true">›</span></a>
+            <div class="co">Occidental Petroleum</div>
+          </div>
+          <div class="r-val"><div class="v">$13.1B</div><div class="pct">4.2%</div></div>
+          <div class="r-dv">
+            <div class="dvcol">
+              <div class="dv" role="img" aria-label="Added 2.1 percent — a short bar right of zero">
+                <span class="q l25"></span><span class="q r25"></span>
+                <span class="dbar right add" style="width:2.1%"></span>
+              </div>
+            </div>
+            <div class="dvlbl"><span class="dw add">Added</span><span class="dm">+2.1% · 264,941,400 sh</span></div>
+          </div>
+        </li>
+
+        <li class="row" style="animation-delay:.22s">
+          <div class="r-tk tk">
+            <span class="sym untracked">BRKR</span>
+            <div class="co">Bruker Corp. · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">$14.1M</div><div class="pct">7.6%</div></div>
+          <div class="r-dv">
+            <div class="dvcol">
+              <div class="dv" role="img" aria-label="New position — bar fills the full right side with a cross end cap">
+                <span class="q l25"></span><span class="q r25"></span>
+                <span class="dbar right isnew" style="width:50%"></span>
+                <span class="endcap r navy" aria-hidden="true">✛</span>
+              </div>
+            </div>
+            <div class="dvlbl"><span class="dw new">New</span><span class="dm">NEW · 300,000 sh</span></div>
+          </div>
+        </li>
+
+        <li class="row" style="animation-delay:.26s">
+          <div class="r-tk tk">
+            <span class="sym untracked">PARA</span>
+            <div class="co">Paramount Skydance · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">—</div><div class="pct">—</div></div>
+          <div class="r-dv">
+            <div class="dvcol">
+              <div class="dv" role="img" aria-label="Exited — bar fills the full left side with a cross end cap">
+                <span class="q l25"></span><span class="q r25"></span>
+                <span class="dbar left isexit" style="width:50%"></span>
+                <span class="endcap l red" aria-hidden="true">✕</span>
+              </div>
+            </div>
+            <div class="dvlbl"><span class="dw exit">Exited</span><span class="dm">−100% · 0 sh, was 63,300,000</span></div>
+          </div>
+        </li>
+
+      </ul>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Magnitude range</h2>
+      <p>This is the treatment's whole argument — a shared axis makes +2.1% and +75.0% instantly rankable without reading either number.</p>
+    </div>
+    <div class="strip">
+      <div class="mcol">
+        <div class="mline"><span class="stripcap">+2.1%</span><div class="dvcol"><div class="dv"><span class="q l25"></span><span class="q r25"></span><span class="dbar right add" style="width:2.1%"></span></div></div></div>
+        <div class="mline"><span class="stripcap">+8.4%</span><div class="dvcol"><div class="dv"><span class="q l25"></span><span class="q r25"></span><span class="dbar right add" style="width:8.4%"></span></div></div></div>
+        <div class="mline"><span class="stripcap">+75.0% · past the ruler</span><div class="dvcol"><div class="dv"><span class="q l25"></span><span class="q r25"></span><span class="dbar right add" style="width:50%"></span><span class="ocaret r" aria-hidden="true">›</span></div></div></div>
+        <div class="mline"><span class="stripcap">−9.1%</span><div class="dvcol"><div class="dv"><span class="q l25"></span><span class="q r25"></span><span class="dbar left trim" style="width:9.1%"></span></div></div></div>
+        <div class="mline"><span class="stripcap">−33.3%</span><div class="dvcol"><div class="dv"><span class="q l25"></span><span class="q r25"></span><span class="dbar left trim" style="width:33.3%"></span></div></div></div>
+        <div class="mline"><span class="stripcap">New — no percentage</span><div class="dvcol"><div class="dv"><span class="q l25"></span><span class="q r25"></span><span class="dbar right isnew" style="width:50%"></span><span class="endcap r navy" aria-hidden="true">✛</span></div></div></div>
+        <div class="mline"><span class="stripcap">Exited — to zero</span><div class="dvcol"><div class="dv"><span class="q l25"></span><span class="q r25"></span><span class="dbar left isexit" style="width:50%"></span><span class="endcap l red" aria-hidden="true">✕</span></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>States, isolated</h2>
+      <p>Each of the five axis forms, at row size.</p>
+    </div>
+    <div class="strip">
+      <div class="isorow">
+        <div class="iso"><div class="dvcol"><div class="dv"><span class="dbar right isnew" style="width:50%"></span><span class="endcap r navy" aria-hidden="true">✛</span></div></div><span class="stripcap">New · full right + ✛</span></div>
+        <div class="iso"><div class="dvcol"><div class="dv"><span class="dbar right add" style="width:22%"></span></div></div><span class="stripcap">Added · right of zero</span></div>
+        <div class="iso"><div class="dvcol"><div class="dv"><span class="dbar left trim" style="width:22%"></span></div></div><span class="stripcap">Trimmed · left of zero</span></div>
+        <div class="iso"><div class="dvcol"><div class="dv"><span class="dbar left isexit" style="width:50%"></span><span class="endcap l red" aria-hidden="true">✕</span></div></div><span class="stripcap">Exited · full left + ✕</span></div>
+        <div class="iso"><div class="dvcol"><div class="dv"><span class="dtick"></span></div></div><span class="stripcap">Held · tick on axis</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="a11y">
+    <h3>Non-color cues</h3>
+    <ul>
+      <li><b>NEW</b> — bar pinned to the full right of the axis with a ✛ end cap and the label <em>NEW</em> instead of a percentage.</li>
+      <li><b>ADDED</b> — bar sits on the right of the zero hairline; label reads <em>Added</em> with a <code>+</code> figure.</li>
+      <li><b>TRIMMED</b> — bar sits on the left of the zero hairline; label reads <em>Trimmed</em> with a <code>−</code> figure.</li>
+      <li><b>EXITED</b> — bar pinned to the full left with a ✕ end cap; label reads <em>Exited</em>.</li>
+      <li><b>HELD</b> — no bar at all, a single 3px tick straddling the axis; label reads <em>Held</em>.</li>
+      <li><b>Covered</b> — ticker is a link with a solid underline and a trailing <code>›</code> chevron.</li>
+      <li><b>Not covered</b> — ticker is plain text with a dotted underline and the words <em>not tracked</em>.</li>
+    </ul>
+  </div>
+
+  <p class="foot">Source: SEC EDGAR Form 13F-HR. Positions are as of quarter end and lag up to 45 days. Long US equity positions only — shorts, bonds and non-US holdings are not disclosed.</p>
+
+  <aside class="note">
+    <b>Concept</b>
+    Give every row the same centre-zero ruler so direction is a side and size is a length, comparable down the whole column. Trade-off: it needs a wide dedicated column, and NEW / EXITED have to be faked as full-scale bars because they have no honest percentage.
+  </aside>
+
+</div>
+</body>
+</html>

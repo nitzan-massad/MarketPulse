@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales 6 — Manager Rail + Detail Pane</title>
+<style>
+:root{
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--f-ui);
+  font-size:14px; line-height:1.4; -webkit-font-smoothing:antialiased; min-height:100vh;
+  background-image:
+    radial-gradient(1200px 500px at 78% -8%, rgba(27,63,115,.08), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(20,124,134,.05), transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1270px; margin:0 auto; padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+@media(min-width:641px){ .wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))} }
+
+/* ---------------- masthead ---------------- */
+.bob-eyebrow{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+.bob-title{font-family:var(--f-head); font-weight:800; font-size:clamp(22px,7vw,32px); line-height:1.02;
+  letter-spacing:-.02em; margin:.16em 0 .18em}
+.bob-title .em{font-style:italic; font-weight:500; color:var(--gold)}
+.bob-dek{font-family:var(--f-head); font-style:italic; font-size:clamp(15px,2vw,20px); color:var(--muted);
+  font-weight:500; margin:0 0 10px}
+.bob-counts{display:flex; gap:10px; align-items:baseline; font-size:12px; color:var(--muted); flex-wrap:wrap}
+.bob-counts b{color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums; font-family:var(--f-mono)}
+.bob-counts .dot{color:var(--faint)}
+
+/* ---------------- sticky manager rail ---------------- */
+.layout{margin-top:16px}
+.rail-sticky{position:sticky; top:0; z-index:20; background:var(--bg);
+  border-bottom:1px solid var(--line); margin:0 -14px 16px; padding:10px 14px 0}
+@media(min-width:641px){ .rail-sticky{margin:0 -28px 16px; padding:10px 28px 0} }
+.rail-hd{display:flex; align-items:baseline; justify-content:space-between; gap:8px; margin-bottom:8px}
+.rail-hd .k{font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.rail-hd .hint{font-size:10px; color:var(--faint)}
+/* fade masks — the .mkm-rangewrap::before/::after idiom from src/index.css */
+.mrail-wrap{position:relative; overflow:hidden}
+.mrail-wrap::before,.mrail-wrap::after{content:""; position:absolute; top:0; bottom:0; width:26px;
+  pointer-events:none; z-index:2}
+.mrail-wrap::before{left:0; background:linear-gradient(90deg,var(--bg),rgba(249,250,251,0))}
+.mrail-wrap::after{right:0; background:linear-gradient(270deg,var(--bg),rgba(249,250,251,0))}
+.mrail{display:flex; gap:9px; overflow-x:auto; scroll-behavior:smooth; scrollbar-width:none;
+  -ms-overflow-style:none; padding:2px 2px 12px}
+.mrail::-webkit-scrollbar{display:none}
+.mtile{flex:none; width:142px; min-height:118px; text-align:left; font:inherit; color:inherit; cursor:pointer;
+  background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px;
+  display:flex; flex-direction:column; gap:8px; transition:.15s}
+.mtile:hover{border-color:var(--gold-soft); background:var(--panel-2); transform:translateY(-2px);
+  box-shadow:0 18px 40px -26px rgba(27,29,24,.4)}
+.mtile:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px}
+.mt-init{width:44px; height:44px; border-radius:11px; display:flex; align-items:center; justify-content:center;
+  font-family:var(--f-mono); font-weight:700; font-size:15px; letter-spacing:-.02em;
+  background:var(--panel-2); color:var(--gold); border:1px solid var(--line); flex:none}
+.mt-name{font-size:12px; font-weight:700; line-height:1.24; letter-spacing:-.01em}
+.mt-name span{display:block; color:var(--muted); font-weight:600}
+.mt-val{font-family:var(--f-mono); font-weight:700; font-size:12.5px; font-variant-numeric:tabular-nums;
+  margin-top:auto}
+.mt-mix{display:flex; align-items:center; gap:5px}
+.mt-mix i{width:7px; height:7px; border-radius:50%; display:block}
+.mt-mix .d-new{background:var(--gold)}
+.mt-mix .d-add{background:var(--green)}
+.mt-mix .d-trim{background:var(--amber)}
+.mt-mix .d-exit{background:var(--red)}
+.mt-mix .d-held{background:var(--faint)}
+.mt-mix em{font-style:normal; font-family:var(--f-mono); font-size:9px; color:var(--muted); letter-spacing:.02em}
+/* selected: navy fill */
+.mtile[aria-current="true"]{background:var(--gold); border-color:var(--gold); color:#fff;
+  box-shadow:0 16px 34px -24px rgba(27,63,115,.85)}
+.mtile[aria-current="true"] .mt-name span{color:rgba(255,255,255,.72)}
+.mtile[aria-current="true"] .mt-init{background:rgba(255,255,255,.15); color:#fff; border-color:rgba(255,255,255,.32)}
+.mtile[aria-current="true"] .mt-mix em{color:rgba(255,255,255,.75)}
+.mtile[aria-current="true"]:hover{background:var(--gold-soft); border-color:var(--gold-soft)}
+
+/* ---------------- detail pane ---------------- */
+.pane{background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden}
+.pane-hd{padding:14px 13px; border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg, var(--panel-2), var(--panel))}
+.pane-hd h2{font-family:var(--f-head); font-weight:800; font-size:22px; letter-spacing:-.02em; margin:0 0 4px}
+.pane-cik{font-family:var(--f-mono); font-size:10.5px; color:var(--muted); letter-spacing:.02em}
+.pane-cik .dot{color:var(--faint); margin:0 5px}
+.pane-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; margin-top:12px;
+  background:var(--line); border:1px solid var(--line); border-radius:11px; overflow:hidden}
+.pane-stats div{background:var(--panel); padding:9px 8px}
+.bob-k{font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:700}
+.bob-v{font-size:13px; margin-top:3px}
+.bob-v.mono{font-family:var(--f-mono); font-weight:700; font-variant-numeric:tabular-nums}
+.pane-scope{margin-top:11px; font-size:11px; color:var(--muted)}
+.pane-scope b{font-family:var(--f-mono); color:var(--ink); font-weight:700; font-variant-numeric:tabular-nums}
+
+/* holdings — two-line rows */
+.hlist{list-style:none; margin:0; padding:0}
+.hrow{display:grid; grid-template-columns:1fr auto; gap:6px 10px; padding:11px 13px;
+  border-bottom:1px solid var(--line); transition:background .12s;
+  opacity:0; animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards}
+.hrow:last-child{border-bottom:0}
+.hrow:hover{background:var(--panel-2)}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+.h-l1{display:flex; align-items:baseline; gap:8px; min-width:0}
+.h-co{font-size:11.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.h-val{font-family:var(--f-mono); font-weight:700; font-size:13px; font-variant-numeric:tabular-nums;
+  text-align:right; white-space:nowrap}
+.h-l2{grid-column:1/-1; display:flex; align-items:center; gap:9px}
+.h-bar{flex:1 1 auto; min-width:44px; height:7px; background:var(--panel-2); border:1px solid var(--line);
+  border-radius:5px; overflow:hidden}
+.h-bar i{display:block; height:100%; background:var(--gold); border-radius:5px}
+.h-pct{font-family:var(--f-mono); font-size:11px; font-weight:700; color:var(--muted);
+  font-variant-numeric:tabular-nums; width:46px; text-align:right; flex:none}
+.hrow.ghost .h-val,.hrow.ghost .h-co{color:var(--faint)}
+.hrow.ghost .h-bar{border-style:dashed; background:transparent}
+.hrow.ghost .prior{font-family:var(--f-mono); font-size:10.5px; color:var(--faint); text-decoration:line-through}
+
+/* ticker treatments — covered vs not covered */
+a.sym{font-family:var(--f-mono); font-weight:700; font-size:14px; color:var(--gold); text-decoration:none;
+  border-bottom:1px solid color-mix(in srgb, var(--gold) 38%, transparent); transition:.14s; white-space:nowrap}
+a.sym:hover{color:var(--gold-soft); border-bottom-color:var(--gold-soft)}
+a.sym:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px; border-radius:3px}
+a.sym .cv{margin-left:3px; font-weight:700}
+.sym.unc{font-family:var(--f-mono); font-weight:400; font-size:14px; color:var(--muted);
+  border-bottom:1px dotted var(--faint); white-space:nowrap}
+.untr{font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); font-weight:700;
+  white-space:nowrap}
+
+/* change-state badge */
+.st{display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; padding:3px 8px; border-radius:999px; border:1px solid; white-space:nowrap; flex:none}
+.st .g{font-size:9.5px; line-height:1}
+.st .d{font-family:var(--f-mono); font-size:9px; letter-spacing:0}
+.st.new{color:var(--gold); background:color-mix(in srgb, var(--gold) 12%, transparent);
+  border-color:color-mix(in srgb, var(--gold) 34%, transparent)}
+.st.add{color:var(--green); background:color-mix(in srgb, var(--green) 12%, transparent);
+  border-color:color-mix(in srgb, var(--green) 34%, transparent)}
+.st.trim{color:var(--amber); background:color-mix(in srgb, var(--amber) 12%, transparent);
+  border-color:color-mix(in srgb, var(--amber) 34%, transparent)}
+.st.exit{color:var(--red); background:color-mix(in srgb, var(--red) 12%, transparent);
+  border-color:color-mix(in srgb, var(--red) 34%, transparent)}
+.st.held{color:var(--muted); background:transparent; border-color:var(--line)}
+
+.src{margin:22px 0 0; padding-top:14px; border-top:1px solid var(--line); font-size:11px; color:var(--faint);
+  line-height:1.55}
+
+/* ---------------- fixed note box ---------------- */
+.note{position:fixed; left:16px; bottom:78px; z-index:60; max-width:236px; font-size:11px; color:var(--muted);
+  background:var(--bg); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; line-height:1.45}
+.note b{color:var(--ink)}
+@media(max-width:640px){ .note{position:static; margin-top:16px; max-width:none} }
+
+/* ---------------- bottom nav ---------------- */
+.nav-bottom{position:fixed; left:0; right:0; bottom:0; z-index:40; background:rgba(255,255,255,.9);
+  -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3);
+  border-top:1px solid var(--line); box-shadow:0 -10px 30px -22px rgba(27,29,24,.5);
+  padding-bottom:env(safe-area-inset-bottom, 0px)}
+.nav-bottom-inner{max-width:560px; margin:0 auto; display:flex; align-items:stretch; position:relative}
+.nav-tab{position:relative; appearance:none; background:none; border:0; cursor:pointer; flex:1;
+  text-decoration:none; display:flex; flex-direction:column; align-items:center; gap:4px; padding:9px 6px 8px;
+  color:var(--muted); font-family:var(--f-ui); font-size:10.5px; font-weight:600; letter-spacing:.01em; transition:.14s}
+.nav-tab .nav-tab-ic{display:flex; opacity:.9; transition:.14s}
+.nav-tab:hover{color:var(--ink)}
+.nav-tab.on{color:var(--gold-soft)}
+.nav-tab.on .nav-tab-ic{opacity:1}
+.nav-tab.on::before{content:""; position:absolute; top:0; left:50%; transform:translateX(-50%);
+  width:28px; height:3px; border-radius:0 0 3px 3px; background:var(--gold)}
+.nav-tab:focus-visible{outline:2px solid var(--gold-soft); outline-offset:-3px; border-radius:10px}
+
+/* ---------------- ≥900px: rail becomes a 220px sidebar ---------------- */
+@media(min-width:900px){
+  .layout{display:grid; grid-template-columns:220px 1fr; gap:24px; align-items:start}
+  .rail-sticky{position:sticky; top:24px; margin:0; padding:0; border-bottom:0; background:transparent}
+  .mrail-wrap{overflow:visible}
+  .mrail-wrap::before,.mrail-wrap::after{display:none}
+  .mrail{flex-direction:column; overflow:visible; gap:8px; padding:0}
+  .mtile{width:100%; min-height:0}
+  .rail-hd .hint{display:none}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div class="bob-eyebrow">13F Filings · Q1 2026</div>
+    <h1 class="bob-title">Whale <span class="em">Watch</span></h1>
+    <p class="bob-dek">What 24 institutional managers reported owning on March 31 — and what changed.</p>
+    <div class="bob-counts">
+      <span><b>24</b> managers filed</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>1,847</b> positions parsed</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>112</b> of our <b>355</b> covered</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>$482B</b> aggregate</span><span class="dot" aria-hidden="true">·</span>
+      <span>last filing <b>May 15, 2026</b></span>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- ============ STICKY MANAGER RAIL ============ -->
+    <div class="rail-sticky">
+      <div class="rail-hd">
+        <span class="k">Managers</span>
+        <span class="hint">swipe →</span>
+      </div>
+      <div class="mrail-wrap">
+        <div class="mrail" role="tablist" aria-label="Choose a manager">
+          <button class="mtile" type="button" role="tab" aria-current="true" aria-selected="true">
+            <span class="mt-init" aria-hidden="true">BH</span>
+            <span class="mt-name">Berkshire<span>Hathaway</span></span>
+            <span class="mt-val">$312.4B</span>
+            <span class="mt-mix" title="2 added · 2 trimmed · 1 new">
+              <i class="d-add" aria-hidden="true"></i><i class="d-trim" aria-hidden="true"></i><i class="d-new" aria-hidden="true"></i>
+              <em>2▲ 2▼ 1✛</em>
+            </span>
+          </button>
+
+          <button class="mtile" type="button" role="tab" aria-selected="false">
+            <span class="mt-init" aria-hidden="true">PS</span>
+            <span class="mt-name">Pershing<span>Square Capital</span></span>
+            <span class="mt-val">$13.8B</span>
+            <span class="mt-mix" title="2 added · 2 trimmed · 1 new">
+              <i class="d-add" aria-hidden="true"></i><i class="d-trim" aria-hidden="true"></i><i class="d-new" aria-hidden="true"></i>
+              <em>2▲ 2▼ 1✛</em>
+            </span>
+          </button>
+
+          <button class="mtile" type="button" role="tab" aria-selected="false">
+            <span class="mt-init" aria-hidden="true">SA</span>
+            <span class="mt-name">Scion<span>Asset Mgmt</span></span>
+            <span class="mt-val">$186.4M</span>
+            <span class="mt-mix" title="2 added · 1 trimmed · 2 new">
+              <i class="d-add" aria-hidden="true"></i><i class="d-trim" aria-hidden="true"></i><i class="d-new" aria-hidden="true"></i>
+              <em>2▲ 1▼ 2✛</em>
+            </span>
+          </button>
+
+          <button class="mtile" type="button" role="tab" aria-selected="false">
+            <span class="mt-init" aria-hidden="true">DQ</span>
+            <span class="mt-name">Duquesne<span>Family Office</span></span>
+            <span class="mt-val">$3.12B</span>
+            <span class="mt-mix" title="2 added · 2 trimmed · 2 new">
+              <i class="d-add" aria-hidden="true"></i><i class="d-trim" aria-hidden="true"></i><i class="d-new" aria-hidden="true"></i>
+              <em>2▲ 2▼ 2✛</em>
+            </span>
+          </button>
+
+          <button class="mtile" type="button" role="tab" aria-selected="false">
+            <span class="mt-init" aria-hidden="true">AP</span>
+            <span class="mt-name">Appaloosa<span>LP</span></span>
+            <span class="mt-val">$7.41B</span>
+            <span class="mt-mix" title="3 added · 1 trimmed · 1 new">
+              <i class="d-add" aria-hidden="true"></i><i class="d-trim" aria-hidden="true"></i><i class="d-new" aria-hidden="true"></i>
+              <em>3▲ 1▼ 1✛</em>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ DETAIL PANE ============ -->
+    <section class="pane" aria-label="Berkshire Hathaway holdings">
+      <div class="pane-hd">
+        <h2>Berkshire Hathaway</h2>
+        <div class="pane-cik">CIK 0001067983<span class="dot" aria-hidden="true">·</span>Filed May 15, 2026<span class="dot" aria-hidden="true">·</span>Q1 2026</div>
+        <div class="pane-stats">
+          <div><div class="bob-k">Portfolio</div><div class="bob-v mono">$312.4B</div></div>
+          <div><div class="bob-k">Positions</div><div class="bob-v mono">41</div></div>
+          <div><div class="bob-k">Top 8</div><div class="bob-v mono">68.8%</div></div>
+        </div>
+        <p class="pane-scope"><b>41</b> positions · showing top <b>8</b></p>
+      </div>
+
+      <ol class="hlist">
+        <li class="hrow" style="animation-delay:.02s">
+          <div class="h-l1"><a class="sym" href="#" title="Open AAPL in MarketPulse">AAPL<span class="cv" aria-hidden="true">›</span></a><span class="h-co">Apple Inc.</span></div>
+          <div class="h-val">$69.9B</div>
+          <div class="h-l2">
+            <span class="h-bar" title="22.4% of portfolio"><i style="width:100%"></i></span>
+            <span class="h-pct">22.4%</span>
+            <span class="st trim"><span class="g" aria-hidden="true">▼</span>Trimmed<span class="d">−15.0%</span></span>
+          </div>
+        </li>
+
+        <li class="hrow" style="animation-delay:.06s">
+          <div class="h-l1"><a class="sym" href="#" title="Open AXP in MarketPulse">AXP<span class="cv" aria-hidden="true">›</span></a><span class="h-co">American Express</span></div>
+          <div class="h-val">$47.2B</div>
+          <div class="h-l2">
+            <span class="h-bar" title="15.1% of portfolio"><i style="width:67.4%"></i></span>
+            <span class="h-pct">15.1%</span>
+            <span class="st held"><span class="g" aria-hidden="true">—</span>Held<span class="d">0.0%</span></span>
+          </div>
+        </li>
+
+        <li class="hrow" style="animation-delay:.1s">
+          <div class="h-l1"><a class="sym" href="#" title="Open BAC in MarketPulse">BAC<span class="cv" aria-hidden="true">›</span></a><span class="h-co">Bank of America</span></div>
+          <div class="h-val">$28.6B</div>
+          <div class="h-l2">
+            <span class="h-bar" title="9.2% of portfolio"><i style="width:41.1%"></i></span>
+            <span class="h-pct">9.2%</span>
+            <span class="st trim"><span class="g" aria-hidden="true">▼</span>Trimmed<span class="d">−7.2%</span></span>
+          </div>
+        </li>
+
+        <li class="hrow" style="animation-delay:.14s">
+          <div class="h-l1"><a class="sym" href="#" title="Open KO in MarketPulse">KO<span class="cv" aria-hidden="true">›</span></a><span class="h-co">Coca-Cola Co.</span></div>
+          <div class="h-val">$27.4B</div>
+          <div class="h-l2">
+            <span class="h-bar" title="8.8% of portfolio"><i style="width:39.3%"></i></span>
+            <span class="h-pct">8.8%</span>
+            <span class="st held"><span class="g" aria-hidden="true">—</span>Held<span class="d">0.0%</span></span>
+          </div>
+        </li>
+
+        <li class="hrow" style="animation-delay:.18s">
+          <div class="h-l1"><a class="sym" href="#" title="Open CVX in MarketPulse">CVX<span class="cv" aria-hidden="true">›</span></a><span class="h-co">Chevron Corp.</span></div>
+          <div class="h-val">$19.8B</div>
+          <div class="h-l2">
+            <span class="h-bar" title="6.3% of portfolio"><i style="width:28.1%"></i></span>
+            <span class="h-pct">6.3%</span>
+            <span class="st add"><span class="g" aria-hidden="true">▲</span>Added<span class="d">+8.4%</span></span>
+          </div>
+        </li>
+
+        <li class="hrow" style="animation-delay:.22s">
+          <div class="h-l1"><a class="sym" href="#" title="Open OXY in MarketPulse">OXY<span class="cv" aria-hidden="true">›</span></a><span class="h-co">Occidental Petroleum</span></div>
+          <div class="h-val">$13.1B</div>
+          <div class="h-l2">
+            <span class="h-bar" title="4.2% of portfolio"><i style="width:18.8%"></i></span>
+            <span class="h-pct">4.2%</span>
+            <span class="st add"><span class="g" aria-hidden="true">▲</span>Added<span class="d">+2.1%</span></span>
+          </div>
+        </li>
+
+        <li class="hrow" style="animation-delay:.26s">
+          <div class="h-l1"><span class="sym unc">CB</span><span class="h-co">Chubb Ltd.</span><span class="untr">not tracked</span></div>
+          <div class="h-val">$8.9B</div>
+          <div class="h-l2">
+            <span class="h-bar" title="2.8% of portfolio"><i style="width:12.5%"></i></span>
+            <span class="h-pct">2.8%</span>
+            <span class="st new"><span class="g" aria-hidden="true">✛</span>New<span class="d">27,033,784 sh</span></span>
+          </div>
+        </li>
+
+        <li class="hrow ghost" style="animation-delay:.3s">
+          <div class="h-l1"><span class="sym unc">PARA</span><span class="h-co">Paramount Skydance</span><span class="untr">not tracked</span></div>
+          <div class="h-val prior">$1.24B</div>
+          <div class="h-l2">
+            <span class="h-bar" title="0% of portfolio — position closed"><i style="width:0"></i></span>
+            <span class="h-pct">0.0%</span>
+            <span class="st exit"><span class="g" aria-hidden="true">✕</span>Exited<span class="d">−100%</span></span>
+          </div>
+        </li>
+      </ol>
+    </section>
+  </div>
+
+  <p class="src">Source: SEC EDGAR Form 13F-HR. Positions are as of quarter end and lag up to 45 days.
+  Long US equity positions only — shorts, bonds and non-US holdings are not disclosed.</p>
+
+  <div class="note"><b>Manager rail + detail pane:</b> a sticky, horizontally-scrolling rail of manager
+  tiles sits above one manager's full book, so switching is a single tap and the roster never leaves the
+  screen. <b>Trade-off:</b> you only ever see one manager at a time — no side-by-side comparison.</div>
+
+</div>
+
+<nav class="nav-bottom" aria-label="Primary">
+  <div class="nav-bottom-inner">
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 21V11"/><path d="M12 21V4"/><path d="M19 21v-6"/></svg></span>Stocks</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l7.1-1.01z"/></svg></span>Best</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.8l1.9 7.3 7.3 1.9-7.3 1.9L12 20.2l-1.9-7.3L2.8 11l7.3-1.9z"/></svg></span>New</a>
+    <a class="nav-tab on" href="#" aria-current="page"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18.6 3.2c-5.6 1.4-8.6 5.4-8.1 10.7 2.6-.3 4.7-1.4 6.1-3.2 1.4-1.9 2-4.4 2-7.5z" fill="currentColor"/><path d="M2.5 18.2c2.2 0 2.2 1.7 4.4 1.7s2.2-1.7 4.4-1.7 2.2 1.7 4.4 1.7 2.2-1.7 4.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>Whales</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></span>Watchlist</a>
+  </div>
+</nav>
+
+</body>
+</html>

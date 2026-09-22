@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales 9 — Card + Corner Ribbon</title>
+<style>
+:root{
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.4;
+  -webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden;
+  padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));
+  background-image:radial-gradient(1200px 500px at 78% -8%,rgba(27,63,115,.08),transparent 60%),
+                   radial-gradient(900px 600px at 0% 110%,rgba(20,124,134,.05),transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1270px;margin:0 auto;padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+@media(min-width:641px){.wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))}}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.bob-eyebrow{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);font-weight:700}
+.bob-title{font-family:var(--f-head);font-weight:800;font-size:clamp(22px,7vw,32px);line-height:1.08;letter-spacing:-.01em;margin:7px 0 0}
+.bob-title .em{font-style:italic;color:var(--gold)}
+.bob-dek{font-family:var(--f-head);font-style:italic;color:var(--muted);font-size:14.5px;margin:8px 0 0;max-width:62ch}
+.bob-section{margin-top:22px}
+.bob-sechdr h2{font-family:var(--f-head);font-size:22px;font-weight:800;margin:0}
+.bob-sechdr p{font-size:12.5px;color:var(--muted);margin:3px 0 10px;max-width:66ch}
+
+.a11y{margin-top:16px;border:1px dashed var(--line);border-radius:12px;padding:12px 13px;font-size:11px;color:var(--faint);background:color-mix(in srgb,var(--panel) 55%,transparent)}
+.a11y h3{margin:0 0 6px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;font-family:var(--f-ui)}
+.a11y ul{margin:0;padding-left:15px}
+.a11y li{margin:2px 0}
+.a11y b{color:var(--muted);font-weight:700}
+.foot{margin-top:18px;font-size:11px;color:var(--faint);max-width:74ch}
+
+.note{border:1px dashed var(--line);border-radius:12px;background:var(--panel);padding:11px 13px;font-size:11.5px;color:var(--muted);margin-top:18px;position:static}
+.note b{display:block;color:var(--gold);font-weight:700;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
+@media(min-width:641px){.note{position:fixed;left:18px;bottom:18px;width:280px;margin:0;z-index:30;box-shadow:0 18px 40px -26px rgba(19,26,36,.55)}}
+
+.strip{border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:12px}
+.stripcap{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+
+/* ---- MECHANISM 9: card + diagonal corner ribbon ---- */
+.mgrshell{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:12px}
+.mgrbar{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding:0 2px 11px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.mgrbar .mgr{font-family:var(--f-head);font-weight:800;font-size:16px}
+.mgrbar .sep{color:var(--faint)}
+.mgrbar .meta{font-size:11.5px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.mgrbar .meta b{color:var(--gold);font-weight:700}
+
+.cardgrid{display:grid;grid-template-columns:1fr;gap:11px}
+@media(min-width:560px){.cardgrid{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1024px){.cardgrid{grid-template-columns:repeat(3,1fr)}}
+
+.hcard{
+  position:relative;overflow:hidden;background:var(--bg);border:1px solid var(--line);
+  border-radius:13px;padding:13px;display:flex;flex-direction:column;gap:9px;min-height:158px;
+  opacity:0;animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards;transition:border-color .15s,transform .15s,box-shadow .15s;
+}
+.hcard:hover{border-color:var(--gold-soft);background:var(--panel);transform:translateY(-2px);box-shadow:0 18px 40px -26px rgba(27,29,24,.4)}
+
+.ribbon{
+  position:absolute;top:15px;right:-38px;width:140px;transform:rotate(45deg);text-align:center;
+  font-size:8.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;padding:4px 0;
+  box-shadow:0 3px 10px -6px rgba(19,26,36,.7);z-index:2;
+}
+.ribbon.new{background:var(--gold);color:#f9fafb}
+.ribbon.add{background:color-mix(in srgb,var(--green) 84%,var(--ink));color:#f9fafb}
+.ribbon.trim{background:var(--amber);color:var(--ink)}
+.ribbon.exit{background:var(--red);color:#f9fafb}
+.ribbon.held{background:var(--muted);color:#f9fafb}
+
+.wm{position:absolute;right:6px;bottom:-18px;font-size:88px;line-height:1;font-weight:700;pointer-events:none;user-select:none;z-index:0}
+.wm.new{color:var(--gold);opacity:.08}
+.wm.add{color:var(--green);opacity:.09}
+.wm.trim{color:var(--amber);opacity:.11}
+.wm.exit{color:var(--red);opacity:.09}
+.wm.held{color:var(--faint);opacity:.16}
+
+.hcard > *{position:relative;z-index:1}
+
+.tchip{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-mono);font-weight:700;font-size:13px;padding:6px 11px;border-radius:8px;min-height:32px;text-decoration:none;letter-spacing:.02em;max-width:100%}
+a.tchip{background:var(--gold);color:#f9fafb;border:1px solid var(--gold);transition:background .15s}
+a.tchip:hover{background:var(--gold-soft);border-color:var(--gold-soft)}
+span.tchip{background:transparent;color:var(--muted);border:1px dashed var(--faint);font-weight:400}
+.chiprow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-right:56px}
+
+.cname{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bigv{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.05}
+.kv{display:flex;flex-wrap:wrap;gap:2px 14px;margin-top:auto}
+.bob-k{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.bob-v{font-size:12.5px}
+.bob-v.mono{font-family:var(--f-mono);font-weight:700;font-variant-numeric:tabular-nums}
+.kcell{display:flex;flex-direction:column;gap:1px}
+.dm{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:12.5px;font-weight:700}
+.dm.new{color:var(--gold)} .dm.add{color:var(--green)} .dm.trim{color:var(--amber)}
+.dm.exit{color:var(--red)} .dm.held{color:var(--faint)}
+
+.mgrid{display:grid;grid-template-columns:1fr;gap:10px}
+@media(min-width:560px){.mgrid{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:900px){.mgrid{grid-template-columns:repeat(4,1fr)}}
+.mmini{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:11px;background:var(--bg);padding:11px;min-height:92px;display:flex;flex-direction:column;justify-content:space-between;gap:8px}
+.mmini .ribbon{top:11px;right:-42px;width:132px;font-size:8px;padding:3px 0}
+
+.isogrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px}
+.isocard{position:relative;overflow:hidden;border:1px solid var(--line);border-radius:11px;background:var(--bg);min-height:92px;padding:11px;display:flex;flex-direction:column;justify-content:flex-end;gap:4px}
+.isocard .ribbon{top:12px;right:-42px;width:132px;font-size:8px;padding:3px 0}
+.isocard .wm{font-size:56px;right:8px;bottom:-10px}
+
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="bob-eyebrow">Whales · Holding Row</div>
+    <h1 class="bob-title">Corner <span class="em">Ribbons</span></h1>
+    <p class="bob-dek">The row stops being a row — each holding becomes a card, banded diagonally across its top corner with the state word and stamped with a low-opacity watermark glyph behind the value.</p>
+  </header>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Live rows</h2>
+      <p>One card per holding: one-up at 390px, two-up from 560px.</p>
+    </div>
+
+    <div class="mgrshell">
+      <div class="mgrbar">
+        <span class="mgr">Berkshire Hathaway</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta">Q1 2026</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta"><b>$312.4B</b></span>
+      </div>
+
+      <div class="cardgrid">
+
+        <article class="hcard" style="animation-delay:.02s">
+          <span class="ribbon trim">Trimmed</span>
+          <span class="wm trim" aria-hidden="true">▼</span>
+          <div class="chiprow">
+            <a class="tchip" href="#" title="Open AAPL in MarketPulse">AAPL<span aria-hidden="true">›</span></a>
+          </div>
+          <div class="cname">Apple Inc.</div>
+          <div class="bigv">$69.9B</div>
+          <div class="kv">
+            <span class="kcell"><span class="bob-k">% port</span><span class="bob-v mono">22.4%</span></span>
+            <span class="kcell"><span class="bob-k">Shares</span><span class="bob-v mono">300,000,000</span></span>
+            <span class="kcell"><span class="bob-k">Δ shares</span><span class="dm trim">−15.0%</span></span>
+          </div>
+        </article>
+
+        <article class="hcard" style="animation-delay:.06s">
+          <span class="ribbon add">Added</span>
+          <span class="wm add" aria-hidden="true">▲</span>
+          <div class="chiprow">
+            <a class="tchip" href="#" title="Open CVX in MarketPulse">CVX<span aria-hidden="true">›</span></a>
+          </div>
+          <div class="cname">Chevron Corp.</div>
+          <div class="bigv">$19.8B</div>
+          <div class="kv">
+            <span class="kcell"><span class="bob-k">% port</span><span class="bob-v mono">6.3%</span></span>
+            <span class="kcell"><span class="bob-k">Shares</span><span class="bob-v mono">122,061,700</span></span>
+            <span class="kcell"><span class="bob-k">Δ shares</span><span class="dm add">+8.4%</span></span>
+          </div>
+        </article>
+
+        <article class="hcard" style="animation-delay:.1s">
+          <span class="ribbon held">Held</span>
+          <span class="wm held" aria-hidden="true">—</span>
+          <div class="chiprow">
+            <a class="tchip" href="#" title="Open KO in MarketPulse">KO<span aria-hidden="true">›</span></a>
+          </div>
+          <div class="cname">Coca-Cola Co.</div>
+          <div class="bigv">$27.4B</div>
+          <div class="kv">
+            <span class="kcell"><span class="bob-k">% port</span><span class="bob-v mono">8.8%</span></span>
+            <span class="kcell"><span class="bob-k">Shares</span><span class="bob-v mono">400,000,000</span></span>
+            <span class="kcell"><span class="bob-k">Δ shares</span><span class="dm held">0.0%</span></span>
+          </div>
+        </article>
+
+        <article class="hcard" style="animation-delay:.14s">
+          <span class="ribbon new">New</span>
+          <span class="wm new" aria-hidden="true">✛</span>
+          <div class="chiprow">
+            <span class="tchip">CB</span>
+            <span class="stripcap">not tracked</span>
+          </div>
+          <div class="cname">Chubb Ltd.</div>
+          <div class="bigv">$8.9B</div>
+          <div class="kv">
+            <span class="kcell"><span class="bob-k">% port</span><span class="bob-v mono">2.8%</span></span>
+            <span class="kcell"><span class="bob-k">Shares</span><span class="bob-v mono">27,033,784</span></span>
+            <span class="kcell"><span class="bob-k">Δ shares</span><span class="dm new">new</span></span>
+          </div>
+        </article>
+
+        <article class="hcard" style="animation-delay:.18s">
+          <span class="ribbon add">Added</span>
+          <span class="wm add" aria-hidden="true">▲</span>
+          <div class="chiprow">
+            <a class="tchip" href="#" title="Open OXY in MarketPulse">OXY<span aria-hidden="true">›</span></a>
+          </div>
+          <div class="cname">Occidental Petroleum</div>
+          <div class="bigv">$13.1B</div>
+          <div class="kv">
+            <span class="kcell"><span class="bob-k">% port</span><span class="bob-v mono">4.2%</span></span>
+            <span class="kcell"><span class="bob-k">Shares</span><span class="bob-v mono">264,941,400</span></span>
+            <span class="kcell"><span class="bob-k">Δ shares</span><span class="dm add">+2.1%</span></span>
+          </div>
+        </article>
+
+        <article class="hcard" style="animation-delay:.22s">
+          <span class="ribbon new">New</span>
+          <span class="wm new" aria-hidden="true">✛</span>
+          <div class="chiprow">
+            <span class="tchip">BRKR</span>
+            <span class="stripcap">not tracked</span>
+          </div>
+          <div class="cname">Bruker Corp.</div>
+          <div class="bigv">$14.1M</div>
+          <div class="kv">
+            <span class="kcell"><span class="bob-k">% port</span><span class="bob-v mono">7.6%</span></span>
+            <span class="kcell"><span class="bob-k">Shares</span><span class="bob-v mono">300,000</span></span>
+            <span class="kcell"><span class="bob-k">Δ shares</span><span class="dm new">new</span></span>
+          </div>
+        </article>
+
+        <article class="hcard" style="animation-delay:.26s">
+          <span class="ribbon exit">Exited</span>
+          <span class="wm exit" aria-hidden="true">✕</span>
+          <div class="chiprow">
+            <span class="tchip">PARA</span>
+            <span class="stripcap">not tracked</span>
+          </div>
+          <div class="cname">Paramount Skydance</div>
+          <div class="bigv">—</div>
+          <div class="kv">
+            <span class="kcell"><span class="bob-k">% port</span><span class="bob-v mono">—</span></span>
+            <span class="kcell"><span class="bob-k">Shares</span><span class="bob-v mono">0 · was 63,300,000</span></span>
+            <span class="kcell"><span class="bob-k">Δ shares</span><span class="dm exit">−100%</span></span>
+          </div>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Magnitude range</h2>
+      <p>The ribbon is categorical and never changes length — magnitude is carried only by the Δ figure inside the card.</p>
+    </div>
+    <div class="strip">
+      <div class="mgrid">
+        <div class="mmini"><span class="ribbon add">Added</span><span class="stripcap">Small add</span><span class="dm add">+2.1%</span></div>
+        <div class="mmini"><span class="ribbon add">Added</span><span class="stripcap">Mid add</span><span class="dm add">+8.4%</span></div>
+        <div class="mmini"><span class="ribbon add">Added</span><span class="stripcap">Large add</span><span class="dm add">+75.0%</span></div>
+        <div class="mmini"><span class="ribbon trim">Trimmed</span><span class="stripcap">Small trim</span><span class="dm trim">−9.1%</span></div>
+        <div class="mmini"><span class="ribbon trim">Trimmed</span><span class="stripcap">Large trim</span><span class="dm trim">−33.3%</span></div>
+        <div class="mmini"><span class="ribbon new">New</span><span class="stripcap">No prior</span><span class="dm new">new</span></div>
+        <div class="mmini"><span class="ribbon exit">Exited</span><span class="stripcap">To zero</span><span class="dm exit">−100%</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>States, isolated</h2>
+      <p>Ribbon plus watermark glyph, at card size.</p>
+    </div>
+    <div class="strip">
+      <div class="isogrid">
+        <div class="isocard"><span class="ribbon new">New</span><span class="wm new" aria-hidden="true">✛</span><span class="stripcap">Position opened</span></div>
+        <div class="isocard"><span class="ribbon add">Added</span><span class="wm add" aria-hidden="true">▲</span><span class="stripcap">Increased</span></div>
+        <div class="isocard"><span class="ribbon trim">Trimmed</span><span class="wm trim" aria-hidden="true">▼</span><span class="stripcap">Decreased</span></div>
+        <div class="isocard"><span class="ribbon exit">Exited</span><span class="wm exit" aria-hidden="true">✕</span><span class="stripcap">Sold out</span></div>
+        <div class="isocard"><span class="ribbon held">Held</span><span class="wm held" aria-hidden="true">—</span><span class="stripcap">Unchanged</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="a11y">
+    <h3>Non-color cues</h3>
+    <ul>
+      <li><b>NEW</b> — ribbon reads <em>New</em>; watermark ✛; Δ cell reads the word <code>new</code>.</li>
+      <li><b>ADDED</b> — ribbon reads <em>Added</em>; watermark ▲; Δ carries a <code>+</code>.</li>
+      <li><b>TRIMMED</b> — ribbon reads <em>Trimmed</em>; watermark ▼; Δ carries a <code>−</code>.</li>
+      <li><b>EXITED</b> — ribbon reads <em>Exited</em>; watermark ✕; value reads an em dash and shares read <code>0 · was …</code>.</li>
+      <li><b>HELD</b> — ribbon reads <em>Held</em>; watermark —; Δ reads 0.0%.</li>
+      <li><b>Covered</b> — ticker is a solid filled chip that is a link, with a <code>›</code> chevron.</li>
+      <li><b>Not covered</b> — ticker is a dashed-outline chip in normal weight, followed by the words <em>not tracked</em>.</li>
+    </ul>
+  </div>
+
+  <p class="foot">Source: SEC EDGAR Form 13F-HR. Positions are as of quarter end and lag up to 45 days. Long US equity positions only — shorts, bonds and non-US holdings are not disclosed.</p>
+
+  <aside class="note">
+    <b>Concept</b>
+    Promote each holding to a card so the state can own an entire corner and a full-bleed watermark. Trade-off: cards cost roughly four times the vertical space of a row, so a 41-position filing becomes a very long scroll.
+  </aside>
+
+</div>
+</body>
+</html>

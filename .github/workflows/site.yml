@@ -25,7 +25,17 @@ jobs:
         ports:
           - 8191:8191
     steps:
+      # fetch-depth: 0 — NOT the default 1. ci/generate-posts.mjs builds its 30-snapshot
+      # window with `git log -30 -- src/data/stocks.json`, and on a shallow clone that
+      # returns exactly ONE sha, silently (git exits 0). The window collapses to 2, which
+      # is below MIN_WINDOW (ci/hooks.mjs), so the record/trend/steady/churn/newcomer rules
+      # never fire in the only environment that runs them. A bounded depth would have to
+      # comfortably contain 30 *data* commits, and code commits interleave with them, so
+      # there is no safe number — full history is the correct setting. Do not "optimise"
+      # this back to a shallow clone.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Node 24 (LTS), not 20: ci/test-consensus-direction.mjs imports ../src/consensus.ts,
       # and importing .ts needs native type stripping, which landed unflagged in 22.18.
@@ -103,6 +113,24 @@ jobs:
         if: github.event_name != 'push'
         continue-on-error: true
         run: node ci/scrape-feargreed.mjs
+
+      # Generate one social post from the snapshot just refreshed. Scrape-class step:
+      # `continue-on-error` like every other one above the data gate, because a rate-limited
+      # model or a field of unpublishable candidates must never block the data deploy.
+      # Runs BEFORE the gate so the post ships in the same commit as the data it describes.
+      # Cadence is entirely in the env below — POSTS_PER_RUN is the knob.
+      - name: Generate social post
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          POSTS_ENABLED: "true"
+          POST_PROVIDER: cloudflare
+          POSTS_PER_RUN: "1"
+          POST_CANDIDATES: "5"
+          POST_WINDOW: "30"
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: node ci/generate-posts.mjs
 
       # THE DATA GATE — the one that actually protects what ships. Everything above this
       # point is `continue-on-error`, and the pre-scrape `npm test` could only vet the

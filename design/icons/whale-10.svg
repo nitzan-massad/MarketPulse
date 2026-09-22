@@ -1,0 +1,10 @@
+<!-- Concept 10 — Fluke + candlestick hybrid: a candle whose lower wick forks into a whale tail -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Candlestick with a whale tail wick">
+  <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 2.8V4.4"/>
+    <path d="M10 4.4H14V12H10Z"/>
+    <path d="M12 12V14.6"/>
+    <path d="M12 14.6C10.4 17.8 7.4 20.2 3.6 18.8"/>
+    <path d="M12 14.6C13.6 17.8 16.6 20.2 20.4 18.8"/>
+  </g>
+</svg>

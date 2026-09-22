@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales 9 — Coverage Matrix</title>
+<style>
+:root{
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--f-ui);
+  font-size:14px; line-height:1.4; -webkit-font-smoothing:antialiased; min-height:100vh;
+  background-image:
+    radial-gradient(1200px 500px at 78% -8%, rgba(27,63,115,.08), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, rgba(20,124,134,.05), transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1270px; margin:0 auto; padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+@media(min-width:641px){ .wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))} }
+
+.sr{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0 0 0 0); white-space:nowrap; border:0}
+
+/* masthead */
+.bob-eyebrow{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
+.bob-title{font-family:var(--f-head); font-weight:800; font-size:clamp(22px,7vw,32px); line-height:1.02;
+  letter-spacing:-.02em; margin:.16em 0 .18em}
+.bob-title .em{font-style:italic; font-weight:500; color:var(--gold)}
+.bob-dek{font-family:var(--f-head); font-style:italic; font-size:clamp(15px,2vw,20px); color:var(--muted);
+  font-weight:500; margin:0 0 10px}
+.bob-counts{display:flex; gap:10px; align-items:baseline; font-size:12px; color:var(--muted); flex-wrap:wrap}
+.bob-counts b{color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums; font-family:var(--f-mono)}
+.bob-counts .dot{color:var(--faint)}
+
+.bob-section{margin-top:22px}
+.bob-sechdr{margin-bottom:10px}
+.bob-sechdr h2{font-family:var(--f-head); font-weight:800; font-size:22px; letter-spacing:-.02em; margin:0 0 3px}
+.bob-sechdr p{margin:0; font-size:12.5px; color:var(--muted)}
+
+/* ---------- legend ---------- */
+.legend{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:11px}
+.lg{display:inline-flex; align-items:center; gap:5px; font-size:9px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--muted); border:1px solid var(--line); border-radius:999px;
+  padding:3px 9px 3px 4px; background:var(--panel)}
+.lg .cell{width:20px; height:18px; font-size:10px; border-radius:5px}
+
+/* ---------- matrix ---------- */
+.mx{overflow-x:auto; overflow-y:hidden; border:1px solid var(--line); border-radius:14px;
+  background:var(--panel); -webkit-overflow-scrolling:touch}
+.mxt{border-collapse:separate; border-spacing:0; font-size:12px; width:100%; min-width:312px}
+.mxt caption{caption-side:top; text-align:left; padding:9px 11px; font-size:9px; font-weight:700;
+  letter-spacing:.12em; text-transform:uppercase; color:var(--faint); background:var(--panel-2);
+  border-bottom:1px solid var(--line)}
+.mxt th, .mxt td{border-bottom:1px solid var(--line); padding:5px 2px; text-align:center; vertical-align:middle}
+.mxt thead th{background:var(--panel-2); font-family:var(--f-ui); font-size:9px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--faint); padding:7px 2px}
+th.mh{width:34px; min-width:34px}
+th.mh .init{display:block; width:30px; margin:0 auto; padding:6px 0; border-radius:8px;
+  background:var(--gold); color:#fff; font-family:var(--f-mono); font-size:11px; font-weight:700;
+  letter-spacing:-.02em; line-height:1}
+/* full manager name stays in the accessible name at phone widths, where a 34px
+   tile has no room for it; it becomes visible once the grid can afford it */
+th.mh .who{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0 0 0 0); white-space:nowrap; border:0}
+th.sumh{width:56px; min-width:56px; padding-left:5px; padding-right:7px}
+/* sticky ticker column */
+.tkh, .tkc{position:sticky; left:0; z-index:2; background:var(--panel); text-align:left;
+  width:88px; min-width:88px; padding-left:11px; padding-right:7px;
+  border-right:1px solid var(--line)}
+.tkh{z-index:4; background:var(--panel-2)}
+tbody tr:hover td, tbody tr:hover th.tkc{background:var(--panel-2)}
+tbody tr{opacity:0; animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards}
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+/* change tiles */
+.cell{width:30px; height:25px; border-radius:7px; display:inline-flex; align-items:center;
+  justify-content:center; font-size:12px; font-weight:700; line-height:1; border:1px solid}
+.cell.new{color:var(--gold); background:color-mix(in srgb, var(--gold) 12%, transparent); border-color:color-mix(in srgb, var(--gold) 34%, transparent)}
+.cell.add{color:var(--green); background:color-mix(in srgb, var(--green) 12%, transparent); border-color:color-mix(in srgb, var(--green) 34%, transparent)}
+.cell.trim{color:var(--amber); background:color-mix(in srgb, var(--amber) 12%, transparent); border-color:color-mix(in srgb, var(--amber) 34%, transparent)}
+.cell.exit{color:var(--red); background:color-mix(in srgb, var(--red) 12%, transparent); border-color:color-mix(in srgb, var(--red) 34%, transparent)}
+.cell.held{color:var(--muted); background:var(--panel-2); border-color:var(--line)}
+.cell.none{color:var(--faint); background:transparent; border-color:transparent; font-size:14px}
+
+/* summary column + row */
+td.sum{font-family:var(--f-mono); font-weight:700; font-size:11.5px; font-variant-numeric:tabular-nums;
+  text-align:right; color:var(--muted); padding-right:9px}
+td.sum b{color:var(--ink)}
+tfoot th, tfoot td{background:var(--panel-2); border-bottom:0; border-top:1px solid var(--line);
+  padding-top:8px; padding-bottom:9px}
+tfoot th.tkc{background:var(--panel-2); font-size:9px; font-weight:700; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--faint); text-align:left}
+tfoot td .net{font-family:var(--f-mono); font-weight:700; font-size:11.5px; font-variant-numeric:tabular-nums}
+tfoot td .net.p{color:var(--green)}
+tfoot td .net.z{color:var(--faint)}
+
+/* ticker treatments (every matrix row is a covered ticker) */
+a.sym{font-family:var(--f-mono); font-weight:700; font-size:12.5px; color:var(--gold); text-decoration:none;
+  border-bottom:1px solid color-mix(in srgb, var(--gold) 38%, transparent); transition:.14s; white-space:nowrap}
+a.sym:hover{color:var(--gold-soft); border-bottom-color:var(--gold-soft)}
+a.sym:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px; border-radius:3px}
+a.sym .cv{margin-left:2px}
+.co{display:block; font-size:9px; color:var(--faint); white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis; max-width:78px; margin-top:1px}
+.sym.unc{font-family:var(--f-mono); font-weight:400; color:var(--muted); border-bottom:1px dotted var(--faint)}
+.untr{font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); font-weight:700}
+
+.scrollhint{margin-top:8px; font-size:10px; color:var(--faint); display:flex; align-items:center; gap:5px}
+
+/* empty / coverage-gap block */
+.bob-empty{margin-top:14px; padding:26px 20px; text-align:center; color:var(--muted);
+  font-family:var(--f-head); font-style:italic; font-size:16px; border:1px dashed var(--line);
+  border-radius:12px; background:var(--panel); line-height:1.5}
+.bob-empty .gaps{display:block; margin-top:10px; font-family:var(--f-mono); font-style:normal;
+  font-size:11.5px; color:var(--ink); font-weight:700; letter-spacing:.02em}
+.bob-empty .gaps span{display:inline-block; border-bottom:1px dotted var(--faint); color:var(--muted);
+  font-weight:400; margin:0 4px}
+
+.src{margin:22px 0 0; padding-top:14px; border-top:1px solid var(--line); font-size:11px; color:var(--faint); line-height:1.55}
+
+/* note */
+.note{position:fixed; left:16px; bottom:78px; z-index:60; max-width:236px; font-size:11px; color:var(--muted);
+  background:var(--bg); border:1px dashed var(--line); border-radius:10px; padding:10px 12px; line-height:1.45}
+.note b{color:var(--ink)}
+@media(max-width:640px){ .note{position:static; margin-top:16px; max-width:none} }
+
+/* bottom nav */
+.nav-bottom{position:fixed; left:0; right:0; bottom:0; z-index:40; background:rgba(255,255,255,.9);
+  -webkit-backdrop-filter:blur(14px) saturate(1.3); backdrop-filter:blur(14px) saturate(1.3);
+  border-top:1px solid var(--line); box-shadow:0 -10px 30px -22px rgba(27,29,24,.5);
+  padding-bottom:env(safe-area-inset-bottom, 0px)}
+.nav-bottom-inner{max-width:560px; margin:0 auto; display:flex; align-items:stretch; position:relative}
+.nav-tab{position:relative; appearance:none; background:none; border:0; cursor:pointer; flex:1; text-decoration:none;
+  display:flex; flex-direction:column; align-items:center; gap:4px; padding:9px 6px 8px;
+  color:var(--muted); font-family:var(--f-ui); font-size:10.5px; font-weight:600; letter-spacing:.01em; transition:.14s}
+.nav-tab .nav-tab-ic{display:flex; opacity:.9; transition:.14s}
+.nav-tab:hover{color:var(--ink)}
+.nav-tab.on{color:var(--gold-soft)}
+.nav-tab.on .nav-tab-ic{opacity:1}
+.nav-tab.on::before{content:""; position:absolute; top:0; left:50%; transform:translateX(-50%);
+  width:28px; height:3px; border-radius:0 0 3px 3px; background:var(--gold)}
+.nav-tab:focus-visible{outline:2px solid var(--gold-soft); outline-offset:-3px; border-radius:10px}
+
+@media(min-width:760px){
+  th.mh{width:56px; min-width:56px}
+  th.mh .init{width:38px; font-size:12px}
+  th.mh .who{position:static; display:block; width:auto; height:auto; margin:4px 0 0; padding:0;
+    clip:auto; font-size:7.5px; letter-spacing:.04em; color:var(--muted); font-weight:700; line-height:1.15}
+  .tkh, .tkc{width:150px; min-width:150px}
+  .co{max-width:140px; font-size:10px}
+  .cell{width:38px; height:28px}
+  .scrollhint{display:none}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div class="bob-eyebrow">13F Filings · Q1 2026</div>
+    <h1 class="bob-title">Cross-<span class="em">Reference</span></h1>
+    <p class="bob-dek">Twelve names we cover, five books that filed — consensus and dissent in one grid.</p>
+    <div class="bob-counts">
+      <span><b>24</b> managers filed</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>1,847</b> positions parsed</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>112</b> of our <b>355</b> covered</span><span class="dot" aria-hidden="true">·</span>
+      <span><b>$482B</b> aggregate</span><span class="dot" aria-hidden="true">·</span>
+      <span>last filing <b>May 15, 2026</b></span>
+    </div>
+  </header>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Coverage matrix</h2>
+      <p>Rows are tickers we already track. Columns are managers. Scion holds none of the twelve — the
+      whole Burry book sits outside the consensus.</p>
+    </div>
+
+    <div class="legend">
+      <span class="lg"><span class="cell new" aria-hidden="true">✛</span>New</span>
+      <span class="lg"><span class="cell add" aria-hidden="true">▲</span>Added</span>
+      <span class="lg"><span class="cell trim" aria-hidden="true">▼</span>Trimmed</span>
+      <span class="lg"><span class="cell exit" aria-hidden="true">✕</span>Exited</span>
+      <span class="lg"><span class="cell held" aria-hidden="true">—</span>Held</span>
+      <span class="lg"><span class="cell none" aria-hidden="true">·</span>Not held</span>
+    </div>
+
+    <div class="mx" tabindex="0" role="region" aria-label="Coverage matrix, scrollable">
+      <table class="mxt">
+        <caption>Q1 2026 · 12 covered tickers × 5 managers</caption>
+        <thead>
+          <tr>
+            <th class="tkh" scope="col">Ticker</th>
+            <th class="mh" scope="col" title="Berkshire Hathaway"><span class="init">BH</span><span class="who">Berkshire</span></th>
+            <th class="mh" scope="col" title="Pershing Square Capital"><span class="init">PS</span><span class="who">Pershing</span></th>
+            <th class="mh" scope="col" title="Scion Asset Management"><span class="init">SA</span><span class="who">Scion</span></th>
+            <th class="mh" scope="col" title="Duquesne Family Office"><span class="init">DQ</span><span class="who">Duquesne</span></th>
+            <th class="mh" scope="col" title="Appaloosa LP"><span class="init">AP</span><span class="who">Appaloosa</span></th>
+            <th class="sumh" scope="col">Held by</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <tr style="animation-delay:.02s">
+            <th class="tkc" scope="row"><a class="sym" href="#" title="Open NVDA in MarketPulse">NVDA<span class="cv" aria-hidden="true">›</span></a><span class="co">NVIDIA Corp.</span></th>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell add" aria-hidden="true" title="Duquesne · NVDA · Added +21.0%">▲</span><span class="sr">Added</span></td>
+            <td><span class="cell add" aria-hidden="true" title="Appaloosa · NVDA · Added +9.9%">▲</span><span class="sr">Added</span></td>
+            <td class="sum"><b>2</b>/5</td>
+          </tr>
+
+          <tr style="animation-delay:.05s">
+            <th class="tkc" scope="row"><a class="sym" href="#" title="Open AMZN in MarketPulse">AMZN<span class="cv" aria-hidden="true">›</span></a><span class="co">Amazon.com</span></th>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell held" aria-hidden="true" title="Appaloosa · AMZN · Held 0.0%">—</span><span class="sr">Held</span></td>
+            <td class="sum"><b>1</b>/5</td>
+          </tr>
+
+          <tr style="animation-delay:.08s">
+            <th class="tkc" scope="row"><a class="sym" href="#" title="Open GOOGL in MarketPulse">GOOGL<span class="cv" aria-hidden="true">›</span></a><span class="co">Alphabet Cl A</span></th>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell new" aria-hidden="true" title="Pershing Square · GOOGL · New position">✛</span><span class="sr">New</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td class="sum"><b>1</b>/5</td>
+          </tr>
+
+          <tr style="animation-delay:.11s">
+            <th class="tkc" scope="row"><a class="sym" href="#" title="Open UBER in MarketPulse">UBER<span class="cv" aria-hidden="true">›</span></a><span class="co">Uber Technologies</span></th>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell held" aria-hidden="true" title="Pershing Square · UBER · Held 0.0%">—</span><span class="sr">Held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell new" aria-hidden="true" title="Appaloosa · UBER · New position">✛</span><span class="sr">New</span></td>
+            <td class="sum"><b>2</b>/5</td>
+          </tr>
+
+          <tr style="animation-delay:.14s">
+            <th class="tkc" scope="row"><a class="sym" href="#" title="Open MSFT in MarketPulse">MSFT<span class="cv" aria-hidden="true">›</span></a><span class="co">Microsoft Corp.</span></th>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell held" aria-hidden="true" title="Duquesne · MSFT · Held 0.0%">—</span><span class="sr">Held</span></td>
+            <td><span class="cell trim" aria-hidden="true" title="Appaloosa · MSFT · Trimmed −12.0%">▼</span><span class="sr">Trimmed</span></td>
+            <td class="sum"><b>2</b>/5</td>
+          </tr>
+
+          <tr style="animation-delay:.17s">
+            <th class="tkc" scope="row"><a class="sym" href="#" title="Open META in MarketPulse">META<span class="cv" aria-hidden="true">›</span></a><span class="co">Meta Platforms</span></th>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell held" aria-hidden="true" title="Appaloosa · META · Held 0.0%">—</span><span class="sr">Held</span></td>
+            <td class="sum"><b>1</b>/5</td>
+          </tr>
+
+          <tr style="animation-delay:.2s">
+            <th class="tkc" scope="row"><a class="sym" href="#" title="Open AAPL in MarketPulse">AAPL<span class="cv" aria-hidden="true">›</span></a><span class="co">Apple Inc.</span></th>
+            <td><span class="cell trim" aria-hidden="true" title="Berkshire · AAPL · Trimmed −15.0%">▼</span><span class="sr">Trimmed</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td class="sum"><b>1</b>/5</td>
+          </tr>
+
+          <tr style="animation-delay:.23s">
+            <th class="tkc" scope="row"><a class="sym" href="#" title="Open CVX in MarketPulse">CVX<span class="cv" aria-hidden="true">›</span></a><span class="co">Chevron Corp.</span></th>
+            <td><span class="cell add" aria-hidden="true" title="Berkshire · CVX · Added +8.4%">▲</span><span class="sr">Added</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td class="sum"><b>1</b>/5</td>
+          </tr>
+
+          <tr style="animation-delay:.26s">
+            <th class="tkc" scope="row"><a class="sym" href="#" title="Open OXY in MarketPulse">OXY<span class="cv" aria-hidden="true">›</span></a><span class="co">Occidental Petroleum</span></th>
+            <td><span class="cell add" aria-hidden="true" title="Berkshire · OXY · Added +2.1%">▲</span><span class="sr">Added</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td class="sum"><b>1</b>/5</td>
+          </tr>
+
+          <tr style="animation-delay:.29s">
+            <th class="tkc" scope="row"><a class="sym" href="#" title="Open CMG in MarketPulse">CMG<span class="cv" aria-hidden="true">›</span></a><span class="co">Chipotle Mexican Grill</span></th>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell trim" aria-hidden="true" title="Pershing Square · CMG · Trimmed −18.4%">▼</span><span class="sr">Trimmed</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td class="sum"><b>1</b>/5</td>
+          </tr>
+
+          <tr style="animation-delay:.32s">
+            <th class="tkc" scope="row"><a class="sym" href="#" title="Open HLT in MarketPulse">HLT<span class="cv" aria-hidden="true">›</span></a><span class="co">Hilton Worldwide</span></th>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell trim" aria-hidden="true" title="Pershing Square · HLT · Trimmed −9.1%">▼</span><span class="sr">Trimmed</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td class="sum"><b>1</b>/5</td>
+          </tr>
+
+          <tr style="animation-delay:.35s">
+            <th class="tkc" scope="row"><a class="sym" href="#" title="Open QSR in MarketPulse">QSR<span class="cv" aria-hidden="true">›</span></a><span class="co">Restaurant Brands Intl.</span></th>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell add" aria-hidden="true" title="Pershing Square · QSR · Added +4.9%">▲</span><span class="sr">Added</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td><span class="cell none" aria-hidden="true">·</span><span class="sr">Not held</span></td>
+            <td class="sum"><b>1</b>/5</td>
+          </tr>
+
+        </tbody>
+        <tfoot>
+          <tr>
+            <th class="tkc" scope="row">Net buys</th>
+            <td><span class="net p">+1</span></td>
+            <td><span class="net z">0</span></td>
+            <td><span class="net z">0</span></td>
+            <td><span class="net p">+1</span></td>
+            <td><span class="net p">+1</span></td>
+            <td class="sum"><b>+3</b></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <p class="scrollhint"><span aria-hidden="true">↔</span> The grid scrolls sideways; the ticker column stays pinned.</p>
+
+    <div class="bob-empty">
+      Six whale holdings fall outside our 355 — we can show the move, but not the stock.
+      <span class="gaps">
+        <span>BABA</span><span>BN</span><span>HHH</span><span>CB</span><span>BRKR</span><span>FLUT</span>
+      </span>
+    </div>
+  </section>
+
+  <p class="src">Source: SEC EDGAR Form 13F-HR. Positions are as of quarter end and lag up to 45 days.
+  Long US equity positions only — shorts, bonds and non-US holdings are not disclosed.</p>
+
+  <div class="note"><b>Coverage matrix:</b> tickers down, managers across — the only layout where consensus
+  and dissent are visible in the same glance, with a pinned ticker column so the page never scrolls sideways.
+  <b>Trade-off:</b> it is brutal on a phone and caps out near six managers before it needs pagination.</div>
+
+</div>
+
+<nav class="nav-bottom" aria-label="Primary">
+  <div class="nav-bottom-inner">
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 21V11"/><path d="M12 21V4"/><path d="M19 21v-6"/></svg></span>Stocks</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.9 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l7.1-1.01z"/></svg></span>Best</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.8l1.9 7.3 7.3 1.9-7.3 1.9L12 20.2l-1.9-7.3L2.8 11l7.3-1.9z"/></svg></span>New</a>
+    <a class="nav-tab on" href="#" aria-current="page"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18.6 3.2c-5.6 1.4-8.6 5.4-8.1 10.7 2.6-.3 4.7-1.4 6.1-3.2 1.4-1.9 2-4.4 2-7.5z" fill="currentColor"/><path d="M2.5 18.2c2.2 0 2.2 1.7 4.4 1.7s2.2-1.7 4.4-1.7 2.2 1.7 4.4 1.7 2.2-1.7 4.4-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>Whales</a>
+    <a class="nav-tab" href="#"><span class="nav-tab-ic"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg></span>Watchlist</a>
+  </div>
+</nav>
+
+</body>
+</html>

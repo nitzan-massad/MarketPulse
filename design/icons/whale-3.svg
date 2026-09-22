@@ -1,0 +1,5 @@
+<!-- Concept 03 — Tail fluke: a diving whale's fluke over a short waterline -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="Whale tail fluke diving">
+  <path fill="currentColor" d="M2.2 5C3.6 3.8 5.6 3.8 7.4 5.4C9.2 7.2 10.8 9.8 12 12.6C13.2 9.8 14.8 7.2 16.6 5.4C18.4 3.8 20.4 3.8 21.8 5C19.2 8.8 16.4 12.6 13.8 15.6L13.8 18L10.2 18L10.2 15.6C7.6 12.6 4.8 8.8 2.2 5Z"/>
+  <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M5 21H19"/>
+</svg>

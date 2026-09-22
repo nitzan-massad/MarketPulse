@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales 2 — Left-Border Rail</title>
+<style>
+:root{
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.4;
+  -webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden;
+  padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));
+  background-image:radial-gradient(1200px 500px at 78% -8%,rgba(27,63,115,.08),transparent 60%),
+                   radial-gradient(900px 600px at 0% 110%,rgba(20,124,134,.05),transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1270px;margin:0 auto;padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+@media(min-width:641px){.wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))}}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.bob-eyebrow{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);font-weight:700}
+.bob-title{font-family:var(--f-head);font-weight:800;font-size:clamp(22px,7vw,32px);line-height:1.08;letter-spacing:-.01em;margin:7px 0 0}
+.bob-title .em{font-style:italic;color:var(--gold)}
+.bob-dek{font-family:var(--f-head);font-style:italic;color:var(--muted);font-size:14.5px;margin:8px 0 0;max-width:62ch}
+.bob-section{margin-top:22px}
+.bob-sechdr h2{font-family:var(--f-head);font-size:22px;font-weight:800;margin:0}
+.bob-sechdr p{font-size:12.5px;color:var(--muted);margin:3px 0 10px;max-width:66ch}
+
+.na-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.mgrbar{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding:11px 12px;background:var(--panel-2);border-bottom:1px solid var(--line)}
+.mgrbar .mgr{font-family:var(--f-head);font-weight:800;font-size:15.5px}
+.mgrbar .sep{color:var(--faint)}
+.mgrbar .meta{font-size:11.5px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.mgrbar .meta b{color:var(--gold);font-weight:700}
+
+.tk .sym{font-family:var(--f-mono);font-weight:700;font-size:14px;color:var(--ink);text-decoration:none}
+a.sym{color:var(--gold);border-bottom:1px solid color-mix(in srgb,var(--gold) 45%,transparent);display:inline-flex;align-items:center;gap:2px;transition:color .15s}
+a.sym:hover{color:var(--gold-soft);border-bottom-color:var(--gold-soft)}
+span.sym.untracked{color:var(--muted);font-weight:400;border-bottom:1px dotted var(--faint);display:inline-block}
+.tk .co{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:24ch}
+.untag{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+
+.a11y{margin-top:16px;border:1px dashed var(--line);border-radius:12px;padding:12px 13px;font-size:11px;color:var(--faint);background:color-mix(in srgb,var(--panel) 55%,transparent)}
+.a11y h3{margin:0 0 6px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;font-family:var(--f-ui)}
+.a11y ul{margin:0;padding-left:15px}
+.a11y li{margin:2px 0}
+.a11y b{color:var(--muted);font-weight:700}
+.foot{margin-top:18px;font-size:11px;color:var(--faint);max-width:74ch}
+
+.note{border:1px dashed var(--line);border-radius:12px;background:var(--panel);padding:11px 13px;font-size:11.5px;color:var(--muted);margin-top:18px;position:static}
+.note b{display:block;color:var(--gold);font-weight:700;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
+@media(min-width:641px){.note{position:fixed;left:18px;bottom:18px;width:280px;margin:0;z-index:30;box-shadow:0 18px 40px -26px rgba(19,26,36,.55)}}
+
+.strip{border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:12px}
+.stripcap{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+
+/* ---- MECHANISM 2: left-border rail, no pills ---- */
+.rows{list-style:none;margin:0;padding:0}
+.rail{
+  position:relative;display:grid;grid-template-columns:1fr auto;gap:2px 10px;
+  padding:10px 12px 10px 15px;border-bottom:1px solid var(--line);min-height:64px;align-content:center;
+  opacity:0;animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards;
+}
+.rail:last-child{border-bottom:0}
+.rail:hover{background:var(--panel-2)}
+.rail::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--faint)}
+.rail.new::before{background:var(--gold)}
+.rail.add::before{background:var(--green)}
+.rail.trim::before{background:var(--amber)}
+.rail.exit::before{background:var(--red)}
+.rail.held::before{background:var(--faint)}
+
+.r-tk{grid-column:1;grid-row:1;min-width:0}
+.r-val{grid-column:2;grid-row:1;text-align:right}
+.r-state{grid-column:1;grid-row:2;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.r-mag{grid-column:2;grid-row:2;text-align:right}
+
+.word{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;line-height:1.6}
+.rail.new .word{color:var(--gold)}
+.rail.add .word{color:var(--green)}
+.rail.trim .word{color:var(--amber)}
+.rail.exit .word{color:var(--red)}
+.rail.held .word{color:var(--faint)}
+.word .g{margin-right:4px;font-size:9px}
+
+.v{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px;font-weight:700}
+.pct{font-size:11px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.mag{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:12.5px;font-weight:700;white-space:nowrap}
+.rail.new .mag{color:var(--gold)}
+.rail.add .mag{color:var(--green)}
+.rail.trim .mag{color:var(--amber)}
+.rail.exit .mag{color:var(--red)}
+.rail.held .mag{color:var(--faint)}
+.shline{font-size:10.5px;color:var(--faint);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+@media(min-width:760px){
+  .rail{grid-template-columns:minmax(170px,1.6fr) 116px minmax(150px,1fr) 128px;align-items:center;padding-left:17px}
+  .r-tk{grid-row:1;grid-column:1}
+  .r-val{grid-row:1;grid-column:2}
+  .r-state{grid-row:1;grid-column:3}
+  .r-mag{grid-row:1;grid-column:4;text-align:right}
+}
+.colhdr{display:none}
+@media(min-width:760px){
+  .colhdr{display:grid;grid-template-columns:minmax(170px,1.6fr) 116px minmax(150px,1fr) 128px;gap:10px;padding:7px 12px 7px 17px;background:var(--panel-2);border-bottom:1px solid var(--line);font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+  .colhdr span:nth-child(2),.colhdr span:nth-child(4){text-align:right}
+}
+
+/* strips */
+.spine{border:1px solid var(--line);border-radius:11px;background:var(--bg);overflow:hidden}
+.spine .rail{border-bottom:1px solid var(--line)}
+.spine .rail:last-child{border-bottom:0}
+.isorow{display:flex;flex-wrap:wrap;gap:9px}
+.iso{position:relative;flex:1 1 104px;min-width:104px;min-height:64px;padding:10px 10px 10px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);display:flex;flex-direction:column;justify-content:center;gap:7px}
+.iso::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.iso.new::before{background:var(--gold)} .iso.add::before{background:var(--green)}
+.iso.trim::before{background:var(--amber)} .iso.exit::before{background:var(--red)}
+.iso.held::before{background:var(--faint)}
+.iso.new .word{color:var(--gold)} .iso.add .word{color:var(--green)}
+.iso.trim .word{color:var(--amber)} .iso.exit .word{color:var(--red)}
+.iso.held .word{color:var(--faint)}
+
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="bob-eyebrow">Whales · Holding Row</div>
+    <h1 class="bob-title">Rail <span class="em">Accents</span></h1>
+    <p class="bob-dek">No badge object at all — a three-pixel accent bar runs the full height of each row, and the state word sits below the ticker in tracked micro-caps, so the rails stack into a spine you read in one pass.</p>
+  </header>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Live rows</h2>
+      <p>Flush-stacked with hairline dividers so the coloured rails form one continuous edge down the left of the card.</p>
+    </div>
+
+    <div class="na-wrap">
+      <div class="mgrbar">
+        <span class="mgr">Berkshire Hathaway</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta">Q1 2026</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta"><b>$312.4B</b></span>
+      </div>
+
+      <div class="colhdr" aria-hidden="true">
+        <span>Holding</span><span>Value</span><span>State</span><span>Δ shares</span>
+      </div>
+
+      <ul class="rows">
+
+        <li class="rail trim" style="animation-delay:.02s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open AAPL in MarketPulse">AAPL<span aria-hidden="true">›</span></a>
+            <div class="co">Apple Inc.</div>
+          </div>
+          <div class="r-val"><div class="v">$69.9B</div><div class="pct">22.4%</div></div>
+          <div class="r-state"><span class="word"><span class="g" aria-hidden="true">▼</span>Trimmed</span><span class="shline">300,000,000 sh</span></div>
+          <div class="r-mag"><span class="mag">−15.0%</span></div>
+        </li>
+
+        <li class="rail add" style="animation-delay:.06s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open CVX in MarketPulse">CVX<span aria-hidden="true">›</span></a>
+            <div class="co">Chevron Corp.</div>
+          </div>
+          <div class="r-val"><div class="v">$19.8B</div><div class="pct">6.3%</div></div>
+          <div class="r-state"><span class="word"><span class="g" aria-hidden="true">▲</span>Added</span><span class="shline">122,061,700 sh</span></div>
+          <div class="r-mag"><span class="mag">+8.4%</span></div>
+        </li>
+
+        <li class="rail held" style="animation-delay:.1s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open KO in MarketPulse">KO<span aria-hidden="true">›</span></a>
+            <div class="co">Coca-Cola Co.</div>
+          </div>
+          <div class="r-val"><div class="v">$27.4B</div><div class="pct">8.8%</div></div>
+          <div class="r-state"><span class="word"><span class="g" aria-hidden="true">—</span>Held</span><span class="shline">400,000,000 sh</span></div>
+          <div class="r-mag"><span class="mag">0.0%</span></div>
+        </li>
+
+        <li class="rail new" style="animation-delay:.14s">
+          <div class="r-tk tk">
+            <span class="sym untracked">CB</span>
+            <div class="co">Chubb Ltd. · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">$8.9B</div><div class="pct">2.8%</div></div>
+          <div class="r-state"><span class="word"><span class="g" aria-hidden="true">✛</span>New</span><span class="shline">27,033,784 sh</span></div>
+          <div class="r-mag"><span class="mag">new</span></div>
+        </li>
+
+        <li class="rail add" style="animation-delay:.18s">
+          <div class="r-tk tk">
+            <a class="sym" href="#" title="Open OXY in MarketPulse">OXY<span aria-hidden="true">›</span></a>
+            <div class="co">Occidental Petroleum</div>
+          </div>
+          <div class="r-val"><div class="v">$13.1B</div><div class="pct">4.2%</div></div>
+          <div class="r-state"><span class="word"><span class="g" aria-hidden="true">▲</span>Added</span><span class="shline">264,941,400 sh</span></div>
+          <div class="r-mag"><span class="mag">+2.1%</span></div>
+        </li>
+
+        <li class="rail new" style="animation-delay:.22s">
+          <div class="r-tk tk">
+            <span class="sym untracked">BRKR</span>
+            <div class="co">Bruker Corp. · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">$14.1M</div><div class="pct">7.6%</div></div>
+          <div class="r-state"><span class="word"><span class="g" aria-hidden="true">✛</span>New</span><span class="shline">300,000 sh</span></div>
+          <div class="r-mag"><span class="mag">new</span></div>
+        </li>
+
+        <li class="rail exit" style="animation-delay:.26s">
+          <div class="r-tk tk">
+            <span class="sym untracked">PARA</span>
+            <div class="co">Paramount Skydance · <span class="untag">not tracked</span></div>
+          </div>
+          <div class="r-val"><div class="v">—</div><div class="pct">—</div></div>
+          <div class="r-state"><span class="word"><span class="g" aria-hidden="true">✕</span>Exited</span><span class="shline">0 sh · was 63,300,000</span></div>
+          <div class="r-mag"><span class="mag">−100%</span></div>
+        </li>
+
+      </ul>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Magnitude range</h2>
+      <p>The rail is fixed width at every magnitude; the mono number on the right does all the scaling work.</p>
+    </div>
+    <div class="strip">
+      <div class="spine">
+        <div class="rail add"><div class="r-tk"><span class="stripcap">Small add</span></div><div class="r-val"></div><div class="r-state"><span class="word"><span class="g" aria-hidden="true">▲</span>Added</span></div><div class="r-mag"><span class="mag">+2.1%</span></div></div>
+        <div class="rail add"><div class="r-tk"><span class="stripcap">Mid add</span></div><div class="r-val"></div><div class="r-state"><span class="word"><span class="g" aria-hidden="true">▲</span>Added</span></div><div class="r-mag"><span class="mag">+8.4%</span></div></div>
+        <div class="rail add"><div class="r-tk"><span class="stripcap">Large add</span></div><div class="r-val"></div><div class="r-state"><span class="word"><span class="g" aria-hidden="true">▲</span>Added</span></div><div class="r-mag"><span class="mag">+75.0%</span></div></div>
+        <div class="rail trim"><div class="r-tk"><span class="stripcap">Small trim</span></div><div class="r-val"></div><div class="r-state"><span class="word"><span class="g" aria-hidden="true">▼</span>Trimmed</span></div><div class="r-mag"><span class="mag">−9.1%</span></div></div>
+        <div class="rail trim"><div class="r-tk"><span class="stripcap">Large trim</span></div><div class="r-val"></div><div class="r-state"><span class="word"><span class="g" aria-hidden="true">▼</span>Trimmed</span></div><div class="r-mag"><span class="mag">−33.3%</span></div></div>
+        <div class="rail new"><div class="r-tk"><span class="stripcap">No prior</span></div><div class="r-val"></div><div class="r-state"><span class="word"><span class="g" aria-hidden="true">✛</span>New</span></div><div class="r-mag"><span class="mag">new</span></div></div>
+        <div class="rail exit"><div class="r-tk"><span class="stripcap">To zero</span></div><div class="r-val"></div><div class="r-state"><span class="word"><span class="g" aria-hidden="true">✕</span>Exited</span></div><div class="r-mag"><span class="mag">−100%</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>States, isolated</h2>
+      <p>Rail plus word, at the size they appear in the row.</p>
+    </div>
+    <div class="strip">
+      <div class="isorow">
+        <div class="iso new"><span class="word"><span class="g" aria-hidden="true">✛</span>New</span><span class="stripcap">Position opened</span></div>
+        <div class="iso add"><span class="word"><span class="g" aria-hidden="true">▲</span>Added</span><span class="stripcap">Increased</span></div>
+        <div class="iso trim"><span class="word"><span class="g" aria-hidden="true">▼</span>Trimmed</span><span class="stripcap">Decreased</span></div>
+        <div class="iso exit"><span class="word"><span class="g" aria-hidden="true">✕</span>Exited</span><span class="stripcap">Sold out</span></div>
+        <div class="iso held"><span class="word"><span class="g" aria-hidden="true">—</span>Held</span><span class="stripcap">Unchanged</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="a11y">
+    <h3>Non-color cues</h3>
+    <ul>
+      <li><b>NEW</b> — ✛ glyph and the word <em>New</em> in tracked caps beneath the ticker.</li>
+      <li><b>ADDED</b> — ▲ glyph and the word <em>Added</em>; magnitude carries a <code>+</code> sign.</li>
+      <li><b>TRIMMED</b> — ▼ glyph and the word <em>Trimmed</em>; magnitude carries a <code>−</code> sign.</li>
+      <li><b>EXITED</b> — ✕ glyph and the word <em>Exited</em>; shares line reads <code>0 sh · was …</code>.</li>
+      <li><b>HELD</b> — — glyph and the word <em>Held</em>; magnitude reads 0.0%.</li>
+      <li><b>Covered</b> — ticker is a link with a solid underline and a trailing <code>›</code> chevron.</li>
+      <li><b>Not covered</b> — ticker is plain text with a dotted underline and the words <em>not tracked</em>.</li>
+    </ul>
+  </div>
+
+  <p class="foot">Source: SEC EDGAR Form 13F-HR. Positions are as of quarter end and lag up to 45 days. Long US equity positions only — shorts, bonds and non-US holdings are not disclosed.</p>
+
+  <aside class="note">
+    <b>Concept</b>
+    Move the signal out of the content area and into the row's left edge, so state is scannable as a vertical spine. Trade-off: a 3px rail is easy to miss on a small screen and offers no room for magnitude.
+  </aside>
+
+</div>
+</body>
+</html>

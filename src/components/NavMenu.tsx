@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import { flagOn } from "../featureFlags";
 
-export type NavId = "table" | "best" | "new" | "watch";
+export type NavId = "table" | "best" | "new" | "watch" | "feed";
 
 interface NavMenuProps {
   nav: NavId;
@@ -31,6 +32,13 @@ const ICON: Record<NavId, ReactNode> = {
       <path d="M6 3h12v18l-6-4-6 4z" />
     </svg>
   ),
+  feed: (
+    <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M4 11a9 9 0 0 1 9 9" />
+      <path d="M4 4a16 16 0 0 1 16 16" />
+      <circle cx="5" cy="19" r="1.6" fill="currentColor" stroke="none" />
+    </svg>
+  ),
 };
 
 const ITEMS: { id: NavId; label: string }[] = [
@@ -38,18 +46,23 @@ const ITEMS: { id: NavId; label: string }[] = [
   { id: "best", label: "Best" },
   { id: "new", label: "New" },
   { id: "watch", label: "Watchlist" },
+  // Hidden until `?ff=feed`. Off for everyone by default.
+  ...(flagOn("feed") ? [{ id: "feed" as NavId, label: "Feed" }] : []),
 ];
 
 export default function NavMenu({ nav, onNav }: NavMenuProps) {
   const activeIdx = Math.max(0, ITEMS.findIndex((it) => it.id === nav));
+  const tabPct = 100 / ITEMS.length;
   return (
     <nav className="nav-bottom" aria-label="Sections">
       <div className="nav-bottom-inner">
-        {/* sliding indicator: centred over the active tab (each tab = 25% wide) */}
+        {/* sliding indicator: centred over the active tab (each tab is tabPct wide —
+            derived from ITEMS.length, not hardcoded, so a tab count change never
+            silently misplaces it) */}
         <span
           className="nav-ind"
           aria-hidden="true"
-          style={{ left: `calc(${activeIdx * 25 + 12.5}% - 14px)` }}
+          style={{ left: `calc(${activeIdx * tabPct + tabPct / 2}% - 14px)` }}
         />
         {ITEMS.map((it) => (
           <button

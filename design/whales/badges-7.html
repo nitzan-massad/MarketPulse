@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MarketPulse · Whales 7 — Ledger Sentence</title>
+<style>
+:root{
+  --bg:#f9fafb; --panel:#eef1f5; --panel-2:#e3e8ef; --line:#d3dae3;
+  --ink:#131a24; --muted:#55606f; --faint:#97a1af;
+  --gold:#1b3f73; --gold-soft:#2a5695;
+  --green:#17864f; --green-2:#359d6a; --amber:#b8860b; --red:#c73a2b; --red-2:#a72f22;
+  --teal:#147c86;
+  --f-head:"Fraunces",Georgia,"Times New Roman",serif;
+  --f-ui:"Archivo",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:14px;line-height:1.4;
+  -webkit-font-smoothing:antialiased;min-height:100vh;overflow-x:hidden;
+  padding-bottom:calc(96px + env(safe-area-inset-bottom,0px));
+  background-image:radial-gradient(1200px 500px at 78% -8%,rgba(27,63,115,.08),transparent 60%),
+                   radial-gradient(900px 600px at 0% 110%,rgba(20,124,134,.05),transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1270px;margin:0 auto;padding:22px 14px calc(96px + env(safe-area-inset-bottom,0px))}
+@media(min-width:641px){.wrap{padding:36px 28px calc(96px + env(safe-area-inset-bottom,0px))}}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+.bob-eyebrow{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);font-weight:700}
+.bob-title{font-family:var(--f-head);font-weight:800;font-size:clamp(22px,7vw,32px);line-height:1.08;letter-spacing:-.01em;margin:7px 0 0}
+.bob-title .em{font-style:italic;color:var(--gold)}
+.bob-dek{font-family:var(--f-head);font-style:italic;color:var(--muted);font-size:14.5px;margin:8px 0 0;max-width:62ch}
+.bob-section{margin-top:22px}
+.bob-sechdr h2{font-family:var(--f-head);font-size:22px;font-weight:800;margin:0}
+.bob-sechdr p{font-size:12.5px;color:var(--muted);margin:3px 0 10px;max-width:66ch}
+
+.na-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.mgrbar{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding:11px 12px;background:var(--panel-2);border-bottom:1px solid var(--line)}
+.mgrbar .mgr{font-family:var(--f-head);font-weight:800;font-size:15.5px}
+.mgrbar .sep{color:var(--faint)}
+.mgrbar .meta{font-size:11.5px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.mgrbar .meta b{color:var(--gold);font-weight:700}
+
+.tk .sym{font-family:var(--f-mono);font-weight:700;font-size:14px;color:var(--ink);text-decoration:none}
+a.sym{color:var(--gold);border-bottom:1px solid color-mix(in srgb,var(--gold) 45%,transparent);display:inline-flex;align-items:center;gap:2px;transition:color .15s}
+a.sym:hover{color:var(--gold-soft);border-bottom-color:var(--gold-soft)}
+span.sym.untracked{color:var(--muted);font-weight:400;border-bottom:1px dotted var(--faint);display:inline-block}
+.tk .co{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:26ch}
+.untag{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+
+.a11y{margin-top:16px;border:1px dashed var(--line);border-radius:12px;padding:12px 13px;font-size:11px;color:var(--faint);background:color-mix(in srgb,var(--panel) 55%,transparent)}
+.a11y h3{margin:0 0 6px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;font-family:var(--f-ui)}
+.a11y ul{margin:0;padding-left:15px}
+.a11y li{margin:2px 0}
+.a11y b{color:var(--muted);font-weight:700}
+.foot{margin-top:18px;font-size:11px;color:var(--faint);max-width:74ch}
+
+.note{border:1px dashed var(--line);border-radius:12px;background:var(--panel);padding:11px 13px;font-size:11.5px;color:var(--muted);margin-top:18px;position:static}
+.note b{display:block;color:var(--gold);font-weight:700;font-size:9px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:5px}
+@media(min-width:641px){.note{position:fixed;left:18px;bottom:18px;width:280px;margin:0;z-index:30;box-shadow:0 18px 40px -26px rgba(19,26,36,.55)}}
+
+.strip{border:1px solid var(--line);border-radius:13px;background:var(--panel);padding:12px}
+.stripcap{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+
+/* ---- MECHANISM 7: ledger sentence — outline tag + old→new chips ---- */
+.na-table{width:100%;border-collapse:collapse}
+.na-table th{font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);background:var(--panel-2);border-bottom:1px solid var(--line);padding:7px 8px;text-align:right;white-space:nowrap}
+.na-table th.l{text-align:left}
+.na-table td{padding:9px 8px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;vertical-align:middle}
+.na-table td.l{text-align:left}
+.na-table tbody tr{opacity:0;animation:rise .5s cubic-bezier(.2,.7,.2,1) forwards}
+.na-table tbody tr:hover{background:var(--panel-2)}
+.na-table tbody tr:last-child td{border-bottom:0}
+
+.otag{display:inline-block;font-size:8.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid;background:transparent;white-space:nowrap;line-height:1.4}
+.otag.new{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 50%,transparent)}
+.otag.add{color:var(--green);border-color:color-mix(in srgb,var(--green) 50%,transparent)}
+.otag.trim{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 55%,transparent)}
+.otag.exit{color:var(--red);border-color:color-mix(in srgb,var(--red) 50%,transparent)}
+.otag.held{color:var(--muted);border-color:var(--line)}
+
+.ledger{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-start;min-height:40px}
+.lbl{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.na-chip{display:inline-block;font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;border:1px solid var(--line);color:var(--muted);background:var(--bg);white-space:nowrap}
+.na-chip.n{color:var(--ink);border-color:var(--faint)}
+.na-chip.n.up{color:var(--green);border-color:color-mix(in srgb,var(--green) 50%,transparent);background:color-mix(in srgb,var(--green) 8%,transparent)}
+.na-chip.n.down{color:var(--amber);border-color:color-mix(in srgb,var(--amber) 55%,transparent);background:color-mix(in srgb,var(--amber) 8%,transparent)}
+.na-chip.n.zeroed{color:var(--red);border-color:color-mix(in srgb,var(--red) 50%,transparent);background:color-mix(in srgb,var(--red) 8%,transparent)}
+.na-chip.n.fresh{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 50%,transparent);background:color-mix(in srgb,var(--gold) 8%,transparent)}
+.na-chip.void{color:var(--faint);border-style:dashed}
+.arw{color:var(--faint);font-size:12px;line-height:1}
+.dlt{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:11px;font-weight:700;color:var(--muted)}
+
+.v{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px;font-weight:700}
+.pct{font-size:11px;color:var(--muted);font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+@media(max-width:819px){
+  .na-table,.na-table tbody,.na-table tr,.na-table td{display:block;width:100%}
+  .na-table thead{display:none}
+  .na-table tr{padding:11px 12px;border-bottom:1px solid var(--line)}
+  .na-table td{border-bottom:0;padding:3px 0;text-align:left}
+  .na-table td[data-l]::before{content:attr(data-l) " ";display:inline-block;min-width:66px;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:700;font-family:var(--f-ui);vertical-align:middle}
+  .ledger{min-height:0}
+}
+
+.isocol{display:flex;flex-direction:column;gap:9px}
+.isoline{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);min-height:44px}
+
+@keyframes rise{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="bob-eyebrow">Whales · Holding Row</div>
+    <h1 class="bob-title">Ledger <span class="em">Sentence</span></h1>
+    <p class="bob-dek">Zero graphics — an outline tag names the state and two bordered mono chips joined by an arrow spell out the old and new share counts, the way a filing footnote would.</p>
+  </header>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Live rows</h2>
+      <p>Every row reads as a sentence: what happened, from what, to what, by how much.</p>
+    </div>
+
+    <div class="na-wrap">
+      <div class="mgrbar">
+        <span class="mgr">Berkshire Hathaway</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta">Q1 2026</span>
+        <span class="sep" aria-hidden="true">·</span>
+        <span class="meta"><b>$312.4B</b></span>
+      </div>
+
+      <table class="na-table">
+        <thead>
+          <tr>
+            <th class="l" scope="col">Holding</th>
+            <th scope="col">Value</th>
+            <th scope="col">% port</th>
+            <th class="l" scope="col">Ledger · Q4 2025 → Q1 2026</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <tr style="animation-delay:.02s">
+            <td class="l tk">
+              <a class="sym" href="#" title="Open AAPL in MarketPulse">AAPL<span aria-hidden="true">›</span></a>
+              <div class="co">Apple Inc.</div>
+            </td>
+            <td data-l="Value"><span class="v">$69.9B</span></td>
+            <td data-l="% port"><span class="pct">22.4%</span></td>
+            <td class="l">
+              <div class="ledger">
+                <span class="otag trim">Trimmed</span>
+                <span class="lbl">Shares</span>
+                <span class="na-chip">352.9M</span>
+                <span class="arw" aria-hidden="true">→</span>
+                <span class="na-chip n down">300.0M</span>
+                <span class="dlt">−15.0%</span>
+              </div>
+            </td>
+          </tr>
+
+          <tr style="animation-delay:.06s">
+            <td class="l tk">
+              <a class="sym" href="#" title="Open CVX in MarketPulse">CVX<span aria-hidden="true">›</span></a>
+              <div class="co">Chevron Corp.</div>
+            </td>
+            <td data-l="Value"><span class="v">$19.8B</span></td>
+            <td data-l="% port"><span class="pct">6.3%</span></td>
+            <td class="l">
+              <div class="ledger">
+                <span class="otag add">Added</span>
+                <span class="lbl">Shares</span>
+                <span class="na-chip">112.6M</span>
+                <span class="arw" aria-hidden="true">→</span>
+                <span class="na-chip n up">122.1M</span>
+                <span class="dlt">+8.4%</span>
+              </div>
+            </td>
+          </tr>
+
+          <tr style="animation-delay:.1s">
+            <td class="l tk">
+              <a class="sym" href="#" title="Open KO in MarketPulse">KO<span aria-hidden="true">›</span></a>
+              <div class="co">Coca-Cola Co.</div>
+            </td>
+            <td data-l="Value"><span class="v">$27.4B</span></td>
+            <td data-l="% port"><span class="pct">8.8%</span></td>
+            <td class="l">
+              <div class="ledger">
+                <span class="otag held">Held</span>
+                <span class="lbl">Shares</span>
+                <span class="na-chip">400.0M</span>
+                <span class="arw" aria-hidden="true">→</span>
+                <span class="na-chip n">400.0M</span>
+                <span class="dlt">0.0%</span>
+              </div>
+            </td>
+          </tr>
+
+          <tr style="animation-delay:.14s">
+            <td class="l tk">
+              <span class="sym untracked">CB</span>
+              <div class="co">Chubb Ltd. · <span class="untag">not tracked</span></div>
+            </td>
+            <td data-l="Value"><span class="v">$8.9B</span></td>
+            <td data-l="% port"><span class="pct">2.8%</span></td>
+            <td class="l">
+              <div class="ledger">
+                <span class="otag new">New</span>
+                <span class="lbl">Shares</span>
+                <span class="na-chip void">—</span>
+                <span class="arw" aria-hidden="true">→</span>
+                <span class="na-chip n fresh">27.0M</span>
+                <span class="dlt">opened</span>
+              </div>
+            </td>
+          </tr>
+
+          <tr style="animation-delay:.18s">
+            <td class="l tk">
+              <a class="sym" href="#" title="Open OXY in MarketPulse">OXY<span aria-hidden="true">›</span></a>
+              <div class="co">Occidental Petroleum</div>
+            </td>
+            <td data-l="Value"><span class="v">$13.1B</span></td>
+            <td data-l="% port"><span class="pct">4.2%</span></td>
+            <td class="l">
+              <div class="ledger">
+                <span class="otag add">Added</span>
+                <span class="lbl">Shares</span>
+                <span class="na-chip">259.5M</span>
+                <span class="arw" aria-hidden="true">→</span>
+                <span class="na-chip n up">264.9M</span>
+                <span class="dlt">+2.1%</span>
+              </div>
+            </td>
+          </tr>
+
+          <tr style="animation-delay:.22s">
+            <td class="l tk">
+              <span class="sym untracked">BRKR</span>
+              <div class="co">Bruker Corp. · <span class="untag">not tracked</span></div>
+            </td>
+            <td data-l="Value"><span class="v">$14.1M</span></td>
+            <td data-l="% port"><span class="pct">7.6%</span></td>
+            <td class="l">
+              <div class="ledger">
+                <span class="otag new">New</span>
+                <span class="lbl">Shares</span>
+                <span class="na-chip void">—</span>
+                <span class="arw" aria-hidden="true">→</span>
+                <span class="na-chip n fresh">0.3M</span>
+                <span class="dlt">opened</span>
+              </div>
+            </td>
+          </tr>
+
+          <tr style="animation-delay:.26s">
+            <td class="l tk">
+              <span class="sym untracked">PARA</span>
+              <div class="co">Paramount Skydance · <span class="untag">not tracked</span></div>
+            </td>
+            <td data-l="Value"><span class="v">—</span></td>
+            <td data-l="% port"><span class="pct">—</span></td>
+            <td class="l">
+              <div class="ledger">
+                <span class="otag exit">Exited</span>
+                <span class="lbl">Shares</span>
+                <span class="na-chip">63.3M</span>
+                <span class="arw" aria-hidden="true">→</span>
+                <span class="na-chip n zeroed">0</span>
+                <span class="dlt">−100%</span>
+              </div>
+            </td>
+          </tr>
+
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>Magnitude range</h2>
+      <p>Same 100.0M prior position throughout, so only the second chip and the trailing delta move.</p>
+    </div>
+    <div class="strip">
+      <div class="isocol">
+        <div class="isoline"><span class="stripcap" style="min-width:74px">Small add</span><span class="otag add">Added</span><span class="lbl">Shares</span><span class="na-chip">100.0M</span><span class="arw" aria-hidden="true">→</span><span class="na-chip n up">102.1M</span><span class="dlt">+2.1%</span></div>
+        <div class="isoline"><span class="stripcap" style="min-width:74px">Mid add</span><span class="otag add">Added</span><span class="lbl">Shares</span><span class="na-chip">100.0M</span><span class="arw" aria-hidden="true">→</span><span class="na-chip n up">108.4M</span><span class="dlt">+8.4%</span></div>
+        <div class="isoline"><span class="stripcap" style="min-width:74px">Large add</span><span class="otag add">Added</span><span class="lbl">Shares</span><span class="na-chip">100.0M</span><span class="arw" aria-hidden="true">→</span><span class="na-chip n up">175.0M</span><span class="dlt">+75.0%</span></div>
+        <div class="isoline"><span class="stripcap" style="min-width:74px">Small trim</span><span class="otag trim">Trimmed</span><span class="lbl">Shares</span><span class="na-chip">100.0M</span><span class="arw" aria-hidden="true">→</span><span class="na-chip n down">90.9M</span><span class="dlt">−9.1%</span></div>
+        <div class="isoline"><span class="stripcap" style="min-width:74px">Large trim</span><span class="otag trim">Trimmed</span><span class="lbl">Shares</span><span class="na-chip">100.0M</span><span class="arw" aria-hidden="true">→</span><span class="na-chip n down">66.7M</span><span class="dlt">−33.3%</span></div>
+        <div class="isoline"><span class="stripcap" style="min-width:74px">No prior</span><span class="otag new">New</span><span class="lbl">Shares</span><span class="na-chip void">—</span><span class="arw" aria-hidden="true">→</span><span class="na-chip n fresh">27.0M</span><span class="dlt">opened</span></div>
+        <div class="isoline"><span class="stripcap" style="min-width:74px">To zero</span><span class="otag exit">Exited</span><span class="lbl">Shares</span><span class="na-chip">63.3M</span><span class="arw" aria-hidden="true">→</span><span class="na-chip n zeroed">0</span><span class="dlt">−100%</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="bob-section">
+    <div class="bob-sechdr">
+      <h2>States, isolated</h2>
+      <p>The outline tag alone — this is the only piece of the treatment that is a discrete badge.</p>
+    </div>
+    <div class="strip">
+      <div class="isoline" style="gap:14px">
+        <span class="otag new">New</span>
+        <span class="otag add">Added</span>
+        <span class="otag trim">Trimmed</span>
+        <span class="otag exit">Exited</span>
+        <span class="otag held">Held</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="a11y">
+    <h3>Non-color cues</h3>
+    <ul>
+      <li><b>NEW</b> — outline tag reads <em>New</em>; first chip is a dashed em dash, so the sentence is <code>— → 27.0M</code>.</li>
+      <li><b>ADDED</b> — outline tag reads <em>Added</em>; second chip is numerically larger; delta carries <code>+</code>.</li>
+      <li><b>TRIMMED</b> — outline tag reads <em>Trimmed</em>; second chip is numerically smaller; delta carries <code>−</code>.</li>
+      <li><b>EXITED</b> — outline tag reads <em>Exited</em>; second chip is the literal digit <code>0</code>.</li>
+      <li><b>HELD</b> — outline tag reads <em>Held</em>; both chips carry the identical figure.</li>
+      <li><b>Covered</b> — ticker is a link with a solid underline and a trailing <code>›</code> chevron.</li>
+      <li><b>Not covered</b> — ticker is plain text with a dotted underline and the words <em>not tracked</em>.</li>
+    </ul>
+  </div>
+
+  <p class="foot">Source: SEC EDGAR Form 13F-HR. Positions are as of quarter end and lag up to 45 days. Long US equity positions only — shorts, bonds and non-US holdings are not disclosed.</p>
+
+  <aside class="note">
+    <b>Concept</b>
+    State the change in words and figures — old chip, arrow, new chip — so nothing has to be decoded. Trade-off: it is the widest treatment by far, and seven sentences stacked give the eye no shape to lock onto.
+  </aside>
+
+</div>
+</body>
+</html>
