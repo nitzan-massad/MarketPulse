@@ -461,7 +461,7 @@ export default function App() {
       ) : nav === "new" ? (
         <NewArrivals onOpen={handleOpen} onOpenReview={openReview} marks={marks} onMark={requestMark} />
       ) : nav === "feed" ? (
-        FEED_ON ? <PostFeed /> : null
+        FEED_ON ? <PostFeed base={import.meta.env.BASE_URL} /> : null
       ) : (
         <Watchlist
           watchlist={watchlist}

@@ -1828,11 +1828,13 @@ thead th:hover .col-resize::after{opacity:.6}
 .feed-card.k-newcomer   { --acc: var(--red-2); }     /* arrived mid-window */
 .feed-card.k-list       { --acc: var(--muted); }     /* a board, no single subject */
 
-/* The canvas fills the card and sits behind everything; postArt.ts reads
+/* Fills the card and sits behind everything, whether it is the canvas (postArt.ts reads
    clientWidth/clientHeight and matches the backing store to devicePixelRatio, so it stays
-   sharp at any card size without a fixed pixel size here. Light placeholder, to match the
-   now-light scenes (was a dark #0a1018 before the light-card pass). */
-.feed-art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: var(--panel-2); }
+   sharp at any card size without a fixed pixel size here) or a real <img> (a fixed square
+   from Flux — see ci/post-image.mjs — against this 4:5 card, hence object-fit: cover rather
+   than letterboxing). Light placeholder background, to match the light scenes/photos (was a
+   dark #0a1018 before the light-card pass). */
+.feed-art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; background: var(--panel-2); }
 
 /* Top-weighted LIGHT scrim. postArt.ts's scenes are light now (not dark), but the card's
    text still needs a guaranteed-contrast backdrop whatever a given scene happens to draw
