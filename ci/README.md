@@ -36,11 +36,45 @@ uses whatever is on `main`.
   `site.yml` therefore pins `fetch-depth: 0`, and `loadWindow()` prints a WARNING naming the
   count when the window comes back under `MIN_WINDOW`. **Do not make the checkout shallow.**
 
+  **Images.** After a post wins, `ci/post-image.mjs` generates a real photograph for it via
+  Cloudflare Workers AI **Flux Schnell** (`@cf/black-forest-labs/flux-1-schnell`, 4 steps,
+  ~43 neurons/image against the same free 10,000/day pool the text candidates already spend
+  ~15% of, rate-limited at 720 req/min, Apache-2.0). The canvas scenes in `src/postArt.ts`
+  cannot be made genuinely light AND visually substantial at once — two of the seven measured
+  a mean brightness of 240 with a visual variation of 12 on 0-255, i.e. a blank white
+  rectangle — so a real image is the fix, and canvas stays wired in as the fallback.
+  `scenePhrase()` maps the post's sector to a plain-English scene description (the 12 real
+  sectors in `src/data/stocks.json`, plus a fallback); `buildImagePrompt()` wraps it in a fixed
+  template forcing bright/high-key/abstract/no-text imagery. **The prompt NEVER carries a hook
+  fact, number, ticker or company name — sector only, always.** Flux is well known for
+  rendering text accurately, and this model's schema has no `negative_prompt` field to suppress
+  it with, so a number reaching the prompt would be a plausible route to a fabricated figure —
+  a wrong price, a wrong date — baked as pixels into a picture that sits next to a real public
+  company's name. `generateImage()` never throws: any failure (missing credentials, a non-ok
+  response, a malformed body, a thrown network error) returns `null`, `ci/generate-posts.mjs`
+  logs one line ("shipped with canvas art"), and the post still publishes with the canvas
+  fallback. On success the JPEG bytes are written to `public/post-images/<sanitised id>.jpg`
+  (the model's output is a fixed square; the card crops it with `object-fit: cover` against its
+  4:5 aspect ratio) and the post record gets an `image` field — the **filename only**, never a
+  path. Post ids carry `:`/`.` from their ISO timestamp, which `postImageFilename()` collapses
+  to `-`; that function is the ONLY place this mapping happens, so the frontend
+  (`src/components/PostFeed.tsx`) just reads `post.image` verbatim — there is nothing for the
+  two sides to keep in sync. Gated by `POST_IMAGES` (default `"true"`), same on/off shape as
+  `POSTS_ENABLED`.
+
+  **Prune.** `POSTS_KEEP` bounds `posts.json`, but says nothing about the image files
+  themselves — at ~100KB each that is unbounded growth in git, forever, with no cap. After
+  writing the rolling posts list, `ci/generate-posts.mjs` deletes every file under
+  `public/post-images/` whose post fell out of that window, and logs the count every run (even
+  when it is zero). This is not optional cleanup — it is what keeps the feature from silently
+  bloating the repo.
+
   **Knobs** (env in `.github/workflows/site.yml`): `POSTS_PER_RUN` (default 1), `POST_CANDIDATES`
   (default 5), `POST_WINDOW` (default 30 — snapshots pulled from git history), `POSTS_KEEP`
   (default 200), `POST_PROVIDER` (`cloudflare` free-tier default, `anthropic` for quality,
-  `stub` for offline runs), `POSTS_ENABLED` (set `false` to stop writing posts).
-  Secrets: `CF_ACCOUNT_ID`, `CF_API_TOKEN`.
+  `stub` for offline runs), `POSTS_ENABLED` (set `false` to stop writing posts), `POST_IMAGES`
+  (default `"true"`; set `"false"` to skip Flux generation and always ship canvas art).
+  Secrets: `CF_ACCOUNT_ID`, `CF_API_TOKEN` (shared with the text provider — no new secret).
 
 `scripts/refresh-data.mjs` is the **local** manual equivalent (uses Playwright instead of
 FlareSolverr) — a dev tool, not part of CI.
