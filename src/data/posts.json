@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "id": "ALAB-2026-09-22T14:35:30.122Z",
+    "ts": "2026-09-22T14:35:30.122Z",
+    "kind": "movement",
+    "ticker": "ALAB",
+    "name": "Astera Labs, Inc.",
+    "sector": "Technology",
+    "text": "Astera Labs, Inc. (ALAB) upside was revised from 37.2% to 22.1%. Smart Score also flipped from 3 to 6.",
+    "score": 86,
+    "reasons": [
+      "8 digits of concrete detail",
+      "names ALAB",
+      "length in band"
+    ],
+    "facts": {
+      "upsideFrom": 37.2,
+      "upsideTo": 22.1,
+      "consensusFrom": "Buy",
+      "consensusTo": "Buy",
+      "price": 340.74,
+      "priceTarget": 416,
+      "analysts": 16,
+      "sector": "Technology",
+      "smartScoreFrom": 3,
+      "smartScoreTo": 6
+    }
+  }
+]
