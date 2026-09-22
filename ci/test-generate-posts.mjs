@@ -101,6 +101,55 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   assert.equal(posts.length, 0, "penny-stock-only snapshot produces nothing");
 }
 
+// --- image generation is optional, injected, and can never lose a post --------------------
+// generate() must stay file-I/O-free (see the shape note in generate-posts.mjs), so the real
+// network call is a fake here — same shape as `provider` above.
+{
+  // No generateImageFor at all: unaffected, no `image` field appears.
+  const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
+  const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                 config: { postsPerRun: 1, candidates: 1 } });
+  assert.equal(posts.length, 1, "no image generator at all still publishes");
+  assert.equal("image" in posts[0], false, "no image field when no generator is wired in");
+}
+{
+  // generateImageFor declines (returns null): the post still publishes, with no image field,
+  // and the caller does not need to catch anything.
+  const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
+  const generateImageFor = async () => null;
+  const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                 config: { postsPerRun: 1, candidates: 1 }, generateImageFor });
+  assert.equal(posts.length, 1, "a post still publishes when image generation fails");
+  assert.equal("image" in posts[0], false, "no image field when generation fails");
+}
+{
+  // generateImageFor throws: still must not lose the post.
+  const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
+  const generateImageFor = async () => { throw new Error("boom"); };
+  const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                 config: { postsPerRun: 1, candidates: 1 }, generateImageFor });
+  assert.equal(posts.length, 1, "a post still publishes when the image generator throws");
+  assert.equal("image" in posts[0], false, "no image field when the generator throws");
+}
+{
+  // generateImageFor succeeds: the post carries a sanitised filename and the raw bytes for
+  // main() to write — and CRITICALLY, the generator is called with the sector alone, never
+  // the ticker, company name, or any hook fact.
+  const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
+  const calls = [];
+  const buf = Buffer.from("fake-jpeg-bytes");
+  const generateImageFor = async (sector) => { calls.push(sector); return buf; };
+  const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                 config: { postsPerRun: 1, candidates: 1 }, generateImageFor });
+  assert.equal(posts.length, 1, "a post still publishes when image generation succeeds");
+  assert.equal(calls.length, 1, "the image generator is called exactly once");
+  assert.equal(calls[0], "Technology", "only the sector reaches the image generator");
+  assert.equal(calls[0].includes("AAA"), false, "the ticker never reaches the image generator");
+  assert.match(posts[0].image, /^AAA-.*\.jpg$/, "image is a sanitised filename, not a path");
+  assert.equal(posts[0].image.includes(":"), false, "the ISO timestamp's colons are sanitised out");
+  assert.ok(posts[0].imageBuffer === buf, "the raw bytes ride along for main() to write to disk");
+}
+
 // --- every hook kind has an angle, not just the original four -----------------------------
 // The generic "Report the fact." fallback throws away the reason the rule fired at all — a
 // `record` post that never says "window high" is indistinguishable from a plain upside post.
@@ -125,4 +174,5 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   assert.ok(prompt.includes("Angle: Report the fact."), "an unknown kind still gets the fallback");
 }
 
-console.log("generate-posts OK — prompt shape, angle per hook kind, best-of-N, cadence config, empty-field and penny-stock safety");
+console.log("generate-posts OK — prompt shape, angle per hook kind, best-of-N, cadence config, " +
+            "empty-field and penny-stock safety, image generation optional/injected/never loses a post");

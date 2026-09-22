@@ -1,24 +1,27 @@
-// THE WIRING — hooks -> N candidates -> deterministic judge -> one post.
+// THE WIRING — hooks -> N candidates -> deterministic judge -> one post (+ one image).
 //
-// Shape note: generate() takes its provider as an argument and does no file I/O, so
-// ci/test-generate-posts.mjs can drive the whole pipeline offline with a fake provider.
-// All reading and writing lives in main(), behind the entry guard at the bottom.
+// Shape note: generate() takes its provider AND its image generator as arguments and does no
+// file I/O, so ci/test-generate-posts.mjs can drive the whole pipeline offline with fakes for
+// both. All reading and writing — including the image bytes and the prune — lives in main(),
+// behind the entry guard at the bottom.
 //
 // Cadence is env config, not code — POSTS_PER_RUN=3 in site.yml is the only edit needed
 // to go from one post per run to three.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { detectHooks, MIN_WINDOW } from "./hooks.mjs";
 import { pickBest } from "./post-score.mjs";
 import { makeProvider } from "./provider.mjs";
+import { generateImage, postImageFilename } from "./post-image.mjs";
 
 const ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const STOCKS = path.join(ROOT, "src", "data", "stocks.json");
 const POSTS = path.join(ROOT, "src", "data", "posts.json");
 const CORPUS = path.join(ROOT, "ci", "style-corpus.json");
+const IMAGES_DIR = path.join(ROOT, "public", "post-images");
 
 /** The ANGLE — one line per hook kind, telling the model what makes this particular hook
  *  postable. Without it a kind falls through to "Report the fact.", which throws away the
@@ -68,7 +71,7 @@ export function buildPrompt(hook, exemplars = []) {
   return { system, prompt };
 }
 
-export async function generate({ history, recent = [], provider, exemplars = [], config = {} }) {
+export async function generate({ history, recent = [], provider, exemplars = [], config = {}, generateImageFor }) {
   const { postsPerRun = 1, candidates = 5, kindMemory = 4 } = config;
   // Task 0, Finding 2: feed the last few posts' KINDS back into the detector so the top
   // hook rotates shape instead of being "big upside number" every single run.
@@ -98,8 +101,9 @@ export async function generate({ history, recent = [], provider, exemplars = [],
 
     usedTickers.add(hook.ticker);
     const ts = new Date().toISOString();
-    posts.push({
-      id: `${hook.ticker}-${ts}`,
+    const id = `${hook.ticker}-${ts}`;
+    const post = {
+      id,
       ts,
       kind: hook.kind,
       ticker: hook.ticker,
@@ -109,7 +113,29 @@ export async function generate({ history, recent = [], provider, exemplars = [],
       score: best.score,
       reasons: best.reasons,
       facts: hook.facts,
-    });
+    };
+
+    // Image generation is injected exactly like `provider` above, so `generate()` stays
+    // file-I/O-free and testable offline (see the shape note up top) — writing the bytes to
+    // public/post-images/ happens in main(). Only the SECTOR is ever passed in; ci/post-image.mjs
+    // never sees a hook fact, number, ticker or company name. A declined or failed call just
+    // omits `image` and the card renders the canvas fallback — the post still publishes.
+    if (typeof generateImageFor === "function") {
+      let buf = null;
+      try {
+        buf = await generateImageFor(hook.sec);
+      } catch (err) {
+        console.error(`  ${hook.ticker}: image generation threw — ${err.message}`);
+      }
+      if (buf) {
+        post.image = postImageFilename(id);
+        post.imageBuffer = buf; // internal only — main() writes it to disk and strips it
+      } else {
+        console.log(`  ${hook.ticker}: image generation failed — shipped with canvas art`);
+      }
+    }
+
+    posts.push(post);
     console.log(`  ${hook.ticker} (${hook.kind}) scored ${best.score} from ${texts.length} candidates`);
   }
 
@@ -197,6 +223,10 @@ async function main() {
     candidates: Number(process.env.POST_CANDIDATES ?? 5),
   };
   const keep = Number(process.env.POSTS_KEEP ?? 200);
+  // Same on/off shape as POSTS_ENABLED — a real image call can be switched off without
+  // reverting code. Costs ~43 neurons against the same free 10,000/day pool the text
+  // candidates already spend ~15% of.
+  const imagesEnabled = String(process.env.POST_IMAGES ?? "true").toLowerCase() !== "false";
 
   const existing = readJson(POSTS, []);
   const exemplars = readJson(CORPUS, []);
@@ -205,18 +235,47 @@ async function main() {
 
   console.log(`generate-posts — ${curr.length} rows, ${history.length} snapshots in window, ` +
               `${existing.length} existing posts, ` +
-              `${config.postsPerRun} post(s) x ${config.candidates} candidates`);
+              `${config.postsPerRun} post(s) x ${config.candidates} candidates, ` +
+              `images ${imagesEnabled ? "on" : "off"}`);
 
   const provider = makeProvider();
-  const posts = await generate({ history, recent: existing.slice(0, 50), provider, exemplars, config });
+  const generateImageFor = imagesEnabled
+    ? (sector) => generateImage({ sector, env: process.env, fetchImpl: globalThis.fetch })
+    : undefined;
+  const posts = await generate({ history, recent: existing.slice(0, 50), provider, exemplars, config, generateImageFor });
 
   if (!posts.length) {
     console.log("nothing publishable this run — leaving posts.json unchanged");
     return;
   }
 
-  writeFileSync(POSTS, `${JSON.stringify([...posts, ...existing].slice(0, keep), null, 2)}\n`);
+  // Write the image bytes now — generate() stays file-I/O-free (see the shape note up top),
+  // so this is the only place in the pipeline that touches public/post-images/.
+  mkdirSync(IMAGES_DIR, { recursive: true });
+  for (const post of posts) {
+    if (post.imageBuffer) {
+      writeFileSync(path.join(IMAGES_DIR, post.image), post.imageBuffer);
+      delete post.imageBuffer;
+    }
+  }
+
+  const rolling = [...posts, ...existing].slice(0, keep);
+  writeFileSync(POSTS, `${JSON.stringify(rolling, null, 2)}\n`);
   console.log(`wrote ${posts.length} post(s) — ${posts.map((p) => p.ticker).join(", ")}`);
+
+  // Prune: POSTS_KEEP bounds posts.json, but says nothing about the image files themselves —
+  // at ~100KB/image that is unbounded growth in git otherwise. Anything under
+  // public/post-images/ whose post fell out of the rolling window this write produced gets
+  // deleted right here.
+  const keptImages = new Set(rolling.filter((p) => p.image).map((p) => p.image));
+  let pruned = 0;
+  for (const file of readdirSync(IMAGES_DIR)) {
+    if (!keptImages.has(file)) {
+      rmSync(path.join(IMAGES_DIR, file));
+      pruned++;
+    }
+  }
+  console.log(`pruned ${pruned} orphaned post image(s)`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
