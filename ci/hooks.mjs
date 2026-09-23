@@ -246,3 +246,90 @@ export function detectHooks(history, opts = {}) {
   }
   return out;
 }
+
+// ---------------------------------------------------------- de-tickering -----
+//
+// A published post once read "IRD soared 151.7% to $13.14." — a ticker, which is banned.
+// The ticker penalty in ci/post-score.mjs is one line of defence; this is the other, and it
+// is the root-cause fix: the `list` hook's OWN facts were handing the model tickers to quote
+// (`members: "IRD (151.7% to $13.14), …"`, `leader: "IRD"`), so even a model that never
+// invents anything just read one back verbatim. This runs as its own pass, immediately after
+// detectHooks and before anything (the prompt builder, the scorer) ever sees a hook — a hook
+// downstream of this point should never carry a ticker symbol in its `facts` again.
+
+const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** Legal-entity suffixes only — never "Holdings"/"Group", which can be load-bearing brand
+ *  identity (see ci/test-post-score.mjs's "Ird Holdings" fixture). Looped so a chained tail
+ *  ("Foo, Inc., Ltd.") still fully strips, capped so a pathological name can't loop forever. */
+const CORP_SUFFIX_RE =
+  /,?\s+(?:Inc(?:orporated)?|Corp(?:oration)?|Co(?:mpany)?|Ltd|Limited|LLC|LLP|PLC|plc|N\.?V\.?|S\.?A\.?|L\.?P\.?)\.?$/i;
+
+/** "Kymera Therapeutics, Inc." -> "Kymera Therapeutics"; "Opus Genetics, Inc." -> "Opus
+ *  Genetics". Sensible shortening for a fact string that names several companies at once
+ *  (`list`'s `members`) — a five-way list of full legal names is unreadable, a five-way list
+ *  of the names people actually use is exactly what a `list` post should quote. */
+export function shortCompanyName(name) {
+  let s = String(name ?? "").trim();
+  if (!s) return s;
+  for (let i = 0; i < 4; i++) {
+    const next = s.replace(CORP_SUFFIX_RE, "").trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s || String(name ?? "").trim();
+}
+
+/**
+ * De-ticker one string fact value: replace every standalone ticker token (word-boundary,
+ * case-sensitive — a ticker symbol is written in caps) with the matching company's short
+ * name from `nameByTicker`. Non-string values pass through untouched — this only ever
+ * touches the string facts a ticker could hide inside.
+ */
+function deTickerString(value, tickerRe, nameByTicker) {
+  if (typeof value !== "string" || !tickerRe) return value;
+  return value.replace(tickerRe, (m) => shortCompanyName(nameByTicker.get(m) ?? m));
+}
+
+/**
+ * The normalisation pass. Runs after detectHooks, before the prompt builder or the scorer
+ * ever see a hook. `rows` is the CURRENT snapshot's rows (any array of `{ t, n, ... }`,
+ * typically `history[history.length - 1]`) — the `t` -> `n` map it builds is the only source
+ * of truth for what a ticker's company is actually called.
+ *
+ * General on purpose: it does not special-case `members`/`leader` by key name, it scans every
+ * string-valued fact on every hook for a KNOWN ticker token and replaces it. `members` and
+ * `leader` are exactly what that catches today; a future fact that happens to carry a ticker
+ * (a new hook kind, a new field on an existing one) is caught the same way with no edit here.
+ *
+ * Never touches `hook.ticker` / `hook.name` themselves — those are the hook's own identity,
+ * already correct, and are never sent to the model as a raw "Facts:" line the way `hook.facts`
+ * is (see buildPrompt in ci/generate-posts.mjs).
+ */
+export function deTickerHooks(hooks, rows) {
+  const list = Array.isArray(hooks) ? hooks : [];
+  const nameByTicker = new Map();
+  for (const r of Array.isArray(rows) ? rows : []) {
+    if (r && r.t && r.n) nameByTicker.set(r.t, r.n);
+  }
+  if (!nameByTicker.size) return list;
+
+  // Longest-first so a ticker that is a prefix of another ("A" vs "AA") cannot pre-empt the
+  // longer, more specific match — irrelevant for the word-boundary case here, but free and
+  // future-proof against a lookahead-free engine change.
+  const tickers = [...nameByTicker.keys()].sort((a, b) => b.length - a.length);
+  const tickerRe = new RegExp(`\\b(?:${tickers.map(escapeRe).join("|")})\\b`, "g");
+
+  return list.map((h) => {
+    const facts = h?.facts;
+    if (!facts || typeof facts !== "object") return h;
+    const nextFacts = {};
+    let changed = false;
+    for (const [k, v] of Object.entries(facts)) {
+      const nv = deTickerString(v, tickerRe, nameByTicker);
+      nextFacts[k] = nv;
+      if (nv !== v) changed = true;
+    }
+    return changed ? { ...h, facts: nextFacts } : h;
+  });
+}

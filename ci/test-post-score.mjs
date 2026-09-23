@@ -5,6 +5,7 @@
 import assert from "node:assert";
 import {
   scorePost, pickBest, nameStem, factNumbers, unverifiedNumbers, BANNED, MIN_PUBLISHABLE,
+  TICKER_PENALTY, FABRICATION_PENALTY,
 } from "./post-score.mjs";
 
 // The FULL `surprise` fact shape ci/hooks.mjs emits — { upside, price, priceTarget, consensus,
@@ -52,12 +53,15 @@ assert.ok(Number.isFinite(MIN_PUBLISHABLE), "there is a publish floor");
 
 // --- the task's own worked example: an 8-word candidate must beat a 12-word one, and
 // both must beat a 1-2 word fragment, even though the longer ones carry more digits ------
+// Named by the COMPANY, not the ticker, so this isolates the word-count effect the block is
+// actually about — the ticker penalty is decisive now (see below) and would otherwise sink
+// every fixture here regardless of length.
 {
-  const eightWords = scorePost("NVDA hits $210 target on 42% upside today.", ctx()); // 8 words
+  const eightWords = scorePost("Nvidia hits $210 target on 42% upside today.", ctx()); // 8 words
   const twelveWords = scorePost(
-    "NVDA hits $210 target on 42% upside today with 38 analysts covering.", ctx(),
+    "Nvidia hits $210 target on 42% upside today with 38 analysts covering.", ctx(),
   ); // 12 words — same digits-and-naming shape, just longer
-  const fragment = scorePost("NVDA up.", ctx()); // 2 words
+  const fragment = scorePost("Nvidia up.", ctx()); // 2 words
   assert.ok(eightWords.score > twelveWords.score, "an 8-word candidate beats a 12-word one");
   assert.ok(eightWords.score > fragment.score, "an 8-word candidate beats a 1-2 word fragment");
   assert.ok(eightWords.score >= MIN_PUBLISHABLE, "the 8-word candidate clears the publish floor");
@@ -98,9 +102,27 @@ assert.ok(Number.isFinite(MIN_PUBLISHABLE), "there is a publish floor");
   const neither = scorePost("Smart Score 8 to 6, upside 28% to 34% overall.", { hook: nflx });
   assert.ok(byName.score > byTicker.score, "naming the company now beats naming the ticker (inverted from the old rule)");
   assert.ok(byTicker.reasons.some((r) => /names the ticker/i.test(r)), "the reason names the ticker penalty");
-  assert.equal(byTicker.score, neither.score, "using the ticker is worth exactly as little as naming nothing, word count held equal");
+  // DECISIVE now, not a nudge — a ticker mention has to sink the candidate outright (like
+  // fabrication), so it is no longer merely "as bad as naming nothing", it is worse.
+  assert.ok(byTicker.score < neither.score, "naming the ticker is now worse than naming nothing at all");
+  assert.ok(byTicker.score < MIN_PUBLISHABLE, "and lands below the publish floor by itself");
   assert.ok(byName.score > neither.score, "naming the company still beats naming nothing");
   assert.ok(neither.reasons.some((r) => /does not name/.test(r)), "and the reason says so");
+}
+{
+  // DECISIVE, the same way FABRICATION_PENALTY is: even a candidate maxing out every other
+  // bonus (digits, length band, naming credit) must still land under MIN_PUBLISHABLE once it
+  // names a ticker — this is the task's own worked example, published for real once.
+  const ird = { kind: "surprise", ticker: "IRD", name: "Opus Genetics",
+                facts: { upside: 151.7, price: 13.14, priceTarget: 20, consensus: "StrongBuy",
+                         analysts: 11, sector: "Healthcare" } };
+  const fab = "IRD soared 151.7% to $13.14.";
+  const r = scorePost(fab, { hook: ird });
+  assert.ok(r.reasons.some((x) => /names the ticker IRD/i.test(x)), "the ticker is flagged");
+  assert.ok(r.score < MIN_PUBLISHABLE, "the exact published bug is now rejected outright");
+  assert.equal(pickBest([fab], { hook: ird }), null, "and pickBest ships nothing rather than this");
+  assert.ok(TICKER_PENALTY > 56, "the penalty alone beats the documented 86-point bonus ceiling");
+  assert.ok(TICKER_PENALTY < FABRICATION_PENALTY, "decisive, but a ticker is still a lesser sin than a fabricated number");
 }
 {
   // A multi-word name must match on its distinctive first word, not the whole string.
@@ -144,8 +166,9 @@ assert.equal(nameStem(undefined), "", "missing name has no stem");
 
 // --- pickBest ------------------------------------------------------------------
 {
+  // Named by the company, not the ticker — same reasoning as the worked example above.
   const best = pickBest(
-    ["Let's dive in! A game-changer.", "NVDA target $210 — 42% upside, 38 analysts covering."],
+    ["Let's dive in! A game-changer.", "Nvidia target $210 — 42% upside, 38 analysts covering."],
     ctx(),
   );
   assert.ok(best, "pickBest returns a winner");
@@ -267,4 +290,4 @@ assert.equal(pickBest(["Let's dive in! In the world of finance, a game-changer. 
   assert.equal(factNumbers(undefined).size, 0, "missing facts yield an empty reference set");
 }
 
-console.log("post-score OK — banned phrases, numbers, number VERIFICATION, length, dedupe, full-list scan, hashtags, exclamations, pickBest floor, determinism");
+console.log("post-score OK — banned phrases, numbers, number VERIFICATION, decisive ticker penalty, length, dedupe, full-list scan, hashtags, exclamations, pickBest floor, determinism");

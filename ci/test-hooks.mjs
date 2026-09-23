@@ -3,7 +3,7 @@
 // hooks, which is what makes the generator reproducible and a bad post debuggable.
 
 import assert from "node:assert";
-import { detectHooks, eligible, coverage, SANE_MAX_UPSIDE, MIN_WINDOW } from "./hooks.mjs";
+import { detectHooks, deTickerHooks, shortCompanyName, eligible, coverage, SANE_MAX_UPSIDE, MIN_WINDOW } from "./hooks.mjs";
 
 const row = (over = {}) => ({
   t: "AAA", n: "Alpha Inc", sec: "Technology", px: 100, chg: 1, pt: 130, up: 30,
@@ -304,4 +304,94 @@ assert.equal(
 assert.deepEqual(detectHooks([]), [], "an empty history yields no hooks, not a crash");
 assert.deepEqual(detectHooks([[]]), [], "an empty snapshot yields no hooks");
 
-console.log("hooks OK — 4 floors, 9 rule families, window rules gated, damping, sorting, determinism");
+// ======================== DE-TICKERING (the published bug) ========================
+// "IRD soared 151.7% to $13.14." shipped once: the `list` hook's own facts handed the model
+// a ticker to quote back (`members: "IRD (151.7% to $13.14), …"`, `leader: "IRD"`). This is
+// the separate normalisation pass that runs after detectHooks and fixes THAT, root-cause.
+
+const snapRows = [
+  { t: "IRD", n: "Opus Genetics, Inc." },
+  { t: "FRVO", n: "Fervo Energy Inc." },
+  { t: "PRAX", n: "Praxis Precision Medicines, Inc." },
+  { t: "VERA", n: "Vera Therapeutics, Inc." },
+  { t: "TNGX", n: "Tango Therapeutics, Inc." },
+];
+
+// --- shortCompanyName: strips legal-entity suffixes, keeps everything else -----------------
+assert.equal(shortCompanyName("Opus Genetics, Inc."), "Opus Genetics", "', Inc.' strips");
+assert.equal(shortCompanyName("Fervo Energy Inc."), "Fervo Energy", "' Inc.' (no comma) strips");
+assert.equal(shortCompanyName("Kymera Therapeutics, Inc."), "Kymera Therapeutics", "another real shape");
+assert.equal(shortCompanyName("Ird Holdings"), "Ird Holdings", "'Holdings' is brand identity, not stripped");
+assert.equal(shortCompanyName("Xpo, Inc."), "Xpo", "matches post-score.mjs's own nameStem fixture");
+assert.equal(shortCompanyName(""), "", "empty in, empty out");
+assert.equal(shortCompanyName(undefined), "", "missing in, empty out");
+
+// --- the exact published bug: `list` facts (members + leader) lose their tickers ----------
+{
+  const listHook = {
+    kind: "list", ticker: "IRD", name: "Opus Genetics, Inc.", sec: "Healthcare", score: 62,
+    facts: {
+      members: "IRD (151.7% to $13.14), FRVO (149% to $41.91), PRAX (145.1% to $732.38), " +
+               "VERA (129.6% to $78.63), TNGX (115% to $48)",
+      count: 5, leader: "IRD", leaderUpside: 151.7,
+    },
+  };
+  const [out] = deTickerHooks([listHook], snapRows);
+  assert.equal(out.facts.members.includes("IRD"), false, "IRD no longer appears in members");
+  assert.equal(out.facts.members.includes("FRVO"), false, "nor FRVO");
+  assert.equal(out.facts.members.includes("PRAX"), false, "nor PRAX");
+  assert.equal(out.facts.members.includes("VERA"), false, "nor VERA");
+  assert.equal(out.facts.members.includes("TNGX"), false, "nor TNGX");
+  assert.equal(out.facts.members, "Opus Genetics (151.7% to $13.14), Fervo Energy (149% to $41.91), " +
+    "Praxis Precision Medicines (145.1% to $732.38), Vera Therapeutics (129.6% to $78.63), " +
+    "Tango Therapeutics (115% to $48)", "company names substitute in cleanly, suffixes stripped");
+  assert.equal(out.facts.leader, "Opus Genetics", "leader is a company name, not a ticker");
+  assert.equal(out.facts.leaderUpside, 151.7, "non-string, non-ticker facts pass through unchanged");
+  assert.equal(out.facts.count, 5, "and count, a plain number, is untouched");
+  // Only `facts` is normalised — the hook's own identity fields are never touched.
+  assert.equal(out.ticker, "IRD", "hook.ticker itself is left alone (it is not a `facts` string)");
+  assert.equal(out.name, "Opus Genetics, Inc.", "hook.name itself is left alone too");
+}
+
+// --- a hook with no ticker-bearing facts is untouched (deep-equal, not just "still valid") --
+{
+  const surprise = { kind: "surprise", ticker: "NVDA", name: "Nvidia Corp", sec: "Technology",
+                      score: 90, facts: { upside: 42, price: 148, priceTarget: 210,
+                                          consensus: "StrongBuy", analysts: 38, sector: "Technology" } };
+  const [out] = deTickerHooks([surprise], snapRows);
+  assert.deepEqual(out.facts, surprise.facts, "facts with no ticker tokens are byte-identical");
+}
+
+// --- generic: ANY string fact carrying a known ticker is caught, not just members/leader ---
+{
+  const future = { kind: "madeUpKind", ticker: "PRAX", name: "Praxis Precision Medicines, Inc.",
+                    facts: { note: "Compare against IRD and PRAX this week.", plain: 12 } };
+  const [out] = deTickerHooks([future], snapRows);
+  assert.equal(out.facts.note.includes("IRD"), false, "a brand-new fact key is still de-tickered");
+  assert.equal(out.facts.note, "Compare against Opus Genetics and Praxis Precision Medicines this week.",
+    "both tickers in the same string are replaced");
+  assert.equal(out.facts.plain, 12, "a numeric fact is never touched");
+}
+
+// --- word boundaries hold: a ticker that is a substring of an ordinary word must not fire ---
+{
+  const rows = [...snapRows, { t: "GM", n: "General Motors" }];
+  const hook = { kind: "surprise", ticker: "GM", name: "General Motors",
+                 facts: { note: "Reported at 9am GMT, ahead of GM's own call." } };
+  const [out] = deTickerHooks([hook], rows);
+  assert.equal(out.facts.note, "Reported at 9am GMT, ahead of General Motors's own call.",
+    "GMT is untouched (no word boundary), the standalone GM is replaced");
+}
+
+// --- no rows, or rows with no usable ticker/name pairs: hooks pass through unchanged --------
+{
+  const surprise = { kind: "surprise", ticker: "NVDA", facts: { upside: 42 } };
+  assert.deepEqual(deTickerHooks([surprise], []), [surprise], "no rows means nothing to map against");
+  assert.deepEqual(deTickerHooks([surprise], undefined), [surprise], "undefined rows is handled, not a crash");
+  assert.deepEqual(deTickerHooks([surprise], [{ t: "X" }, { n: "Y" }]), [surprise],
+    "a row missing either t or n is not usable as a mapping and is skipped");
+}
+assert.deepEqual(deTickerHooks([], snapRows), [], "an empty hook list yields an empty list");
+assert.deepEqual(deTickerHooks(undefined, snapRows), [], "a non-array hooks argument does not crash");
+
+console.log("hooks OK — 4 floors, 9 rule families, window rules gated, damping, sorting, determinism, de-tickering");

@@ -11,6 +11,12 @@
 // is the only rule here about TRUTH rather than style, and it is a hard rejection, not a
 // deduction, because posts.json ships to public main and into the JS bundle.
 //
+// A ticker symbol gets the same hard-rejection treatment (`TICKER_PENALTY`, below): the post
+// text now sits burned into the image next to the company's real name (ci/post-compose.mjs),
+// so "IRD soared 151.7%" reading next to "Opus Genetics" is a glaring, published mistake, not
+// a style nit. This is the backstop; the root-cause fix is ci/hooks.mjs's `deTickerHooks`,
+// which strips tickers out of a hook's facts before any candidate is ever written.
+//
 // Validated in Task 0 against real candidates: slop scored -93, good copy 86. It does NOT
 // separate fine from great — three good candidates tied at 86 because the digit bonus
 // caps at +16 and saturates, and ties break alphabetically. That ceiling is accepted on
@@ -152,6 +158,16 @@ export function unverifiedNumbers(text, hook) {
  *  A rejected candidate lands at most at -64, well under MIN_PUBLISHABLE. */
 export const FABRICATION_PENALTY = 150;
 
+/** A ticker beat the fabrication check once and still shipped ("IRD soared 151.7% to
+ *  $13.14.") because the old penalty was a plain -20 nudge: a candidate could still clear
+ *  MIN_PUBLISHABLE (30) against the same 86-point ceiling the fabrication penalty is sized
+ *  against. This is now decisive the same way: 86 - 100 = -14, comfortably under
+ *  MIN_PUBLISHABLE regardless of what else the candidate earns (digits, length, even naming
+ *  the company correctly elsewhere in the same sentence). Root cause is fixed upstream —
+ *  ci/hooks.mjs's `deTickerHooks` strips tickers out of a hook's facts before any candidate is
+ *  even written — this is the backstop for a model that names one anyway. */
+export const TICKER_PENALTY = 100;
+
 export function scorePost(text, ctx = {}) {
   const { hook, recent = [] } = ctx;
   const s = String(text ?? "").trim();
@@ -214,7 +230,7 @@ export function scorePost(text, ctx = {}) {
       reasons.push(`names ${stem}`);
     }
     if (tickerMatch) {
-      score -= 20;
+      score -= TICKER_PENALTY;
       reasons.push(`names the ticker ${ticker} instead of the company`);
     }
     if (!nameMatch && !tickerMatch) {
