@@ -5,7 +5,7 @@
 import assert from "node:assert";
 import {
   detectHooks, deTickerHooks, shortCompanyName, displayCompanyName,
-  eligible, coverage, SANE_MAX_UPSIDE, MIN_WINDOW,
+  eligible, coverage, SANE_MAX_UPSIDE, MIN_WINDOW, MIN_SECTOR_PEERS, MIN_COMPARISON_GAP,
 } from "./hooks.mjs";
 
 const row = (over = {}) => ({
@@ -42,6 +42,59 @@ assert.ok(MIN_WINDOW >= 2, "the window rules need a real series");
   const c = hooks.filter((h) => h.kind === "contrarian");
   assert.equal(c.length, 1, "Smart Score 9 against AI 25 is a contrarian hook");
   assert.equal(c[0].facts.smartScore, 9, "facts carry the Smart Score");
+}
+// --- (12) comparison framing: sectorMedianUpside, derived from THIS run's own rows -----------
+// Peer upsides below are deliberately kept UNDER 40 (the `surprise` firing threshold) unless
+// noted, so only the name under test triggers a competing hook for the kind's global
+// `maxPerKind` cap — these tests are about `sectorMedianUpside`, not the cap itself.
+{
+  assert.ok(MIN_SECTOR_PEERS >= 2, "a real peer-count floor exists");
+  assert.ok(MIN_COMPARISON_GAP > 0, "a real minimum-gap floor exists");
+}
+{
+  // Technology sector: BIG (90) plus three peers (10, 20, 30) -> sorted [10,20,30,90],
+  // median (20+30)/2 = 25. |90-25|=65, comfortably over MIN_COMPARISON_GAP.
+  const curr = [
+    row({ t: "BIG", up: 90 }), row({ t: "P1", up: 10 }),
+    row({ t: "P2", up: 20 }), row({ t: "P3", up: 30 }),
+  ];
+  const s = detectHooks([curr]).filter((h) => h.kind === "surprise" && h.ticker === "BIG");
+  assert.equal(s.length, 1, "BIG still fires a surprise hook");
+  assert.equal(s[0].facts.sectorMedianUpside, 25, "the sector median is attached and correct");
+}
+{
+  // Same shape, but only ONE peer besides BIG — below MIN_SECTOR_PEERS, so no comparison.
+  const curr = [row({ t: "BIG", up: 90 }), row({ t: "P1", up: 10 })];
+  const s = detectHooks([curr]).filter((h) => h.kind === "surprise" && h.ticker === "BIG");
+  assert.equal("sectorMedianUpside" in s[0].facts, false,
+    "too few sector peers this run means no comparison is attached");
+}
+{
+  // Enough peers, but BIG's own number sits close to the median — not worth the contrast.
+  // Peers stay under 40 (35, 38, 39) so they never compete for the surprise kind's own cap.
+  const curr = [
+    row({ t: "BIG", up: 42 }), row({ t: "P1", up: 35 }),
+    row({ t: "P2", up: 38 }), row({ t: "P3", up: 39 }),
+  ];
+  const s = detectHooks([curr]).filter((h) => h.kind === "surprise" && h.ticker === "BIG");
+  assert.equal(s.length, 1, "BIG still fires a surprise hook");
+  assert.equal("sectorMedianUpside" in s[0].facts, false,
+    "a name sitting close to its sector median gets no comparison, even with enough peers");
+}
+{
+  // A DIFFERENT sector's rows never leak into this sector's median — Healthcare peers here are
+  // low enough that, if wrongly merged into Technology's group, the median would shift a lot
+  // (proving the scoping, not just coincidentally matching).
+  const curr = [
+    row({ t: "BIG", up: 90, sec: "Technology" }),
+    row({ t: "P1", up: 10, sec: "Technology" }), row({ t: "P2", up: 20, sec: "Technology" }),
+    row({ t: "H1", up: 1, sec: "Healthcare" }), row({ t: "H2", up: 2, sec: "Healthcare" }),
+    row({ t: "H3", up: 3, sec: "Healthcare" }),
+  ];
+  const s = detectHooks([curr]).filter((h) => h.kind === "surprise" && h.ticker === "BIG");
+  // Technology-only median of [10,20,90] is 20 (BIG's own 90 counts as a Technology row too).
+  // Wrongly merged with Healthcare's [1,2,3] it would be 6.5 instead.
+  assert.equal(s[0].facts.sectorMedianUpside, 20, "the median is scoped to the hook's own sector only");
 }
 {
   const hooks = detectHooks([[row({ ss: 8, ai: 75, air: "Neutral" })]]);

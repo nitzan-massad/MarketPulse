@@ -18,6 +18,15 @@ export const SANE_MAX_UPSIDE = 200;
  *  series — a "30-run high" off four readings is not a fact worth posting. */
 export const MIN_WINDOW = 10;
 
+/** (12) Comparison framing — below this many eligible rows in a sector THIS run, that sector's
+ *  "typical" upside is not a real typical, it is two or three names. */
+export const MIN_SECTOR_PEERS = 3;
+
+/** (12) Comparison framing — a name's own upside has to clear its sector's median by at least
+ *  this many points before the gap is worth stating as a comparison; anything closer just reads
+ *  as noise around the middle. */
+export const MIN_COMPARISON_GAP = 10;
+
 const DEFAULTS = { minMc: 300, minPx: 3, minAnalysts: 4, limit: 12, maxPerKind: 2, recentKinds: [] };
 
 /** Analysts covering the name. TipRanks splits the count across three fields. */
@@ -58,6 +67,39 @@ export function detectHooks(history, opts = {}) {
   const rows = curr.filter((r) => eligible(r, o));
   if (!rows.length) return [];
 
+  // (12) COMPARISON FRAMING — a name's own number next to what is TYPICAL for its sector this
+  // run, so a candidate can say "42% upside, more than double its sector's usual 18%" instead of
+  // stating 42% in isolation. Derived entirely from THIS snapshot's own eligible rows — no new
+  // data source, nothing scraped or invented — grouped by `sec` and reduced to a MEDIAN, not a
+  // mean: `eligible()` already allows upside up to SANE_MAX_UPSIDE (200%), and one outlier at the
+  // top of that range would drag a sector "average" somewhere no individual name resembles.
+  // Attached to a hook's facts only when (a) the sector has at least MIN_SECTOR_PEERS eligible
+  // rows this run — a "typical" figure from two names is not a comparison worth publishing — and
+  // (b) the caller decides the name's own number is far enough from that median to be worth the
+  // contrast (see the `surprise`/`record` call sites below); a name sitting AT its sector's
+  // median has nothing to compare itself against.
+  const bySectorUpside = new Map();
+  for (const r of rows) {
+    if (!isNum(r.up)) continue;
+    if (!bySectorUpside.has(r.sec)) bySectorUpside.set(r.sec, []);
+    bySectorUpside.get(r.sec).push(r.up);
+  }
+  const sectorMedianUpside = new Map();
+  for (const [sec, ups] of bySectorUpside) {
+    if (ups.length < MIN_SECTOR_PEERS) continue;
+    const sorted = [...ups].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    sectorMedianUpside.set(sec, round(median));
+  }
+  /** Only worth naming a comparison when the two numbers would actually read as different —
+   *  paired with `sectorMedianUpside` above at each call site, never applied globally, since
+   *  what counts as "meaningfully different" is a judgement the hook that fires gets to make. */
+  const comparableSectorMedian = (r) => {
+    const med = sectorMedianUpside.get(r.sec);
+    return isNum(med) && Math.abs(r.up - med) >= MIN_COMPARISON_GAP ? med : null;
+  };
+
   // ELIGIBLE rows only, exactly like the window series below. An ineligible previous reading
   // (a name that was a sub-$3 penny, or had no upside at all) is not a baseline anything can
   // legitimately be quoted "from".
@@ -90,10 +132,15 @@ export function detectHooks(history, opts = {}) {
 
     // 1. SURPRISE — the number itself is the story.
     if (r.up >= 40) {
-      hooks.push(base(r, "surprise", (r.up / SANE_MAX_UPSIDE) * 100 * prom * damp("surprise"), {
+      const facts = {
         upside: round(r.up), price: r.px, priceTarget: r.pt,
         consensus: r.con, analysts: coverage(r), sector: r.sec,
-      }));
+      };
+      // (12) Comparison framing — only when it is cleanly derivable AND worth the contrast
+      // (see `comparableSectorMedian` above).
+      const secMed = comparableSectorMedian(r);
+      if (isNum(secMed)) facts.sectorMedianUpside = secMed;
+      hooks.push(base(r, "surprise", (r.up / SANE_MAX_UPSIDE) * 100 * prom * damp("surprise"), facts));
     }
 
     // 2. CONTRARIAN — the two models point opposite ways. ss is 1-10 and ai is 0-100, so
@@ -178,11 +225,15 @@ export function detectHooks(history, opts = {}) {
     if (ups.length >= MIN_WINDOW) {
       const low = Math.min(...ups), high = Math.max(...ups);
       if (r.up >= high - 0.01 && r.up - low >= 20) {
-        hooks.push(base(r, "record", (r.up - low) * 1.4 * prom * damp("record"), {
+        const facts = {
           upside: round(r.up), windowLow: round(low), windowHigh: round(high),
           snapshots: hist.length, days: round((hist.length * 5) / 24),
           price: r.px, priceTarget: r.pt, analysts: coverage(r),
-        }));
+        };
+        // (12) Comparison framing, same rule as `surprise` above.
+        const secMed = comparableSectorMedian(r);
+        if (isNum(secMed)) facts.sectorMedianUpside = secMed;
+        hooks.push(base(r, "record", (r.up - low) * 1.4 * prom * damp("record"), facts));
       }
     }
 
