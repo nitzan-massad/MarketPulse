@@ -160,6 +160,48 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   assert.equal(posts.length, 0, "penny-stock-only snapshot produces nothing");
 }
 
+// --- the descriptor (ci/company-descriptor.mjs) is optional, injected, never loses a post ------
+{
+  // No getDescriptorFor at all: unaffected, no `descriptor` field appears.
+  const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
+  const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                 config: { postsPerRun: 1, candidates: 1 } });
+  assert.equal(posts.length, 1, "no descriptor generator at all still publishes");
+  assert.equal("descriptor" in posts[0], false, "no descriptor field when no generator is wired in");
+}
+{
+  // getDescriptorFor succeeds — it is called exactly once, with the FULL stocks.json row (not
+  // just the hook's own narrower facts), and the resolved descriptor rides on the post.
+  const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
+  const calls = [];
+  const getDescriptorFor = async (row) => { calls.push(row); return "building what's next"; };
+  const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                 config: { postsPerRun: 1, candidates: 1 }, getDescriptorFor });
+  assert.equal(posts.length, 1, "a post still publishes with a descriptor generator wired in");
+  assert.equal(posts[0].descriptor, "building what's next", "the resolved descriptor rides on the post");
+  assert.equal(calls.length, 1, "the descriptor generator is called exactly once per published post");
+  assert.equal(calls[0].t, "AAA", "it receives the full stocks.json row for the post's ticker");
+  assert.equal(calls[0].mc, 90_000, "including fields (market cap) a hook's own facts never carry");
+}
+{
+  // getDescriptorFor throws: the post still publishes, with no descriptor field.
+  const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
+  const getDescriptorFor = async () => { throw new Error("boom"); };
+  const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                 config: { postsPerRun: 1, candidates: 1 }, getDescriptorFor });
+  assert.equal(posts.length, 1, "a post still publishes when descriptor generation throws");
+  assert.equal("descriptor" in posts[0], false, "no descriptor field when the generator throws");
+}
+{
+  // getDescriptorFor resolves empty: same graceful degradation.
+  const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
+  const getDescriptorFor = async () => "";
+  const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                 config: { postsPerRun: 1, candidates: 1 }, getDescriptorFor });
+  assert.equal(posts.length, 1, "a post still publishes when the descriptor resolves empty");
+  assert.equal("descriptor" in posts[0], false, "no descriptor field for an empty resolution");
+}
+
 // --- image generation is optional, injected, and can never lose a post --------------------
 // generate() must stay file-I/O-free (see the shape note in generate-posts.mjs), so the real
 // network call is a fake here — same shape as `provider` above.
@@ -272,8 +314,13 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
     "generate-posts.mjs calls ci/hooks.mjs's displayCompanyName(hook.name) somewhere");
   assert.ok(/companyName:\s*displayName/.test(src),
     "the composed image's companyName is the stripped display name, not the raw hook.name");
+  // Same posture for the model-written descriptor (ci/company-descriptor.mjs): the composed
+  // image must actually receive it, or the whole feature is wired to nowhere.
+  assert.ok(/descriptor:\s*post\.descriptor/.test(src),
+    "the composed image's descriptor is the resolved model-written one, not left to the sector fallback alone");
 }
 
 console.log("generate-posts OK — prompt shape, angle per hook kind, best-of-N, cadence config, " +
             "empty-field and penny-stock safety, image generation optional/injected/never loses a post, " +
-            "display name wired into both the prompt and the composed image");
+            "the descriptor optional/injected/never loses a post, and display name/descriptor both " +
+            "wired into the composed image");

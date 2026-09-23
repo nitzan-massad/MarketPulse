@@ -23,12 +23,17 @@ import { pickBest } from "./post-score.mjs";
 import { makeProvider } from "./provider.mjs";
 import { generateImage, postImageFilename } from "./post-image.mjs";
 import { composePost } from "./post-compose.mjs";
+import { describeCompany } from "./company-descriptor.mjs";
 
 const ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const STOCKS = path.join(ROOT, "src", "data", "stocks.json");
 const POSTS = path.join(ROOT, "src", "data", "posts.json");
 const CORPUS = path.join(ROOT, "ci", "style-corpus.json");
 const IMAGES_DIR = path.join(ROOT, "public", "post-images");
+// Per-company descriptor cache (ci/company-descriptor.mjs) — `{ [ticker]: { name, descriptor } }`.
+// Lives under src/data/ so the existing CI commit step (site.yml's "Commit refreshed data",
+// `git add src/data …`) persists it across runs with no workflow change.
+const DESCRIPTORS = path.join(ROOT, "src", "data", "company-descriptors.json");
 
 /** The ANGLE — one line per hook kind, telling the model what makes this particular hook
  *  postable. Without it a kind falls through to "Report the fact.", which throws away the
@@ -88,6 +93,10 @@ const FACT_LABELS = {
   count: "Names on the board",
   leader: "Top name",
   leaderUpside: "Top name's upside",
+  // (12) Comparison framing — ci/hooks.mjs's `sectorMedianUpside`, attached to `surprise`/
+  // `record` hooks only when the sector has enough eligible peers this run AND the name's own
+  // number is far enough from that median to be worth the contrast (see hooks.mjs's own comment).
+  sectorMedianUpside: "Sector's median upside",
 };
 
 export const humanizeFactKey = (key) => FACT_LABELS[key] ?? key;
@@ -98,12 +107,15 @@ export function buildPrompt(hook, exemplars = []) {
     "on X who wants the read to stop a thumb mid-scroll, not sound like a ledger entry.",
     "Rules, all of them hard:",
     "- MAXIMUM 8 WORDS. Count them before you answer. 9 words is a failure, not a rounding error.",
-    "- Good 8-word example: \"Upside sliced in half; Smart Score doubled anyway.\" — that is 8 words and uses two of the numbers you were given, without repeating the company name.",
+    "- LEAD WITH THE NUMBER. Open the sentence on the figure itself — the percentage, the price, or the count — not the company, not a verb, not \"it\". \"~15% upside, 25 analysts covering\" beats \"Microsoft held...\" every time.",
+    "- Good 8-word example: \"144% upside, 25 analysts — sector's usual is 60.\" — that is 8 words, opens on the number, cites the analyst count, and compares the name against its sector instead of stating the number alone.",
     "- The company name is already printed large on the card, above this text — do NOT repeat it here. Refer to \"it\"/\"its\" if you need a subject, or just state the fact with no subject at all.",
     "- Never use the ticker symbol, ever, for any reason.",
     "- Be BOLD, not flat. Find the one surprising angle in the numbers — the thing that makes someone look twice — instead of just restating them in order like a ledger.",
     "- Open with the fact. No greeting, no preamble, no 'Let's dive in'.",
-    "- Use the exact numbers you are given. Never invent a number.",
+    "- ROUND THE NUMBERS. You will be given some figures with decimal precision (143.6, 300.65, 6.3 days) — round each to a whole number before you use it (round half up: 143.6 becomes 144, 6.3 days becomes 6 days), or use it as a plain 1-decimal figure if that reads better (38.6 stays 38.6). A leading '~' (\"~144%\") is a good way to signal \"about\" when that reads more naturally than a bare rounded number — use your judgement. Never invent a different number, and never round UP past the true value (143.6 rounds to 144, never 145) — you are rounding the number you were given, not replacing it.",
+    "- ANALYST COUNT AS SOCIAL PROOF. When you are given how many analysts cover a name, prefer working that count into the sentence (\"25 analysts agree\") over a bare percentage alone — a headcount reads like a jury verdict; a percentage on its own reads abstract.",
+    "- COMPARE, DON'T JUST STATE, WHEN YOU CAN. If you are given the sector's typical (median) number alongside the name's own, prefer the comparison (\"more than double its sector's median\") over the bare figure — a comparison gives the reader something to agree or disagree with. Only compare when you are actually given both numbers; never invent a sector average you were not handed.",
     "- Never use a verb that claims a stock's PRICE moved (soared, plunged, plummeted, rocketed, crashed, jumped, surged, spiked, tanked, tumbled, nosedived, or the like) unless the number attached to it is an actual past price change. A price target, a Smart Score, an AI score, or an analyst upside is a forecast, a score, or a rating — not something that has already happened to the stock. Describe it as what it is (a target, a score, a call), never as a move.",
     "- No hashtags beyond one. No emoji. At most one exclamation mark, ideally zero.",
     "- Never give advice, never say buy or sell, never predict. Report what the data says.",
@@ -131,7 +143,9 @@ export function buildPrompt(hook, exemplars = []) {
   return { system, prompt };
 }
 
-export async function generate({ history, recent = [], provider, exemplars = [], config = {}, generateImageFor }) {
+export async function generate({
+  history, recent = [], provider, exemplars = [], config = {}, generateImageFor, getDescriptorFor,
+}) {
   const { postsPerRun = 1, candidates = 5, kindMemory = 4 } = config;
   // Task 0, Finding 2: feed the last few posts' KINDS back into the detector so the top
   // hook rotates shape instead of being "big upside number" every single run.
@@ -144,6 +158,9 @@ export async function generate({ history, recent = [], provider, exemplars = [],
   // the scorer's ticker penalty (which stays, and is now decisive — see ci/post-score.mjs).
   const curr = Array.isArray(history) && history.length ? history[history.length - 1] : [];
   const hooks = deTickerHooks(rawHooks, curr);
+  // The full `src/data/stocks.json` row per ticker — ci/company-descriptor.mjs needs the market
+  // cap/price/real description a hook's own (much narrower) `facts` bag does not carry.
+  const rowByTicker = new Map(Array.isArray(curr) ? curr.map((r) => [r.t, r]) : []);
   const posts = [];
   const usedTickers = new Set();
 
@@ -182,6 +199,25 @@ export async function generate({ history, recent = [], provider, exemplars = [],
       facts: hook.facts,
     };
 
+    // THE DESCRIPTOR — ci/company-descriptor.mjs, one extra call per PUBLISHED post (never per
+    // candidate — this runs exactly once here, after `pickBest` above already picked the winner),
+    // never per candidate. Injected exactly like `generateImageFor` below, so `generate()` stays
+    // network-free and testable offline; `main()` wires it to the real provider + a persisted
+    // cache. A missing injector, a thrown error, or an empty response all leave `post.descriptor`
+    // unset — composePost() (ci/post-compose.mjs) falls back to the sector-mapped descriptor on
+    // its own when none is supplied, so a failed call here never loses the post or its image.
+    if (typeof getDescriptorFor === "function") {
+      let descriptor;
+      try {
+        descriptor = await getDescriptorFor(rowByTicker.get(hook.ticker) ?? { t: hook.ticker, n: hook.name, sec: hook.sec });
+      } catch (err) {
+        console.error(`  ${hook.ticker}: descriptor generation threw — ${err.message}`);
+      }
+      if (typeof descriptor === "string" && descriptor.trim()) {
+        post.descriptor = descriptor.trim();
+      }
+    }
+
     // THREE separate steps, deliberately: text (above), image (here), fusion (below). Image
     // generation is injected exactly like `provider` above, so `generate()` stays
     // file-I/O-free and testable offline (see the shape note up top) — writing the bytes to
@@ -213,7 +249,7 @@ export async function generate({ history, recent = [], provider, exemplars = [],
           // PIXELS is stripped.
           const displayName = displayCompanyName(hook.name);
           const composed = composePost({
-            photo, companyName: displayName, sector: hook.sec, statement: best.text,
+            photo, companyName: displayName, sector: hook.sec, descriptor: post.descriptor, statement: best.text,
           });
           post.image = postImageFilename(id);
           post.imageBuffer = composed.jpeg; // internal only — main() writes it to disk and strips it
@@ -333,12 +369,24 @@ async function main() {
   const generateImageFor = imagesEnabled
     ? (sector, ticker) => generateImage({ sector, ticker, env: process.env, fetchImpl: globalThis.fetch })
     : undefined;
-  const posts = await generate({ history, recent: existing.slice(0, 50), provider, exemplars, config, generateImageFor });
+  // The descriptor cache persists per-company results ACROSS runs (see the DESCRIPTORS const
+  // above) — reused, not regenerated, whenever the same ticker comes up again, so this call
+  // costs neurons only on a genuine cache miss.
+  const descriptorCache = readJson(DESCRIPTORS, {});
+  const getDescriptorFor = (row) => describeCompany({ row, provider, cache: descriptorCache });
+  const posts = await generate({
+    history, recent: existing.slice(0, 50), provider, exemplars, config, generateImageFor, getDescriptorFor,
+  });
 
   if (!posts.length) {
     console.log("nothing publishable this run — leaving posts.json unchanged");
     return;
   }
+
+  // Persist whatever the descriptor cache picked up this run (new tickers, or a stale entry
+  // refreshed after a name change) — same "only write when there is something to publish"
+  // posture as posts.json/the image files below.
+  writeFileSync(DESCRIPTORS, `${JSON.stringify(descriptorCache, null, 2)}\n`);
 
   // Write the image bytes now — generate() stays file-I/O-free (see the shape note up top),
   // so this is the only place in the pipeline that touches public/post-images/.
