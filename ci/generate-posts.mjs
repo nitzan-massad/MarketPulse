@@ -47,15 +47,64 @@ export const KIND_BRIEF = {
   newcomer: "This name was not on the board when the window opened. Say it is new, and how long it has been here.",
 };
 
+/**
+ * HUMANISE FACT KEYS before they reach the prompt. Without this, `hook.facts` renders as
+ * `- key: value` lines with the literal JS field name as the key — one published post read
+ * "Alphabet Inc. smartScore: 10, unchanged for 30 snapshots." because the model copied the raw
+ * key `smartScore` verbatim. This is the fix, and it belongs HERE, at the prompt boundary, not
+ * in ci/hooks.mjs: `supportLine`-era consumers and ci/test-hooks.mjs depend on the current
+ * field names, so those never change — only what the writer model is SHOWN does. Every key any
+ * of the nine hook kinds emits (ci/hooks.mjs) is covered; an unmapped key (a future field, or a
+ * typo) falls through to itself rather than throwing, same as `KIND_BRIEF`'s fallback below.
+ */
+const FACT_LABELS = {
+  upside: "Analyst upside",
+  price: "Current price",
+  priceTarget: "Street price target",
+  consensus: "Analyst consensus",
+  analysts: "Analysts covering",
+  sector: "Sector",
+  smartScore: "Smart Score",
+  aiScore: "AI Score",
+  aiRating: "AI rating",
+  bullish: "More bullish side",
+  upsideFrom: "Upside before",
+  upsideTo: "Upside now",
+  consensusFrom: "Consensus before",
+  consensusTo: "Consensus now",
+  smartScoreFrom: "Smart Score before",
+  smartScoreTo: "Smart Score now",
+  windowLow: "Lowest in the window",
+  windowHigh: "Highest in the window",
+  snapshots: "Snapshots in the window",
+  days: "Days covered",
+  direction: "Direction of the move",
+  distinctScores: "Distinct Smart Scores seen",
+  low: "Lowest Smart Score seen",
+  high: "Highest Smart Score seen",
+  seenIn: "Snapshots this name has appeared in",
+  windowSnapshots: "Snapshots in the window",
+  members: "The board",
+  count: "Names on the board",
+  leader: "Top name",
+  leaderUpside: "Top name's upside",
+};
+
+export const humanizeFactKey = (key) => FACT_LABELS[key] ?? key;
+
 export function buildPrompt(hook, exemplars = []) {
   const system = [
-    "You write short posts for a stock-data feed, in the voice of a finance person on X.",
+    "You write short, punchy posts for a stock-data feed — the voice of a sharp finance editor",
+    "on X who wants the read to stop a thumb mid-scroll, not sound like a ledger entry.",
     "Rules, all of them hard:",
     "- MAXIMUM 8 WORDS. Count them before you answer. 9 words is a failure, not a rounding error.",
-    "- Good 8-word example: \"Astera Labs upside halved. Smart Score doubled.\" — that is 8 words, uses the company name, and uses two of the numbers you were given.",
-    "- Use the company's NAME, never its ticker symbol. Say \"Astera Labs\", not \"ALAB\".",
+    "- Good 8-word example: \"Upside sliced in half; Smart Score doubled anyway.\" — that is 8 words and uses two of the numbers you were given, without repeating the company name.",
+    "- The company name is already printed large on the card, above this text — do NOT repeat it here. Refer to \"it\"/\"its\" if you need a subject, or just state the fact with no subject at all.",
+    "- Never use the ticker symbol, ever, for any reason.",
+    "- Be BOLD, not flat. Find the one surprising angle in the numbers — the thing that makes someone look twice — instead of just restating them in order like a ledger.",
     "- Open with the fact. No greeting, no preamble, no 'Let's dive in'.",
     "- Use the exact numbers you are given. Never invent a number.",
+    "- Never use a verb that claims a stock's PRICE moved (soared, plunged, rocketed, crashed, jumped, surged, spiked, tanked, or the like) unless the number attached to it is an actual past price change. A price target, a Smart Score, an AI score, or an analyst upside is a forecast, a score, or a rating — not something that has already happened to the stock. Describe it as what it is (a target, a score, a call), never as a move.",
     "- No hashtags beyond one. No emoji. At most one exclamation mark, ideally zero.",
     "- Never give advice, never say buy or sell, never predict. Report what the data says.",
     "- No disclaimer, no 'not financial advice' line — the app adds that itself.",
@@ -67,7 +116,7 @@ export function buildPrompt(hook, exemplars = []) {
     : "";
 
   const facts = Object.entries(hook.facts)
-    .map(([k, v]) => `- ${k}: ${v}`)
+    .map(([k, v]) => `- ${humanizeFactKey(k)}: ${v}`)
     .join("\n");
 
   const prompt =
@@ -157,7 +206,7 @@ export async function generate({ history, recent = [], provider, exemplars = [],
             photo, companyName: hook.name, sector: hook.sec, statement: best.text,
           });
           post.image = postImageFilename(id);
-          post.imageBuffer = composed.png; // internal only — main() writes it to disk and strips it
+          post.imageBuffer = composed.jpeg; // internal only — main() writes it to disk and strips it
         } catch (err) {
           console.error(`  ${hook.ticker}: image composition threw — ${err.message}`);
         }

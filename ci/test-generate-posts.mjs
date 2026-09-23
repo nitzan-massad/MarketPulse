@@ -4,7 +4,7 @@
 
 import assert from "node:assert";
 import { Resvg } from "@resvg/resvg-js";
-import { buildPrompt, generate, KIND_BRIEF } from "./generate-posts.mjs";
+import { buildPrompt, generate, humanizeFactKey, KIND_BRIEF } from "./generate-posts.mjs";
 
 const row = (over = {}) => ({
   t: "AAA", n: "Alpha Inc", sec: "Technology", px: 100, chg: 1, pt: 160, up: 60,
@@ -43,6 +43,50 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   assert.ok(posts[0].id.startsWith("AAA-"), "id is ticker-prefixed");
   assert.ok(Number.isFinite(Date.parse(posts[0].ts)), "ts is an ISO timestamp");
   assert.ok(Array.isArray(posts[0].reasons), "the post carries the scorer's reasons");
+}
+
+// --- raw fact keys never reach the prompt (the "smartScore: 10" published bug) -----------
+// One real run published "Alphabet Inc. smartScore: 10, unchanged for 30 snapshots." because
+// the prompt rendered `facts` as `- key: value` with the literal JS field name. Every fact key
+// any of the nine hook kinds (ci/hooks.mjs) actually emits must render as a humanised label
+// instead — this exercises every key across a realistic sample of each kind's own shape.
+{
+  const FACT_SHAPES = {
+    surprise: { upside: 60, price: 148, priceTarget: 210, consensus: "StrongBuy", analysts: 38, sector: "Technology" },
+    contrarian: { smartScore: 1, aiScore: 65, aiRating: "Neutral", consensus: "StrongBuy", upside: 38.6, price: 174.25, analysts: 38, bullish: "ai" },
+    movement: { upsideFrom: 20, upsideTo: 60, consensusFrom: "Hold", consensusTo: "StrongBuy", price: 100, priceTarget: 160, analysts: 21, sector: "Technology", smartScoreFrom: 4, smartScoreTo: 9 },
+    record: { upside: 60, windowLow: 10, windowHigh: 60, snapshots: 30, days: 6.3, price: 100, priceTarget: 160, analysts: 21 },
+    trend: { smartScoreFrom: 4, smartScoreTo: 9, direction: "up", snapshots: 30, days: 6.3, upside: 60, consensus: "StrongBuy", analysts: 21 },
+    steady: { smartScore: 10, snapshots: 30, days: 6.3, upside: 60, consensus: "StrongBuy", analysts: 21 },
+    churn: { distinctScores: 4, low: 3, high: 9, smartScore: 9, snapshots: 30, days: 6.3, analysts: 21 },
+    newcomer: { seenIn: 5, windowSnapshots: 30, days: 4.2, upside: 60, consensus: "StrongBuy", analysts: 21, smartScore: 8 },
+    list: { members: "AAA (60% to $160), BBB (45% to $145)", count: 2, leader: "AAA", leaderUpside: 60 },
+  };
+  const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  for (const [kind, facts] of Object.entries(FACT_SHAPES)) {
+    const hook = { kind, ticker: "AAA", name: "Alpha Inc", sec: "Technology", facts };
+    const { prompt } = buildPrompt(hook);
+    for (const key of Object.keys(facts)) {
+      // Anchored to a fact LINE ("- key: value"), not a bare substring test — several
+      // humanised labels legitimately contain a key's letters as a substring (e.g. "Current
+      // price:" contains "price:"), which a loose check would misreport as a leak.
+      assert.equal(new RegExp(`^- ${escapeRe(key)}:`, "m").test(prompt), false,
+        `${kind}: the raw key "${key}" never appears verbatim as a fact line in the prompt`);
+      assert.ok(prompt.includes(`- ${humanizeFactKey(key)}:`),
+        `${kind}: "${key}" is humanised to "${humanizeFactKey(key)}:" in the prompt`);
+    }
+  }
+}
+
+// --- the "don't repeat the company name" and "no fake movement verb" rules reach the prompt --
+{
+  const hook = { kind: "surprise", ticker: "AAA", name: "Alpha Inc", sec: "Technology", facts: { upside: 60 } };
+  const { system } = buildPrompt(hook);
+  assert.ok(/already printed large on the card/i.test(system), "the system prompt says the name is already on the card");
+  assert.ok(/do NOT repeat it/i.test(system), "and says not to repeat it");
+  assert.ok(/soared/.test(system) && /plunged/.test(system) && /jumped/.test(system),
+    "the system prompt names the banned false-movement verbs");
+  assert.ok(/never use the ticker/i.test(system), "the no-ticker rule is still stated explicitly");
 }
 
 // --- cadence is configuration, not code ---------------------------------------------
@@ -135,7 +179,7 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
 {
   // generateImageFor succeeds: THREE steps run — text (already done above), photo (this
   // fake), fusion (the real ci/post-compose.mjs, called directly, no fake needed — it is pure
-  // and local). The post carries a sanitised .png filename and the FUSED bytes, not the raw
+  // and local). The post carries a sanitised .jpg filename and the FUSED bytes, not the raw
   // photo bytes verbatim: the whole point is that the text is burned into the pixels.
   const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
   const calls = [];
@@ -156,11 +200,12 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   // man/woman choice) — what must never happen is the ticker reaching the PROMPT AS TEXT,
   // which ci/test-post-image.mjs asserts directly against buildImagePrompt.
   assert.equal(calls[0][1], "AAA", "the ticker reaches the image generator, to seed the photo only");
-  assert.match(posts[0].image, /^AAA-.*\.png$/, "image is a sanitised .png filename, not a path");
+  assert.match(posts[0].image, /^AAA-.*\.jpg$/, "image is a sanitised .jpg filename, not a path");
   assert.equal(posts[0].image.includes(":"), false, "the ISO timestamp's colons are sanitised out");
   assert.ok(Buffer.isBuffer(posts[0].imageBuffer), "the fused bytes ride along for main() to write to disk");
   assert.notEqual(posts[0].imageBuffer, photo, "the shipped bytes are the FUSED output, not the raw photo verbatim");
-  assert.equal(posts[0].imageBuffer[0], 0x89, "the fused bytes are themselves a real PNG");
+  assert.equal(posts[0].imageBuffer[0], 0xff, "the fused bytes are themselves a real JPEG (SOI marker)");
+  assert.equal(posts[0].imageBuffer[1], 0xd8, "the fused bytes are themselves a real JPEG (SOI marker)");
 }
 {
   // Composition failing (a photo composePost cannot even read the dimensions of) degrades
