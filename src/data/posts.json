@@ -1,5 +1,28 @@
 [
   {
+    "id": "GOOGL-2026-09-23T09:49:57.399Z",
+    "ts": "2026-09-23T09:49:57.399Z",
+    "kind": "steady",
+    "ticker": "GOOGL",
+    "name": "Alphabet Inc. Class A",
+    "sector": "General",
+    "text": "Alphabet Inc. Class A (GOOGL) held a Smart Score of 10 for 6.5 days despite upside reaching 22.3%.",
+    "score": 84,
+    "reasons": [
+      "7 digits of concrete detail",
+      "names GOOGL",
+      "length in band"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "snapshots": 31,
+      "days": 6.5,
+      "upside": 22.3,
+      "consensus": "StrongBuy",
+      "analysts": 25
+    }
+  },
+  {
     "id": "XENE-2026-09-23T02:35:42.696Z",
     "ts": "2026-09-23T02:35:42.696Z",
     "kind": "record",
