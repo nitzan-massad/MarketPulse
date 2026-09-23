@@ -34,25 +34,39 @@
  *  incidentally standing in front of it. `General` is TipRanks' own unclassified bucket, not
  *  an industry, so its phrase is deliberately as generic as the fallback below (see
  *  postArt.ts's identical honesty about `General` -> the fallback scene). Add a scene here and
- *  the mapping is done — no seed, no draw function. */
+ *  the mapping is done — no seed, no draw function.
+ *
+ *  CLOSE, LARGE, MID-ACTION (Task: "images need to be more interesting, people much more
+ *  prominent"). The old scenes put the person mid-distance in a mostly-empty room — safe, but
+ *  small and static. Every action below is written so the person's hands and the work itself
+ *  fill most of the frame, caught doing something rather than posed for a portrait. Never a
+ *  pronoun ("her"/"his") in these strings — `scenePhrase` prepends the gender choice
+ *  separately, so the action text has to read correctly after EITHER "a woman ROLE" or "a man
+ *  ROLE". Screens/monitors/price-boards are deliberately avoided (Technology and
+ *  CommunicationServices used to feature a "wall of glowing display panels"/"screens" — exactly
+ *  the kind of prop Flux has been seen inventing chart-like numeric marks onto, see
+ *  buildImagePrompt below): a scene with no natural reason to contain signage is less likely to
+ *  produce it, since the no-numbers instruction cannot be enforced (no negative_prompt on this
+ *  model). */
 const SECTOR_ROLE = {
-  Healthcare: { role: "scientist", action: "at a lab bench in a bright, clean medical laboratory, examining glassware under soft natural light" },
-  Technology: { role: "engineer", action: "working at a sleek wall of glowing display panels in a bright minimalist studio" },
-  General: { role: "professional", action: "standing amid a soft arrangement of overlapping translucent geometric shapes in a bright studio" },
-  Industrials: { role: "dockworker", action: "inspecting neatly stacked cargo containers in a sunlit shipping yard" },
-  ConsumerCyclical: { role: "retail associate", action: "arranging merchandise on a bright boutique retail shelf" },
-  Financial: { role: "banker", action: "standing in a grand marble bank hall with tall arched windows and soft daylight" },
-  Energy: { role: "engineer", action: "inspecting solar panels across sweeping sandstone desert dunes under a bright, open sky" },
-  CommunicationServices: { role: "broadcast technician", action: "working in a bright broadcast studio with a wall of softly glowing screens" },
-  BasicMaterials: { role: "geologist", action: "examining layered mineral rock strata in warm earth tones under soft light" },
-  ConsumerDefensive: { role: "grocery worker", action: "stocking a bright, tidy grocery aisle with neatly arranged packaged goods" },
-  Utilities: { role: "technician", action: "inspecting a row of clean white power transmission towers against a pale sky" },
-  RealEstate: { role: "architect", action: "standing before a bright modern glass office facade under a clear sky" },
+  Healthcare: { role: "scientist", action: "leaning in close over a lab bench, gloved hands pipetting a sample into a rack of vials mid-motion, hands and work filling most of the frame in a bright, clean laboratory" },
+  Technology: { role: "engineer", action: "soldering a circuit board at a bright workbench, hands and board close and filling most of the frame, caught mid-motion" },
+  General: { role: "professional", action: "caught mid-motion arranging a cluster of translucent geometric shapes on a bright table, hands and shapes filling most of the frame" },
+  Industrials: { role: "dockworker", action: "guiding a crane hook onto a shipping container by hand, close and mid-motion, filling most of the frame in a sunlit shipping yard" },
+  ConsumerCyclical: { role: "retail associate", action: "steaming a garment on a mannequin mid-motion, hands and fabric close and filling most of the frame in a bright boutique" },
+  Financial: { role: "banker", action: "mid-handshake across a marble-topped desk, the handshake filling most of the frame, the grand hall softly blurred behind" },
+  Energy: { role: "engineer", action: "bolting a bracket onto a solar panel mid-motion, hands and panel close and filling most of the frame against sweeping desert dunes" },
+  CommunicationServices: { role: "broadcast technician", action: "adjusting a microphone boom mid-motion, hands and boom close and filling most of the frame, the studio softly blurred behind" },
+  BasicMaterials: { role: "geologist", action: "cracking open a mineral rock sample with a hammer mid-motion, hands and rock close and filling most of the frame in warm earth tones" },
+  ConsumerDefensive: { role: "grocery worker", action: "stacking cans on a bright shelf mid-motion, hands and cans filling most of the frame" },
+  Utilities: { role: "technician", action: "tightening a bolt on power equipment with a wrench mid-motion, gloved hands filling most of the frame against a pale sky" },
+  RealEstate: { role: "architect", action: "unrolling a blueprint across a table mid-motion, hands and drawing close and filling most of the frame, a bright glass facade softly blurred behind" },
 };
 
 /** Honest fallback for a sector this run has never seen — same posture as postArt.ts's
- *  `market` scene and the old FALLBACK_PHRASE: generic rather than wrong. */
-const FALLBACK_ROLE = { role: "professional", action: "standing in a soft, abstract arrangement of translucent geometric shapes" };
+ *  `market` scene and the old FALLBACK_PHRASE: generic rather than wrong, but still close and
+ *  mid-action rather than a static portrait (see the SECTOR_ROLE comment above). */
+const FALLBACK_ROLE = { role: "professional", action: "caught mid-motion arranging a cluster of translucent geometric shapes on a bright table, hands and shapes filling most of the frame" };
 
 /** FNV-1a over the seed, normalised to [0, 1). Same algorithm family as postArt.ts's
  *  `seeded()` (ticker -> deterministic look), reimplemented locally rather than imported: this
@@ -85,27 +99,41 @@ export function scenePhrase(sector, seed) {
   return `${personPhrase(seed)} ${role} ${action}`;
 }
 
-/** Two-to-three word industry descriptor, rendered beneath the company name at half its font
- *  size (ci/post-compose.mjs) — e.g. "Conocophillips" then "energy exploration". Same 12
- *  camelCase sectors SECTOR_ROLE maps, deliberately a SEPARATE small map rather than derived
- *  from the role/action prose above: the descriptor is a caption, not a scene, and the two
- *  should be free to read well independently. */
+/** Two-to-four word industry descriptor, rendered beneath the company name at half its font
+ *  size (ci/post-compose.mjs). This USED to be a category label ("technology systems" under
+ *  Microsoft — flat, taxonomic, could describe a thousand companies). The brief: something
+ *  characterful, the thing about the industry that makes you look twice, not a sector name
+ *  restated — what a sharp editor would put there, not what a filing would. Same 12 camelCase
+ *  sectors SECTOR_ROLE maps, deliberately a SEPARATE small map rather than derived from the
+ *  role/action prose above: the descriptor is a caption, not a scene, and the two should be
+ *  free to read well independently.
+ *
+ *  `General` deserved particular thought (per the brief): it is TipRanks' own unclassified
+ *  bucket, not an industry, so "public markets" was actively the worst offender — it rendered
+ *  under Alphabet, a company that is about as far from generic as this dataset gets. The fix
+ *  isn't a punchier synonym for "unclassified", it's being honest about what usually lands in
+ *  this bucket: names too large or too diversified for a single sector tag to hold (Alphabet
+ *  is exactly that shape) — "too big to label" says that directly, and reads as a compliment
+ *  ("this doesn't reduce to a category") rather than a placeholder. `DESCRIPTOR_FALLBACK` is
+ *  the separate, rarer case of a sector string this map has never even heard of (not the same
+ *  as `General`, which IS one of the 12 known keys) — same honesty, different wording so the
+ *  two don't read as copies of each other if they ever appear side by side in the same run. */
 const SECTOR_DESCRIPTOR = {
-  Healthcare: "medical research",
-  Technology: "technology systems",
-  General: "public markets",
-  Industrials: "industrial manufacturing",
-  ConsumerCyclical: "consumer retail",
-  Financial: "financial services",
-  Energy: "energy exploration",
-  CommunicationServices: "broadcast media",
-  BasicMaterials: "raw materials",
-  ConsumerDefensive: "consumer staples",
-  Utilities: "utility infrastructure",
-  RealEstate: "real estate",
+  Healthcare: "chasing the next cure",
+  Technology: "building what's next",
+  General: "too big to label",
+  Industrials: "keeping the world moving",
+  ConsumerCyclical: "chasing the next trend",
+  Financial: "where the money moves",
+  Energy: "powering the grid",
+  CommunicationServices: "keeping everyone connected",
+  BasicMaterials: "digging up the basics",
+  ConsumerDefensive: "stocking the essentials",
+  Utilities: "keeping the lights on",
+  RealEstate: "building the skyline",
 };
 
-const DESCRIPTOR_FALLBACK = "financial markets";
+const DESCRIPTOR_FALLBACK = "flying under the radar";
 
 export function descriptorFor(sector) {
   const key = String(sector ?? "").trim();
@@ -120,11 +148,13 @@ export function descriptorFor(sector) {
 export function buildImagePrompt(sector, seed) {
   const scene = scenePhrase(sector, seed);
   return (
-    `Editorial stock photograph of ${scene}. Bright, airy, high-key lighting on a light ` +
-    `background; soft natural light, clean minimalist composition, shallow depth of field, ` +
-    `muted modern color palette. Ample negative space near the top and bottom of the frame for ` +
-    `text to be added later. No text, no numbers, no digits, no charts, no graphs, no diagrams, ` +
-    `no logos, no brand marks, no watermarks, no signage.`
+    `Editorial stock photograph, close or medium-close shot, of ${scene}. The person and their ` +
+    `work fill a large part of the frame, caught candidly mid-action, not posed for the camera. ` +
+    `Bright, airy, high-key lighting on a light background; soft natural light, shallow depth of ` +
+    `field, muted modern color palette. Even while the person fills most of the frame, keep the ` +
+    `extreme top and bottom edges relatively simple so bold text can be overlaid directly on the ` +
+    `photo later. No text, no numbers, no digits, no charts, no graphs, no diagrams, no logos, no ` +
+    `brand marks, no watermarks, no signage.`
   );
 }
 
@@ -176,9 +206,10 @@ export async function generateImage({ sector, ticker, env = process.env, fetchIm
  *  it never re-derives a filename from an id, so there is nothing for the two sides to drift
  *  out of sync on.
  *
- *  `.png`, not `.jpg`: the file this names is no longer the raw Flux photo, it is
- *  ci/post-compose.mjs's fused output (the photo + the burned-in text), which resvg rasterises
- *  to PNG. */
+ *  `.jpg`, not `.png`: the file this names is ci/post-compose.mjs's fused output (the photo +
+ *  the burned-in text), which it now encodes as a JPEG (ci/jpeg-encode.mjs) — a ~900KB PNG per
+ *  post at POSTS_KEEP=200 was heading toward ~180MB committed to git for what is, pixel for
+ *  pixel, a photograph. */
 export function postImageFilename(id) {
-  return `${String(id).replace(/[^a-zA-Z0-9_-]/g, "-")}.png`;
+  return `${String(id).replace(/[^a-zA-Z0-9_-]/g, "-")}.jpg`;
 }
