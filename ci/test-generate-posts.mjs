@@ -3,6 +3,7 @@
 // from the provider it is handed, which is the whole reason it is shaped that way.
 
 import assert from "node:assert";
+import { Resvg } from "@resvg/resvg-js";
 import { buildPrompt, generate, KIND_BRIEF } from "./generate-posts.mjs";
 
 const row = (over = {}) => ({
@@ -132,22 +133,45 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   assert.equal("image" in posts[0], false, "no image field when the generator throws");
 }
 {
-  // generateImageFor succeeds: the post carries a sanitised filename and the raw bytes for
-  // main() to write — and CRITICALLY, the generator is called with the sector alone, never
-  // the ticker, company name, or any hook fact.
+  // generateImageFor succeeds: THREE steps run — text (already done above), photo (this
+  // fake), fusion (the real ci/post-compose.mjs, called directly, no fake needed — it is pure
+  // and local). The post carries a sanitised .png filename and the FUSED bytes, not the raw
+  // photo bytes verbatim: the whole point is that the text is burned into the pixels.
   const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
   const calls = [];
-  const buf = Buffer.from("fake-jpeg-bytes");
-  const generateImageFor = async (sector) => { calls.push(sector); return buf; };
+  // A real, decodable photo — composePost has to actually process it (measure text, sample
+  // brightness, rasterise), so unlike the raw-Flux-JPEG days a plain placeholder string will
+  // not do. Rendered locally via the same resvg dependency, no network involved.
+  const photo = new Resvg(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">' +
+    '<rect width="256" height="256" fill="#f4f6f8"/></svg>',
+  ).render().asPng();
+  const generateImageFor = async (sector, ticker) => { calls.push([sector, ticker]); return photo; };
   const posts = await generate({ history: [curr], recent: [], provider, exemplars,
                                  config: { postsPerRun: 1, candidates: 1 }, generateImageFor });
   assert.equal(posts.length, 1, "a post still publishes when image generation succeeds");
   assert.equal(calls.length, 1, "the image generator is called exactly once");
-  assert.equal(calls[0], "Technology", "only the sector reaches the image generator");
-  assert.equal(calls[0].includes("AAA"), false, "the ticker never reaches the image generator");
-  assert.match(posts[0].image, /^AAA-.*\.jpg$/, "image is a sanitised filename, not a path");
+  assert.equal(calls[0][0], "Technology", "the sector reaches the image generator");
+  // The ticker DOES reach generateImageFor now (it seeds ci/post-image.mjs's deterministic
+  // man/woman choice) — what must never happen is the ticker reaching the PROMPT AS TEXT,
+  // which ci/test-post-image.mjs asserts directly against buildImagePrompt.
+  assert.equal(calls[0][1], "AAA", "the ticker reaches the image generator, to seed the photo only");
+  assert.match(posts[0].image, /^AAA-.*\.png$/, "image is a sanitised .png filename, not a path");
   assert.equal(posts[0].image.includes(":"), false, "the ISO timestamp's colons are sanitised out");
-  assert.ok(posts[0].imageBuffer === buf, "the raw bytes ride along for main() to write to disk");
+  assert.ok(Buffer.isBuffer(posts[0].imageBuffer), "the fused bytes ride along for main() to write to disk");
+  assert.notEqual(posts[0].imageBuffer, photo, "the shipped bytes are the FUSED output, not the raw photo verbatim");
+  assert.equal(posts[0].imageBuffer[0], 0x89, "the fused bytes are themselves a real PNG");
+}
+{
+  // Composition failing (a photo composePost cannot even read the dimensions of) degrades
+  // exactly like a failed Flux call — never lose the post over the image.
+  const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
+  const generateImageFor = async () => Buffer.from("not a decodable image at all");
+  const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                 config: { postsPerRun: 1, candidates: 1 }, generateImageFor });
+  assert.equal(posts.length, 1, "a post still publishes when composition throws");
+  assert.equal("image" in posts[0], false, "no image field when composition fails");
+  assert.equal("imageBuffer" in posts[0], false, "and no stray buffer either");
 }
 
 // --- every hook kind has an angle, not just the original four -----------------------------

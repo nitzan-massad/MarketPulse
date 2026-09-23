@@ -1,4 +1,10 @@
-// THE WIRING — hooks -> N candidates -> deterministic judge -> one post (+ one image).
+// THE WIRING — hooks -> de-ticker -> N candidates -> deterministic judge -> one post
+// (+ one composed meme image).
+//
+// THREE separate steps make the image, deliberately not one blended function: the TEXT
+// (`provider`, above), the PHOTO (`generateImageFor` -> ci/post-image.mjs), and the FUSION of
+// the two into one raster (ci/post-compose.mjs, called directly below — it is pure and local,
+// so unlike the network-touching steps it needs no injection to stay testable offline).
 //
 // Shape note: generate() takes its provider AND its image generator as arguments and does no
 // file I/O, so ci/test-generate-posts.mjs can drive the whole pipeline offline with fakes for
@@ -12,10 +18,11 @@ import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "nod
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { detectHooks, MIN_WINDOW } from "./hooks.mjs";
+import { detectHooks, deTickerHooks, MIN_WINDOW } from "./hooks.mjs";
 import { pickBest } from "./post-score.mjs";
 import { makeProvider } from "./provider.mjs";
 import { generateImage, postImageFilename } from "./post-image.mjs";
+import { composePost } from "./post-compose.mjs";
 
 const ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const STOCKS = path.join(ROOT, "src", "data", "stocks.json");
@@ -76,7 +83,14 @@ export async function generate({ history, recent = [], provider, exemplars = [],
   // Task 0, Finding 2: feed the last few posts' KINDS back into the detector so the top
   // hook rotates shape instead of being "big upside number" every single run.
   const recentKinds = recent.slice(0, kindMemory).map((p) => p.kind).filter(Boolean);
-  const hooks = detectHooks(history, { recentKinds });
+  const rawHooks = detectHooks(history, { recentKinds });
+  // DE-TICKER, as its own pass, before anything downstream (the prompt builder, the scorer)
+  // ever sees a hook's facts. See ci/hooks.mjs for why this has to run here and not inside
+  // detectHooks itself — a hook's `facts` fed a ticker straight to the model once
+  // ("members: IRD (151.7% to $13.14), …"), and this is the fix for THAT, not a duplicate of
+  // the scorer's ticker penalty (which stays, and is now decisive — see ci/post-score.mjs).
+  const curr = Array.isArray(history) && history.length ? history[history.length - 1] : [];
+  const hooks = deTickerHooks(rawHooks, curr);
   const posts = [];
   const usedTickers = new Set();
 
@@ -115,22 +129,40 @@ export async function generate({ history, recent = [], provider, exemplars = [],
       facts: hook.facts,
     };
 
-    // Image generation is injected exactly like `provider` above, so `generate()` stays
+    // THREE separate steps, deliberately: text (above), image (here), fusion (below). Image
+    // generation is injected exactly like `provider` above, so `generate()` stays
     // file-I/O-free and testable offline (see the shape note up top) — writing the bytes to
-    // public/post-images/ happens in main(). Only the SECTOR is ever passed in; ci/post-image.mjs
-    // never sees a hook fact, number, ticker or company name. A declined or failed call just
-    // omits `image` and the card renders the canvas fallback — the post still publishes.
+    // public/post-images/ happens in main(). Only the SECTOR and the TICKER are passed in, and
+    // the ticker is used for exactly one thing: seeding buildImagePrompt's deterministic
+    // man/woman choice (ci/post-image.mjs). It is never concatenated into the prompt text
+    // itself — ci/post-image.mjs never sees a hook fact, number, company name, or the ticker
+    // AS TEXT. A declined or failed call just omits `image` and the card renders the canvas
+    // fallback — the post still publishes.
     if (typeof generateImageFor === "function") {
-      let buf = null;
+      let photo = null;
       try {
-        buf = await generateImageFor(hook.sec);
+        photo = await generateImageFor(hook.sec, hook.ticker);
       } catch (err) {
         console.error(`  ${hook.ticker}: image generation threw — ${err.message}`);
       }
-      if (buf) {
-        post.image = postImageFilename(id);
-        post.imageBuffer = buf; // internal only — main() writes it to disk and strips it
-      } else {
+      if (photo) {
+        // FUSION — burn the words into the pixels so the file travels with its text when
+        // posted elsewhere. Pure and local (no network, no randomness beyond what's already
+        // deterministic from the hook), so unlike `provider`/`generateImageFor` this is called
+        // directly rather than injected — see ci/post-compose.mjs. A composition failure
+        // degrades exactly like a failed Flux call: no `image` field, canvas fallback, post
+        // still ships — never lose the post over an image.
+        try {
+          const composed = composePost({
+            photo, companyName: hook.name, sector: hook.sec, statement: best.text,
+          });
+          post.image = postImageFilename(id);
+          post.imageBuffer = composed.png; // internal only — main() writes it to disk and strips it
+        } catch (err) {
+          console.error(`  ${hook.ticker}: image composition threw — ${err.message}`);
+        }
+      }
+      if (!post.image) {
         console.log(`  ${hook.ticker}: image generation failed — shipped with canvas art`);
       }
     }
@@ -240,7 +272,7 @@ async function main() {
 
   const provider = makeProvider();
   const generateImageFor = imagesEnabled
-    ? (sector) => generateImage({ sector, env: process.env, fetchImpl: globalThis.fetch })
+    ? (sector, ticker) => generateImage({ sector, ticker, env: process.env, fetchImpl: globalThis.fetch })
     : undefined;
   const posts = await generate({ history, recent: existing.slice(0, 50), provider, exemplars, config, generateImageFor });
 
