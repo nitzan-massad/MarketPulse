@@ -26,12 +26,33 @@
 // per-character advance-width guess — the exact font is already loaded, so asking it directly
 // is both more accurate and no more code). A line that still doesn't fit within the line cap
 // shrinks the font size step-wise and re-wraps, until it fits or hits a floor.
+//
+// NO PLATES. This used to sit each text block on a semi-transparent white/black rectangle —
+// legible, but it reads as a caption box pasted onto a photo, not text on the photo. Legibility
+// now comes from the type itself: a `stroke` halo with `paint-order="stroke fill"` (a clean
+// outline resvg renders correctly, unlike a CSS text-shadow/blur filter, which it does not
+// support), sized and coloured by `haloStyle` below from the same per-band brightness sample
+// the old plate logic used. Never reintroduce a plate as the fix for a legibility complaint —
+// see haloStyle's own comment for the busy-photo case a stroke alone has to cover.
+//
+// OUTPUT IS JPEG, NOT PNG. resvg only rasterises to PNG or raw RGBA pixels (see
+// @resvg/resvg-js's RenderedImage) — there is no JPEG encoder in it, and this repo carries no
+// other image library, so ci/jpeg-encode.mjs is a from-scratch baseline JPEG encoder over the
+// raw pixels. A composed card was a ~900KB PNG at Flux's 1024x1024 output (mostly photographic
+// detail PNG's lossless deflate cannot touch); JPEG's DCT+quantisation is built for exactly
+// that content. See ci/jpeg-encode.mjs for why writing one was preferred over a new dependency.
 
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Resvg } from "@resvg/resvg-js";
 import { descriptorFor } from "./post-image.mjs";
+import { encodeJpeg } from "./jpeg-encode.mjs";
+
+/** IJG-style 1-100 quality for the final JPEG (see ci/jpeg-encode.mjs). High enough that DCT
+ *  blockiness never shows at feed-card size, low enough to land Flux's 1024x1024 output in the
+ *  tens of KB rather than the hundreds — see ci/generate-posts.mjs's real-run report for the
+ *  measured before/after. */
+const JPEG_QUALITY = 82;
 
 const CI_DIR = fileURLToPath(new URL(".", import.meta.url));
 const FONT_BOLD = path.join(CI_DIR, "fonts", "Inter-Bold.ttf");
@@ -224,49 +245,65 @@ export function sampleBrightness(photo, bands) {
   return out;
 }
 
-/** Dark ink on a light plate is the default (the photos are high-key by construction — see
- *  ci/post-image.mjs), inverted when the sampled band is actually dark, and given a stronger
- *  plate when the band is high-variance ("busy") regardless of which way the mean falls —
- *  a busy background needs more backing either way. */
-function bandStyle({ mean, stdev }) {
-  const dark = mean >= 150;
+/** No plate any more (see the module header) — legibility comes entirely from a stroke halo
+ *  painted behind the glyph fill (`paint-order="stroke fill"`). Dark ink with a LIGHT halo is
+ *  the default, since the photos are high-key by construction (see ci/post-image.mjs); a band
+ *  that samples dark inverts to light ink with a dark halo instead — a light halo would all but
+ *  disappear against a dark photo, and dark ink on it would be unreadable. A busy (high-variance)
+ *  band gets a thicker halo AND a touch of opacity on the halo itself (never on the letter fill),
+ *  the stroke-only equivalent of the old plate's "stronger backing either way" rule: there is no
+ *  plate left to lean on when the background itself has strong local contrast, so the halo has
+ *  to do more work. `haloWidth` is a FRACTION of font size, applied by the caller. */
+function haloStyle({ mean, stdev }) {
+  const bright = mean >= 150;
   const busy = stdev >= 55;
   return {
-    textFill: dark ? "#10151f" : "#f7f9fc",
-    plateFill: dark ? "#ffffff" : "#0b0f16",
-    plateOpacity: busy ? 0.82 : 0.6,
+    textFill: bright ? "#10151f" : "#f7f9fc",
+    haloColor: bright ? "#ffffff" : "#0b0f16",
+    haloWidth: busy ? 0.16 : 0.1,
+    haloOpacity: busy ? 0.95 : 0.85,
   };
 }
 
 // ------------------------------------------------------------------- compose --
 
-const textLines = (lines, { x, firstBaseline, lineHeight, fontFamily, fontWeight, fontSize, fill }) =>
+/** A `<text>` block with a stroke halo behind the fill (`paint-order="stroke fill"` — resvg
+ *  renders this correctly, which is why the spec calls it out explicitly as the legibility
+ *  mechanism to use instead of a plate). `stroke-linejoin="round"` keeps the halo an even ring
+ *  around each glyph instead of spiky mitred corners at sharp letterforms (a "V", a "7"). */
+const textLines = (lines, { x, firstBaseline, lineHeight, fontFamily, fontWeight, fontSize, fill, halo }) =>
   lines
     .map((line, i) => {
       const y = firstBaseline + i * lineHeight;
+      const strokeWidth = (fontSize * halo.haloWidth).toFixed(2);
       return (
         `<text x="${x}" y="${y.toFixed(1)}" text-anchor="middle" font-family="${escapeXml(fontFamily)}" ` +
-        `font-weight="${fontWeight}" font-size="${fontSize}" fill="${fill}">${escapeXml(line)}</text>`
+        `font-weight="${fontWeight}" font-size="${fontSize}" fill="${fill}" stroke="${halo.haloColor}" ` +
+        `stroke-width="${strokeWidth}" stroke-opacity="${halo.haloOpacity}" stroke-linejoin="round" ` +
+        `paint-order="stroke fill">${escapeXml(line)}</text>`
       );
     })
     .join("");
 
 /**
- * Fuse one photo + the post's text into a single PNG.
+ * Fuse one photo + the post's text into a single JPEG — no plate, text sits directly on the
+ * photo with a stroke halo for legibility (see the module header).
  *
  * Layout, top to bottom (inverts the old browser-overlay layout, which put the hook at the
- * top): the COMPANY NAME large at the top, a two/three-word SECTOR DESCRIPTOR directly beneath
- * it at half the company-name size, and the STATEMENT (the post's own text) large at the
- * bottom.
+ * top): the COMPANY NAME large at the top, a two-to-four-word SECTOR DESCRIPTOR directly
+ * beneath it at half the company-name size, and the STATEMENT (the post's own text) large at
+ * the bottom.
  *
  * @param photo Buffer — the raw Flux JPEG (or any PNG/JPEG).
  * @param companyName hook.name.
  * @param sector hook.sec — used ONLY to look up `descriptorFor` (ci/post-image.mjs); no other
  *   fact reaches this module.
- * @param statement the post's own text (`best.text`) — this is the "hook", unmodified.
- * @returns `{ png: Buffer, width: number, height: number, layout }` — `layout` is debug/test
+ * @param statement the post's own text (`best.text`) — this is the "hook", unmodified. The
+ *   caller (ci/generate-posts.mjs) is responsible for making sure this does not repeat the
+ *   company name — this module has no opinion on that, it just renders whatever it is given.
+ * @returns `{ jpeg: Buffer, width: number, height: number, layout }` — `layout` is debug/test
  *   metadata (chosen font sizes and line counts), not needed by the one real caller
- *   (ci/generate-posts.mjs, which only reads `.png`) but is what ci/test-post-compose.mjs
+ *   (ci/generate-posts.mjs, which only reads `.jpeg`) but is what ci/test-post-compose.mjs
  *   verifies the "half the company-name size" and "cap the number of lines" rules against,
  *   rather than re-deriving them from raw pixels.
  */
@@ -298,8 +335,8 @@ export function composePost({ photo, companyName, sector, statement }) {
   });
 
   const stats = sampleBrightness(photo, { top: { y0: 0, y1: 0.42 }, bottom: { y0: 0.6, y1: 1 } });
-  const topStyle = bandStyle(stats.top);
-  const bottomStyle = bandStyle(stats.bottom);
+  const topHalo = haloStyle(stats.top);
+  const bottomHalo = haloStyle(stats.bottom);
 
   // --- top block: company name, then the descriptor directly beneath it ---
   const topPad = height * 0.06;
@@ -307,14 +344,9 @@ export function composePost({ photo, companyName, sector, statement }) {
   const nameBlockHeight = nameFit.lines.length * nameLineHeight;
   const nameDescGap = nameFit.fontSize * 0.34;
   const descLineHeight = descFit.fontSize * 1.15;
-  const descBlockHeight = descFit.lines.length * descLineHeight;
-  const topBlockHeight = nameBlockHeight + nameDescGap + descBlockHeight;
 
   const nameFirstBaseline = topPad + nameFit.fontSize * 0.86;
   const descFirstBaseline = topPad + nameBlockHeight + nameDescGap + descFit.fontSize * 0.86;
-
-  const topPlateY = Math.max(0, topPad - height * 0.025);
-  const topPlateH = Math.min(height - topPlateY, topBlockHeight + height * 0.06);
 
   // --- bottom block: the statement, bottom-anchored ---
   const bottomPad = height * 0.07;
@@ -323,23 +355,21 @@ export function composePost({ photo, companyName, sector, statement }) {
   const stmtBlockTop = height - bottomPad - stmtBlockHeight;
   const stmtFirstBaseline = stmtBlockTop + stmtFit.fontSize * 0.86;
 
-  const bottomPlateY = Math.max(0, stmtBlockTop - height * 0.035);
-  const bottomPlateH = Math.min(height - bottomPlateY, height - bottomPlateY);
-
   const b64 = photo.toString("base64");
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
     <image x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" href="data:${mime};base64,${b64}"/>
-    <rect x="0" y="${topPlateY.toFixed(1)}" width="${width}" height="${topPlateH.toFixed(1)}" fill="${topStyle.plateFill}" opacity="${topStyle.plateOpacity}"/>
-    <rect x="0" y="${bottomPlateY.toFixed(1)}" width="${width}" height="${bottomPlateH.toFixed(1)}" fill="${bottomStyle.plateFill}" opacity="${bottomStyle.plateOpacity}"/>
-    ${textLines(nameFit.lines, { x: cx, firstBaseline: nameFirstBaseline, lineHeight: nameLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: nameFit.fontSize, fill: topStyle.textFill })}
-    ${textLines(descFit.lines, { x: cx, firstBaseline: descFirstBaseline, lineHeight: descLineHeight, fontFamily: FONT_FAMILY_MEDIUM, fontWeight: "500", fontSize: descFit.fontSize, fill: topStyle.textFill })}
-    ${textLines(stmtFit.lines, { x: cx, firstBaseline: stmtFirstBaseline, lineHeight: stmtLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: stmtFit.fontSize, fill: bottomStyle.textFill })}
+    ${textLines(nameFit.lines, { x: cx, firstBaseline: nameFirstBaseline, lineHeight: nameLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: nameFit.fontSize, fill: topHalo.textFill, halo: topHalo })}
+    ${textLines(descFit.lines, { x: cx, firstBaseline: descFirstBaseline, lineHeight: descLineHeight, fontFamily: FONT_FAMILY_MEDIUM, fontWeight: "500", fontSize: descFit.fontSize, fill: topHalo.textFill, halo: topHalo })}
+    ${textLines(stmtFit.lines, { x: cx, firstBaseline: stmtFirstBaseline, lineHeight: stmtLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: stmtFit.fontSize, fill: bottomHalo.textFill, halo: bottomHalo })}
   </svg>`;
 
   const resvg = new Resvg(svg, { font: { loadSystemFonts: false, fontFiles: FONT_FILES } });
   const rendered = resvg.render();
+  const jpeg = encodeJpeg({
+    rgba: rendered.pixels, width: rendered.width, height: rendered.height, quality: JPEG_QUALITY,
+  });
   return {
-    png: rendered.asPng(), width: rendered.width, height: rendered.height,
+    jpeg, width: rendered.width, height: rendered.height,
     layout: {
       nameFontSize: nameFit.fontSize, nameLines: nameFit.lines.length,
       descriptorFontSize: descFit.fontSize, descriptorLines: descFit.lines.length,

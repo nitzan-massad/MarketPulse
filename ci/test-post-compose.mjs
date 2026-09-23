@@ -166,8 +166,11 @@ assert.throws(() => imageDimensions(Buffer.from("not an image, just text")),
     photo, companyName: "Conocophillips", sector: "Energy",
     statement: "Conocophillips smart score dropped from 9 to 5.",
   });
-  assert.ok(Buffer.isBuffer(out.png), "returns a PNG buffer");
-  assert.equal(out.png[0], 0x89, "the buffer is actually a PNG (magic byte)");
+  assert.ok(Buffer.isBuffer(out.jpeg), "returns a JPEG buffer");
+  assert.equal(out.jpeg[0], 0xff, "the buffer is actually a JPEG (SOI marker byte 1)");
+  assert.equal(out.jpeg[1], 0xd8, "the buffer is actually a JPEG (SOI marker byte 2)");
+  assert.deepEqual(imageDimensions(out.jpeg), { width: out.width, height: out.height, mime: "image/jpeg" },
+    "the composed output is itself a well-formed, decodable JPEG");
   assert.equal(out.width, 1024, "output width matches the source photo");
   assert.equal(out.height, 1024, "output height matches the source photo");
   // "half the company-name font size" — the spec's own literal requirement.
@@ -205,14 +208,14 @@ assert.throws(() => imageDimensions(Buffer.from("not an image, just text")),
   const photo = solidPhoto(1024, 1024, "#0a0a0c");
   const out = composePost({ photo, companyName: "Xenon Pharmaceuticals", sector: "Healthcare",
                              statement: "Xenon Pharmaceuticals upside at 80.3 high ever." });
-  assert.ok(Buffer.isBuffer(out.png) && out.png.length > 0, "a dark photo still composes successfully");
+  assert.ok(Buffer.isBuffer(out.jpeg) && out.jpeg.length > 0, "a dark photo still composes successfully");
 }
 {
   // A busy (high-variance) photo must not throw either.
   const photo = noisyPhoto(1024, 1024);
   const out = composePost({ photo, companyName: "Astera Labs", sector: "Technology",
                              statement: "Astera Labs upside halved. Smart Score doubled." });
-  assert.ok(Buffer.isBuffer(out.png) && out.png.length > 0, "a busy photo still composes successfully");
+  assert.ok(Buffer.isBuffer(out.jpeg) && out.jpeg.length > 0, "a busy photo still composes successfully");
 }
 {
   // JPEG input (the real pipeline's format) works end to end too, not just PNG.
