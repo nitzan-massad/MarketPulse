@@ -13,10 +13,14 @@ export type Post = {
   score: number;
   reasons: string[];
   facts: Record<string, string | number | boolean>;
-  /** Filename only (e.g. "ALAB-2026-09-22T14-35-30-122Z.jpg"), never a path — set by
-   *  ci/generate-posts.mjs when ci/post-image.mjs's Flux call succeeds, absent otherwise. The
-   *  filename is already sanitised at write time (ci/post-image.mjs's postImageFilename), so
-   *  nothing here re-derives it from `id` — see PostArt below. */
+  /** Filename only (e.g. "ALAB-2026-09-22T14-35-30-122Z.png"), never a path — set by
+   *  ci/generate-posts.mjs when the photo (ci/post-image.mjs) AND the fusion step
+   *  (ci/post-compose.mjs, which burns `text` into the photo's pixels) both succeed, absent
+   *  otherwise. This is a PNG, not the raw Flux JPEG — the post's words are already part of
+   *  the pixels, which is the whole point (the file can be posted elsewhere and the text
+   *  travels with it). The filename is already sanitised at write time
+   *  (ci/post-image.mjs's postImageFilename), so nothing here re-derives it from `id` — see
+   *  PostArt below. */
   image?: string;
 };
 
@@ -43,8 +47,9 @@ export function sortNewestFirst(list: Post[]): Post[] {
 
 /** The canvas fallback — a light procedural scene keyed off the sector, seeded by the ticker
  *  so a given name always looks the same. Used whenever a post has no real `image` (Flux
- *  generation was off, failed, or predates this feature). Purely decorative: the pill/
- *  timestamp/hook overlay carry everything a screen reader needs, so this stays aria-hidden. */
+ *  generation was off, the photo or the fusion step failed, or the post predates this
+ *  feature). Purely decorative and carries no text of its own — the kind pill and timestamp
+ *  next to it are plain DOM chrome (see PostFeed below), so this stays aria-hidden. */
 function CanvasArt({ post }: { post: Post }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -62,11 +67,12 @@ function CanvasArt({ post }: { post: Post }) {
   return <canvas ref={ref} className="feed-art" aria-hidden="true" />;
 }
 
-/** The card IS the image: a real editorial photograph when ci/generate-posts.mjs made one
- *  (post.image — a filename only, never a path), the canvas scene otherwise (see CanvasArt).
- *  Either way it fills the card the same way (.feed-art), with a light top-weighted scrim
- *  (.feed-scrim, see src/index.css) over it for guaranteed text contrast, and the pill/
- *  timestamp/hook overlay on top of that. Nothing renders below the art.
+/** The card's image: a real photograph with the post's text already burned into its pixels
+ *  (ci/post-compose.mjs) when ci/generate-posts.mjs made one (post.image — a filename only,
+ *  never a path), the canvas scene otherwise (see CanvasArt). There is no text overlay here
+ *  any more — the browser used to lay `text` over the art with a scrim for contrast, but the
+ *  words are now part of the image file itself, which is the whole point: the same PNG can be
+ *  posted to X or Instagram and the text travels with it.
  *
  *  `base` is Vite's BASE_URL, same as every other lazy-fetched public/ asset (forecasts,
  *  bullbear, reviews-recent) — production serves from `/MarketPulse/`, not `/`, and this is
@@ -76,17 +82,16 @@ function CanvasArt({ post }: { post: Post }) {
  *  file, for formatStamp/sortNewestFirst) with `--module commonjs`, where `import.meta` is a
  *  hard compile error — so App.tsx reads it and passes it down instead.
  *
- *  The image is a fixed square (the Flux model has no width/height knob) against a 4:5 card,
- *  hence `object-fit: cover` on `.feed-art` in src/index.css. Alt text comes from the sector,
- *  never the post text — the text is already on the card as the visible hook, and a screen
- *  reader should not hear it twice. */
+ *  ACCESSIBILITY: since the post's text now exists only as pixels, `alt` carries the actual
+ *  post text (not a generic sector label) — that text is the only thing here worth a screen
+ *  reader announcing, and it is otherwise invisible to one. */
 function PostArt({ post, base }: { post: Post; base: string }) {
   if (post.image) {
     return (
       <img
         className="feed-art"
         src={`${base}post-images/${post.image}`}
-        alt={`${post.sector.replace(/([a-z])([A-Z])/g, "$1 $2")} illustration`}
+        alt={post.text}
         loading="lazy"
       />
     );
@@ -119,15 +124,14 @@ export function PostFeed({ base }: { base: string }) {
     <ul className="feed">
       {items.map((p) => (
         <li key={p.id} className={`feed-card k-${p.kind}`}>
-          <PostArt post={p} base={base} />
-          <div className="feed-scrim" aria-hidden="true" />
-          <div className="feed-overlay">
-            <div className="feed-card-head">
-              <span className="feed-kind">{p.kind}</span>
-              <time className="feed-stamp" dateTime={p.ts}>{formatStamp(p.ts)}</time>
-            </div>
-            <h3 className="feed-hook">{p.text}</h3>
+          {/* Chrome, not part of the meme: the kind pill and timestamp are plain DOM above
+              the art now, not an overlay burned/positioned on top of it — the post's actual
+              text lives only in the image's pixels (or nowhere, on the canvas fallback). */}
+          <div className="feed-card-head">
+            <span className="feed-kind">{p.kind}</span>
+            <time className="feed-stamp" dateTime={p.ts}>{formatStamp(p.ts)}</time>
           </div>
+          <PostArt post={p} base={base} />
         </li>
       ))}
     </ul>

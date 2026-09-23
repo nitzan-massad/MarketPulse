@@ -46,7 +46,14 @@ body::before{
 /* masthead */
 .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
 .kicker .dot{color:var(--faint); margin:0 .5em}
-.sitehead{position:relative; display:flex; align-items:center; justify-content:space-between; gap:16px;
+/* Pinned while the feed (or the Stocks table, Best-of-Best, New Arrivals, Watchlist — every
+   section shares this one <header>) scrolls beneath it. `top` respects the iOS safe-area
+   inset so it doesn't sit under the notch/status bar; `background` + `z-index` make it an
+   opaque plate that cards/rows scroll UNDER rather than through — z-index:20 clears the
+   table's own sticky `thead th` (z-index:3) and the search/multiselect dropdowns (20/30) can
+   still pop out above it, while staying well under any modal (40+). */
+.sitehead{position:sticky; top:env(safe-area-inset-top, 0px); z-index:20; background:var(--bg);
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
   padding:6px 0 16px; margin-bottom:20px; border-bottom:1px solid var(--line)}
 .sitehead #title{margin:0}
 /* ticker search — header icon that expands inline into a compact panel.
@@ -1795,10 +1802,11 @@ thead th:hover .col-resize::after{opacity:.6}
 @keyframes bf-fadein{from{opacity:0}to{opacity:1}}
 
 /* ---------------------------------------------------------------- feed --
-   Layout 02, full-bleed media card: the canvas IS the card (a LIGHT scene — see
-   src/postArt.ts), the kind pill + timestamp sit on it top-left/top-right, and the hook
-   overlays large and bold beneath them, dark-on-light. Nothing renders below the art — no
-   separate support line. Kind accent is set on the card and read by the pill. */
+   The post's text is now BURNED INTO the image's pixels (ci/post-compose.mjs) instead of
+   being laid over it in the browser — the same file can be posted to X or Instagram and the
+   text travels with it. So there is no more scrim/overlay here: the kind pill + timestamp are
+   plain DOM chrome above the art (not part of the meme), and the art is the whole rest of the
+   card. Kind accent is set on the card and read by the pill, same as before. */
 /* A reading column, not the whole window. Every social feed converges on roughly this width
    because a post is read, not scanned across — at 1900px a single card becomes a billboard.
    560px matches .nav-bottom-inner, so the feed lines up with the bottom bar above it. */
@@ -1814,8 +1822,7 @@ thead th:hover .col-resize::after{opacity:.6}
    is missing one, or if two kinds share an accent. */
 .feed-card {
   --acc: var(--gold);
-  position: relative; overflow: hidden; border-radius: 14px;
-  aspect-ratio: 4 / 5; background: var(--panel-2); margin: 0 0 18px;
+  display: flex; flex-direction: column; gap: 9px; margin: 0 0 22px;
 }
 .feed-card:last-child { margin-bottom: 0; }
 .feed-card.k-contrarian { --acc: var(--amber); }
@@ -1828,26 +1835,6 @@ thead th:hover .col-resize::after{opacity:.6}
 .feed-card.k-newcomer   { --acc: var(--red-2); }     /* arrived mid-window */
 .feed-card.k-list       { --acc: var(--muted); }     /* a board, no single subject */
 
-/* Fills the card and sits behind everything, whether it is the canvas (postArt.ts reads
-   clientWidth/clientHeight and matches the backing store to devicePixelRatio, so it stays
-   sharp at any card size without a fixed pixel size here) or a real <img> (a fixed square
-   from Flux — see ci/post-image.mjs — against this 4:5 card, hence object-fit: cover rather
-   than letterboxing). Light placeholder background, to match the light scenes/photos (was a
-   dark #0a1018 before the light-card pass). */
-.feed-art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; background: var(--panel-2); }
-
-/* Top-weighted LIGHT scrim. postArt.ts's scenes are light now (not dark), but the card's
-   text still needs a guaranteed-contrast backdrop whatever a given scene happens to draw
-   underneath it — a white wash sits strongest behind the pill/timestamp/hook at the top and
-   fades to nothing by roughly mid-card, so the art still reads further down. */
-.feed-scrim {
-  position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(180deg,
-    rgba(255,255,255,.94) 0%, rgba(255,255,255,.84) 36%, rgba(255,255,255,.3) 58%, rgba(255,255,255,0) 78%);
-}
-
-.feed-overlay { position: relative; z-index: 1; height: 100%; padding: 14px 15px 18px; display: flex; flex-direction: column; }
-
 .feed-card-head { display: flex; align-items: center; gap: 8px; }
 
 .feed-kind {
@@ -1858,19 +1845,22 @@ thead th:hover .col-resize::after{opacity:.6}
 }
 
 .feed-stamp {
-  margin-left: auto; font-size: 11px; color: var(--ink);
+  margin-left: auto; font-size: 11px; color: var(--muted);
   font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
 }
 
-/* The dominant element on the card — large, bold, dark-on-light (the scrim above
-   guarantees the contrast), and the only thing besides the pill row drawn over the art. */
-.feed-hook {
-  margin: 12px 0 0; font-size: clamp(26px, 7.4vw, 34px); line-height: 1.05; font-weight: 800;
-  letter-spacing: -.02em; color: var(--ink); text-wrap: balance;
+/* The card's whole image: the canvas (postArt.ts reads clientWidth/clientHeight and matches
+   the backing store to devicePixelRatio, so it stays sharp at any card size without a fixed
+   pixel size here) or a real <img> — ci/post-compose.mjs's fused PNG, with the post's text
+   already burned into it. `aspect-ratio: 1/1` matches Flux's square output exactly (it has no
+   width/height knob — see ci/post-image.mjs), and `object-fit: contain` is defence in depth:
+   the composed image has text placed deliberately near its own top/bottom edges, so cropping
+   it (the old `cover`, against a mismatched 4:5 box) could clip that text clean off the card. */
+.feed-art {
+  display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: contain;
+  border-radius: 14px; background: var(--panel-2);
 }
 
 .feed-empty { padding: 48px 20px; text-align: center; color: var(--muted); }
 .feed-empty p { margin: 0; font-size: 14px; }
 .feed-empty-sub { margin-top: 5px !important; font-size: 12px; color: var(--faint); }
-
-@media (prefers-reduced-motion: reduce) { .feed-card { transition: none; } }
