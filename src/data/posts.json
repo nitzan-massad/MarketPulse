@@ -1,5 +1,28 @@
 [
   {
+    "id": "GOOGL-2026-09-23T14:38:16.858Z",
+    "ts": "2026-09-23T14:38:16.858Z",
+    "kind": "steady",
+    "ticker": "GOOGL",
+    "name": "Alphabet Inc. Class A",
+    "sector": "General",
+    "text": "Held at Strong Buy for 6.5 consecutive days.",
+    "score": 64,
+    "reasons": [
+      "2 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "snapshots": 31,
+      "days": 6.5,
+      "upside": 22.3,
+      "consensus": "StrongBuy",
+      "analysts": 25
+    },
+    "image": "GOOGL-2026-09-23T14-38-16-858Z.jpg"
+  },
+  {
     "id": "AMAT-2026-09-23T12:33:41.019Z",
     "ts": "2026-09-23T12:33:41.019Z",
     "kind": "trend",
