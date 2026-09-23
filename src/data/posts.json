@@ -1,5 +1,26 @@
 [
   {
+    "id": "IRD-2026-09-23T18:51:57.572Z",
+    "ts": "2026-09-23T18:51:57.572Z",
+    "kind": "list",
+    "ticker": "IRD",
+    "name": "Opus Genetics",
+    "sector": "Healthcare",
+    "text": "Up 154.7%. Five newcomers join the board.",
+    "score": 68,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "members": "Opus Genetics (154.7% to $13.14), Praxis Precision Medicines (143.6% to $732.38), Fervo Energy Company Class A (143.3% to $40), Viking Therapeutics (131.7% to $94.67), Vera Therapeutics (116.9% to $78.63)",
+      "count": 5,
+      "leader": "Opus Genetics",
+      "leaderUpside": 154.7
+    },
+    "image": "IRD-2026-09-23T18-51-57-572Z.jpg"
+  },
+  {
     "id": "GOOGL-2026-09-23T14:38:16.858Z",
     "ts": "2026-09-23T14:38:16.858Z",
     "kind": "steady",
