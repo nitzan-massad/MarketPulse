@@ -40,12 +40,14 @@ live quotes and per-user state. No backend of our own.
 
 **Three layers, and the boundary between them matters:**
 
-1. **Pipeline (`ci/`, Node ESM, no deps)** — scrapes TipRanks/Finviz through FlareSolverr and
-   writes the data files. Runs in `.github/workflows/site.yml` every 5h. `ci/keep.mjs` is the
-   shared brain (keep-set expiry, row mapping, enrich queue, scale guards); `scripts/refresh-data.mjs`
-   is the *local* Playwright equivalent and **must stay in step** — the two held copies of this
-   logic once, drifted, and silently re-introduced a fixed bug. `ci/test-enrich.mjs` fails if
-   either re-inlines it.
+1. **Pipeline (`ci/`, Node ESM, effectively no deps)** — scrapes TipRanks/Finviz through
+   FlareSolverr and writes the data files. Runs in `.github/workflows/site.yml` every 5h.
+   `ci/keep.mjs` is the shared brain (keep-set expiry, row mapping, enrich queue, scale
+   guards); `scripts/refresh-data.mjs` is the *local* Playwright equivalent and **must stay in
+   step** — the two held copies of this logic once, drifted, and silently re-introduced a
+   fixed bug. `ci/test-enrich.mjs` fails if either re-inlines it. **One deliberate exception:**
+   `@resvg/resvg-js` (ci/post-compose.mjs) — Node has no built-in font engine, so rasterising
+   real text onto the generated post images needs a real one. See `ci/README.md`.
 2. **Data (bundled + fetched)** — `src/data/stocks.json` (~350 rows) is `import`ed, so it ships
    in the JS bundle; `src/data/{seen,meta,sectors,pinned}.json` likewise. Per-ticker payloads are
    too big to bundle and are **lazy-fetched from `public/`** at

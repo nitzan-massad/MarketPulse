@@ -23,10 +23,30 @@ uses whatever is on `main`.
   `git show <sha>:src/data/stocks.json` for each — and appends the working copy as the current
   one. `ci/hooks.mjs` runs **no git at all**: it is handed that array of snapshots, oldest first,
   and emits scored, structured hooks (no LLM — the same window always gives the same hooks).
+
+  **De-tickering.** Immediately after `detectHooks`, `ci/hooks.mjs`'s `deTickerHooks(hooks,
+  currentRows)` runs as its own pass, before the prompt builder or the scorer ever see a hook.
+  A published post once read "IRD soared 151.7% to $13.14." — a ticker, which is banned — and
+  the root cause was upstream of the writer entirely: the `list` hook's own `facts` handed the
+  model a ticker to quote back verbatim (`members: "IRD (151.7% to $13.14), …"`, `leader:
+  "IRD"`). `deTickerHooks` scans every STRING fact on every hook for a known ticker token (the
+  window's own `t` -> `n` map) and substitutes the company's short name — general on purpose,
+  so a future fact carrying a ticker is caught the same way, not just `members`/`leader`. Long
+  company names get sensibly shortened for a facts string that already names several companies
+  at once (`shortCompanyName` strips legal-entity suffixes — "Inc.", "Corp.", "Ltd.", "LLC",
+  "PLC" — never brand-identity words like "Holdings"). This is the root-cause fix; the ticker
+  penalty in `ci/post-score.mjs` (see below) is the backstop for a model that names one anyway.
+
   Then the provider in `ci/provider.mjs` writes `POST_CANDIDATES` variations; `ci/post-score.mjs`
   picks the best one deterministically and writes it to `src/data/posts.json` (rolling, newest
   first, `POSTS_KEEP` max). `continue-on-error` like the other scrapes. Publishing nothing is a
   valid outcome — a skipped run beats a bad post.
+
+  **The ticker penalty is decisive.** `TICKER_PENALTY` (100) in `ci/post-score.mjs` is sized
+  the same way `FABRICATION_PENALTY` is: a candidate naming a ticker instead of the company
+  must land below `MIN_PUBLISHABLE` regardless of what else it earns (digits, length band,
+  even a correct name mention elsewhere in the same sentence) — it used to be a plain -20
+  nudge, which is exactly how "IRD soared 151.7%…" cleared the floor at 56 in the first place.
 
   **The window is why the checkout is not shallow.** Five of the nine hook kinds — `record`,
   `trend`, `steady`, `churn`, `newcomer` — refuse to fire below `MIN_WINDOW` (10) snapshots,
@@ -36,35 +56,88 @@ uses whatever is on `main`.
   `site.yml` therefore pins `fetch-depth: 0`, and `loadWindow()` prints a WARNING naming the
   count when the window comes back under `MIN_WINDOW`. **Do not make the checkout shallow.**
 
-  **Images.** After a post wins, `ci/post-image.mjs` generates a real photograph for it via
-  Cloudflare Workers AI **Flux Schnell** (`@cf/black-forest-labs/flux-1-schnell`, 4 steps,
-  ~43 neurons/image against the same free 10,000/day pool the text candidates already spend
-  ~15% of, rate-limited at 720 req/min, Apache-2.0). The canvas scenes in `src/postArt.ts`
-  cannot be made genuinely light AND visually substantial at once — two of the seven measured
-  a mean brightness of 240 with a visual variation of 12 on 0-255, i.e. a blank white
-  rectangle — so a real image is the fix, and canvas stays wired in as the fallback.
-  `scenePhrase()` maps the post's sector to a plain-English scene description (the 12 real
-  sectors in `src/data/stocks.json`, plus a fallback); `buildImagePrompt()` wraps it in a fixed
-  template forcing bright/high-key/abstract/no-text imagery. **The prompt NEVER carries a hook
-  fact, number, ticker or company name — sector only, always.** Flux is well known for
+  **Images are THREE separate steps, deliberately, not one blended function: text (above),
+  photo, fusion.** `ci/post-image.mjs` generates the photo via Cloudflare Workers AI **Flux
+  Schnell** (`@cf/black-forest-labs/flux-1-schnell`, 4 steps, ~43 neurons/image against the
+  same free 10,000/day pool the text candidates already spend ~15% of, rate-limited at 720
+  req/min, Apache-2.0). The canvas scenes in `src/postArt.ts` cannot be made genuinely light
+  AND visually substantial at once — two of the seven measured a mean brightness of 240 with a
+  visual variation of 12 on 0-255, i.e. a blank white rectangle — so a real photo is the fix,
+  and canvas stays wired in as the fallback. `scenePhrase()` maps the post's sector to a
+  plain-English scene description (the 12 real sectors in `src/data/stocks.json`, plus a
+  fallback); `buildImagePrompt()` wraps it in a fixed template forcing bright/high-key/abstract
+  imagery. **The prompt NEVER carries a hook fact, number, ticker-as-text or company name —
+  sector only, plus a seed for one coin flip (below), always.** Flux is well known for
   rendering text accurately, and this model's schema has no `negative_prompt` field to suppress
   it with, so a number reaching the prompt would be a plausible route to a fabricated figure —
   a wrong price, a wrong date — baked as pixels into a picture that sits next to a real public
-  company's name. `generateImage()` never throws: any failure (missing credentials, a non-ok
-  response, a malformed body, a thrown network error) returns `null`, `ci/generate-posts.mjs`
-  logs one line ("shipped with canvas art"), and the post still publishes with the canvas
-  fallback. On success the JPEG bytes are written to `public/post-images/<sanitised id>.jpg`
-  (the model's output is a fixed square; the card crops it with `object-fit: cover` against its
-  4:5 aspect ratio) and the post record gets an `image` field — the **filename only**, never a
-  path. Post ids carry `:`/`.` from their ISO timestamp, which `postImageFilename()` collapses
-  to `-`; that function is the ONLY place this mapping happens, so the frontend
-  (`src/components/PostFeed.tsx`) just reads `post.image` verbatim — there is nothing for the
-  two sides to keep in sync. Gated by `POST_IMAGES` (default `"true"`), same on/off shape as
+  company's name.
+
+  **Every photo now shows one or more people doing the company's actual work** — a scientist at
+  a lab bench, an engineer on a solar array, a technician at a fab — inverted from the old "no
+  people, no faces, no hands, no silhouettes" clause. **Roughly 90% of the time the person is a
+  woman**, chosen deterministically (not by chance) from an FNV-1a hash of the post's ticker, so
+  a given post always renders the same person; about one in ten seeds resolve to "a man". The
+  ticker is used for EXACTLY this one coin flip and is never concatenated into the prompt text
+  itself (`ci/test-post-image.mjs` asserts the ticker string never appears in its own built
+  prompt). The no-text/no-numbers/no-logos/no-watermark clauses all stay, and matter more than
+  ever now that real text is about to be burned onto the photo.
+
+  `generateImage()` never throws: any failure (missing credentials, a non-ok response, a
+  malformed body, a thrown network error) returns `null`, and the post degrades to canvas art —
+  same as always.
+
+  **Fusion — `ci/post-compose.mjs`.** This is the module that makes the photo postable outside
+  this app: it burns the post's own text into the photo's pixels as ONE PNG, so the words
+  travel with the file wherever it goes (X, Instagram, anywhere). The browser no longer overlays
+  any text (see `src/components/PostFeed.tsx` / `src/index.css`) — what ships in
+  `public/post-images/` is the whole card. Layout, top to bottom: the **company name** large at
+  the top; a **two-to-three-word sector descriptor** (a small map alongside `SECTOR_PHRASE` in
+  `ci/post-image.mjs`, e.g. "energy exploration") directly beneath it at **exactly half** the
+  company-name font size; the **statement** — the post's own text, unmodified — large at the
+  bottom. This inverts the old browser-overlay layout, which put the hook at the top.
+
+  Approach: build an SVG with the photo as a base64 `<image>` plus `<text>` elements, then
+  rasterise with **`@resvg/resvg-js`** to PNG. **This is the one deliberate, user-approved
+  exception to this pipeline's zero-dependency rule** — Node has no built-in font engine, and
+  rasterising real text needs one. Two Inter weights (Bold for the two big headline blocks,
+  Medium for the descriptor) are checked into `ci/fonts/` (subset to the Latin range this app's
+  data actually produces, ~72KB each rather than the ~410KB an unsubset static weight ships at)
+  and loaded EXPLICITLY via resvg's `fontFiles` option with `loadSystemFonts: false` — a GitHub
+  Actions `ubuntu-latest` runner's system fonts are whatever that image happens to ship that
+  month, nondeterministic and almost certainly different from a dev machine's, so relying on
+  them would make the same post render differently depending on where it happened to run.
+
+  SVG `<text>` does not wrap, so `ci/post-compose.mjs` does it by hand: `wrapText` greedily
+  breaks on word boundaries, measuring every candidate line's REAL rendered width by asking
+  resvg itself (the exact font is already loaded for the real render anyway, so this is both
+  more accurate than a hand-tuned per-character advance table and no more code). `fitText`
+  shrinks the font size step-wise and re-wraps whenever a block still overflows its line cap —
+  including the trap where a single word longer than the line has nowhere to break: it gets
+  force-placed alone, so a check that only compared word counts would call that "fine" even
+  though the line runs off the canvas. `ci/test-post-compose.mjs` has a dedicated regression
+  test for exactly that (`Pneumonoultramicroscopicsilicovolcanoconiosis`, English's longest
+  common word).
+
+  Text must stay legible over a photograph, and the photos are high-key/light — so dark text on
+  a light plate is the default — but `sampleBrightness()` actually renders the photo at low
+  resolution and measures mean luminance + variance per band rather than assuming: an unusually
+  DARK band flips to light text on a dark plate, and a high-variance ("busy") band gets a
+  stronger plate regardless of which way the mean falls.
+
+  On success the FUSED PNG bytes are written to `public/post-images/<sanitised id>.png` (not the
+  raw Flux JPEG — the composed image is the artifact now) and the post record gets an `image`
+  field — the **filename only**, never a path. Post ids carry `:`/`.` from their ISO timestamp,
+  which `postImageFilename()` (`ci/post-image.mjs`) collapses to `-`; that function is the ONLY
+  place this mapping happens, so the frontend (`src/components/PostFeed.tsx`) just reads
+  `post.image` verbatim — there is nothing for the two sides to keep in sync. A failure at
+  EITHER the photo or the fusion step degrades identically: no `image` field, canvas fallback,
+  the post still ships. Gated by `POST_IMAGES` (default `"true"`), same on/off shape as
   `POSTS_ENABLED`.
 
   **Prune.** `POSTS_KEEP` bounds `posts.json`, but says nothing about the image files
-  themselves — at ~100KB each that is unbounded growth in git, forever, with no cap. After
-  writing the rolling posts list, `ci/generate-posts.mjs` deletes every file under
+  themselves — at well under 200KB each that is unbounded growth in git, forever, with no cap.
+  After writing the rolling posts list, `ci/generate-posts.mjs` deletes every file under
   `public/post-images/` whose post fell out of that window, and logs the count every run (even
   when it is zero). This is not optional cleanup — it is what keeps the feature from silently
   bloating the repo.
