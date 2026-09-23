@@ -4,8 +4,8 @@
 
 import assert from "node:assert";
 import {
-  scorePost, pickBest, nameStem, factNumbers, unverifiedNumbers, BANNED, MIN_PUBLISHABLE,
-  TICKER_PENALTY, FABRICATION_PENALTY,
+  scorePost, pickBest, nameStem, factNumbers, unverifiedNumbers, misdescribedMovementVerbs,
+  BANNED, MIN_PUBLISHABLE, TICKER_PENALTY, FABRICATION_PENALTY, MISDESCRIBED_MOVEMENT_PENALTY,
 } from "./post-score.mjs";
 
 // The FULL `surprise` fact shape ci/hooks.mjs emits — { upside, price, priceTarget, consensus,
@@ -90,9 +90,10 @@ assert.ok(Number.isFinite(MIN_PUBLISHABLE), "there is a publish floor");
   assert.ok(result.reasons.some((r) => /duplicate.*word overlap/i.test(r)), "duplicate penalty also detected despite ticker match");
 }
 
-// --- naming: company name good, TICKER BAD (inverted from the old rule) --------------
-// The feed shows company names, not tickers, and the post text now sits large on the same
-// card — so naming the ticker instead of the company is now a penalty, not a reward.
+// --- naming: TICKER still BAD; naming the company is now NEUTRAL, not required -------------
+// The composed card (ci/post-compose.mjs) already prints the company name large above the
+// statement, and the prompt now tells the model not to repeat it (defect F) — so naming the
+// company is no longer scored either way, only a ticker still is, decisively.
 {
   const nflx = { kind: "movement", ticker: "NFLX", name: "Netflix" };
   const byTicker = scorePost("NFLX: Smart Score 8 to 6, upside 28% to 34%.", { hook: nflx });
@@ -100,14 +101,19 @@ assert.ok(Number.isFinite(MIN_PUBLISHABLE), "there is a publish floor");
   // Same word/digit shape as byTicker, so the only thing distinguishing it is naming
   // neither: this isolates the naming rule's own effect.
   const neither = scorePost("Smart Score 8 to 6, upside 28% to 34% overall.", { hook: nflx });
-  assert.ok(byName.score > byTicker.score, "naming the company now beats naming the ticker (inverted from the old rule)");
+  assert.ok(byName.score > byTicker.score, "naming the company still beats naming the ticker");
   assert.ok(byTicker.reasons.some((r) => /names the ticker/i.test(r)), "the reason names the ticker penalty");
-  // DECISIVE now, not a nudge — a ticker mention has to sink the candidate outright (like
-  // fabrication), so it is no longer merely "as bad as naming nothing", it is worse.
-  assert.ok(byTicker.score < neither.score, "naming the ticker is now worse than naming nothing at all");
+  // DECISIVE — a ticker mention has to sink the candidate outright (like fabrication).
+  assert.ok(byTicker.score < neither.score, "naming the ticker is worse than naming nothing at all");
   assert.ok(byTicker.score < MIN_PUBLISHABLE, "and lands below the publish floor by itself");
-  assert.ok(byName.score > neither.score, "naming the company still beats naming nothing");
-  assert.ok(neither.reasons.some((r) => /does not name/.test(r)), "and the reason says so");
+  // NEITHER naming the company NOR omitting it is scored any more — the card already carries
+  // the name, so the statement is not required to. `byName` differs from `neither` only in
+  // which word starts the sentence ("Netflix:" vs nothing), not in score-relevant content, so
+  // they land close together — what matters is that omitting the name costs nothing.
+  assert.equal(neither.reasons.some((r) => /does not name/.test(r)), false,
+    "omitting the company name is no longer penalised — the card already shows it");
+  assert.equal(byName.reasons.some((r) => /^names Netflix$/.test(r)), true,
+    "naming it is still noted in the reasons, informationally, just not scored");
 }
 {
   // DECISIVE, the same way FABRICATION_PENALTY is: even a candidate maxing out every other
@@ -158,10 +164,25 @@ assert.equal(nameStem("Inc"), "", "a bare corporate suffix is not a name");
 assert.equal(nameStem(""), "", "empty name has no stem");
 assert.equal(nameStem(undefined), "", "missing name has no stem");
 {
-  // A hook with a name but no ticker must still be scored on naming.
+  // A hook with a name but no ticker, and a candidate that omits the name entirely: no naming
+  // reason is pushed at all any more (not a bonus, not a penalty) — the card already carries
+  // the name, so this is simply not evaluated.
   const r = scorePost("Nothing relevant here at all, just filler words.",
     { hook: { kind: "trend", name: "Datadog Inc" } });
-  assert.ok(r.reasons.some((x) => /does not name Datadog/.test(x)), "name-only hooks are checked");
+  assert.equal(r.reasons.some((x) => /does not name/.test(x)), false,
+    "omitting a name-only hook's name is not penalised");
+  assert.equal(r.reasons.some((x) => /^names Datadog$/.test(x)), false,
+    "and obviously not credited either, since it was never used");
+}
+{
+  // A nameless, contextless candidate must still fail on its OWN merits (no digits — "not a
+  // data post" — and no banned-phrase/length help either) even though the naming penalty that
+  // used to help sink it is gone. Removing the naming requirement must never be the thing that
+  // lets a vapid candidate through.
+  const vapid = scorePost("Nothing relevant here at all, just filler words.",
+    { hook: { kind: "trend", name: "Datadog Inc" } });
+  assert.ok(vapid.score < MIN_PUBLISHABLE, "a contextless candidate with no numbers still fails to publish");
+  assert.ok(vapid.reasons.some((r) => /no numbers/.test(r)), "still flagged for carrying no concrete data");
 }
 
 // --- pickBest ------------------------------------------------------------------
@@ -232,7 +253,13 @@ assert.equal(pickBest(["Let's dive in! In the world of finance, a game-changer. 
   const roundedText = "IRD is up 120% to a $75 target on 11 analysts.";
   assert.deepEqual(unverifiedNumbers(roundedText, ird), [],
     "a truthful number rounded down to a whole number passes");
-  assert.ok(scorePost(roundedText, { hook: ird }).score >= MIN_PUBLISHABLE, "and stays publishable");
+  // Kept within the 8-word cap (unlike `roundedText` above, which is only used for the
+  // number-verification check, not scored) so this isolates "rounding is accepted" from the
+  // unrelated too-long penalty.
+  const roundedShort = "Up 120% to a $75 target, 11 analysts.";
+  assert.deepEqual(unverifiedNumbers(roundedShort, ird), [],
+    "the same rounding still verifies clean in a headline-length candidate");
+  assert.ok(scorePost(roundedShort, { hook: ird }).score >= MIN_PUBLISHABLE, "and stays publishable");
 
   // 4. Rounding UP past the fact is not rounding, it is overstating the target.
   assert.deepEqual(unverifiedNumbers("IRD carries a $76 target.", ird), ["76"],
@@ -290,4 +317,58 @@ assert.equal(pickBest(["Let's dive in! In the world of finance, a game-changer. 
   assert.equal(factNumbers(undefined).size, 0, "missing facts yield an empty reference set");
 }
 
-console.log("post-score OK — banned phrases, numbers, number VERIFICATION, decisive ticker penalty, length, dedupe, full-list scan, hashtags, exclamations, pickBest floor, determinism");
+// --- MISDESCRIBED MOVEMENT VERBS: a true number, framed as a price move it never was --------
+// The other half of the exact published bug: "IRD soared 151.7% to $13.14" — 151.7% was real
+// (analyst upside-to-target), but "soared" claimed a price move that never happened.
+{
+  const ird = { kind: "surprise", ticker: "IRD", name: "Opus Genetics",
+                facts: { upside: 151.7, price: 13.14, priceTarget: 20, consensus: "StrongBuy",
+                         analysts: 11, sector: "Healthcare" } };
+  // The exact bug, minus the ticker itself (that half is its own, separately-tested rejection
+  // above) — just the movement verb attached to the upside number.
+  assert.deepEqual(misdescribedMovementVerbs("Upside soared 151.7% to a $20 target.", ird), ["soared"],
+    "a movement verb on an analyst-upside number is flagged");
+  const r = scorePost("Upside soared 151.7% to a $20 target.", { hook: ird });
+  assert.ok(r.reasons.some((x) => /misdescribes a target\/score\/forecast/.test(x)), "the reason explains why");
+  assert.ok(r.score < MIN_PUBLISHABLE, "the candidate is rejected even though every number in it is real");
+  assert.equal(pickBest(["Upside soared 151.7% to a $20 target."], { hook: ird }), null,
+    "pickBest ships nothing rather than this");
+}
+// A handful of close synonyms ("and the like") are covered too, on a Smart Score number.
+{
+  const hook = { kind: "trend", name: "Alpha Inc", facts: { smartScoreFrom: 4, smartScoreTo: 9 } };
+  for (const verb of ["plunged", "rocketed", "crashed", "jumped", "surged", "spiked"]) {
+    const text = `Smart Score ${verb} from 4 to 9.`;
+    assert.ok(misdescribedMovementVerbs(text, hook).length > 0, `"${verb}" on a Smart Score is flagged`);
+  }
+}
+// The task's own explicit exemption: a LEGITIMATE use — a verb describing a number that is
+// genuinely a realized price change, not a target/score/forecast — must still pass. No hook
+// ci/hooks.mjs emits today carries such a fact, so this is a synthetic (but representative)
+// fixture: the check is against the SHAPE of the fact key, not today's specific hook kinds.
+{
+  const priceMove = { kind: "movement", name: "Alpha Inc", facts: { priceFrom: 100, priceTo: 148 } };
+  assert.deepEqual(misdescribedMovementVerbs("Price jumped from $100 to $148 today.", priceMove), [],
+    "a movement verb over a genuine price-delta fact is not flagged");
+  assert.ok(scorePost("Price jumped from $100 to $148 today.", { hook: priceMove }).score >
+    scorePost("Upside jumped from 100 to 148 today.", { hook: { kind: "surprise", name: "Alpha Inc", facts: { upside: 148 } } }).score,
+    "a legitimate price move scores better than the same verb misapplied to a forecast number");
+}
+// No hook at all, or a hook with no facts, vouches for nothing — same fail-closed posture as
+// unverifiedNumbers — so there is nothing to compare the verb against and it is not flagged.
+{
+  assert.deepEqual(misdescribedMovementVerbs("It soared 40% today.", null), [],
+    "with no hook there is nothing to check the verb against");
+  assert.deepEqual(misdescribedMovementVerbs("It soared 40% today.", { kind: "surprise" }), [],
+    "a hook with no facts backs no number, so the verb has nothing to misdescribe");
+}
+// A candidate with no movement verb at all is never flagged, obviously.
+assert.deepEqual(
+  misdescribedMovementVerbs("Upside at 151.7% to a $20 target.", { facts: { upside: 151.7, priceTarget: 20 } }),
+  [], "no movement verb, nothing to flag",
+);
+assert.ok(MISDESCRIBED_MOVEMENT_PENALTY > 56, "the penalty alone beats the documented 86-point bonus ceiling");
+assert.ok(MISDESCRIBED_MOVEMENT_PENALTY < FABRICATION_PENALTY,
+  "decisive, but a misdescribed (still TRUE) number is a lesser sin than a fabricated one");
+
+console.log("post-score OK — banned phrases, numbers, number VERIFICATION, decisive ticker penalty, misdescribed movement verbs, naming no longer required, length, dedupe, full-list scan, hashtags, exclamations, pickBest floor, determinism");
