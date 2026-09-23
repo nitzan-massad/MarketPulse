@@ -5,7 +5,8 @@
 
 import assert from "node:assert";
 import {
-  buildImagePrompt, descriptorFor, generateImage, personPhrase, postImageFilename, scenePhrase,
+  buildImagePrompt, descriptorFor, generateImage, personPhrase, postImageFilename, renderAbstractMark,
+  scenePhrase,
 } from "./post-image.mjs";
 
 // --- every real sector (src/data/stocks.json's `sec` values) maps to a scene ---------------
@@ -99,9 +100,12 @@ for (const bad of ["Nonexistent Sector", "", undefined, null]) {
 {
   const prompt = buildImagePrompt("Technology", "AAA");
   assert.ok(prompt.includes(scenePhrase("Technology", "AAA")), "the prompt embeds the scene phrase");
+  // "no charts"/"no graphs"/"no diagrams" were replaced (task 10) by a POSITIVE instruction for
+  // what a screen shows instead (bokeh, never legible marks) — a negative alone had already
+  // been ignored once by a model with no negative_prompt field to fall back on (see the
+  // buildImagePrompt doc comment). The remaining suppression clauses are untouched.
   for (const clause of [
-    "no text", "no numbers", "no digits", "no charts", "no graphs", "no diagrams",
-    "no logos", "no brand marks", "no watermarks", "no signage",
+    "no text", "no numbers", "no digits", "no logos", "no brand marks", "no watermarks", "no signage",
   ]) {
     assert.ok(prompt.toLowerCase().includes(clause), `prompt suppresses "${clause}"`);
   }
@@ -110,6 +114,19 @@ for (const bad of ["Nonexistent Sector", "", undefined, null]) {
     assert.equal(prompt.toLowerCase().includes(banned), false, `prompt no longer suppresses "${banned}"`);
   }
   assert.ok(/\ba (woman|man)\b/.test(prompt), "the prompt names a person");
+  // (10) the positive screen instruction — what replaces the old negative chart/graph/diagram
+  // clause.
+  assert.ok(/screen|monitor|display/i.test(prompt) && /bokeh|out-of-focus/i.test(prompt),
+    "prompt gives a positive instruction for how an incidental screen should look, not just a ban");
+  // (11) tight-crop framing direction.
+  assert.ok(/extreme close-up/i.test(prompt), "prompt asks for an extreme close-up (task 11)");
+  assert.ok(/face and hands/i.test(prompt), "prompt asks for face AND hands in frame (task 11)");
+  assert.ok(/shallow depth of field/i.test(prompt), "prompt asks for shallow depth of field (task 11)");
+  // Commercial-casting language (task 4) — described the way a photo director would, not
+  // crudely, and additive: none of the safety clauses above were removed to make room for it.
+  assert.ok(/attractive/i.test(prompt), "prompt directs commercial-stock-photography casting (task 4)");
+  assert.ok(/professionally lit|magazine|advertising|commercial/i.test(prompt),
+    "the casting language reads as a photo director's brief, not a crude physical description");
   // The load-bearing assertion: nothing that could be a fabricated figure ever reaches Flux,
   // which renders text well and has no negative_prompt field to fall back on.
   assert.equal(/\d/.test(prompt), false, "the built prompt contains no digits whatsoever");
@@ -209,7 +226,39 @@ for (const sec of REAL_SECTORS) {
   assert.ok(out.equals(payload), "the base64 body decodes back to the original bytes");
 }
 
+// --- (9) General never reaches Flux at all — a palette-driven abstract mark instead ---------
+{
+  const fetchImpl = async () => { throw new Error("must not call Flux for the General sector"); };
+  const out = await generateImage({
+    sector: "General", ticker: "AAA", env: { CF_ACCOUNT_ID: "acct", CF_API_TOKEN: "tok" }, fetchImpl,
+  });
+  assert.ok(Buffer.isBuffer(out), "General still resolves to a real image buffer");
+  // PNG magic bytes (89 50 4E 47) — renderAbstractMark returns a PNG, not a Flux JPEG.
+  assert.deepEqual([...out.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], "the abstract mark is a real PNG");
+}
+{
+  // Even with NO credentials at all, General still succeeds — the whole point is that it never
+  // depends on Flux/Cloudflare in the first place.
+  const out = await generateImage({ sector: "General", ticker: "AAA", env: {}, fetchImpl: async () => {
+    throw new Error("must not be called");
+  } });
+  assert.ok(Buffer.isBuffer(out), "General resolves without any Cloudflare credentials");
+}
+
+// --- renderAbstractMark: deterministic, ticker-varying, always a valid PNG -------------------
+{
+  assert.ok(renderAbstractMark("AAA").equals(renderAbstractMark("AAA")),
+    "the same ticker renders byte-identical marks every time");
+  assert.equal(renderAbstractMark("AAA").equals(renderAbstractMark("BBB")), false,
+    "different tickers render visibly different marks");
+  const png = renderAbstractMark("GOOGL");
+  assert.deepEqual([...png.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], "renderAbstractMark returns a real PNG");
+}
+
 console.log("post-image OK — every real sector has a scene WITH a person (deterministic, ~90% " +
             "woman), a descriptor, the prompt is digit-free and ticker-text-free and suppresses " +
-            "text/logos/watermarks, filenames sanitise to .jpg, and generateImage returns null " +
-            "(never throws) on missing creds, non-ok, malformed, and network-error responses");
+            "text/logos/watermarks while giving screens a positive bokeh instruction, tight-crop " +
+            "and commercial-casting direction reach the prompt, filenames sanitise to .jpg, " +
+            "General skips Flux entirely for a deterministic abstract mark, and generateImage " +
+            "returns null (never throws) on missing creds, non-ok, malformed, and network-error " +
+            "responses");

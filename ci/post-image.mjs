@@ -28,6 +28,16 @@
 // no-text/no-numbers/no-logos/no-watermark clauses stay, and matter MORE now, not less — real
 // text is being burned onto this image next (ci/post-compose.mjs), and a photo that already
 // contains stray rendered text or a logo would corrupt that.
+//
+// (9) NO PHOTO FOR THE UNCLASSIFIED SECTOR. `General` is TipRanks' own catch-all bucket, not an
+// industry — there is no real job to depict, so a Flux photo for it is filler at best (and, per
+// the `descriptorFor` comment below, sometimes actively absurd — Alphabet). `generateImage`
+// below skips the Flux call entirely for this one sector and renders a palette-driven abstract
+// mark instead, via `renderAbstractMark`: real neurons saved (no Flux call at all), and
+// ci/post-compose.mjs still gets a real image buffer to burn the post's text onto, same as any
+// other sector — the mark is never a second-class citizen, just an honest one.
+
+import { Resvg } from "@resvg/resvg-js";
 
 /** One concrete WORKER + scene per sector TipRanks/Finviz actually emits (`src/data/
  *  stocks.json`'s `sec` values) — the person doing that industry's actual work, not a person
@@ -144,22 +154,115 @@ export function descriptorFor(sector) {
  *  would otherwise contradict or embarrass the real data sitting on top of the card — numbers,
  *  tickers, logos — or interfere with the text ci/post-compose.mjs is about to burn onto this
  *  photo. Nothing here is per-post except `scenePhrase()`'s scene + person, and it never sees
- *  anything but the sector string and the seed fraction described above. */
+ *  anything but the sector string and the seed fraction described above.
+ *
+ *  THREE deliberate refinements on top of the original template, all from the same round of
+ *  review:
+ *
+ *  (11) TIGHT CROPS. The best image produced under the old wording (a scientist mid-pipette)
+ *  was already an extreme close-up with hands doing real work filling the frame; the weakest
+ *  was mid-distance and static. "Close or medium-close" left Flux room to pick the weaker
+ *  option — "extreme close-up" plus an explicit "face and hands both in frame" removes that
+ *  choice.
+ *
+ *  (10) SCREENS, REDIRECTED, NOT JUST FORBIDDEN. Flux exposes no `negative_prompt` on this
+ *  model, and a purely negative instruction ("no charts, no graphs, no diagrams") has already
+ *  been ignored once — a generated screen wall rendered chart-like numeric marks despite it
+ *  (see the SECTOR_ROLE comment above, which is why Technology/CommunicationServices no longer
+ *  route through screens at all). Telling a model what NOT to draw still requires it to imagine
+ *  the forbidden thing first; telling it what a screen looks like INSTEAD (soft, out-of-focus
+ *  colour and bokeh) gives it a positive target to paint even if a monitor sneaks into frame
+ *  incidentally (a background office display, a phone on a desk) despite no sector scene
+ *  calling for one.
+ *
+ *  COMMERCIAL CASTING (the person is strikingly attractive, per the user's direction). Framed
+ *  the way a photo director actually briefs a shoot — casting, grooming, lighting, production
+ *  value — not a crude physical-appearance instruction. This changes nothing else: the
+ *  deterministic ~90%/10% woman/man split (`personPhrase`) is untouched, the high-key/light
+ *  aesthetic is untouched, and every no-text/no-numbers/no-logos/no-watermark clause below is
+ *  untouched — this only ADDS casting/lighting direction, it never removes a safety clause. */
 export function buildImagePrompt(sector, seed) {
   const scene = scenePhrase(sector, seed);
   return (
-    `Editorial stock photograph, close or medium-close shot, of ${scene}. The person and their ` +
-    `work fill a large part of the frame, caught candidly mid-action, not posed for the camera. ` +
-    `Bright, airy, high-key lighting on a light background; soft natural light, shallow depth of ` +
-    `field, muted modern color palette. Even while the person fills most of the frame, keep the ` +
-    `extreme top and bottom edges relatively simple so bold text can be overlaid directly on the ` +
-    `photo later. No text, no numbers, no digits, no charts, no graphs, no diagrams, no logos, no ` +
-    `brand marks, no watermarks, no signage.`
+    `Editorial commercial stock photograph, extreme close-up shot, of ${scene}. The subject is ` +
+    `strikingly attractive, cast and styled the way a commercial stock-photography shoot casts ` +
+    `and grooms its models — well-groomed, polished, professionally lit for a magazine or ` +
+    `advertising campaign, high production value throughout. Face and hands are both in frame, ` +
+    `the subject and their work filling most of the frame, caught candidly mid-action, not ` +
+    `posed for the camera, shallow depth of field. Bright, airy, high-key lighting on a light ` +
+    `background; soft natural light, muted modern color palette. If any screen, monitor, or ` +
+    `display happens to appear anywhere in the frame, it shows only soft, out-of-focus coloured ` +
+    `light and bokeh — never legible marks of any kind. Even while the subject fills most of the ` +
+    `frame, keep the extreme top and bottom edges relatively simple so bold text can be overlaid ` +
+    `directly on the photo later. No text, no numbers, no digits, no logos, no brand marks, no ` +
+    `watermarks, no signage.`
   );
 }
 
 const FLUX_MODEL = "@cf/black-forest-labs/flux-1-schnell";
 const FLUX_STEPS = 4; // ~43 neurons/image at this step count — see ci/README.md
+
+// -------------------------------------------------------- (9) the abstract mark --
+
+/** Same palette family postArt.ts restates from src/index.css's :root (ci/ has no CSS pipeline
+ *  to read it from, same reasoning as that file's own comment) — navy, green, amber, red, teal,
+ *  in that order. Kept as a flat list, not named per-token, since the mark picks among them by
+ *  index rather than by meaning (there is no "up"/"down" here, just a light abstract graphic). */
+const MARK_PALETTE = ["#1b3f73", "#17864f", "#b8860b", "#c73a2b", "#147c86"];
+const MARK_BG = "#f9fafb"; // --bg
+
+/** mulberry32, seeded by an FNV-1a hash of the ticker — same construction as postArt.ts's
+ *  `seeded()`, reimplemented locally (this module already reimplements `seedFraction` above for
+ *  the same reason: no dependency from ci/ ESM onto src/). Deterministic: a given ticker's
+ *  abstract mark looks the same every time it is regenerated. */
+function markRand(seed) {
+  let h = 2166136261 >>> 0;
+  const s = String(seed ?? "");
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return () => {
+    h += 0x6d2b79f5;
+    let t = h;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * A light, palette-driven abstract graphic — a handful of soft overlapping circles in the
+ * app's own accent colours — for the one sector with no real job to depict (`General`, see the
+ * module header). Deterministic per `seed` (the post's ticker), same posture as every other
+ * seeded choice in this file. Built with @resvg/resvg-js, already a dependency for exactly this
+ * kind of local rasterisation (ci/post-compose.mjs), so this needs nothing new.
+ *
+ * Returns a PNG buffer — `imageDimensions()` (ci/post-compose.mjs) reads PNG or JPEG headers
+ * interchangeably, so the fusion step downstream needs no changes to accept this in place of a
+ * Flux JPEG. Never throws: like `generateImage` itself, a rendering failure here returns `null`
+ * rather than propagating, so it degrades exactly like a failed Flux call would.
+ */
+export function renderAbstractMark(seed, size = 1024) {
+  try {
+    const rand = markRand(seed);
+    const shapes = [];
+    const n = 5 + Math.floor(rand() * 3); // 5-7 soft shapes
+    for (let i = 0; i < n; i++) {
+      const cx = rand() * size;
+      const cy = rand() * size;
+      const r = size * (0.14 + rand() * 0.24);
+      const color = MARK_PALETTE[Math.floor(rand() * MARK_PALETTE.length)];
+      const opacity = (0.16 + rand() * 0.22).toFixed(2);
+      shapes.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" opacity="${opacity}"/>`);
+    }
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">` +
+      `<rect width="${size}" height="${size}" fill="${MARK_BG}"/>${shapes.join("")}</svg>`;
+    const resvg = new Resvg(svg, { font: { loadSystemFonts: false } });
+    return resvg.render().asPng();
+  } catch (err) {
+    console.error(`  abstract mark render failed — ${err?.message ?? err}`);
+    return null;
+  }
+}
 
 /** Fire the Flux call for one sector and return the decoded JPEG bytes, or `null` on ANY
  *  failure — missing credentials, a non-2xx response, a malformed/unexpected body, a thrown
@@ -170,8 +273,17 @@ const FLUX_STEPS = 4; // ~43 neurons/image at this step count — see ci/README.
  *
  *  `ticker` is optional and, if given, seeds ONLY `personPhrase` (see above) — it is never
  *  written into the request body as text. Omitting it just means the image always renders the
- *  90%-likely "a woman" branch (`seedFraction(undefined)` is still deterministic). */
+ *  90%-likely "a woman" branch (`seedFraction(undefined)` is still deterministic).
+ *
+ *  (9) `General` — TipRanks' unclassified bucket, not an industry — never reaches Flux at all:
+ *  there is no real job to depict, so any photo would be filler, and skipping the call also
+ *  saves ~43 neurons every time this sector's hook fires. `renderAbstractMark` above still
+ *  hands the caller a real image buffer, so the rest of the pipeline (ci/post-compose.mjs) is
+ *  completely unaware anything different happened here. */
 export async function generateImage({ sector, ticker, env = process.env, fetchImpl = globalThis.fetch }) {
+  if (String(sector ?? "").trim() === "General") {
+    return renderAbstractMark(ticker);
+  }
   try {
     const acct = env.CF_ACCOUNT_ID;
     const token = env.CF_API_TOKEN;
