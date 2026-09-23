@@ -319,6 +319,69 @@ assert.equal(pickBest(["Let's dive in! In the world of finance, a game-changer. 
   assert.equal(factNumbers(undefined).size, 0, "missing facts yield an empty reference set");
 }
 
+// --- ROUNDING TOLERANCE MATRIX: the exact accept/reject table from the rounding task --------
+// "I am against fabrication but 143.14% could be 144%~ and so on" — a writer must be free to
+// round a real fact, but a blanket percentage tolerance would let a WRONG number ride along
+// (see post-score.mjs's own comment on `vouchedBy`: 1% of 143.6 is wide enough to also cover
+// 145, which this table explicitly forbids). Every case here is checked via `unverifiedNumbers`
+// (empty = accepted) so the whole pipeline — not just `vouchedBy` in isolation — is exercised.
+{
+  // 143.6 -> round-half-up 144, truncate 143, and the exact value itself all verify. Nothing
+  // else does, including two numbers that are numerically CLOSER to 143.6 than the accepted
+  // ones are (145 is only 1.4 away; 140 is only 3.6 away) — proof this is not "anything nearby".
+  const hook = { kind: "surprise", ticker: "AAA", name: "Alpha Inc",
+                 facts: { upside: 143.6, price: 1, sector: "Technology" } };
+  for (const good of ["144", "143.6", "143"]) {
+    assert.deepEqual(unverifiedNumbers(`Upside ${good}% on the name.`, hook), [],
+      `143.6 verifies its own rounded/truncated/exact form: ${good}`);
+  }
+  for (const bad of ["150", "140", "145", "14"]) {
+    assert.deepEqual(unverifiedNumbers(`Upside ${bad}% on the name.`, hook), [bad],
+      `143.6 must NOT verify ${bad} — that is a different number, not a rounding of this one`);
+  }
+}
+{
+  // 300.65 -> round-half-up 301, truncate 300. Neither 305 nor 310 — both plausible-looking
+  // "nearby" prices — are accepted.
+  const hook = { kind: "surprise", ticker: "AAA", name: "Alpha Inc", facts: { price: 300.65 } };
+  for (const good of ["301", "300", "300.65"]) {
+    assert.deepEqual(unverifiedNumbers(`Priced at $${good} today.`, hook), [],
+      `300.65 verifies its own rounded/truncated/exact form: ${good}`);
+  }
+  for (const bad of ["305", "310"]) {
+    assert.deepEqual(unverifiedNumbers(`Priced at $${bad} today.`, hook), [bad],
+      `300.65 must NOT verify $${bad}`);
+  }
+}
+{
+  // 6.3 (days) -> round-half-up 6 (round-HALF-UP, not "round to nearest even" or "always
+  // down"), truncate also 6 since both land the same side of the half here. 7 is NOT a
+  // legitimate rounding of 6.3 by any of the three transforms.
+  const hook = { kind: "steady", ticker: "AAA", name: "Alpha Inc",
+                 facts: { smartScore: 10, snapshots: 30, days: 6.3, upside: 10, analysts: 5 } };
+  assert.deepEqual(unverifiedNumbers("Held Strong Buy for 6 days straight.", hook), [],
+    "6.3 days rounds down (and half-up, they agree here) to 6");
+  assert.deepEqual(unverifiedNumbers("Held Strong Buy for 7 days straight.", hook), ["7"],
+    "6.3 days must NOT verify 7 — that overstates the window by a full day");
+  // The genuinely round-HALF-UP case, isolated from truncation: 6.5 rounds up to 7 (Math.round's
+  // behaviour on an exact half), and 6.5 also truncates to 6 — both are legitimate paraphrases
+  // of the same fact. 8 is neither, and is rejected.
+  const half = { kind: "steady", ticker: "AAA", name: "Alpha Inc", facts: { days: 6.5 } };
+  assert.deepEqual(unverifiedNumbers("Held for 7 days.", half), [], "6.5 round-half-up is 7");
+  assert.deepEqual(unverifiedNumbers("Held for 6 days.", half), [], "6.5 truncates to 6 too");
+  assert.deepEqual(unverifiedNumbers("Held for 8 days.", half), ["8"], "but not 8 — that's neither transform");
+}
+{
+  // An approximation marker ("~144%") is welcome where it helps and must not change verification
+  // at all — the "~" sits outside the number token, so the same 143.6 fact still verifies 144
+  // and still rejects 145.
+  const hook = { kind: "surprise", ticker: "AAA", name: "Alpha Inc", facts: { upside: 143.6 } };
+  assert.deepEqual(unverifiedNumbers("~144% upside on the name.", hook), [],
+    "a leading ~ does not change whether the number itself verifies");
+  assert.deepEqual(unverifiedNumbers("~145% upside on the name.", hook), ["145"],
+    "and does not launder a wrong number through either");
+}
+
 // --- MISDESCRIBED MOVEMENT VERBS: a true number, framed as a price move it never was --------
 // The other half of the exact published bug: "IRD soared 151.7% to $13.14" — 151.7% was real
 // (analyst upside-to-target), but "soared" claimed a price move that never happened.

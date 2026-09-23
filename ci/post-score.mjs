@@ -96,9 +96,48 @@ export function factNumbers(facts) {
   return out;
 }
 
-/** Roundings a writer may legitimately apply to a sourced number: nearest integer,
- *  truncation, and one decimal place. Deliberately NOT `Math.ceil` — "$175" must not be
- *  allowed to stand in for a $174.25 price target. */
+/**
+ * THE TOLERANCE RULE — exactly three transforms of a sourced fact, nothing looser.
+ *
+ * The task this answers: "I am against fabrication but 143.14% could be 144%~ and so on" — raw
+ * TipRanks precision (`143.6% upside dwarfs current 300.65 price`, `6.3 days`) reads as a
+ * machine copying a spreadsheet cell, not a person stating a fact. A writer has to be free to
+ * ROUND a real number without tripping the fabrication check.
+ *
+ * The transforms, and why these three and no others:
+ *   - EXACT match — the unrounded fact itself always verifies.
+ *   - ROUND-HALF-UP to the nearest integer (`Math.round`) — 143.6 -> 144, 6.3 -> 6, 300.65 -> 301.
+ *     "Half up" because that is what `Math.round` already does for the positive values every
+ *     fact here is (upside, price, days, scores are never negative); a writer rounding 143.6
+ *     is entitled to land on 144, not on some other nearby integer of their choosing.
+ *   - TRUNCATE to the integer (`Math.trunc`) — 143.6 -> 143, 6.3 -> 6, 300.65 -> 300. Distinct
+ *     from round-half-up (they agree below the half, diverge above it), and both are legitimate
+ *     ways a person paraphrases "about 143": nobody is lying by saying "143" OR "144" for 143.6.
+ *   - ROUND to one decimal place (`Math.round(f * 10) / 10`) — lets a candidate keep a single
+ *     decimal digit of real precision (38.6 stays 38.6) without forcing every fact down to a
+ *     whole number, for the (rarer) case where the extra digit is worth keeping.
+ *
+ * WHY NOT a blanket percentage tolerance (e.g. "within 1% of the fact"): a percentage window
+ * scales with the fact's own SIZE, which is backwards for this data. 1% of 143.6 is 1.436 — wide
+ * enough to ALSO verify 145 (145 is 0.97% above 143.6), which the task explicitly forbids ("It
+ * must NOT verify … 145"). The same 1% window on a $300 price target would swallow a $3 error a
+ * reader would actually notice, while being needlessly tight on a small number like a Smart
+ * Score. A percentage-of-value tolerance is not one rule, it is a different rule at every
+ * magnitude — the three fixed transforms above are the same rule everywhere, and exactly as
+ * tight on 300.65 as they are on 6.3.
+ *
+ * Deliberately NOT `Math.ceil` on its own — "$175" must not be allowed to stand in for a
+ * $174.25 price target (`Math.ceil(174.25)` is 175, which would overstate a real target,
+ * exactly the "rounding UP past the fact" case the task calls "not rounding, it is
+ * overstating"). `Math.round` already covers the one case where the CEILING is also the
+ * nearest integer (a fact whose fraction is >= .5).
+ *
+ * Round-tripping cannot smuggle an invented number past a real one: each transform maps ONE
+ * fact to at most two integers (its round and its trunc, which differ by exactly 1) plus its own
+ * one-decimal rounding — never a range, never "anything nearby". A candidate number has to land
+ * on one of those exact values or it is rejected, precisely how `test-post-score.mjs`'s
+ * accept/reject matrix (143.6 -> {144, 143.6, 143} yes, {150, 140, 145, 14} no) is verified.
+ */
 const vouchedBy = (n, vouched) => {
   for (const f of vouched) {
     if (n === f || n === Math.round(f) || n === Math.trunc(f) || n === Math.round(f * 10) / 10) return true;
