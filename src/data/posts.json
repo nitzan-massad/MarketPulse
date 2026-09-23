@@ -1,5 +1,28 @@
 [
   {
+    "id": "PRAX-2026-09-23T22:40:56.794Z",
+    "ts": "2026-09-23T22:40:56.794Z",
+    "kind": "surprise",
+    "ticker": "PRAX",
+    "name": "Praxis Precision Medicines, Inc.",
+    "sector": "Healthcare",
+    "text": "Analyst upside hit 143.6, nobody's doubting it.",
+    "score": 68,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "upside": 143.6,
+      "price": 300.65,
+      "priceTarget": 732.38,
+      "consensus": "StrongBuy",
+      "analysts": 13,
+      "sector": "Healthcare"
+    },
+    "image": "PRAX-2026-09-23T22-40-56-794Z.jpg"
+  },
+  {
     "id": "IRD-2026-09-23T18:51:57.572Z",
     "ts": "2026-09-23T18:51:57.572Z",
     "kind": "list",
