@@ -130,6 +130,31 @@ uses whatever is on `main`.
   default was, so the "~15% of the daily free pool" estimate elsewhere in this doc is now a
   floor, not a fresh measurement — worth watching after this ships.
 
+  **Rounded numbers, not raw TipRanks precision.** Posts used to read straight off the snapshot's
+  decimal fields verbatim — "143.6% upside dwarfs current 300.65 price", "Held Strong Buy for 6.3
+  days straight" — which reads like a machine copying a spreadsheet cell. The system prompt now
+  tells the writer to round every figure it is given (round HALF UP to the nearest whole number,
+  or keep one decimal where that reads better) before using it, and permits a leading "~" where an
+  approximation marker reads more naturally than a bare rounded number. `ci/post-score.mjs`'s
+  fabrication check (`unverifiedNumbers`/`vouchedBy`) was ALREADY tolerant of exactly these
+  transforms — round-half-up, truncate, and one-decimal rounding of a real fact, and nothing
+  looser (see that file's own comment for why a blanket percentage tolerance would be wrong: 1%
+  of 143.6 is wide enough to also verify 145, which must stay rejected) — so this is a prompt and
+  style-corpus change, not a loosening of the verifier. `ci/style-corpus.json`'s exemplars are all
+  rounded ("six days", "40%", "~144%"), never raw decimals.
+
+  **Lead with the number, cite the analysts, compare when you can — three more prompt rules from
+  a later review.** (4) The system prompt now tells the writer to OPEN on the figure itself — the
+  percentage, price, or count — rather than the company or a verb ("~15% upside, 25 analysts
+  covering" over "Microsoft held…"). (5) When an analyst count is available, the prompt prefers
+  it as social proof ("25 analysts agree") over a bare percentage, which reads more abstract. (12)
+  `ci/hooks.mjs`'s `surprise` and `record` hooks now compute `sectorMedianUpside` — the CURRENT
+  snapshot's median upside across the hook's own sector, attached only when the sector has at
+  least `MIN_SECTOR_PEERS` (3) eligible rows this run AND the name's own number clears
+  `MIN_COMPARISON_GAP` (10 points) from that median — so the writer can say a name is "double its
+  sector's median" instead of stating the number in isolation, without ever inventing a
+  comparison it was not actually handed.
+
   **Images are THREE separate steps, deliberately, not one blended function: text (above),
   photo, fusion.** `ci/post-image.mjs` generates the photo via Cloudflare Workers AI **Flux
   Schnell** (`@cf/black-forest-labs/flux-1-schnell`, 4 steps, ~43 neurons/image against the
@@ -165,13 +190,50 @@ uses whatever is on `main`.
   never appears in its own built prompt). The no-text/no-numbers/no-logos/no-watermark clauses
   all stay, and matter more than ever now that real text is about to be burned onto the photo.
 
-  **The sector descriptor is characterful, not taxonomic.** `descriptorFor()`'s map used to be a
-  category label ("technology systems" under Microsoft, "public markets" under Alphabet — flat,
-  and could describe almost anything). It is now a 2-4 word editorial caption per sector
-  ("powering the grid", "chasing the next cure", …). `General` — TipRanks' own unclassified
-  bucket, not an industry — got particular thought: rather than a punchier synonym for
-  "unclassified", "too big to label" names what usually actually lands in that bucket (a name
-  too large or diversified for one sector tag, which is exactly Alphabet's shape).
+  **Three further refinements to `buildImagePrompt()`, from a later round of review.** (1) TIGHT
+  CROPS: "close or medium-close" is now "extreme close-up", with an explicit "face and hands
+  both in frame" and "shallow depth of field" — the best image the old wording produced (a
+  scientist mid-pipette) was already this tight; the weakest was mid-distance, and the looser
+  wording left Flux room to pick the weaker option. (2) SCREENS, REDIRECTED: the old "no charts,
+  no graphs, no diagrams" clause — a pure negative, on a model with no `negative_prompt` field,
+  that had ALREADY been ignored once (a generated screen rendered chart-like marks anyway) — is
+  replaced with a POSITIVE instruction: if a screen or monitor appears in frame at all, it shows
+  only soft out-of-focus coloured light and bokeh, never legible marks. (3) COMMERCIAL CASTING,
+  per the user's explicit direction that the person be strikingly attractive: framed the way a
+  photo director actually briefs a shoot (well-groomed, styled, professionally lit, magazine/
+  advertising production values), never crudely, and purely additive — the deterministic
+  woman/man split, the high-key aesthetic, and every safety clause above are all unchanged.
+
+  **(9) `General` — TipRanks' unclassified bucket — never reaches Flux at all.** There is no
+  real job to depict for a catch-all sector, so any photo would be filler; `generateImage()`
+  skips the Cloudflare call entirely for this one sector (saving the ~43 neurons every time) and
+  renders a deterministic, palette-driven abstract mark instead (`renderAbstractMark()` — a
+  handful of soft circles in the app's own accent colours, seeded by ticker, rasterised locally
+  with the same `@resvg/resvg-js` this pipeline already depends on). `ci/post-compose.mjs` burns
+  the post's text onto it exactly like any other photo — it is a real image buffer, not a
+  second-class fallback.
+
+  **The descriptor is written by the model, per company — not mapped from the sector.**
+  `descriptorFor()`'s old map (a 2-4 word editorial caption per sector, "powering the grid",
+  "chasing the next cure", …) fixed the flat "technology systems"/"public markets" taxonomy
+  problem, but it is still one phrase per SECTOR, and `General` — TipRanks' own unclassified
+  bucket, not an industry — rendered "too big to label" under every General-sector name
+  including Alphabet: meaningless (the bucket says nothing about the business) and slightly
+  absurd under Google's parent company. `ci/company-descriptor.mjs`'s `describeCompany()` now
+  asks the SAME writer model one extra question per PUBLISHED post (never per candidate): given
+  the display name, sector, market cap, price, analyst coverage, AND the real prose description
+  `src/data/stocks.json` already carries per row (`row.desc` — populated for every row), write a
+  short, characterful 2-4 word identity line true to the actual business (for Alphabet, something
+  about search or advertising, never the sector bucket). `sanitizeDescriptor()` then validates the
+  response — no digits, `$`/`%`, the company's own ticker, or a performance/valuation word
+  (upside, buy, rating, undervalued, …), since this is an identity line under the name, not a
+  stat — and ANY failure (a network error, a malformed body, a descriptor that fails validation)
+  falls back deterministically to the OLD sector map, `descriptorFor()`, which survives
+  unchanged as exactly that: a fallback, not the primary path. Results are cached per ticker in
+  `src/data/company-descriptors.json` (committed by the same "Commit refreshed data" step below,
+  since it lives under `src/data/`) — a cache hit costs zero neurons and keeps a company's
+  descriptor consistent across posts, and a fallback is never cached, so the next run retries
+  the model instead of freezing in a bad answer.
 
   `generateImage()` never throws: any failure (missing credentials, a non-ok response, a
   malformed body, a thrown network error) returns `null`, and the post degrades to canvas art —
@@ -187,16 +249,27 @@ uses whatever is on `main`.
   **statement** — the post's own text, unmodified — large at the bottom. This inverts the old
   browser-overlay layout, which put the hook at the top.
 
-  **No plates.** Every text block used to sit on a semi-transparent white/black rectangle —
-  legible, but it read as a caption box pasted onto a photo rather than text on the photo
-  itself. There is no `<rect>` behind the text at all now: legibility comes entirely from the
-  type, via a `stroke` halo with `paint-order="stroke fill"` (resvg renders this correctly,
-  unlike a CSS text-shadow/blur filter, which it does not support). `haloStyle()` — the direct
-  replacement for the old `bandStyle()` — still samples the photo's real brightness/variance per
-  band (`sampleBrightness()`, unchanged): dark ink with a light halo is the default (the photos
-  are high-key by construction), a band that samples dark inverts to light ink with a dark halo,
-  and a busy (high-variance) band gets a thicker, more opaque halo instead of a stronger plate —
-  there is no plate left to lean on, so the halo alone has to do more work there.
+  **No solid plates — but a soft scrim, added back on review.** Every text block used to sit on
+  a semi-transparent white/black rectangle — legible, but a hard-edged box read as a caption
+  pasted onto a photo rather than text on the photo itself. Legibility still leans on the type
+  first: a `stroke` halo with `paint-order="stroke fill"` (resvg renders this correctly, unlike a
+  CSS text-shadow/blur filter, which it does not support). `haloStyle()` samples the photo's real
+  brightness/variance per band (`sampleBrightness()`): dark ink with a light halo is the default
+  (the photos are high-key by construction), a band that samples dark inverts to light ink with a
+  dark halo, and a busy (high-variance) band gets a thicker, more opaque halo. **(8)** On top of
+  that, `scrimDefs()` now adds a soft gradient — fully transparent around mid-height, tinted only
+  at the very top edge (behind the company/descriptor block) and the very bottom edge (behind the
+  statement), each tinted with the SAME colour the halo already chose for that band. Unlike the
+  old plate this is never a hard-edged rectangle and never covers the middle of the photo — it
+  only reinforces exactly where text already sits, on top of the halo, not instead of it.
+
+  **(7) Number-first typography.** `composePost()` splits the statement's LEAD figure (the first
+  number-shaped token, "~" and "%"/"$" riding along with it) from the words around it —
+  `extractFigure()` — and renders it markedly larger, tinted by direction (`detectDirection()`,
+  reading the statement's own up/down vocabulary): green for good news, red for bad, amber for a
+  number with no inherent direction (a Smart Score, an analyst count, a number of days). The
+  words sit smaller beneath it. A statement with no number at all (rare) falls back to the single
+  block layout unchanged.
 
   Approach: build an SVG with the photo as a base64 `<image>` plus `<text>` elements, then
   rasterise with **`@resvg/resvg-js`** to raw RGBA pixels and encode those as a JPEG with
