@@ -27,13 +27,22 @@
 // is both more accurate and no more code). A line that still doesn't fit within the line cap
 // shrinks the font size step-wise and re-wraps, until it fits or hits a floor.
 //
-// NO PLATES. This used to sit each text block on a semi-transparent white/black rectangle —
-// legible, but it reads as a caption box pasted onto a photo, not text on the photo. Legibility
-// now comes from the type itself: a `stroke` halo with `paint-order="stroke fill"` (a clean
-// outline resvg renders correctly, unlike a CSS text-shadow/blur filter, which it does not
-// support), sized and coloured by `haloStyle` below from the same per-band brightness sample
-// the old plate logic used. Never reintroduce a plate as the fix for a legibility complaint —
-// see haloStyle's own comment for the busy-photo case a stroke alone has to cover.
+// NO SOLID PLATES. This used to sit each text block on a semi-transparent white/black
+// rectangle — legible, but a hard-edged box reads as a caption pasted onto a photo, not text on
+// the photo. Legibility still leans on the type itself first: a `stroke` halo with
+// `paint-order="stroke fill"` (a clean outline resvg renders correctly, unlike a CSS
+// text-shadow/blur filter, which it does not support), sized and coloured by `haloStyle` below
+// from the same per-band brightness sample the old plate logic used.
+//
+// (8) BOTTOM (AND TOP) SCRIM — added on top of the halo, not instead of it, per review feedback
+// that a stroke alone was not always enough over a genuinely busy photograph. Unlike the old
+// plate, `scrimRect` below is a soft GRADIENT, not a hard-edged rectangle: fully transparent
+// around mid-height, easing up to a tinted edge only at the very top (for the company/descriptor
+// block) and the very bottom (for the statement) — the photo reads clearly through the middle of
+// the frame, and only darkens/lightens exactly where text actually sits. The tint direction
+// matches whichever ink colour `haloStyle` already chose for that band (light-on-dark or
+// dark-on-light), so the scrim always pushes contrast the same way the halo does, never against
+// it.
 //
 // OUTPUT IS JPEG, NOT PNG. resvg only rasterises to PNG or raw RGBA pixels (see
 // @resvg/resvg-js's RenderedImage) — there is no JPEG encoder in it, and this repo carries no
@@ -285,39 +294,133 @@ const textLines = (lines, { x, firstBaseline, lineHeight, fontFamily, fontWeight
     })
     .join("");
 
+// ------------------------------------------------ (7) number-first typography --
+
+/** The first number-shaped token in a statement, split out from the words around it so it can
+ *  be rendered markedly larger and tinted by direction (see `DIRECTION_COLOR` below) — "lead
+ *  with the number" (ci/generate-posts.mjs's system prompt) means that token is also usually the
+ *  literal first word, but this does not assume that: it finds the first one wherever it sits.
+ *  Includes an optional leading "~" (the approximation marker ci/post-score.mjs's rounding rule
+ *  explicitly allows through) and an optional trailing "%" as part of the figure, so "~144%"
+ *  moves as one unit, not three.
+ *
+ * @returns `{ figure: string|null, rest: string }` — `figure` is `null` when the statement has
+ *   no number at all (rare in practice: ci/post-score.mjs's own digit bonus makes a numberless
+ *   candidate unlikely to ever be `pickBest`'s winner), and `rest` is then the WHOLE statement
+ *   unchanged, so `composePost` below falls back to rendering it as a single block exactly the
+ *   way it did before this feature existed.
+ */
+const FIGURE_RE = /~?\$?\d[\d,]*(?:\.\d+)?%?/;
+export function extractFigure(statement) {
+  const s = String(statement ?? "").trim();
+  const m = s.match(FIGURE_RE);
+  if (!m) return { figure: null, rest: s };
+  const figure = m[0];
+  const rest = `${s.slice(0, m.index)} ${s.slice(m.index + figure.length)}`.replace(/\s+/g, " ").trim();
+  return { figure, rest };
+}
+
+/** Straight from src/index.css's :root — ci/ has no CSS pipeline to read the tokens from at
+ *  build time, so they are restated here literally, same reasoning as src/postArt.ts's own
+ *  canvas palette. Up is good news (green), down is bad news (red); anything with no inherent
+ *  direction of its own — a Smart Score, an analyst count, a price target, a number of days
+ *  held — is amber: present, worth noticing, but neither good nor bad by itself. */
+export const DIRECTION_COLOR = { up: "#17864f", down: "#c73a2b", neutral: "#b8860b" };
+
+const DOWN_WORD_RE =
+  /\b(down|dropped|drops?|dropping|fell|falls?|falling|lower|declin\w*|cut|slashed|slash(?:es|ing)?|halved?|sliced|below|bearish|sold|loss(?:es)?|shrin\w*|behind|trail(?:s|ing)?|worst|lowest)\b/i;
+const UP_WORD_RE =
+  /\b(up|upside|rais(?:e[ds]?|ing)|higher|climb\w*|rose|rising|bullish|gain(?:ed|s)?|beat|record|highest|clear(?:ed|s)?|doubled?|tripled?|ahead|leads?|leading|best)\b/i;
+
 /**
- * Fuse one photo + the post's text into a single JPEG — no plate, text sits directly on the
- * photo with a stroke halo for legibility (see the module header).
+ * A cheap, honest read of whether a statement's headline figure is good news, bad news, or
+ * neither — from the WORDS in the statement, since `composePost` never sees the hook's raw facts
+ * (only the final text; see the module header on why this fusion step, like the Flux prompt
+ * itself, stays blind to numbers it did not already vouch for). A negative sign directly on a
+ * number is decisive either way; short of that this looks for the same up/down vocabulary a
+ * reader would notice.
+ */
+export function detectDirection(statement) {
+  const s = String(statement ?? "");
+  if (/-\s*\$?\d/.test(s)) return "down";
+  if (DOWN_WORD_RE.test(s)) return "down";
+  if (UP_WORD_RE.test(s)) return "up";
+  return "neutral";
+}
+
+// -------------------------------------------------------------------- (8) scrim --
+
+/** A touch stronger over a busy (high-variance) band — the same "give it more to work with"
+ *  adjustment `haloStyle` already makes to the stroke halo. Never fully opaque: the photo must
+ *  still read clearly through the scrim, even at its own tinted edge. */
+const scrimOpacity = ({ stdev }) => (stdev >= 55 ? 0.6 : 0.4);
+
+/** Two soft linear-gradient rects, transparent around mid-height and easing up to a tinted edge
+ *  only at the very top (behind the company/descriptor block) and the very bottom (behind the
+ *  statement) — see the module header for why this is a gradient, not the old hard-edged plate.
+ *  Each edge is tinted with the SAME colour `haloStyle` already chose for that band's halo, so
+ *  the scrim always pushes contrast the same direction the halo does, never against it. */
+function scrimDefs({ width, height, topHalo, bottomHalo, topStats, bottomStats }) {
+  const topFadeY = height * 0.42;
+  const bottomFadeY = height * 0.58;
+  const topOpacity = scrimOpacity(topStats);
+  const bottomOpacity = scrimOpacity(bottomStats);
+  return (
+    `<defs>` +
+    `<linearGradient id="scrimTop" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0%" stop-color="${topHalo.haloColor}" stop-opacity="${topOpacity}"/>` +
+    `<stop offset="100%" stop-color="${topHalo.haloColor}" stop-opacity="0"/>` +
+    `</linearGradient>` +
+    `<linearGradient id="scrimBottom" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0%" stop-color="${bottomHalo.haloColor}" stop-opacity="0"/>` +
+    `<stop offset="100%" stop-color="${bottomHalo.haloColor}" stop-opacity="${bottomOpacity}"/>` +
+    `</linearGradient>` +
+    `</defs>` +
+    `<rect x="0" y="0" width="${width}" height="${topFadeY.toFixed(1)}" fill="url(#scrimTop)"/>` +
+    `<rect x="0" y="${bottomFadeY.toFixed(1)}" width="${width}" height="${(height - bottomFadeY).toFixed(1)}" fill="url(#scrimBottom)"/>`
+  );
+}
+
+/**
+ * Fuse one photo + the post's text into a single JPEG — text sits directly on the photo, a
+ * stroke halo plus a soft scrim gradient for legibility (see the module header).
  *
  * Layout, top to bottom (inverts the old browser-overlay layout, which put the hook at the
- * top): the COMPANY NAME large at the top, a two-to-four-word SECTOR DESCRIPTOR directly
- * beneath it at half the company-name size, and the STATEMENT (the post's own text) large at
- * the bottom.
+ * top): the COMPANY NAME large at the top, a two-to-four-word DESCRIPTOR directly beneath it at
+ * half the company-name size, and the STATEMENT (the post's own text) at the bottom — split (7)
+ * into its lead FIGURE, rendered markedly larger and tinted by direction, with the surrounding
+ * WORDS smaller beneath it (see `extractFigure`/`detectDirection` above). A statement with no
+ * number at all (rare) renders as a single block, exactly as it did before this feature existed.
  *
  * @param photo Buffer — the raw Flux JPEG (or any PNG/JPEG).
  * @param companyName the DISPLAY name — ci/hooks.mjs's `displayCompanyName(hook.name)`, with
  *   legal-entity/share-class cruft ("Inc.", "Class A", …) already stripped by the caller
  *   (ci/generate-posts.mjs). This module has no opinion on that, same as `statement` below —
  *   it just renders whatever string it is given.
- * @param sector hook.sec — used ONLY to look up `descriptorFor` (ci/post-image.mjs); no other
- *   fact reaches this module.
+ * @param sector hook.sec — used only as the FALLBACK for `descriptor` below (via `descriptorFor`,
+ *   ci/post-image.mjs) when no model-written descriptor is supplied; no other fact reaches this
+ *   module.
+ * @param descriptor optional — the LLM-written identity line (ci/company-descriptor.mjs), already
+ *   validated by the caller. Falls back to the old sector-mapped phrase (`descriptorFor(sector)`)
+ *   when omitted or empty, so every existing caller/test that never passes this keeps working
+ *   unchanged.
  * @param statement the post's own text (`best.text`) — this is the "hook", unmodified. The
  *   caller (ci/generate-posts.mjs) is responsible for making sure this does not repeat the
  *   company name — this module has no opinion on that, it just renders whatever it is given.
  * @returns `{ jpeg: Buffer, width: number, height: number, layout }` — `layout` is debug/test
- *   metadata (chosen font sizes and line counts), not needed by the one real caller
- *   (ci/generate-posts.mjs, which only reads `.jpeg`) but is what ci/test-post-compose.mjs
- *   verifies the "half the company-name size" and "cap the number of lines" rules against,
- *   rather than re-deriving them from raw pixels.
+ *   metadata (chosen font sizes, line counts, the split figure and its direction), not needed by
+ *   the one real caller (ci/generate-posts.mjs, which only reads `.jpeg`) but is what
+ *   ci/test-post-compose.mjs verifies the layout rules against, rather than re-deriving them
+ *   from raw pixels.
  */
-export function composePost({ photo, companyName, sector, statement }) {
+export function composePost({ photo, companyName, sector, descriptor, statement }) {
   const { width, height, mime } = imageDimensions(photo);
   const cx = width / 2;
   const marginX = width * 0.08;
   const maxTextWidth = width - marginX * 2;
 
   const name = String(companyName ?? "").trim() || "—";
-  const descriptor = descriptorFor(sector);
+  const desc = String(descriptor ?? "").trim() || descriptorFor(sector);
   const line = String(statement ?? "").trim();
 
   const nameFit = fitText(name, {
@@ -328,13 +431,29 @@ export function composePost({ photo, companyName, sector, statement }) {
   // fed through wrapText's own overflow guard as a defensive floor (a fixed 2-3 word
   // descriptor should never need it in practice).
   const descStart = Math.max(10, Math.round(nameFit.fontSize / 2));
-  const descFit = fitText(descriptor, {
+  const descFit = fitText(desc, {
     fontFamily: FONT_FAMILY_MEDIUM, fontWeight: "500", maxWidth: maxTextWidth, maxLines: 1,
     startSize: descStart, minSize: Math.max(8, Math.round(descStart * 0.6)), step: 1,
   });
-  const stmtFit = fitText(line, {
-    fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", maxWidth: maxTextWidth, maxLines: 4,
-    startSize: Math.round(height * 0.085), minSize: Math.round(height * 0.035), step: 2,
+
+  // (7) NUMBER-FIRST TYPOGRAPHY — split the statement into its lead figure (rendered large and
+  // tinted by direction) and the words around it (smaller, beneath). A numberless statement
+  // (figure === null) falls back to the old single-block rendering untouched.
+  const { figure, rest } = extractFigure(line);
+  const direction = detectDirection(line);
+  const directionColor = DIRECTION_COLOR[direction];
+  const figureFit = figure
+    ? fitText(figure, {
+        fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", maxWidth: maxTextWidth, maxLines: 1,
+        startSize: Math.round(height * 0.16), minSize: Math.round(height * 0.07), step: 2,
+      })
+    : null;
+  const restFit = fitText(figure ? rest : line, {
+    fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", maxWidth: maxTextWidth,
+    maxLines: figure ? 3 : 4,
+    startSize: Math.round(height * (figure ? 0.06 : 0.085)),
+    minSize: Math.round(height * (figure ? 0.032 : 0.035)),
+    step: 2,
   });
 
   const stats = sampleBrightness(photo, { top: { y0: 0, y1: 0.42 }, bottom: { y0: 0.6, y1: 1 } });
@@ -351,19 +470,27 @@ export function composePost({ photo, companyName, sector, statement }) {
   const nameFirstBaseline = topPad + nameFit.fontSize * 0.86;
   const descFirstBaseline = topPad + nameBlockHeight + nameDescGap + descFit.fontSize * 0.86;
 
-  // --- bottom block: the statement, bottom-anchored ---
+  // --- bottom block: the (optional) figure, then the rest of the statement, bottom-anchored ---
   const bottomPad = height * 0.07;
-  const stmtLineHeight = stmtFit.fontSize * 1.2;
-  const stmtBlockHeight = stmtFit.lines.length * stmtLineHeight;
-  const stmtBlockTop = height - bottomPad - stmtBlockHeight;
-  const stmtFirstBaseline = stmtBlockTop + stmtFit.fontSize * 0.86;
+  const figureLineHeight = figureFit ? figureFit.fontSize * 1.15 : 0;
+  const figureBlockHeight = figureFit ? figureFit.lines.length * figureLineHeight : 0;
+  const figureRestGap = figureFit && restFit.lines.length ? figureFit.fontSize * 0.22 : 0;
+  const restLineHeight = restFit.fontSize * 1.2;
+  const restBlockHeight = restFit.lines.length * restLineHeight;
+  const bottomBlockHeight = figureBlockHeight + figureRestGap + restBlockHeight;
+  const bottomBlockTop = height - bottomPad - bottomBlockHeight;
+
+  const figureFirstBaseline = bottomBlockTop + (figureFit ? figureFit.fontSize * 0.86 : 0);
+  const restFirstBaseline = bottomBlockTop + figureBlockHeight + figureRestGap + restFit.fontSize * 0.86;
 
   const b64 = photo.toString("base64");
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
     <image x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" href="data:${mime};base64,${b64}"/>
+    ${scrimDefs({ width, height, topHalo, bottomHalo, topStats: stats.top, bottomStats: stats.bottom })}
     ${textLines(nameFit.lines, { x: cx, firstBaseline: nameFirstBaseline, lineHeight: nameLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: nameFit.fontSize, fill: topHalo.textFill, halo: topHalo })}
     ${textLines(descFit.lines, { x: cx, firstBaseline: descFirstBaseline, lineHeight: descLineHeight, fontFamily: FONT_FAMILY_MEDIUM, fontWeight: "500", fontSize: descFit.fontSize, fill: topHalo.textFill, halo: topHalo })}
-    ${textLines(stmtFit.lines, { x: cx, firstBaseline: stmtFirstBaseline, lineHeight: stmtLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: stmtFit.fontSize, fill: bottomHalo.textFill, halo: bottomHalo })}
+    ${figureFit ? textLines(figureFit.lines, { x: cx, firstBaseline: figureFirstBaseline, lineHeight: figureLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: figureFit.fontSize, fill: directionColor, halo: bottomHalo }) : ""}
+    ${textLines(restFit.lines, { x: cx, firstBaseline: restFirstBaseline, lineHeight: restLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: restFit.fontSize, fill: bottomHalo.textFill, halo: bottomHalo })}
   </svg>`;
 
   const resvg = new Resvg(svg, { font: { loadSystemFonts: false, fontFiles: FONT_FILES } });
@@ -376,7 +503,11 @@ export function composePost({ photo, companyName, sector, statement }) {
     layout: {
       nameFontSize: nameFit.fontSize, nameLines: nameFit.lines.length,
       descriptorFontSize: descFit.fontSize, descriptorLines: descFit.lines.length,
-      statementFontSize: stmtFit.fontSize, statementLines: stmtFit.lines.length,
+      statementFontSize: restFit.fontSize,
+      statementLines: (figureFit ? figureFit.lines.length : 0) + restFit.lines.length,
+      figureFontSize: figureFit ? figureFit.fontSize : null,
+      figureText: figure,
+      direction,
       maxTextWidth,
     },
   };

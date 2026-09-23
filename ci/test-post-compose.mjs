@@ -4,9 +4,11 @@
 // font files checked into ci/fonts/ — there is nothing here that needs a fake.
 
 import assert from "node:assert";
+import { readFileSync } from "node:fs";
 import { Resvg } from "@resvg/resvg-js";
 import {
   imageDimensions, measureTextWidth, wrapText, fitText, sampleBrightness, composePost,
+  extractFigure, detectDirection, DIRECTION_COLOR,
 } from "./post-compose.mjs";
 
 const solidPhoto = (w, h, hex) =>
@@ -231,7 +233,108 @@ assert.throws(() => imageDimensions(Buffer.from("not an image, just text")),
     "a tiny JPEG fixture's dimensions feed composePost's canvas sizing");
 }
 
+// ================================================================ (7) extractFigure ==========
+{
+  assert.deepEqual(extractFigure("42% upside on 25 analysts."), { figure: "42%", rest: "upside on 25 analysts." },
+    "the lead figure (with its % sign) splits cleanly from the words after it");
+  assert.deepEqual(extractFigure("Street target: $310 today."), { figure: "$310", rest: "Street target: today." },
+    "a dollar figure keeps its $ sign as part of the figure");
+  assert.deepEqual(extractFigure("~144% upside on the name."), { figure: "~144%", rest: "upside on the name." },
+    "an approximation marker (~) rides along with its number as one unit");
+  assert.deepEqual(extractFigure("Held Strong Buy for 6 days straight."),
+    { figure: "6", rest: "Held Strong Buy for days straight." },
+    "a bare integer is still a valid figure");
+  assert.deepEqual(extractFigure("Quant loves it. The AI model doesn't."),
+    { figure: null, rest: "Quant loves it. The AI model doesn't." },
+    "a numberless statement yields a null figure and the statement unchanged");
+  assert.deepEqual(extractFigure(""), { figure: null, rest: "" }, "empty input never throws");
+  // Only the FIRST number is pulled out — a later one (an analyst count, say) stays put in `rest`.
+  assert.deepEqual(extractFigure("38% upside on 25 analysts."), { figure: "38%", rest: "upside on 25 analysts." },
+    "only the first number-shaped token is extracted, not every one in the sentence");
+}
+
+// =============================================================== (7) detectDirection =========
+{
+  assert.equal(Object.keys(DIRECTION_COLOR).sort().join(","), "down,neutral,up",
+    "exactly the three directions the spec calls for");
+  for (const hex of Object.values(DIRECTION_COLOR)) assert.ok(/^#[0-9a-f]{6}$/i.test(hex), `${hex} is a real hex colour`);
+
+  assert.equal(detectDirection("42% upside on 25 analysts."), "up", "\"upside\" reads as up");
+  assert.equal(detectDirection("Smart Score dropped from 9 to 5."), "down", "\"dropped\" reads as down");
+  assert.equal(detectDirection("Held Strong Buy for 6 days straight."), "neutral",
+    "no directional vocabulary at all reads as neutral");
+  assert.equal(detectDirection("Down 12% from the sector median."), "down", "\"down\" itself reads as down");
+  assert.equal(detectDirection("Street raised its target by 18%."), "up", "\"raised\" reads as up");
+  assert.equal(detectDirection("Price target cut to $210 from $250."), "down", "\"cut\" reads as down");
+  assert.equal(detectDirection("Trading at -5% against the sector."), "down",
+    "a literal negative sign directly on a number is decisive for down");
+}
+
+// ============================================== (7) number-first typography, end to end =======
+{
+  const photo = solidPhoto(1024, 1024, "#f4f6f8");
+  const out = composePost({
+    photo, companyName: "Nvidia", sector: "Technology", statement: "42% upside on 25 analysts.",
+  });
+  assert.equal(out.layout.figureText, "42%", "the layout reports which figure was split out");
+  assert.equal(out.layout.direction, "up", "and the direction it was tinted");
+  assert.ok(Number.isFinite(out.layout.figureFontSize) && out.layout.figureFontSize > out.layout.statementFontSize,
+    "the figure renders MARKEDLY larger than the surrounding words, per the spec");
+}
+{
+  // A numberless statement (rare, but must not crash) falls back to the old single-block path —
+  // no figure at all, and the words alone still compose successfully.
+  const photo = solidPhoto(1024, 1024, "#f4f6f8");
+  const out = composePost({
+    photo, companyName: "Astera Labs", sector: "Technology", statement: "Quant loves it, AI model doesn't.",
+  });
+  assert.equal(out.layout.figureText, null, "no figure to split out of a numberless statement");
+  assert.equal(out.layout.figureFontSize, null, "so there is no separate figure font size either");
+  assert.ok(Buffer.isBuffer(out.jpeg) && out.jpeg.length > 0, "and it still composes successfully");
+}
+
+// ==================================================== (2) the descriptor param overrides sector =
+{
+  const photo = solidPhoto(1024, 1024, "#f4f6f8");
+  const withDescriptor = composePost({
+    photo, companyName: "Alphabet", sector: "General", statement: "42% upside on 25 analysts.",
+    descriptor: "mapping the world's information",
+  });
+  const withoutDescriptor = composePost({
+    photo, companyName: "Alphabet", sector: "General", statement: "42% upside on 25 analysts.",
+  });
+  assert.ok(Buffer.isBuffer(withDescriptor.jpeg) && withDescriptor.jpeg.length > 0,
+    "a supplied descriptor composes successfully");
+  // Both still render (same photo, same statement) — the descriptor text itself is only visible
+  // in pixels, so this exercises the wiring (no throw, real bytes out) rather than re-deriving
+  // rendered glyphs; ci/test-generate-posts.mjs's source-level check pins that generate-posts.mjs
+  // actually WIRES the model-written descriptor into this parameter.
+  assert.ok(Buffer.isBuffer(withoutDescriptor.jpeg) && withoutDescriptor.jpeg.length > 0,
+    "omitting the descriptor still falls back to the sector map and composes successfully");
+}
+
+// ========================================================================= (8) the scrim ======
+// The scrim is a soft gradient (no fixed test hook for pixel-level verification without a JPEG
+// decoder — see the imageDimensions/JPEG comments above), so this pins its EXISTENCE and shape
+// in the source directly, the same static-check style ci/test-generate-posts.mjs already uses
+// for a cross-cutting invariant that isn't otherwise independently observable.
+{
+  const src = readFileSync(new URL("./post-compose.mjs", import.meta.url), "utf8");
+  assert.ok(/linearGradient/.test(src), "the SVG defines a gradient for the scrim, not a hard-edged plate");
+  assert.ok(/scrimTop/.test(src) && /scrimBottom/.test(src), "both a top and a bottom scrim are wired in");
+  assert.ok(/stop-opacity="0"/.test(src), "the gradient fades to fully transparent at one end");
+}
+{
+  // The scrim must not break composition on any of the brightness paths already exercised above.
+  for (const photo of [solidPhoto(600, 800, "#ffffff"), solidPhoto(600, 800, "#0a0a0c"), noisyPhoto(600, 800)]) {
+    const out = composePost({ photo, companyName: "Alpha Inc", sector: "Technology", statement: "42% upside on 25 analysts." });
+    assert.ok(Buffer.isBuffer(out.jpeg) && out.jpeg.length > 0, "composition with the scrim succeeds on every brightness profile");
+  }
+}
+
 console.log("post-compose OK — image header parsing (PNG+JPEG), real-font text measurement, " +
             "word-wrap (including the lone-overlong-word trap), stepwise font shrinking, " +
-            "brightness/contrast sampling, and end-to-end composition at square and non-square " +
-            "sizes with long names/statements and bright/dark/busy photos");
+            "brightness/contrast sampling, end-to-end composition at square and non-square sizes " +
+            "with long names/statements and bright/dark/busy photos, number-first typography " +
+            "(figure split + direction tint), the descriptor param overriding the sector " +
+            "fallback, and the bottom/top scrim gradient");
