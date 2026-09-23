@@ -47,14 +47,19 @@ body::before{
 .kicker{font-size:11px; letter-spacing:.28em; text-transform:uppercase; color:var(--gold); font-weight:700}
 .kicker .dot{color:var(--faint); margin:0 .5em}
 /* Pinned while the feed (or the Stocks table, Best-of-Best, New Arrivals, Watchlist — every
-   section shares this one <header>) scrolls beneath it. `top` respects the iOS safe-area
+   section shares this one <header>) scrolls beneath it, on the feed only. `top` respects the iOS safe-area
    inset so it doesn't sit under the notch/status bar; `background` + `z-index` make it an
    opaque plate that cards/rows scroll UNDER rather than through — z-index:20 clears the
    table's own sticky `thead th` (z-index:3) and the search/multiselect dropdowns (20/30) can
    still pop out above it, while staying well under any modal (40+). */
-.sitehead{position:sticky; top:env(safe-area-inset-top, 0px); z-index:20; background:var(--bg);
-  display:flex; align-items:center; justify-content:space-between; gap:16px;
+.sitehead{display:flex; align-items:center; justify-content:space-between; gap:16px;
   padding:6px 0 16px; margin-bottom:20px; border-bottom:1px solid var(--line)}
+/* Sticky ONLY on the feed. The feed is a long scroll of full-bleed cards where the
+   wordmark is the only thing anchoring you; the table sections have their own sticky
+   `thead` and a second pinned bar above it just eats vertical room. App.tsx adds
+   .sitehead--stuck when nav === "feed". */
+.sitehead--stuck{position:sticky; top:env(safe-area-inset-top, 0px); z-index:20;
+  background:var(--bg)}
 .sitehead #title{margin:0}
 /* ticker search — header icon that expands inline into a compact panel.
    (root class is hdr-search, NOT .search, to avoid the Toolbar .search field styles) */

@@ -350,7 +350,7 @@ export default function App() {
 
   return (
     <div className="wrap">
-      <header className="sitehead">
+      <header className={`sitehead${nav === "feed" ? " sitehead--stuck" : ""}`}>
         <h1 id="title">Market <span className="em">Pulse</span></h1>
         <div className="site-right">
           <FearGreedGauge open={panel === "feargreed"} onOpenChange={setPanelOpen} />
