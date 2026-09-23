@@ -1,5 +1,30 @@
 [
   {
+    "id": "XENE-2026-09-23T02:35:42.696Z",
+    "ts": "2026-09-23T02:35:42.696Z",
+    "kind": "record",
+    "ticker": "XENE",
+    "name": "Xenon Pharmaceuticals",
+    "sector": "Healthcare",
+    "text": "Xenon Pharmaceuticals (XENE) at 38.99. High reading of 80.3% upside in 4.8 days, from 22.4.",
+    "score": 86,
+    "reasons": [
+      "12 digits of concrete detail",
+      "names XENE",
+      "length in band"
+    ],
+    "facts": {
+      "upside": 80.3,
+      "windowLow": 22.4,
+      "windowHigh": 80.3,
+      "snapshots": 23,
+      "days": 4.8,
+      "price": 38.99,
+      "priceTarget": 70.3,
+      "analysts": 14
+    }
+  },
+  {
     "id": "IRD-2026-09-22T22:39:35.550Z",
     "ts": "2026-09-22T22:39:35.550Z",
     "kind": "list",
