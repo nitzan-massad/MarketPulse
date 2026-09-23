@@ -46,7 +46,7 @@ uses whatever is on `main`.
   `ci/generate-posts.mjs` used to render `hook.facts` as literal `- key: value` lines, and a
   published post once read "Alphabet Inc. smartScore: 10, unchanged for 30 snapshots." because
   the model copied the raw JS field name back verbatim. `FACT_LABELS`/`humanizeFactKey()` map
-  every key any of the nine hook kinds emits to a plain-English label (`smartScoreFrom` ->
+  every key any of the seven hook kinds emits to a plain-English label (`smartScoreFrom` ->
   "Smart Score before", `windowLow` -> "Lowest in the window", …) — deliberately at the prompt
   boundary, not in `ci/hooks.mjs` itself, since `supportLine`-era consumers and `ci/test-hooks.mjs`
   depend on the current field names.
@@ -78,15 +78,57 @@ uses whatever is on `main`.
   `MISDESCRIBED_MOVEMENT_PENALTY` (100) treatment `TICKER_PENALTY` gets — decisive, but a lesser
   sin than an outright fabricated number. Bold framing of a true fact is the goal; a verb that
   misdescribes what the number MEANS is not, and the fabrication verifier alone cannot catch it
-  (it only checks that numbers are real, not what a verb claims about them).
+  (it only checks that numbers are real, not what a verb claims about them). `catapulted` and an
+  unqualified `overnight` claim get the same decisive treatment now too — both reached a live
+  post before they were added (see below).
 
-  **The window is why the checkout is not shallow.** Five of the nine hook kinds — `record`,
-  `trend`, `steady`, `churn`, `newcomer` — refuse to fire below `MIN_WINDOW` (10) snapshots,
-  because a "30-run high" off four readings is not a fact. A default `actions/checkout@v4`
-  clones at `fetch-depth: 1`, so `git log` returns exactly ONE sha and exits 0: the window
-  collapses to 2 and those five kinds go silently dead in the only environment that runs them.
-  `site.yml` therefore pins `fetch-depth: 0`, and `loadWindow()` prints a WARNING naming the
-  count when the window comes back under `MIN_WINDOW`. **Do not make the checkout shallow.**
+  **A Smart Score change alone is not a post — `trend` and `churn` are deleted, and `movement`
+  no longer fires on one.** TipRanks' Smart Score is a 1-10 quant rating; a post whose entire
+  story is that rating moving is weak content on its own, and it also invited misleading copy —
+  a live post read "Smart Score catapulted from 7 to 10 overnight" for a hook whose real window
+  was 6.3 days. `trend` (net Smart Score drift across the window) and `churn` (how many distinct
+  scores it showed) had no other story to tell, so both are gone from `ci/hooks.mjs` outright —
+  not damped, deleted, tests and all. `movement` survives, but its firing condition dropped the
+  `|Math.abs(dSs) >= 2|` branch: only a real upside change or a consensus flip trips it now, and
+  a Smart Score delta is written into its `facts` LAST, only when it actually changed, never
+  restated when unchanged. `steady` (held a top score for the whole window) survives on purpose
+  even though it is also Smart-Score-only content: it is not about a *change* (it fires on the
+  absence of one), and "this name has not wavered all week" reads as a different, more
+  interesting claim than "the number moved". `contrarian` (Smart Score vs. AI Score) is
+  unaffected either way — that hook is a disagreement between two models, not a change in one.
+
+  **The window is why the checkout is not shallow.** Three of the seven hook kinds — `record`,
+  `steady`, `newcomer` — refuse to fire below `MIN_WINDOW` (10) snapshots, because a "30-run
+  high" off four readings is not a fact. A default `actions/checkout@v4` clones at
+  `fetch-depth: 1`, so `git log` returns exactly ONE sha and exits 0: the window collapses to 2
+  and those three kinds go silently dead in the only environment that runs them. `site.yml`
+  therefore pins `fetch-depth: 0`, and `loadWindow()` prints a WARNING naming the count when the
+  window comes back under `MIN_WINDOW`. **Do not make the checkout shallow.**
+
+  **The displayed company name strips legal-entity and share-class cruft.** A composed card
+  once printed "Applied Materials, Inc." and, on another run, "Alphabet Inc. Class A" — the
+  full legal name straight out of `src/data/stocks.json`. `ci/hooks.mjs`'s
+  `displayCompanyName()` strips `", Inc."`, `Corp`/`Corporation`, `Co.`/`Company`, `Ltd`/
+  `Limited`, `plc`, `N.V.`/`S.A.`/`AG`, `Holdings`/`Group`, `Class A`/`B`/`C`, and `& Co.`/`and
+  Company` — ONLY from the end of the name, looped so a chained tail fully resolves ("Rani
+  Therapeutics Holdings, Inc. Class A" -> "Rani Therapeutics"), and never returns an empty
+  string. It is a SEPARATE, more aggressive function than `shortCompanyName()` (used by
+  de-tickering, above): that one deliberately keeps "Holdings"/"Group" because they can be
+  load-bearing brand identity inside a `list` post's `members` string; this one is for the one
+  line a human actually sees — the big name on the composed image and the name given to the
+  writer model in the prompt — where a punchier name is exactly what is wanted. The underlying
+  `name` field on the post record, and everything in `ci/hooks.mjs`'s hook facts, is untouched;
+  this is a display concern only.
+
+  **The writer model is `@cf/meta/llama-3.3-70b-instruct-fp8-fast` by default, not an 8B
+  model.** An 8B model writing an 8-word headline has a low ceiling on wit, which was the root
+  cause of flat, repetitive copy. `CF_MODEL` still overrides the default either way. The style
+  corpus (`ci/style-corpus.json`) — the few-shot exemplars a model imitates far more than it
+  follows the system prompt's rules — was rewritten alongside this to be punchier and to drop
+  its one `churn`-flavoured line ("Four different Smart Scores in one week."), since that kind
+  no longer exists. A bigger model is billed more Workers AI neurons per token than the 8B
+  default was, so the "~15% of the daily free pool" estimate elsewhere in this doc is now a
+  floor, not a fresh measurement — worth watching after this ships.
 
   **Images are THREE separate steps, deliberately, not one blended function: text (above),
   photo, fusion.** `ci/post-image.mjs` generates the photo via Cloudflare Workers AI **Flux
@@ -214,9 +256,11 @@ uses whatever is on `main`.
   **Knobs** (env in `.github/workflows/site.yml`): `POSTS_PER_RUN` (default 1), `POST_CANDIDATES`
   (default 5), `POST_WINDOW` (default 30 — snapshots pulled from git history), `POSTS_KEEP`
   (default 200), `POST_PROVIDER` (`cloudflare` free-tier default, `anthropic` for quality,
-  `stub` for offline runs), `POSTS_ENABLED` (set `false` to stop writing posts), `POST_IMAGES`
-  (default `"true"`; set `"false"` to skip Flux generation and always ship canvas art).
-  Secrets: `CF_ACCOUNT_ID`, `CF_API_TOKEN` (shared with the text provider — no new secret).
+  `stub` for offline runs), `CF_MODEL` (default `@cf/meta/llama-3.3-70b-instruct-fp8-fast`;
+  overrides which Workers AI model writes the copy), `POSTS_ENABLED` (set `false` to stop
+  writing posts), `POST_IMAGES` (default `"true"`; set `"false"` to skip Flux generation and
+  always ship canvas art). Secrets: `CF_ACCOUNT_ID`, `CF_API_TOKEN` (shared with the text
+  provider — no new secret).
 
 `scripts/refresh-data.mjs` is the **local** manual equivalent (uses Playwright instead of
 FlareSolverr) — a dev tool, not part of CI.
