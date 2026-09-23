@@ -13,14 +13,15 @@ export type Post = {
   score: number;
   reasons: string[];
   facts: Record<string, string | number | boolean>;
-  /** Filename only (e.g. "ALAB-2026-09-22T14-35-30-122Z.png"), never a path — set by
+  /** Filename only (e.g. "ALAB-2026-09-22T14-35-30-122Z.jpg"), never a path — set by
    *  ci/generate-posts.mjs when the photo (ci/post-image.mjs) AND the fusion step
    *  (ci/post-compose.mjs, which burns `text` into the photo's pixels) both succeed, absent
-   *  otherwise. This is a PNG, not the raw Flux JPEG — the post's words are already part of
-   *  the pixels, which is the whole point (the file can be posted elsewhere and the text
-   *  travels with it). The filename is already sanitised at write time
-   *  (ci/post-image.mjs's postImageFilename), so nothing here re-derives it from `id` — see
-   *  PostArt below. */
+   *  otherwise. This is a JPEG (ci/jpeg-encode.mjs), not the raw Flux photo verbatim — the
+   *  post's words are already part of the pixels, which is the whole point (the file can be
+   *  posted elsewhere and the text travels with it); JPEG rather than PNG keeps a card in the
+   *  tens/low-hundreds of KB instead of ~900KB, which matters at POSTS_KEEP's scale. The
+   *  filename is already sanitised at write time (ci/post-image.mjs's postImageFilename), so
+   *  nothing here re-derives it from `id` — see PostArt below. */
   image?: string;
 };
 

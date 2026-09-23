@@ -42,11 +42,43 @@ uses whatever is on `main`.
   first, `POSTS_KEEP` max). `continue-on-error` like the other scrapes. Publishing nothing is a
   valid outcome — a skipped run beats a bad post.
 
+  **Fact keys are HUMANISED before they ever reach the prompt.** `buildPrompt()` in
+  `ci/generate-posts.mjs` used to render `hook.facts` as literal `- key: value` lines, and a
+  published post once read "Alphabet Inc. smartScore: 10, unchanged for 30 snapshots." because
+  the model copied the raw JS field name back verbatim. `FACT_LABELS`/`humanizeFactKey()` map
+  every key any of the nine hook kinds emits to a plain-English label (`smartScoreFrom` ->
+  "Smart Score before", `windowLow` -> "Lowest in the window", …) — deliberately at the prompt
+  boundary, not in `ci/hooks.mjs` itself, since `supportLine`-era consumers and `ci/test-hooks.mjs`
+  depend on the current field names.
+
+  **The company name is not required in the statement any more, and the model is told so.**
+  The composed card (below) already prints the company name large above the statement — a
+  candidate repeating it too ("Astera Labs, Inc." on the card, "Astera Labs upside halved…" as
+  the statement) is a published redundancy, not a stylistic quirk. The system prompt in
+  `buildPrompt()` now says the name is already on the card and must not be repeated, and
+  `ci/post-score.mjs`'s old +10 "names the company" / -20 "does not name it" pair is gone —
+  naming the company is now scored neutrally either way. A TICKER is still a hard, decisive
+  rejection regardless (see below); removing the naming requirement never means removing the
+  requirement for concrete numbers, which is what actually keeps a nameless-AND-contextless
+  candidate from scoring well (the no-digits penalty alone, -35, is sized to beat the length
+  band's own best-case bonus on its own).
+
   **The ticker penalty is decisive.** `TICKER_PENALTY` (100) in `ci/post-score.mjs` is sized
   the same way `FABRICATION_PENALTY` is: a candidate naming a ticker instead of the company
   must land below `MIN_PUBLISHABLE` regardless of what else it earns (digits, length band,
   even a correct name mention elsewhere in the same sentence) — it used to be a plain -20
   nudge, which is exactly how "IRD soared 151.7%…" cleared the floor at 56 in the first place.
+
+  **A misdescribed movement verb is rejected just as hard, even with real numbers.** The same
+  published line was wrong twice over: "soared" claimed a PRICE move, but 151.7% was analyst
+  upside-to-target, not a thing that had happened to the stock. The system prompt now bans
+  soared/plunged/rocketed/crashed/jumped/surged/spiked/tanked (and close synonyms) whenever the
+  number they touch is a target/score/forecast/rating rather than a realized price change, and
+  `ci/post-score.mjs`'s `misdescribedMovementVerbs()` backs it with the same
+  `MISDESCRIBED_MOVEMENT_PENALTY` (100) treatment `TICKER_PENALTY` gets — decisive, but a lesser
+  sin than an outright fabricated number. Bold framing of a true fact is the goal; a verb that
+  misdescribes what the number MEANS is not, and the fabrication verifier alone cannot catch it
+  (it only checks that numbers are real, not what a verb claims about them).
 
   **The window is why the checkout is not shallow.** Five of the nine hook kinds — `record`,
   `trend`, `steady`, `churn`, `newcomer` — refuse to fire below `MIN_WINDOW` (10) snapshots,
@@ -73,34 +105,71 @@ uses whatever is on `main`.
   a wrong price, a wrong date — baked as pixels into a picture that sits next to a real public
   company's name.
 
-  **Every photo now shows one or more people doing the company's actual work** — a scientist at
-  a lab bench, an engineer on a solar array, a technician at a fab — inverted from the old "no
-  people, no faces, no hands, no silhouettes" clause. **Roughly 90% of the time the person is a
-  woman**, chosen deterministically (not by chance) from an FNV-1a hash of the post's ticker, so
-  a given post always renders the same person; about one in ten seeds resolve to "a man". The
-  ticker is used for EXACTLY this one coin flip and is never concatenated into the prompt text
-  itself (`ci/test-post-image.mjs` asserts the ticker string never appears in its own built
-  prompt). The no-text/no-numbers/no-logos/no-watermark clauses all stay, and matter more than
-  ever now that real text is about to be burned onto the photo.
+  **Every photo now shows one or more people doing the company's actual work, close and large in
+  frame** — a scientist pipetting a sample mid-motion, an engineer soldering a circuit board,
+  hands and work filling most of the composition — inverted from the old "no people, no faces,
+  no hands, no silhouettes" clause, and rewritten a second time from a set of safe-but-small,
+  mid-distance, often-posed scenes toward close/medium-close shots caught mid-action, because
+  small and static was the complaint (`SECTOR_ROLE` in `ci/post-image.mjs`). Scenes that would
+  have a natural reason to carry signage (a "wall of glowing display panels" for Technology, a
+  studio "wall of softly glowing screens" for CommunicationServices) were rewritten to drop the
+  screens entirely: Flux exposes no `negative_prompt`, so the no-numbers instruction cannot be
+  enforced, and a generated screen wall has produced chart-like numeric marks before — a scene
+  with nothing screen-shaped in it is simply less likely to invent one. **Roughly 90% of the
+  time the person is a woman**, chosen deterministically (not by chance) from an FNV-1a hash of
+  the post's ticker, so a given post always renders the same person; about one in ten seeds
+  resolve to "a man". The ticker is used for EXACTLY this one coin flip and is never
+  concatenated into the prompt text itself (`ci/test-post-image.mjs` asserts the ticker string
+  never appears in its own built prompt). The no-text/no-numbers/no-logos/no-watermark clauses
+  all stay, and matter more than ever now that real text is about to be burned onto the photo.
+
+  **The sector descriptor is characterful, not taxonomic.** `descriptorFor()`'s map used to be a
+  category label ("technology systems" under Microsoft, "public markets" under Alphabet — flat,
+  and could describe almost anything). It is now a 2-4 word editorial caption per sector
+  ("powering the grid", "chasing the next cure", …). `General` — TipRanks' own unclassified
+  bucket, not an industry — got particular thought: rather than a punchier synonym for
+  "unclassified", "too big to label" names what usually actually lands in that bucket (a name
+  too large or diversified for one sector tag, which is exactly Alphabet's shape).
 
   `generateImage()` never throws: any failure (missing credentials, a non-ok response, a
   malformed body, a thrown network error) returns `null`, and the post degrades to canvas art —
   same as always.
 
   **Fusion — `ci/post-compose.mjs`.** This is the module that makes the photo postable outside
-  this app: it burns the post's own text into the photo's pixels as ONE PNG, so the words
+  this app: it burns the post's own text into the photo's pixels as ONE JPEG, so the words
   travel with the file wherever it goes (X, Instagram, anywhere). The browser no longer overlays
   any text (see `src/components/PostFeed.tsx` / `src/index.css`) — what ships in
   `public/post-images/` is the whole card. Layout, top to bottom: the **company name** large at
-  the top; a **two-to-three-word sector descriptor** (a small map alongside `SECTOR_PHRASE` in
-  `ci/post-image.mjs`, e.g. "energy exploration") directly beneath it at **exactly half** the
-  company-name font size; the **statement** — the post's own text, unmodified — large at the
-  bottom. This inverts the old browser-overlay layout, which put the hook at the top.
+  the top; a **2-to-4-word sector descriptor** (`SECTOR_DESCRIPTOR` in `ci/post-image.mjs`, e.g.
+  "powering the grid") directly beneath it at **exactly half** the company-name font size; the
+  **statement** — the post's own text, unmodified — large at the bottom. This inverts the old
+  browser-overlay layout, which put the hook at the top.
+
+  **No plates.** Every text block used to sit on a semi-transparent white/black rectangle —
+  legible, but it read as a caption box pasted onto a photo rather than text on the photo
+  itself. There is no `<rect>` behind the text at all now: legibility comes entirely from the
+  type, via a `stroke` halo with `paint-order="stroke fill"` (resvg renders this correctly,
+  unlike a CSS text-shadow/blur filter, which it does not support). `haloStyle()` — the direct
+  replacement for the old `bandStyle()` — still samples the photo's real brightness/variance per
+  band (`sampleBrightness()`, unchanged): dark ink with a light halo is the default (the photos
+  are high-key by construction), a band that samples dark inverts to light ink with a dark halo,
+  and a busy (high-variance) band gets a thicker, more opaque halo instead of a stronger plate —
+  there is no plate left to lean on, so the halo alone has to do more work there.
 
   Approach: build an SVG with the photo as a base64 `<image>` plus `<text>` elements, then
-  rasterise with **`@resvg/resvg-js`** to PNG. **This is the one deliberate, user-approved
-  exception to this pipeline's zero-dependency rule** — Node has no built-in font engine, and
-  rasterising real text needs one. Two Inter weights (Bold for the two big headline blocks,
+  rasterise with **`@resvg/resvg-js`** to raw RGBA pixels and encode those as a JPEG with
+  **`ci/jpeg-encode.mjs`** — a from-scratch baseline (non-progressive) JPEG encoder over the
+  standard ITU-T.81 Huffman/quantisation tables, written rather than adding a second image
+  dependency (resvg only outputs PNG or raw pixels; there is no JPEG anywhere in this repo's
+  dependency tree). A composed card was a ~900KB PNG at Flux's 1024x1024 output — mostly
+  photographic detail PNG's lossless deflate cannot touch — which at `POSTS_KEEP=200` was
+  heading toward ~180MB committed to git; JPEG's DCT+quantisation is built for exactly that
+  content and gets the same pixels down an order of magnitude. See `ci/jpeg-encode.mjs`'s own
+  header for how a hand-rolled encoder with no second decoder in this repo to round-trip against
+  was verified (structurally, and once by hand against a real decoder outside the repo).
+  **`@resvg/resvg-js` is still the one deliberate, user-approved exception to this pipeline's
+  zero-dependency rule** — Node has no built-in font engine, and rasterising real text needs
+  one. Two Inter weights (Bold for the two big headline blocks,
   Medium for the descriptor) are checked into `ci/fonts/` (subset to the Latin range this app's
   data actually produces, ~72KB each rather than the ~410KB an unsubset static weight ships at)
   and loaded EXPLICITLY via resvg's `fontFiles` option with `loadSystemFonts: false` — a GitHub
@@ -119,14 +188,14 @@ uses whatever is on `main`.
   test for exactly that (`Pneumonoultramicroscopicsilicovolcanoconiosis`, English's longest
   common word).
 
-  Text must stay legible over a photograph, and the photos are high-key/light — so dark text on
-  a light plate is the default — but `sampleBrightness()` actually renders the photo at low
+  Text must stay legible over a photograph, and the photos are high-key/light — so dark text
+  with a light halo is the default — but `sampleBrightness()` actually renders the photo at low
   resolution and measures mean luminance + variance per band rather than assuming: an unusually
-  DARK band flips to light text on a dark plate, and a high-variance ("busy") band gets a
-  stronger plate regardless of which way the mean falls.
+  DARK band flips to light text with a dark halo, and a high-variance ("busy") band gets a
+  thicker, more opaque halo regardless of which way the mean falls (see "No plates" above).
 
-  On success the FUSED PNG bytes are written to `public/post-images/<sanitised id>.png` (not the
-  raw Flux JPEG — the composed image is the artifact now) and the post record gets an `image`
+  On success the FUSED JPEG bytes are written to `public/post-images/<sanitised id>.jpg` (not the
+  raw Flux photo — the composed image is the artifact now) and the post record gets an `image`
   field — the **filename only**, never a path. Post ids carry `:`/`.` from their ISO timestamp,
   which `postImageFilename()` (`ci/post-image.mjs`) collapses to `-`; that function is the ONLY
   place this mapping happens, so the frontend (`src/components/PostFeed.tsx`) just reads
