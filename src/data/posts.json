@@ -1,1 +1,27 @@
-[]
+[
+  {
+    "id": "AMAT-2026-09-23T12:33:41.019Z",
+    "ts": "2026-09-23T12:33:41.019Z",
+    "kind": "trend",
+    "ticker": "AMAT",
+    "name": "Applied Materials, Inc.",
+    "sector": "Technology",
+    "text": "Smart Score catapulted from 7 to 10 overnight.",
+    "score": 66,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "smartScoreFrom": 7,
+      "smartScoreTo": 10,
+      "direction": "up",
+      "snapshots": 31,
+      "days": 6.5,
+      "upside": 46.6,
+      "consensus": "StrongBuy",
+      "analysts": 27
+    },
+    "image": "AMAT-2026-09-23T12-33-41-019Z.jpg"
+  }
+]
