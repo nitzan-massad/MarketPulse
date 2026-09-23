@@ -295,7 +295,10 @@ const textLines = (lines, { x, firstBaseline, lineHeight, fontFamily, fontWeight
  * the bottom.
  *
  * @param photo Buffer — the raw Flux JPEG (or any PNG/JPEG).
- * @param companyName hook.name.
+ * @param companyName the DISPLAY name — ci/hooks.mjs's `displayCompanyName(hook.name)`, with
+ *   legal-entity/share-class cruft ("Inc.", "Class A", …) already stripped by the caller
+ *   (ci/generate-posts.mjs). This module has no opinion on that, same as `statement` below —
+ *   it just renders whatever string it is given.
  * @param sector hook.sec — used ONLY to look up `descriptorFor` (ci/post-image.mjs); no other
  *   fact reaches this module.
  * @param statement the post's own text (`best.text`) — this is the "hook", unmodified. The

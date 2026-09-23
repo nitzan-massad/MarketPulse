@@ -1,12 +1,13 @@
 // A cross-file invariant no single module can hold: every hook kind the generator knows
 // about must reach the reader as its own thing at BOTH ends of the pipeline.
 //
-// This exists because six of the nine kinds once shipped with no accent rule of their own
-// and inherited the default navy pill, so `record`, `trend`, `steady`, `churn`, `newcomer`
+// This exists because six of the (then) nine kinds once shipped with no accent rule of their
+// own and inherited the default navy pill, so `record`, `trend`, `steady`, `churn`, `newcomer`
 // and `list` were visually indistinguishable in the feed. Nothing could catch that: hooks.mjs
-// does not know about CSS, and index.css does not know about hooks.mjs.
+// does not know about CSS, and index.css does not know about hooks.mjs. (`trend`/`churn` were
+// later deleted outright — a Smart Score change alone is not a post — leaving seven kinds.)
 //
-// KIND_BRIEF is the registry — ci/test-generate-posts.mjs already pins it to the nine kinds
+// KIND_BRIEF is the registry — ci/test-generate-posts.mjs already pins it to the kinds
 // ci/hooks.mjs emits, so this check reads the list from there rather than restating it.
 
 import assert from "node:assert";
@@ -19,7 +20,7 @@ const ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const css = readFileSync(path.join(ROOT, "src", "index.css"), "utf8");
 
 const kinds = Object.keys(KIND_BRIEF);
-assert.ok(kinds.length >= 9, `the kind registry is populated (${kinds.length} kinds)`);
+assert.ok(kinds.length >= 7, `the kind registry is populated (${kinds.length} kinds)`);
 
 const accents = new Map();
 for (const kind of kinds) {

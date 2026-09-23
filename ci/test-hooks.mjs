@@ -3,7 +3,10 @@
 // hooks, which is what makes the generator reproducible and a bad post debuggable.
 
 import assert from "node:assert";
-import { detectHooks, deTickerHooks, shortCompanyName, eligible, coverage, SANE_MAX_UPSIDE, MIN_WINDOW } from "./hooks.mjs";
+import {
+  detectHooks, deTickerHooks, shortCompanyName, displayCompanyName,
+  eligible, coverage, SANE_MAX_UPSIDE, MIN_WINDOW,
+} from "./hooks.mjs";
 
 const row = (over = {}) => ({
   t: "AAA", n: "Alpha Inc", sec: "Technology", px: 100, chg: 1, pt: 130, up: 30,
@@ -57,9 +60,44 @@ assert.ok(MIN_WINDOW >= 2, "the window rules need a real series");
     [row({ t: "MOVE", ss: 4, con: "Hold", up: 10 })],
     [row({ t: "MOVE", ss: 9, con: "StrongBuy", up: 40 })],
   ]).filter((h) => h.kind === "movement");
-  assert.ok(hooks.length >= 1, "a jump in Smart Score and consensus is a movement hook");
-  assert.equal(hooks[0].facts.smartScoreFrom, 4, "facts carry the previous Smart Score");
+  assert.ok(hooks.length >= 1, "an upside jump plus a consensus flip is a movement hook");
+  assert.equal(hooks[0].facts.smartScoreFrom, 4, "a Smart Score change that DID happen still rides along in facts");
   assert.equal(hooks[0].facts.smartScoreTo, 9, "facts carry the new Smart Score");
+}
+
+// --- a Smart Score change ALONE is no longer a movement hook (the user's explicit call) -------
+// "A change in smart score is not something that's good enough for a post." Only a real
+// upside change or a consensus flip may trigger this hook now.
+{
+  const hooks = detectHooks([
+    [row({ t: "SSONLY", ss: 4, con: "Hold", up: 20 })],
+    [row({ t: "SSONLY", ss: 9, con: "Hold", up: 22 })],
+  ]).filter((h) => h.kind === "movement");
+  assert.equal(hooks.length, 0,
+    "a 5-point Smart Score jump alone, with no real upside move or consensus flip, is not a movement hook");
+}
+{
+  // The mirror case: Smart Score UNCHANGED between the two readings. The hook still fires (a
+  // real upside jump), but there is no Smart Score story here, so the facts omit it rather
+  // than restate "smartScoreFrom: 8, smartScoreTo: 8" as if something happened.
+  const hooks = detectHooks([
+    [row({ t: "SAMESS", ss: 8, up: 20 })],
+    [row({ t: "SAMESS", ss: 8, up: 40 })],
+  ]).filter((h) => h.kind === "movement");
+  assert.ok(hooks.length >= 1, "the upside jump still fires a movement hook");
+  assert.equal("smartScoreFrom" in hooks[0].facts, false, "an unchanged Smart Score is omitted, not restated");
+  assert.equal("smartScoreTo" in hooks[0].facts, false, "an unchanged Smart Score is omitted, not restated");
+}
+{
+  // A consensus flip alone (no real upside move, Smart Score unchanged) still fires — the
+  // task is explicit that consensus flips are still a good story.
+  const hooks = detectHooks([
+    [row({ t: "FLIPONLY", ss: 6, con: "Hold", up: 20 })],
+    [row({ t: "FLIPONLY", ss: 6, con: "StrongBuy", up: 21 })],
+  ]).filter((h) => h.kind === "movement");
+  assert.ok(hooks.length >= 1, "a consensus flip alone is still a movement hook");
+  assert.equal(hooks[0].facts.consensusFrom, "Hold", "facts carry the flip");
+  assert.equal(hooks[0].facts.consensusTo, "StrongBuy", "facts carry the flip");
 }
 assert.equal(detectHooks([[row({ t: "NEW" })]]).filter((h) => h.kind === "movement").length, 0,
   "with a window of one there are no movement hooks");
@@ -183,18 +221,24 @@ assert.equal(detectHooks([[row({ t: "NEW" })]]).filter((h) => h.kind === "moveme
   assert.equal(fell.filter((h) => h.kind === "record").length, 0, "a falling series is not a record");
 }
 
-// --- trend: net Smart Score drift across the window ----------------------------
+// --- trend and churn are DELETED, not just untested — a Smart Score change alone is not a
+// post (the user's explicit call), and neither kind had any other story to tell. This is a
+// removed FEATURE, so it gets a removal test, not merely an absence of one: even a window
+// shaped exactly like the old `trend`/`churn` fixtures must never again emit either kind.
 {
-  const hooks = detectHooks(win(30, (i) => row({ t: "SLIDE", ss: i < 15 ? 8 : 3 })));
-  const tr = hooks.filter((h) => h.kind === "trend");
-  assert.equal(tr.length, 1, "a 5-point net slide is a trend hook");
-  assert.equal(tr[0].facts.smartScoreFrom, 8, "facts carry the start of the window");
-  assert.equal(tr[0].facts.smartScoreTo, 3, "facts carry the end");
-  assert.equal(tr[0].facts.direction, "down", "facts name the direction");
+  const slide = detectHooks(win(30, (i) => row({ t: "SLIDE", ss: i < 15 ? 8 : 3 })));
+  assert.equal(slide.filter((h) => h.kind === "trend").length, 0,
+    "a 5-point net Smart Score slide across the window no longer produces a trend hook — the kind is gone");
+  const jumpy = detectHooks(win(30, (i) => row({ t: "JUMPY", ss: [2, 5, 7, 9][i % 4] })));
+  assert.equal(jumpy.filter((h) => h.kind === "churn").length, 0,
+    "four distinct Smart Scores across the window no longer produces a churn hook — the kind is gone");
+  // Nothing in this file, or in ci/generate-posts.mjs's KIND_BRIEF, should ever emit either
+  // kind name again, from any input.
+  for (const h of [...slide, ...jumpy]) {
+    assert.notEqual(h.kind, "trend", "no hook of any kind is ever labelled trend");
+    assert.notEqual(h.kind, "churn", "no hook of any kind is ever labelled churn");
+  }
 }
-assert.equal(
-  detectHooks(win(30, (i) => row({ t: "WOBBLE", ss: i % 2 ? 7 : 8 }))).filter((h) => h.kind === "trend").length,
-  0, "a one-point wobble is not a trend");
 
 // --- steady: never left the top all window --------------------------------------
 {
@@ -207,16 +251,6 @@ assert.equal(
 assert.equal(
   detectHooks(win(30, (i) => row({ t: "DIP", ss: i === 12 ? 6 : 10 }))).filter((h) => h.kind === "steady").length,
   0, "one dip breaks the streak");
-
-// --- churn: many distinct scores in the window -----------------------------------
-{
-  const hooks = detectHooks(win(30, (i) => row({ t: "JUMPY", ss: [2, 5, 7, 9][i % 4] })));
-  const ch = hooks.filter((h) => h.kind === "churn");
-  assert.equal(ch.length, 1, "four distinct scores is a churn hook");
-  assert.equal(ch[0].facts.distinctScores, 4, "facts count the distinct values");
-  assert.equal(ch[0].facts.low, 2, "facts carry the low");
-  assert.equal(ch[0].facts.high, 9, "facts carry the high");
-}
 
 // --- newcomer: absent at the start of the window, here now -------------------------
 {
@@ -234,7 +268,7 @@ assert.equal(
 // --- a short window skips the window rules entirely ---------------------------------
 {
   const short = detectHooks(win(MIN_WINDOW - 1, (i) => row({ t: "SHORT", up: 60 + i * 4, ss: 10 })));
-  for (const k of ["record", "trend", "steady", "churn", "newcomer"]) {
+  for (const k of ["record", "steady", "newcomer"]) {
     assert.equal(short.filter((h) => h.kind === k).length, 0,
       `${k} must not fire on a window shorter than MIN_WINDOW`);
   }
@@ -254,12 +288,17 @@ assert.equal(
 }
 
 // --- movement outranks routine upside (Task 0, Finding 4) --------------------------
+// The original version of this fixture drove the movement magnitude with a Smart Score jump
+// alone — no longer possible now that a Smart Score change alone cannot even fire the hook
+// (see the "Smart Score change ALONE" test above). A real upside swing makes the same point:
+// the per-point coefficient on movement's own delta is still heavy enough to outrank a
+// routine static high-upside name.
 {
   const hooks = detectHooks([
-    [row({ t: "MV", ss: 4, up: 20 }), row({ t: "STATIC", up: 100 })],
-    [row({ t: "MV", ss: 9, up: 20 }), row({ t: "STATIC", up: 100 })],
+    [row({ t: "MV", up: 20 }), row({ t: "STATIC", up: 100 })],
+    [row({ t: "MV", up: 65 }), row({ t: "STATIC", up: 100 })],
   ]);
-  assert.equal(hooks[0].kind, "movement", "a 5-point jump beats a static 100% upside");
+  assert.equal(hooks[0].kind, "movement", "a real 45-point upside swing beats a static 100% upside");
 }
 
 // --- per-kind cap: no single kind may take the board ----------------------------------
@@ -394,4 +433,44 @@ assert.equal(shortCompanyName(undefined), "", "missing in, empty out");
 assert.deepEqual(deTickerHooks([], snapRows), [], "an empty hook list yields an empty list");
 assert.deepEqual(deTickerHooks(undefined, snapRows), [], "a non-array hooks argument does not crash");
 
-console.log("hooks OK — 4 floors, 9 rule families, window rules gated, damping, sorting, determinism, de-tickering");
+// ============================ DISPLAY NAME ====================================
+// The published bug: a composed card read "Applied Materials, Inc." and, on another run,
+// "Alphabet Inc. Class A" — full legal-entity plumbing nobody wants on a headline.
+// displayCompanyName() is a SEPARATE, more aggressive stripper than shortCompanyName() above
+// (which deliberately keeps "Holdings"/"Group" for the de-tickering job) — this one is for the
+// one line a human actually sees. Real messy names below are pulled straight from
+// src/data/stocks.json.
+
+// --- real data, from src/data/stocks.json --------------------------------------------------
+assert.equal(displayCompanyName("Applied Materials, Inc."), "Applied Materials", "the exact live bug");
+assert.equal(displayCompanyName("Alphabet Inc. Class A"), "Alphabet", "the other exact live bug");
+assert.equal(displayCompanyName("Rani Therapeutics Holdings, Inc. Class A"), "Rani Therapeutics",
+  "a three-deep chain (Class A, then Inc., then Holdings) fully resolves");
+assert.equal(displayCompanyName("Bridger Aerospace Group Holdings, Inc."), "Bridger Aerospace",
+  "another three-deep chain (Inc., then Holdings, then Group)");
+assert.equal(displayCompanyName("Credo Technology Group Holding Ltd."), "Credo Technology",
+  "singular 'Holding' strips the same as plural 'Holdings'");
+assert.equal(displayCompanyName("Chime Financial, Inc. Class A"), "Chime Financial", "Class A after a comma+Inc.");
+assert.equal(displayCompanyName("Atlassian Corporation Plc"), "Atlassian", "Plc then Corporation");
+assert.equal(displayCompanyName("Eli Lilly And Company"), "Eli Lilly",
+  "'And Company' strips as one unit — must not leave a dangling 'And'");
+assert.equal(displayCompanyName("Arthur J Gallagher & Co"), "Arthur J Gallagher", "'& Co' strips as one unit");
+assert.equal(displayCompanyName("Zeta Global Holdings Corp"), "Zeta Global", "Corp then Holdings");
+assert.equal(displayCompanyName("SLB N.V."), "SLB", "a short core name survives a dotted foreign suffix");
+assert.equal(displayCompanyName("On Holding Ag Class A"), "On", "Class A, then Ag, then Holding — three passes");
+
+// --- the task's own explicit guard-rail cases (safety, not real dataset rows) ---------------
+assert.equal(displayCompanyName("Berkshire Hathaway Inc. Class B"), "Berkshire Hathaway",
+  "Class B then Inc. — the task's own worked example");
+assert.equal(displayCompanyName("Group 1 Automotive"), "Group 1 Automotive",
+  "a LEADING 'Group' is never touched — only a trailing suffix strips");
+assert.equal(displayCompanyName("3M Co."), "3M", "stripping 'Co.' must not be allowed to leave nothing");
+
+// --- never returns an empty string, even from adversarial input ----------------------------
+assert.equal(displayCompanyName(""), "", "empty in, empty out (nothing to fall back to)");
+assert.equal(displayCompanyName(undefined), "", "missing in, empty out");
+assert.equal(displayCompanyName("Inc."), "Inc.", "a bare suffix with nothing in front of it is left alone");
+assert.equal(displayCompanyName("Class A"), "Class A", "same for a bare share-class label");
+
+console.log("hooks OK — 4 floors, 7 rule families, window rules gated, damping, sorting, determinism, " +
+            "de-tickering, display-name stripping");

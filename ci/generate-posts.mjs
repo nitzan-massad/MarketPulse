@@ -18,7 +18,7 @@ import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "nod
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { detectHooks, deTickerHooks, MIN_WINDOW } from "./hooks.mjs";
+import { detectHooks, deTickerHooks, displayCompanyName, MIN_WINDOW } from "./hooks.mjs";
 import { pickBest } from "./post-score.mjs";
 import { makeProvider } from "./provider.mjs";
 import { generateImage, postImageFilename } from "./post-image.mjs";
@@ -33,17 +33,19 @@ const IMAGES_DIR = path.join(ROOT, "public", "post-images");
 /** The ANGLE — one line per hook kind, telling the model what makes this particular hook
  *  postable. Without it a kind falls through to "Report the fact.", which throws away the
  *  entire reason the rule fired: a `record` post that does not say "highest in the window"
- *  is just another upside number. One entry per kind ci/hooks.mjs can emit, all nine —
- *  ci/test-generate-posts.mjs fails if a kind is ever added without one. */
+ *  is just another upside number. One entry per kind ci/hooks.mjs can emit, all seven —
+ *  ci/test-generate-posts.mjs fails if a kind is ever added without one. `trend` (net Smart
+ *  Score drift) and `churn` (how many distinct scores) used to be here too; both were deleted
+ *  from ci/hooks.mjs outright — a Smart Score change alone is not a post (see hooks.mjs's own
+ *  comment on the `movement` rule for the reasoning), and neither kind had any other story to
+ *  tell. `steady` survives: it is not about a change, it is about the absence of one. */
 export const KIND_BRIEF = {
   surprise: "The number is the story. Lead with it.",
   contrarian: "Two models disagree. Name the disagreement, do not resolve it.",
   list: "A short ranked list. No preamble before the first name.",
   movement: "Something changed since five hours ago. Say what, and from what to what.",
   record: "This is the highest reading of the whole window. Say it is a high, and say how far it came.",
-  trend: "One direction across days, not a single jump. Give both ends and which way it went.",
   steady: "Nothing moved, and that is the story. Say what it has held and for how long.",
-  churn: "The quant model keeps changing its mind. Say how many different scores, and the range.",
   newcomer: "This name was not on the board when the window opened. Say it is new, and how long it has been here.",
 };
 
@@ -54,8 +56,10 @@ export const KIND_BRIEF = {
  * key `smartScore` verbatim. This is the fix, and it belongs HERE, at the prompt boundary, not
  * in ci/hooks.mjs: `supportLine`-era consumers and ci/test-hooks.mjs depend on the current
  * field names, so those never change — only what the writer model is SHOWN does. Every key any
- * of the nine hook kinds emits (ci/hooks.mjs) is covered; an unmapped key (a future field, or a
+ * of the seven hook kinds emits (ci/hooks.mjs) is covered; an unmapped key (a future field, or a
  * typo) falls through to itself rather than throwing, same as `KIND_BRIEF`'s fallback below.
+ * (`direction`, `distinctScores`, `low`, `high` were `trend`/`churn`-only keys — removed along
+ * with those two kinds; no surviving kind emits them.)
  */
 const FACT_LABELS = {
   upside: "Analyst upside",
@@ -78,10 +82,6 @@ const FACT_LABELS = {
   windowHigh: "Highest in the window",
   snapshots: "Snapshots in the window",
   days: "Days covered",
-  direction: "Direction of the move",
-  distinctScores: "Distinct Smart Scores seen",
-  low: "Lowest Smart Score seen",
-  high: "Highest Smart Score seen",
   seenIn: "Snapshots this name has appeared in",
   windowSnapshots: "Snapshots in the window",
   members: "The board",
@@ -119,9 +119,13 @@ export function buildPrompt(hook, exemplars = []) {
     .map(([k, v]) => `- ${humanizeFactKey(k)}: ${v}`)
     .join("\n");
 
+  // DISPLAY name, not the raw legal name: the writer model is told the same clean name that
+  // is about to be printed on the card (below), never "Applied Materials, Inc." or "Alphabet
+  // Inc. Class A" — see ci/hooks.mjs's displayCompanyName(). hook.name itself is untouched;
+  // this only affects what the prompt SHOWS the model.
   const prompt =
     `${shots}Angle: ${KIND_BRIEF[hook.kind] ?? "Report the fact."}\n\n` +
-    `Company: ${hook.name} (${hook.ticker}), ${hook.sec}\nFacts:\n${facts}\n\n` +
+    `Company: ${displayCompanyName(hook.name)} (${hook.ticker}), ${hook.sec}\nFacts:\n${facts}\n\n` +
     `Write the post.`;
 
   return { system, prompt };
@@ -202,8 +206,14 @@ export async function generate({ history, recent = [], provider, exemplars = [],
         // degrades exactly like a failed Flux call: no `image` field, canvas fallback, post
         // still ships — never lose the post over an image.
         try {
+          // DISPLAY name here too — the whole reason this exists (see the buildPrompt comment
+          // above): the card must never print "Applied Materials, Inc." when "Applied
+          // Materials" is what a person would actually call it. hook.name / post.name (above)
+          // stay the raw legal name from src/data/stocks.json; only what gets BURNED INTO THE
+          // PIXELS is stripped.
+          const displayName = displayCompanyName(hook.name);
           const composed = composePost({
-            photo, companyName: hook.name, sector: hook.sec, statement: best.text,
+            photo, companyName: displayName, sector: hook.sec, statement: best.text,
           });
           post.image = postImageFilename(id);
           post.imageBuffer = composed.jpeg; // internal only — main() writes it to disk and strips it
@@ -274,14 +284,14 @@ function loadWindow(n) {
 
   // LOUD, because the failure mode is silent. `git log` exits 0 on a shallow clone and
   // simply returns one sha, so the catch above never fires: the window quietly collapses
-  // to 2 and record/trend/steady/churn/newcomer stop firing with nothing in the log to
-  // say why. That is exactly what a default `actions/checkout@v4` (fetch-depth: 1) used
-  // to do to this step. MIN_WINDOW is imported from ci/hooks.mjs rather than restated
-  // here, so the threshold can never drift between the detector and this warning.
+  // to 2 and record/steady/newcomer stop firing with nothing in the log to say why. That
+  // is exactly what a default `actions/checkout@v4` (fetch-depth: 1) used to do to this
+  // step. MIN_WINDOW is imported from ci/hooks.mjs rather than restated here, so the
+  // threshold can never drift between the detector and this warning.
   if (window.length < MIN_WINDOW) {
     console.error(
       `  WARNING: only ${window.length} snapshot(s) in the window, below MIN_WINDOW=${MIN_WINDOW} — ` +
-      "the record/trend/steady/churn/newcomer rules will NOT fire this run. " +
+      "the record/steady/newcomer rules will NOT fire this run. " +
       `git log returned ${shas.length} commit(s) for src/data/stocks.json; ` +
       "the usual cause is a shallow clone (set fetch-depth: 0 on actions/checkout).",
     );

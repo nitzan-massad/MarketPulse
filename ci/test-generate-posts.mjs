@@ -3,6 +3,7 @@
 // from the provider it is handed, which is the whole reason it is shaped that way.
 
 import assert from "node:assert";
+import { readFileSync } from "node:fs";
 import { Resvg } from "@resvg/resvg-js";
 import { buildPrompt, generate, humanizeFactKey, KIND_BRIEF } from "./generate-posts.mjs";
 
@@ -24,6 +25,19 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   assert.ok(prompt.includes("60"), "the prompt carries the facts");
   assert.ok(prompt.includes(exemplars[0]), "exemplars are few-shot anchors in the prompt");
   assert.ok(/not financial advice|no advice/i.test(system), "the system prompt forbids advice framing");
+}
+
+// --- the writer prompt uses the DISPLAY name, never the raw legal name ------------------
+// A published card once read "Applied Materials, Inc." and "Alphabet Inc. Class A" — the
+// prompt used to hand the model that exact same legally-cluttered string. buildPrompt() now
+// routes hook.name through ci/hooks.mjs's displayCompanyName() before it ever reaches the
+// "Company:" line.
+{
+  const hook = { kind: "surprise", ticker: "AAA", name: "Alpha Inc. Class A", sec: "Technology",
+                 facts: { upside: 60 } };
+  const { prompt } = buildPrompt(hook);
+  assert.ok(prompt.includes("Company: Alpha (AAA)"), "the prompt names the stripped display name");
+  assert.equal(prompt.includes("Alpha Inc. Class A"), false, "the raw legal-entity name never reaches the prompt");
 }
 
 // --- happy path: one post, best of the candidates -----------------------------------
@@ -48,17 +62,17 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
 // --- raw fact keys never reach the prompt (the "smartScore: 10" published bug) -----------
 // One real run published "Alphabet Inc. smartScore: 10, unchanged for 30 snapshots." because
 // the prompt rendered `facts` as `- key: value` with the literal JS field name. Every fact key
-// any of the nine hook kinds (ci/hooks.mjs) actually emits must render as a humanised label
+// any of the seven hook kinds (ci/hooks.mjs) actually emits must render as a humanised label
 // instead — this exercises every key across a realistic sample of each kind's own shape.
+// (`trend`/`churn` were deleted from ci/hooks.mjs outright — see its own comments — so their
+// shapes are gone from here too, not just left untested.)
 {
   const FACT_SHAPES = {
     surprise: { upside: 60, price: 148, priceTarget: 210, consensus: "StrongBuy", analysts: 38, sector: "Technology" },
     contrarian: { smartScore: 1, aiScore: 65, aiRating: "Neutral", consensus: "StrongBuy", upside: 38.6, price: 174.25, analysts: 38, bullish: "ai" },
     movement: { upsideFrom: 20, upsideTo: 60, consensusFrom: "Hold", consensusTo: "StrongBuy", price: 100, priceTarget: 160, analysts: 21, sector: "Technology", smartScoreFrom: 4, smartScoreTo: 9 },
     record: { upside: 60, windowLow: 10, windowHigh: 60, snapshots: 30, days: 6.3, price: 100, priceTarget: 160, analysts: 21 },
-    trend: { smartScoreFrom: 4, smartScoreTo: 9, direction: "up", snapshots: 30, days: 6.3, upside: 60, consensus: "StrongBuy", analysts: 21 },
     steady: { smartScore: 10, snapshots: 30, days: 6.3, upside: 60, consensus: "StrongBuy", analysts: 21 },
-    churn: { distinctScores: 4, low: 3, high: 9, smartScore: 9, snapshots: 30, days: 6.3, analysts: 21 },
     newcomer: { seenIn: 5, windowSnapshots: 30, days: 4.2, upside: 60, consensus: "StrongBuy", analysts: 21, smartScore: 8 },
     list: { members: "AAA (60% to $160), BBB (45% to $145)", count: 2, leader: "AAA", leaderUpside: 60 },
   };
@@ -222,10 +236,10 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
 // --- every hook kind has an angle, not just the original four -----------------------------
 // The generic "Report the fact." fallback throws away the reason the rule fired at all — a
 // `record` post that never says "window high" is indistinguishable from a plain upside post.
-// This list is the nine kinds ci/hooks.mjs emits; adding a tenth there must fail here.
+// This list is the seven kinds ci/hooks.mjs emits (`trend`/`churn` were deleted outright, not
+// merely left off this list); adding an eighth there must fail here.
 {
-  const KINDS = ["surprise", "contrarian", "movement", "list",
-                 "record", "trend", "steady", "churn", "newcomer"];
+  const KINDS = ["surprise", "contrarian", "movement", "list", "record", "steady", "newcomer"];
   for (const kind of KINDS) {
     assert.ok(typeof KIND_BRIEF[kind] === "string" && KIND_BRIEF[kind].length > 20,
       `${kind} has a real angle line`);
@@ -236,12 +250,30 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
       `${kind} does not fall through to the generic angle`);
   }
   assert.equal(Object.keys(KIND_BRIEF).length, KINDS.length,
-    "KIND_BRIEF covers the nine kinds and nothing else");
+    "KIND_BRIEF covers the seven kinds and nothing else");
+  assert.equal("trend" in KIND_BRIEF, false, "trend was deleted, not merely left undocumented");
+  assert.equal("churn" in KIND_BRIEF, false, "churn was deleted, not merely left undocumented");
   // The fallback still exists for a kind that is not in the map at all.
   const { prompt } = buildPrompt({ kind: "nosuchkind", ticker: "AAA", name: "Alpha Inc",
                                    sec: "Technology", facts: { upside: 60 } });
   assert.ok(prompt.includes("Angle: Report the fact."), "an unknown kind still gets the fallback");
 }
 
+// --- the composed image's companyName is ALSO the display name, not the raw legal name -----
+// The prompt half of this is exercised functionally above (buildPrompt uses hook.name
+// directly, so a real hook can drive it end to end). The composePost() call site cannot be
+// exercised the same way without decoding rendered pixel text back out of a JPEG — composePost
+// is called directly, not injected (see the module header: it is pure and local and needs no
+// fake) — so this is a static check on the source, the same style ci/test-feed-kinds.mjs
+// already uses to pin a cross-file invariant that isn't otherwise independently observable.
+{
+  const src = readFileSync(new URL("./generate-posts.mjs", import.meta.url), "utf8");
+  assert.ok(/displayCompanyName\(hook\.name\)/.test(src),
+    "generate-posts.mjs calls ci/hooks.mjs's displayCompanyName(hook.name) somewhere");
+  assert.ok(/companyName:\s*displayName/.test(src),
+    "the composed image's companyName is the stripped display name, not the raw hook.name");
+}
+
 console.log("generate-posts OK — prompt shape, angle per hook kind, best-of-N, cadence config, " +
-            "empty-field and penny-stock safety, image generation optional/injected/never loses a post");
+            "empty-field and penny-stock safety, image generation optional/injected/never loses a post, " +
+            "display name wired into both the prompt and the composed image");

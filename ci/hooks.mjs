@@ -112,12 +112,24 @@ export function detectHooks(history, opts = {}) {
     // 3. MOVEMENT — what changed since the last run. Coefficients are deliberately heavy
     //    (Task 0, Finding 4): with the naive weights all 11 real movements in the live
     //    snapshot lost to static high-upside names and none reached the top 12.
+    //
+    //    A SMART SCORE MOVE ALONE NO LONGER FIRES THIS. The user's explicit call: "a change
+    //    in smart score is not something that's good enough for a post" — TipRanks' Smart
+    //    Score is a 1-10 quant rating, and a post whose entire story is that rating moving is
+    //    weak content that also invites misleading copy (a live post said a Smart Score jump
+    //    happened "overnight" when the window behind it was 6.3 days). Only a real upside
+    //    change or a consensus flip may trigger this hook now; Smart Score's own dedicated
+    //    "the whole story is the rating" kinds (`trend`, the net drift across the window, and
+    //    `churn`, how many distinct scores it has shown) are gone entirely — see the bottom of
+    //    this file's window-rules section, where they used to live. `contrarian` (above) is
+    //    NOT affected: that hook is about the quant model DISAGREEING with the AI model, a
+    //    comparison between two ratings, not a change in either one.
     const p = before.get(r.t);
     if (p) {
       const dSs = isNum(r.ss) && isNum(p.ss) ? r.ss - p.ss : 0;
       const dUp = isNum(p.up) ? r.up - p.up : 0;
       const flipped = p.con !== r.con;
-      if (Math.abs(dSs) >= 2 || Math.abs(dUp) >= 15 || flipped) {
+      if (Math.abs(dUp) >= 15 || flipped) {
         const mag = Math.abs(dSs) * 25 + Math.abs(dUp) * 1.5 + (flipped ? 40 : 0);
         // NO COERCION, on any key. These facts go verbatim into the writer prompt, and the
         // model is told to use the numbers it is given, so `?? 0` would put "upsideFrom: 0"
@@ -129,7 +141,8 @@ export function detectHooks(history, opts = {}) {
         // Built key by key, in the order they used to be written, so the prompt reads the
         // same for a row with every reading present. `upsideFrom` is also guarded even
         // though `before` is now eligible-filtered (which already guarantees a finite `up`)
-        // — defence in depth, and it costs nothing.
+        // — defence in depth, and it costs nothing. UPSIDE AND CONSENSUS COME FIRST, ON
+        // PURPOSE: they are what fired this hook, so they are what the model sees first.
         const facts = {};
         if (isNum(p.up)) facts.upsideFrom = round(p.up);
         facts.upsideTo = round(r.up);
@@ -143,7 +156,10 @@ export function detectHooks(history, opts = {}) {
         if (isNum(r.pt)) facts.priceTarget = r.pt;
         facts.analysts = coverage(r);
         facts.sector = r.sec;
-        if (isNum(p.ss) && isNum(r.ss)) {
+        // SMART SCORE IS LAST, AND ONLY WHEN IT ACTUALLY CHANGED — supporting colour on a
+        // real upside/consensus story, never the lead, and never restated unchanged ("held at
+        // 8" is `steady`'s job, not a footnote on a fact bag it did not cause to fire).
+        if (isNum(p.ss) && isNum(r.ss) && p.ss !== r.ss) {
           facts.smartScoreFrom = p.ss;
           facts.smartScoreTo = r.ss;
         }
@@ -170,37 +186,24 @@ export function detectHooks(history, opts = {}) {
       }
     }
 
-    // 5. TREND — net Smart Score drift from one end of the window to the other.
-    if (sss.length >= MIN_WINDOW) {
-      const from = sss[0], to = sss[sss.length - 1], d = to - from;
-      if (Math.abs(d) >= 3) {
-        hooks.push(base(r, "trend", Math.abs(d) * 22 * prom * damp("trend"), {
-          smartScoreFrom: from, smartScoreTo: to, direction: d > 0 ? "up" : "down",
-          snapshots: hist.length, days: round((hist.length * 5) / 24),
-          upside: round(r.up), consensus: r.con, analysts: coverage(r),
-        }));
-      }
-
-      // 6. STEADY — never left the top of the scale across the whole window.
-      if (sss.length === hist.length && sss.every((v) => v >= 9)) {
-        hooks.push(base(r, "steady", 60 * prom * damp("steady"), {
-          smartScore: to, snapshots: hist.length, days: round((hist.length * 5) / 24),
-          upside: round(r.up), consensus: r.con, analysts: coverage(r),
-        }));
-      }
-
-      // 7. CHURN — the quant model cannot make up its mind about this name.
-      const distinct = new Set(sss);
-      if (distinct.size >= 4) {
-        hooks.push(base(r, "churn", distinct.size * 9 * prom * damp("churn"), {
-          distinctScores: distinct.size, low: Math.min(...sss), high: Math.max(...sss),
-          smartScore: to, snapshots: hist.length, days: round((hist.length * 5) / 24),
-          analysts: coverage(r),
-        }));
-      }
+    // 5. STEADY — never left the top of the scale across the whole window.
+    //
+    //    `trend` (net Smart Score drift across the window) and `churn` (how many distinct
+    //    scores it showed) used to live here too. Both are DELETED, not merely damped down:
+    //    the user's call was that a Smart Score change is not a post, full stop, and both of
+    //    those kinds' entire subject was exactly that — a rating moving. `steady` survives a
+    //    deliberate judgement call in the other direction: it is not about a CHANGE (it fires
+    //    on the absence of one), and "this name has not wavered all week" is a genuinely
+    //    different, more interesting claim than "the number moved" — closer to `contrarian`'s
+    //    kind of story (what the rating IS/has held) than to `trend`'s (that it changed).
+    if (sss.length >= MIN_WINDOW && sss.length === hist.length && sss.every((v) => v >= 9)) {
+      hooks.push(base(r, "steady", 60 * prom * damp("steady"), {
+        smartScore: sss[sss.length - 1], snapshots: hist.length, days: round((hist.length * 5) / 24),
+        upside: round(r.up), consensus: r.con, analysts: coverage(r),
+      }));
     }
 
-    // 8. NEWCOMER — absent when the window opened, here now.
+    // 6. NEWCOMER — absent when the window opened, here now.
     const firstSeen = hist[0].i;
     if (firstSeen >= earlyCut) {
       const facts = {
@@ -216,7 +219,7 @@ export function detectHooks(history, opts = {}) {
     }
   }
 
-  // 9. LIST — one per run, built from the strongest upsides. A carousel, not a single name.
+  // 7. LIST — one per run, built from the strongest upsides. A carousel, not a single name.
   const top = rows.filter((r) => r.up >= 30).sort((a, b) => b.up - a.up).slice(0, 5);
   if (top.length >= 3) {
     hooks.push({
@@ -229,11 +232,11 @@ export function detectHooks(history, opts = {}) {
     });
   }
 
-  // PER-KIND CAP. Measured against the live 30-snapshot window: without it one kind takes
-  // the whole board — churn took 5 of 12 slots at the first coefficients, and re-tuning only
-  // moved the flood to `steady` (10 of 12). `steady` scores FLAT, so every mega-cap holding a
-  // 10 scores the same and they arrive as a block; no coefficient can fix that, only a cap.
-  // With maxPerKind = 2 the same window yields 7 distinct kinds across 12 slots.
+  // PER-KIND CAP. Measured against the live 30-snapshot window when this was tuned: without
+  // it one kind takes the whole board — `churn` (since deleted, see the STEADY comment above)
+  // took 5 of 12 slots at the first coefficients, and re-tuning only moved the flood to
+  // `steady` (10 of 12). `steady` scores FLAT, so every mega-cap holding a 10 scores the same
+  // and they arrive as a block; no coefficient can fix that, only a cap.
   const ranked = hooks.sort((a, b) => b.score - a.score || a.ticker.localeCompare(b.ticker));
   const used = new Map();
   const out = [];
@@ -278,6 +281,47 @@ export function shortCompanyName(name) {
     s = next;
   }
   return s || String(name ?? "").trim();
+}
+
+// ------------------------------------------------------------- display name --
+//
+// shortCompanyName() above is deliberately CONSERVATIVE — it exists to substitute a real
+// company name back in for a ticker inside a `facts` STRING that already lists several
+// companies at once (deTickerHooks), so it never touches "Holdings"/"Group": those can be
+// load-bearing brand identity in that context (see this file's own "Ird Holdings" fixture in
+// ci/test-hooks.mjs). displayCompanyName() below is a SEPARATE, more aggressive stripper for a
+// different job entirely — the one line a human actually SEES: the big name printed on the
+// composed image (ci/post-compose.mjs) and the name spoken to the writer model in the prompt
+// (ci/generate-posts.mjs's buildPrompt). A published card once read "Applied Materials, Inc."
+// and, on an earlier run, "Alphabet Inc. Class A" printed large over the photo — full
+// legal-entity plumbing nobody asked to read on a headline.
+//
+// Strips ONLY from the END of the name, in a loop so a chained tail resolves fully ("Rani
+// Therapeutics Holdings, Inc. Class A" -> "Rani Therapeutics", three passes) — NEVER a leading
+// or interior token, so "Group 1 Automotive" keeps its "Group" (the match requires the suffix
+// to reach all the way to the end of the string, which "Group" does not there) and "3M Co."
+// keeps its "3M" (only "Co." matches and strips, leaving a non-empty name). Never returns an
+// empty string: a name that would fully strip away (a pathological "Inc." with nothing in
+// front of it) falls back to the original rather than vanish from the card.
+//
+// "Company" (spelled out — "Eli Lilly And Company", "Merck & Company") and "AG" (the German
+// public-company suffix — "On Holding Ag Class A") are not in the task's literal example list
+// but are the same category of cruft as "Co." and "N.V."/"S.A." respectively, and both show up
+// in this app's own src/data/stocks.json — see ci/test-hooks.mjs for the exact real-data cases
+// this was built and verified against.
+const DISPLAY_SUFFIX_RE =
+  /,?\s+(?:Class\s+[ABC]|&\s*Co(?:mpany)?|and\s+Co(?:mpany)?|Inc(?:orporated)?|Corp(?:oration)?|Co(?:mpany)?|Ltd|Limited|LLC|LLP|PLC|plc|N\.?V\.?|S\.?A\.?|L\.?P\.?|AG|Holdings?|Group)\.?$/i;
+
+export function displayCompanyName(name) {
+  const original = String(name ?? "").trim();
+  if (!original) return original;
+  let s = original;
+  for (let i = 0; i < 6; i++) {
+    const next = s.replace(DISPLAY_SUFFIX_RE, "").replace(/,\s*$/, "").trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s || original;
 }
 
 /**
