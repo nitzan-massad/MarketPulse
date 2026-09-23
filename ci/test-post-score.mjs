@@ -4,8 +4,10 @@
 
 import assert from "node:assert";
 import {
-  scorePost, pickBest, nameStem, factNumbers, unverifiedNumbers, misdescribedMovementVerbs,
-  BANNED, MIN_PUBLISHABLE, TICKER_PENALTY, FABRICATION_PENALTY, MISDESCRIBED_MOVEMENT_PENALTY,
+  scorePost, pickBest, nameStem, factNumbers, unverifiedNumbers,
+  misdescribedMovementVerbs, misdescribedTimeframe,
+  BANNED, MIN_PUBLISHABLE, TICKER_PENALTY, FABRICATION_PENALTY,
+  MISDESCRIBED_MOVEMENT_PENALTY, MISDESCRIBED_TIMEFRAME_PENALTY,
 } from "./post-score.mjs";
 
 // The FULL `surprise` fact shape ci/hooks.mjs emits — { upside, price, priceTarget, consensus,
@@ -168,7 +170,7 @@ assert.equal(nameStem(undefined), "", "missing name has no stem");
   // reason is pushed at all any more (not a bonus, not a penalty) — the card already carries
   // the name, so this is simply not evaluated.
   const r = scorePost("Nothing relevant here at all, just filler words.",
-    { hook: { kind: "trend", name: "Datadog Inc" } });
+    { hook: { kind: "movement", name: "Datadog Inc" } });
   assert.equal(r.reasons.some((x) => /does not name/.test(x)), false,
     "omitting a name-only hook's name is not penalised");
   assert.equal(r.reasons.some((x) => /^names Datadog$/.test(x)), false,
@@ -180,7 +182,7 @@ assert.equal(nameStem(undefined), "", "missing name has no stem");
   // used to help sink it is gone. Removing the naming requirement must never be the thing that
   // lets a vapid candidate through.
   const vapid = scorePost("Nothing relevant here at all, just filler words.",
-    { hook: { kind: "trend", name: "Datadog Inc" } });
+    { hook: { kind: "movement", name: "Datadog Inc" } });
   assert.ok(vapid.score < MIN_PUBLISHABLE, "a contextless candidate with no numbers still fails to publish");
   assert.ok(vapid.reasons.some((r) => /no numbers/.test(r)), "still flagged for carrying no concrete data");
 }
@@ -336,9 +338,9 @@ assert.equal(pickBest(["Let's dive in! In the world of finance, a game-changer. 
 }
 // A handful of close synonyms ("and the like") are covered too, on a Smart Score number.
 {
-  const hook = { kind: "trend", name: "Alpha Inc", facts: { smartScoreFrom: 4, smartScoreTo: 9 } };
-  for (const verb of ["plunged", "plummeted", "rocketed", "crashed", "jumped", "surged", "spiked",
-                       "tumbled", "nosedived", "sank", "skidded"]) {
+  const hook = { kind: "movement", name: "Alpha Inc", facts: { smartScoreFrom: 4, smartScoreTo: 9 } };
+  for (const verb of ["plunged", "plummeted", "catapulted", "rocketed", "crashed", "jumped", "surged",
+                       "spiked", "tumbled", "nosedived", "sank", "skidded"]) {
     const text = `Smart Score ${verb} from 4 to 9.`;
     assert.ok(misdescribedMovementVerbs(text, hook).length > 0, `"${verb}" on a Smart Score is flagged`);
   }
@@ -347,15 +349,41 @@ assert.equal(pickBest(["Let's dive in! In the world of finance, a game-changer. 
 // 5 down.") before `plummeted` was added to MOVEMENT_VERB_RE — the same category error as the
 // original IRD bug, caught here so it can never silently regress again.
 {
-  const cop = { kind: "trend", name: "Conocophillips", facts: {
-    smartScoreFrom: 9, smartScoreTo: 5, direction: "down", snapshots: 30, days: 6.3,
-    upside: 18.2, consensus: "StrongBuy", analysts: 17,
+  const cop = { kind: "movement", name: "Conocophillips", facts: {
+    smartScoreFrom: 9, smartScoreTo: 5, upsideFrom: 15, upsideTo: 18.2,
+    consensusFrom: "Hold", consensusTo: "StrongBuy", analysts: 17,
   } };
   const text = "Smart Score plummeted from 9 to 5 down.";
   assert.deepEqual(misdescribedMovementVerbs(text, cop), ["plummeted"],
     "the exact live-output regression is caught");
   assert.ok(scorePost(text, { hook: cop }).score < MIN_PUBLISHABLE,
     "and it is rejected, not merely docked a few points");
+}
+// The SECOND live bug this same run produced: "Smart Score catapulted from 7 to 10 overnight."
+// — a Smart Score hook whose real window was 6.3 days, described as an overnight move by a
+// movement verb attached to a forecast number AND a timeframe the data never showed. Both
+// halves are wrong on their own and the candidate must fail on either alone, let alone both.
+{
+  const hook = { kind: "steady", name: "Alpha Inc",
+                 facts: { smartScoreFrom: 7, smartScoreTo: 10, snapshots: 30, days: 6.3 } };
+  const text = "Smart Score catapulted from 7 to 10 overnight.";
+  assert.deepEqual(misdescribedMovementVerbs(text, hook), ["catapulted"],
+    "catapulted on a Smart Score number is flagged");
+  assert.deepEqual(misdescribedTimeframe(text), ["overnight"],
+    "overnight is flagged regardless of the hook's facts");
+  const r = scorePost(text, { hook });
+  assert.ok(r.score < MIN_PUBLISHABLE, "the exact live bug is rejected on both counts");
+  assert.ok(r.reasons.some((x) => /misdescribes a target\/score\/forecast/.test(x)), "the verb reason is named");
+  assert.ok(r.reasons.some((x) => /timeframe the data cannot support/.test(x)), "the timeframe reason is named");
+  assert.equal(pickBest([text], { hook }), null, "pickBest ships nothing rather than the live bug");
+}
+// "overnight" is decisive even riding completely alone, with no movement verb alongside it —
+// it does not need help to sink an otherwise clean candidate.
+{
+  const hook = { kind: "record", name: "Beta Co", facts: { upside: 60, windowLow: 10, windowHigh: 60 } };
+  const r = scorePost("Upside hit a window high of 60% overnight.", { hook });
+  assert.ok(r.reasons.some((x) => /timeframe the data cannot support/.test(x)), "the reason names the timeframe claim");
+  assert.ok(r.score < MIN_PUBLISHABLE, "an unsupported timeframe claim alone sinks the candidate");
 }
 // The task's own explicit exemption: a LEGITIMATE use — a verb describing a number that is
 // genuinely a realized price change, not a target/score/forecast — must still pass. No hook
@@ -385,5 +413,11 @@ assert.deepEqual(
 assert.ok(MISDESCRIBED_MOVEMENT_PENALTY > 56, "the penalty alone beats the documented 86-point bonus ceiling");
 assert.ok(MISDESCRIBED_MOVEMENT_PENALTY < FABRICATION_PENALTY,
   "decisive, but a misdescribed (still TRUE) number is a lesser sin than a fabricated one");
+assert.ok(MISDESCRIBED_TIMEFRAME_PENALTY > 56, "same tier: an unsupported timeframe alone beats the 86-point bonus ceiling");
+assert.ok(MISDESCRIBED_TIMEFRAME_PENALTY < FABRICATION_PENALTY,
+  "decisive, but a wrong timeframe is a lesser sin than a fabricated number");
+assert.deepEqual(misdescribedTimeframe("Nothing unusual here, just a plain sentence."), [],
+  "ordinary text carries no timeframe claim");
+assert.deepEqual(misdescribedTimeframe(""), [], "empty text is handled, not a crash");
 
-console.log("post-score OK — banned phrases, numbers, number VERIFICATION, decisive ticker penalty, misdescribed movement verbs, naming no longer required, length, dedupe, full-list scan, hashtags, exclamations, pickBest floor, determinism");
+console.log("post-score OK — banned phrases, numbers, number VERIFICATION, decisive ticker penalty, misdescribed movement verbs, unsupported timeframe claims, naming no longer required, length, dedupe, full-list scan, hashtags, exclamations, pickBest floor, determinism");

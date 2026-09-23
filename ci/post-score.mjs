@@ -191,11 +191,37 @@ const FORECAST_KEY_RE = /target|score|upside|forecast|rating|consensus/i;
  *  like") since a model told to avoid "jumped" reaches for "spiked" next — `plummeted` is a
  *  real example: a live generation run used it for a Smart Score drop ("Smart Score plummeted
  *  from 9 to 5") before it was added here, the exact same category error as "IRD soared
- *  151.7%" with a different verb. Matched on the verb root so any tense/inflection trips it.
- *  `skyrocket` is deliberately NOT here — it is already a hard BANNED phrase above regardless
- *  of context, as generic AI-slop, not because of what it might be describing. */
+ *  151.7%" with a different verb. `catapulted` is the same story again — a live run produced
+ *  "Smart Score catapulted from 7 to 10 overnight" before it was added. Matched on the verb
+ *  root so any tense/inflection trips it. `skyrocket` is deliberately NOT here — it is already
+ *  a hard BANNED phrase above regardless of context, as generic AI-slop, not because of what
+ *  it might be describing. */
 export const MOVEMENT_VERB_RE =
-  /\b(soar(?:ed|s|ing)?|plunge(?:d|s|ing)?|plummet(?:ed|s|ing)?|rocket(?:ed|s|ing)?|crash(?:ed|es|ing)?|jump(?:ed|s|ing)?|surge(?:d|s|ing)?|spike(?:d|s|ing)?|tank(?:ed|s|ing)?|craters?(?:ed|ing)?|tumble(?:d|s|ing)?|nosedive[ds]?|nosediving|dove|dived|sank|skid(?:ded|s|ding)?)\b/gi;
+  /\b(soar(?:ed|s|ing)?|plunge(?:d|s|ing)?|plummet(?:ed|s|ing)?|rocket(?:ed|s|ing)?|catapult(?:ed|s|ing)?|crash(?:ed|es|ing)?|jump(?:ed|s|ing)?|surge(?:d|s|ing)?|spike(?:d|s|ing)?|tank(?:ed|s|ing)?|craters?(?:ed|ing)?|tumble(?:d|s|ing)?|nosedive[ds]?|nosediving|dove|dived|sank|skid(?:ded|s|ding)?)\b/gi;
+
+/** The OTHER half of that same live bug: "…overnight" for a Smart Score move whose real window
+ *  was 6.3 days. Not a verb, so it does not fit `MOVEMENT_VERB_RE` — but it is the same category
+ *  of lie ("this happened faster than the data shows") and gets the same decisive treatment, not
+ *  a soft nudge. This pipeline's fastest comparison is one run to the last (`movement`, 5h
+ *  apart, ci/hooks.mjs); every window-based kind (`record`, `steady`, `newcomer`) spans DAYS —
+ *  each carries its own `days` fact saying so. "Overnight" is never a fact this pipeline can
+ *  vouch for, so it is flagged unconditionally rather than gated on the hook's facts the way
+ *  `misdescribedMovementVerbs` is. */
+const UNSUPPORTED_TIMEFRAME_RE = /\bovernight\b/gi;
+
+/** Same tier as `MISDESCRIBED_MOVEMENT_PENALTY` — a false claim about WHEN something happened
+ *  is the same size of sin as a false claim about WHAT happened, and has to be just as decisive
+ *  against the same 86-point best-case ceiling. */
+export const MISDESCRIBED_TIMEFRAME_PENALTY = 100;
+
+/** Returns the offending word(s) — currently just "overnight" — or `[]` when clean. Unlike
+ *  `misdescribedMovementVerbs`, this does not need a hook at all: no fact this pipeline emits
+ *  ever vouches for "overnight", so the hook's facts have nothing to add to the check. */
+export function misdescribedTimeframe(text) {
+  const s = String(text ?? "");
+  UNSUPPORTED_TIMEFRAME_RE.lastIndex = 0;
+  return s.match(UNSUPPORTED_TIMEFRAME_RE) ?? [];
+}
 
 /**
  * A movement verb (soared/plunged/rocketed/crashed/jumped/…) is a claim that something
@@ -336,6 +362,16 @@ export function scorePost(text, ctx = {}) {
     score -= MISDESCRIBED_MOVEMENT_PENALTY;
     reasons.push(
       `movement verb misdescribes a target/score/forecast number: ${[...new Set(badVerbs)].join(", ")}`,
+    );
+  }
+
+  // Same published bug, the other half of the sentence: a timeframe ("overnight") this
+  // pipeline can never actually vouch for — see MISDESCRIBED_TIMEFRAME_PENALTY's own doc.
+  const badTimeframes = misdescribedTimeframe(s);
+  if (badTimeframes.length) {
+    score -= MISDESCRIBED_TIMEFRAME_PENALTY;
+    reasons.push(
+      `claims a timeframe the data cannot support: ${[...new Set(badTimeframes)].join(", ")}`,
     );
   }
 

@@ -1,7 +1,15 @@
 // WHO WRITES THE COPY — one switch, so swapping models is an env var, not a refactor.
 //
-// Default is Cloudflare Workers AI because it is free: 10,000 neurons/day, and this
-// pipeline burns roughly 15% of that at one post per 5h with five candidates per run.
+// Default is Cloudflare Workers AI because it is free: 10,000 neurons/day. The default MODEL
+// is `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, not the 8B instruct model this used to run —
+// an 8B model writing an 8-word headline has a low ceiling on wit, which was the root cause of
+// the flat, repetitive copy that kept getting flagged, and side-by-side generations against
+// the same hooks (see the task's own report) showed the 70B model consistently punchier and
+// less generic at the same temperature. `CF_MODEL` still overrides this either way. NOTE: the
+// "roughly 15%" neuron-budget estimate above was measured against the 8B model — a 70B model
+// is charged more neurons per token on Cloudflare's pricing, so that fraction is now a
+// LOWER bound, not a fresh measurement; watch actual usage after this ships, and drop back to
+// a smaller model (or lower POST_CANDIDATES) if the free daily allowance starts getting tight.
 // "anthropic" is here as the quality escape hatch (~$0.30/mo at this volume) for an A/B.
 // "stub" is what `npm test` uses — no network in checks, ever.
 //
@@ -35,7 +43,7 @@ export function makeProvider(env = process.env, fetchImpl = globalThis.fetch) {
     const token = env.CF_API_TOKEN;
     if (!acct) throw new Error("POST_PROVIDER=cloudflare needs CF_ACCOUNT_ID");
     if (!token) throw new Error("POST_PROVIDER=cloudflare needs CF_API_TOKEN");
-    const model = env.CF_MODEL || "@cf/meta/llama-3.1-8b-instruct";
+    const model = env.CF_MODEL || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
     return async ({ system, prompt, n = 1 }) =>
       batch(n, async () => {
