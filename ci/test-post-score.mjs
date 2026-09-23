@@ -337,10 +337,25 @@ assert.equal(pickBest(["Let's dive in! In the world of finance, a game-changer. 
 // A handful of close synonyms ("and the like") are covered too, on a Smart Score number.
 {
   const hook = { kind: "trend", name: "Alpha Inc", facts: { smartScoreFrom: 4, smartScoreTo: 9 } };
-  for (const verb of ["plunged", "rocketed", "crashed", "jumped", "surged", "spiked"]) {
+  for (const verb of ["plunged", "plummeted", "rocketed", "crashed", "jumped", "surged", "spiked",
+                       "tumbled", "nosedived", "sank", "skidded"]) {
     const text = `Smart Score ${verb} from 4 to 9.`;
     assert.ok(misdescribedMovementVerbs(text, hook).length > 0, `"${verb}" on a Smart Score is flagged`);
   }
+}
+// Regression: a live generation run actually produced this ("Smart Score plummeted from 9 to
+// 5 down.") before `plummeted` was added to MOVEMENT_VERB_RE — the same category error as the
+// original IRD bug, caught here so it can never silently regress again.
+{
+  const cop = { kind: "trend", name: "Conocophillips", facts: {
+    smartScoreFrom: 9, smartScoreTo: 5, direction: "down", snapshots: 30, days: 6.3,
+    upside: 18.2, consensus: "StrongBuy", analysts: 17,
+  } };
+  const text = "Smart Score plummeted from 9 to 5 down.";
+  assert.deepEqual(misdescribedMovementVerbs(text, cop), ["plummeted"],
+    "the exact live-output regression is caught");
+  assert.ok(scorePost(text, { hook: cop }).score < MIN_PUBLISHABLE,
+    "and it is rejected, not merely docked a few points");
 }
 // The task's own explicit exemption: a LEGITIMATE use — a verb describing a number that is
 // genuinely a realized price change, not a target/score/forecast — must still pass. No hook

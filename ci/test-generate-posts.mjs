@@ -84,7 +84,7 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   const { system } = buildPrompt(hook);
   assert.ok(/already printed large on the card/i.test(system), "the system prompt says the name is already on the card");
   assert.ok(/do NOT repeat it/i.test(system), "and says not to repeat it");
-  assert.ok(/soared/.test(system) && /plunged/.test(system) && /jumped/.test(system),
+  assert.ok(/soared/.test(system) && /plunged/.test(system) && /plummeted/.test(system) && /jumped/.test(system),
     "the system prompt names the banned false-movement verbs");
   assert.ok(/never use the ticker/i.test(system), "the no-ticker rule is still stated explicitly");
 }

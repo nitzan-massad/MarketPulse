@@ -187,13 +187,15 @@ export const MISDESCRIBED_MOVEMENT_PENALTY = 100;
 const FORECAST_KEY_RE = /target|score|upside|forecast|rating|consensus/i;
 
 /** Verbs that assert a stock's PRICE already moved. The task names five (soared, plunged,
- *  rocketed, crashed, jumped); a few close synonyms are folded in too ("and the like") since a
- *  model told to avoid "jumped" reaches for "spiked" next. Matched on the verb root so any
- *  tense/inflection trips it. `skyrocket` is deliberately NOT here — it is already a hard
- *  BANNED phrase above regardless of context, as generic AI-slop, not because of what it might
- *  be describing. */
+ *  rocketed, crashed, jumped); a longer list of close synonyms is folded in too ("and the
+ *  like") since a model told to avoid "jumped" reaches for "spiked" next — `plummeted` is a
+ *  real example: a live generation run used it for a Smart Score drop ("Smart Score plummeted
+ *  from 9 to 5") before it was added here, the exact same category error as "IRD soared
+ *  151.7%" with a different verb. Matched on the verb root so any tense/inflection trips it.
+ *  `skyrocket` is deliberately NOT here — it is already a hard BANNED phrase above regardless
+ *  of context, as generic AI-slop, not because of what it might be describing. */
 export const MOVEMENT_VERB_RE =
-  /\b(soar(?:ed|s|ing)?|plunge(?:d|s|ing)?|rocket(?:ed|s|ing)?|crash(?:ed|es|ing)?|jump(?:ed|s|ing)?|surge(?:d|s|ing)?|spike(?:d|s|ing)?|tank(?:ed|s|ing)?|craters?(?:ed|ing)?)\b/gi;
+  /\b(soar(?:ed|s|ing)?|plunge(?:d|s|ing)?|plummet(?:ed|s|ing)?|rocket(?:ed|s|ing)?|crash(?:ed|es|ing)?|jump(?:ed|s|ing)?|surge(?:d|s|ing)?|spike(?:d|s|ing)?|tank(?:ed|s|ing)?|craters?(?:ed|ing)?|tumble(?:d|s|ing)?|nosedive[ds]?|nosediving|dove|dived|sank|skid(?:ded|s|ding)?)\b/gi;
 
 /**
  * A movement verb (soared/plunged/rocketed/crashed/jumped/…) is a claim that something

@@ -104,7 +104,7 @@ export function buildPrompt(hook, exemplars = []) {
     "- Be BOLD, not flat. Find the one surprising angle in the numbers — the thing that makes someone look twice — instead of just restating them in order like a ledger.",
     "- Open with the fact. No greeting, no preamble, no 'Let's dive in'.",
     "- Use the exact numbers you are given. Never invent a number.",
-    "- Never use a verb that claims a stock's PRICE moved (soared, plunged, rocketed, crashed, jumped, surged, spiked, tanked, or the like) unless the number attached to it is an actual past price change. A price target, a Smart Score, an AI score, or an analyst upside is a forecast, a score, or a rating — not something that has already happened to the stock. Describe it as what it is (a target, a score, a call), never as a move.",
+    "- Never use a verb that claims a stock's PRICE moved (soared, plunged, plummeted, rocketed, crashed, jumped, surged, spiked, tanked, tumbled, nosedived, or the like) unless the number attached to it is an actual past price change. A price target, a Smart Score, an AI score, or an analyst upside is a forecast, a score, or a rating — not something that has already happened to the stock. Describe it as what it is (a target, a score, a call), never as a move.",
     "- No hashtags beyond one. No emoji. At most one exclamation mark, ideally zero.",
     "- Never give advice, never say buy or sell, never predict. Report what the data says.",
     "- No disclaimer, no 'not financial advice' line — the app adds that itself.",
