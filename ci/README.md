@@ -332,8 +332,187 @@ uses whatever is on `main`.
   `stub` for offline runs), `CF_MODEL` (default `@cf/meta/llama-3.3-70b-instruct-fp8-fast`;
   overrides which Workers AI model writes the copy), `POSTS_ENABLED` (set `false` to stop
   writing posts), `POST_IMAGES` (default `"true"`; set `"false"` to skip Flux generation and
-  always ship canvas art). Secrets: `CF_ACCOUNT_ID`, `CF_API_TOKEN` (shared with the text
-  provider — no new secret).
+  always ship canvas art), `POST_PHOTO_SOURCE` (see below). Secrets: `CF_ACCOUNT_ID`,
+  `CF_API_TOKEN` (shared with the text provider — no new secret).
+
+## A real photograph, compared against the Flux generation — `ci/company-photo.mjs`
+
+  **Wikimedia Commons, not Google Images.** The user's own worked example: the Googleplex, with
+  the actual Google logo on the building — something Flux can never legitimately produce (it
+  fabricates brand marks as garbled pseudo-text, which is exactly why `buildImagePrompt` above
+  bans logos/signage from every generated scene). Commons is the only source that is both free
+  and legally usable in an automated publisher: a real MediaWiki API (`action=query`,
+  `generator=search`, `prop=imageinfo`) at `commons.wikimedia.org`, no key, plain `fetch`, and
+  every file carries explicit, machine-readable licensing. Google Images is copyrighted and out
+  of the question.
+
+  **Two relevance gates, both required on every candidate.** A bare Commons search for a small
+  or narrowly-covered company returns noise — searching "Praxis Precision Medicines" or "Opus
+  Genetics" today returns a Hamburg stock-exchange sculpture and 19th-century genetics
+  textbooks, matched on loose full-text relevance, nothing to do with either company (verified
+  live against the real API while building this module). Publishing either under that company's
+  name would be worse than posting no photo at all. (1) TOKEN MATCH: the company's own
+  significant name word(s) must appear, whole-word, in the candidate's OWN title or
+  description — never just a Commons CATEGORY tag, since a real, live-verified failure mode is a
+  file mis-filed under `Category:Apple Inc.` (a Taiwanese presidential-office photo, no mention
+  of Apple anywhere in its own text) that a category-trusting check would have published under
+  Apple's name. A single-word name needs that one word; a multi-word name needs at least two of
+  its words. (2) BUILDING-WORD MATCH (the plain-search path only — a hit from the company's own
+  Commons category already carries a second independent relevance signal and skips this gate):
+  the title/description must also say what kind of place/thing it depicts (headquarters, campus,
+  office, building, sign, store, lab, plant, factory, logo, …) — this is what stops "Apple"
+  resolving to a photo of an apple once the search query no longer carries a location word.
+
+  **Licensing, filtered hard.** Accepts CC0, public domain, CC BY, and CC BY-SA (any version) —
+  every one explicitly permits commercial use. Rejects NC (non-commercial) outright, AND CC
+  BY-ND ("no derivatives") — deliberately stricter than the letter of "permits commercial use",
+  because `ci/post-compose.mjs` always burns text into the photo's pixels, which IS a derivative
+  work an ND licence does not cover. No license metadata, or an unrecognised one, is rejected
+  too — `null` is the safe answer when in doubt, never a guess. Every accepted image's license is
+  logged.
+
+  **Two tiers, cheapest-and-strongest first.** TIER 1 queries the company's own Commons category
+  (`incategory:"<name>" (headquarters OR campus OR …)`) when one exists — curated by Commons
+  volunteers, a strong prior, but still run through the token-match gate (see the Apple/Taiwan
+  example above). TIER 2 is plain keyword search, one query per suffix (headquarters, campus,
+  office, building, logo, then the bare name), most specific first, stopping at the first suffix
+  that yields a passing candidate — several small, targeted queries measured live to beat one
+  clever OR-grouped query, which ranked OCR'd historical-document noise ahead of real building
+  photos for a plain company name.
+
+  **Never throws.** Every failure — no hit, a failed download, a malformed response, a thrown
+  network error — returns `null`, exactly like `ci/post-image.mjs`'s `generateImage`; the
+  pipeline falls back to Flux.
+
+  **`POST_PHOTO_SOURCE`** (default `flux`): `flux` is current behaviour, unchanged. `wikimedia`
+  tries Commons first and falls back to Flux only when Commons has no usable hit. `both` runs
+  BOTH unconditionally (a comparison tool, not a production posture) — Wikimedia still wins the
+  post record's PRIMARY image slot whenever it succeeds (a real photo beats a generated one), and
+  the Flux generation is saved ALONGSIDE it in `public/post-images/` under a `<id>-compare-flux.jpg`
+  suffix for a human to open both side by side. That comparison file is **never** referenced by
+  `posts.json` — `ci/generate-posts.mjs`'s `main()` strips `compareImage`/`compareImageBuffer`
+  before writing the post record, exactly like the primary `imageBuffer` — and it survives
+  pruning for exactly the one run that produced it (the next run's prune pass has no record of it
+  in `posts.json` and deletes it as orphaned, same as any other untracked file there): look for
+  it right after the run that made it.
+
+  **The credit line.** CC BY and CC BY-SA both legally require attribution. When a Wikimedia
+  photo is used, the post record carries `imageSource: "wikimedia"`, `imageLicense`, and
+  `imageAttribution`, and `ci/post-compose.mjs`'s `composePost` gets a `credit` string
+  (`"Photo: <author> — Wikimedia Commons (<license>)"`) which it renders in SMALL TYPE right at
+  the very bottom edge of the card, inside the same bottom-padding gap the statement block
+  already leaves clear of the frame's edge — unobtrusive, but always present, never silently
+  omitted. A Flux photo carries no `imageSource`/license fields at all and no credit line —
+  there is nothing to credit.
+
+  **Coverage tool** — `node ci/coverage-company-photo.mjs [company names...]` (defaults to
+  Alphabet, Microsoft, Apple, Praxis Precision Medicines, Opus Genetics): the ONLY script in this
+  repo that is expected to touch the real network every run. Reports, per company, whether a
+  photo was found, its license, dimensions, size, and attribution. NOT part of `npm test` (it is
+  not named `ci/test-*.mjs`) — `ci/test-company-photo.mjs` is the offline regression check, with
+  every `fetch` faked.
+
+## Neuron accounting — measuring what the free tier actually costs
+
+  **The old "~15% a day" estimate was worthless the moment the writer stopped being an 8B
+  model.** It was a guess made against `@cf/meta/llama-3.1-8b-instruct`; the writer is now the
+  70B model above, there is a real Flux image on EVERY post, and a descriptor/scene call on
+  every PUBLISHED post — three different call shapes against the same 10,000-neuron/day pool,
+  and nothing anywhere measured or reported what any of them actually cost. `ci/neuron-usage.mjs`,
+  `ci/cf-budget.mjs`, and `ci/run-telemetry.mjs` are that measurement.
+
+  **Measured where Cloudflare actually tells us, estimated where it doesn't — and the two never
+  look alike.** Checked against the real, documented API schema (not assumed) while building
+  this: the TEXT model's JSON response carries a real `usage` object
+  (`{ prompt_tokens, completion_tokens, total_tokens }` — Cloudflare's own published response
+  schema for `@cf/meta/llama-3.3-70b-instruct-fp8-fast`) but never a neuron count directly, so
+  `ci/neuron-usage.mjs` converts those real token counts to neurons via Cloudflare's own
+  documented per-million-token rate (26,668/M input, 204,805/M output — verified live against
+  the pricing page). The IMAGE model's response (`@cf/black-forest-labs/flux-1-schnell`) has no
+  documented schema beyond `{ result: { image: <base64> } }` — no tokens, nothing to measure —
+  so every image call is an ESTIMATE from Cloudflare's own documented per-tile/per-step rate
+  (4.80 neurons/512x512 tile + 9.60 neurons/step, `ci/post-image.mjs`'s own `FLUX_STEPS`
+  imported rather than restated). Every printed number says which of the two it is; a measured
+  figure and an estimate are never merged into one unlabelled total.
+
+  **Per-stage, not just a total.** `ci/generate-posts.mjs`'s `main()` wires THREE independent
+  `ci/neuron-usage.mjs` trackers — writer, descriptor, image — specifically so
+  `ci/run-telemetry.mjs` can report each stage's own call count, its own measured+estimated
+  neurons, and its own share of the run, instead of one number that says nothing about which
+  knob to pull.
+
+  **Cost per published post**, and what the daily ceiling implies. `neuronsPerPublishedPost`
+  divides the run's total by how many posts actually published — 5 candidates spent on 1 post is
+  a very different lever from an expensive image on every post — then `dailyPostCapacity` says
+  how many posts/day that cost would afford inside the 10,000/day pool, printed alongside the
+  cron's own real cadence (24/5 = 4.8 runs/day, `CRON_RUNS_PER_DAY`) so the two numbers sit next
+  to each other for comparison.
+
+  **Waste — candidates generated vs. used vs. rejected, by REASON.** `ci/post-score.mjs`'s
+  `pickBest` now delegates to a new exported `rankCandidates`, which scores and returns EVERY
+  candidate (not just the winner) — `ci/run-telemetry.mjs`'s `recordCandidateOutcomes` sorts
+  each one into exactly one bucket (the winner: "used"; scored high enough but simply
+  outscored: healthy best-of-N, not a problem; scored below `MIN_PUBLISHABLE`: "rejected") and
+  `classifyRejectionReason` boils a rejected candidate's `reasons` down to its single most
+  decisive cause — fabricated number, over the 8-word cap, contains a ticker, banned movement
+  verb, misdescribed timeframe, duplicate of a recent post, too short, no numbers, banned
+  phrase — in the same priority order `scorePost`'s own penalties are sized. "4 of 5 candidates
+  die on the fabrication check, every run" is a finding; a bag of untallied tags is not.
+
+  **Per-hook-kind outcomes** (attempted vs. published, per kind) — the same evidence `trend`/
+  `churn` were already cut on, now visible for every surviving kind (`steady` included) instead
+  of assumed.
+
+  **Headroom, and a before-the-fact warning.** `computeHeadroom` sums what today (UTC — the
+  allocation resets at 00:00 UTC) has already spent, from the persisted history below, plus this
+  run's own total, against the real 10,000/day cap. Before a run even starts, `main()` compares
+  today's spend-so-far against a rough estimate from the last few runs' ACTUAL cost
+  (`estimateRunCostFromHistory` — there is no way to know a run's real cost before running it)
+  and prints one WARNING line if the two together would blow the daily budget. Advisory only —
+  it changes nothing about whether the run proceeds; a genuine exhaustion still degrades
+  gracefully via the code-4006 handling below.
+
+  **A persisted history, so a trend is visible, not just one run's noise.** One compact record
+  per run — timestamp, model, per-kind call counts, measured/estimated/total neurons, published
+  count, per-stage timings, candidate/rejection tallies, per-hook-kind outcomes, NO raw candidate
+  text — appended to `src/data/neuron-usage-history.json` (same neighbourhood, same "Commit
+  refreshed data" CI step, same `CLAUDE.md` "CI-owned JSON" rule as `posts.json`/
+  `company-descriptors.json`), bounded to the most recent `NEURON_HISTORY_KEEP` (200) runs the
+  same way `POSTS_KEEP` bounds `posts.json` — this is what lets "is the 70B writer worth its
+  cost" be answered from data instead of opinion.
+
+  **Timing per stage.** `ci/generate-posts.mjs` times the writer, descriptor, Wikimedia lookup,
+  and Flux generation calls around each `await` and reports them in the summary block below — the
+  whole job shares its GitHub Actions runtime with the scrapes, so a slow step here is worth
+  seeing.
+
+  **One compact, aligned summary block, printed every run** (`ci/run-telemetry.mjs`'s
+  `formatSummaryBlock`) — per-stage calls/neurons/share/time, the run's total (measured +
+  estimated, labelled), cost-per-post and daily capacity, the candidate waste breakdown, per-hook-kind
+  outcomes, and headroom, all in one place instead of fifty scattered log lines. Per-candidate
+  detail stays verbose above it in the log.
+
+  **Never changes behaviour.** Every telemetry-recording call site in `ci/generate-posts.mjs` is
+  wrapped so a bug in the accounting degrades to "this run's numbers are incomplete", never to
+  "the post didn't ship" — `usageTracker`/`telemetry` are both optional, so every existing test
+  that predates this work is unaffected.
+
+  **Graceful exhaustion — `ci/cf-budget.mjs`.** A 429 carrying Cloudflare's documented code 4006
+  ("daily free allocation of 10,000 neurons used up") used to produce five (or fifty) identical
+  "candidate failed: cloudflare 429" lines — one per doomed parallel candidate, repeated for
+  every hook the run tried afterward — with the real cause never even read off the response
+  body. `ci/provider.mjs`'s cloudflare branch now reads that body, and a shared, idempotent,
+  process-wide flag (`markExhausted`) logs the real cause exactly ONCE and lets every other call
+  site (the writer's next candidate batch, the descriptor, the image) skip straight to "there is
+  no point calling" — `ci/generate-posts.mjs`'s hook loop stops entirely the moment it is set,
+  rather than repeating "0 candidates, none publishable" once per remaining hook.
+
+  **Verification note:** the Cloudflare free tier was exhausted for the whole day this was
+  built, so this entire half is verified against injected fakes (`ci/test-cf-budget.mjs`,
+  `ci/test-neuron-usage.mjs`, `ci/test-run-telemetry.mjs`, plus the wiring checks in
+  `ci/test-provider.mjs`/`ci/test-post-image.mjs`/`ci/test-company-descriptor.mjs`/
+  `ci/test-generate-posts.mjs`) — never against a real, live Workers AI response. Say so plainly
+  rather than implying a live measurement that never happened.
 
 `scripts/refresh-data.mjs` is the **local** manual equivalent (uses Playwright instead of
 FlareSolverr) — a dev tool, not part of CI.
