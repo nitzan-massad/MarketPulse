@@ -1,5 +1,29 @@
 [
   {
+    "id": "PRAX-2026-09-24T23:11:22.609Z",
+    "ts": "2026-09-24T23:11:22.609Z",
+    "kind": "list",
+    "ticker": "PRAX",
+    "name": "Praxis Precision Medicines, Inc.",
+    "sector": "Healthcare",
+    "text": "159% leads the pack, 5 names follow.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "PRAX appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Praxis Precision Medicines (159% to $730.58), Opus Genetics (148.4% to $12), Fervo Energy Company Class A (144.6% to $40), Vera Therapeutics (137.9% to $78.63), Viking Therapeutics (127.3% to $94.67)",
+      "count": 5,
+      "leader": "Praxis Precision Medicines",
+      "leaderUpside": 159
+    },
+    "descriptor": "Brain Disorder Therapies",
+    "image": "PRAX-2026-09-24T23-11-22-609Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "MU-2026-09-24T18:53:31.766Z",
     "ts": "2026-09-24T18:53:31.766Z",
     "kind": "steady",
