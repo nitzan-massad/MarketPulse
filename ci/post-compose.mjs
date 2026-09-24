@@ -407,13 +407,21 @@ function scrimDefs({ width, height, topHalo, bottomHalo, topStats, bottomStats }
  * @param statement the post's own text (`best.text`) — this is the "hook", unmodified. The
  *   caller (ci/generate-posts.mjs) is responsible for making sure this does not repeat the
  *   company name — this module has no opinion on that, it just renders whatever it is given.
+ * @param credit optional — a photo-credit line (ci/company-photo.mjs's `attribution`/`license`,
+ *   formatted by the caller), rendered in small type right at the bottom edge, below the
+ *   statement block, inside the same bottom-padding gap the statement already leaves clear of
+ *   the frame's edge. Omitted for a Flux-generated photo (nothing to credit); REQUIRED by the
+ *   caller whenever the photo came from Wikimedia Commons — CC BY and CC BY-SA both legally
+ *   require attribution, and this is where it lives on the card itself (ci/generate-posts.mjs
+ *   never posts a Commons photo without one). Unobtrusive by design (small type, bottom edge,
+ *   the same halo treatment as everything else) but always present, never omitted silently.
  * @returns `{ jpeg: Buffer, width: number, height: number, layout }` — `layout` is debug/test
  *   metadata (chosen font sizes, line counts, the split figure and its direction), not needed by
  *   the one real caller (ci/generate-posts.mjs, which only reads `.jpeg`) but is what
  *   ci/test-post-compose.mjs verifies the layout rules against, rather than re-deriving them
  *   from raw pixels.
  */
-export function composePost({ photo, companyName, sector, descriptor, statement }) {
+export function composePost({ photo, companyName, sector, descriptor, statement, credit }) {
   const { width, height, mime } = imageDimensions(photo);
   const cx = width / 2;
   const marginX = width * 0.08;
@@ -483,6 +491,20 @@ export function composePost({ photo, companyName, sector, descriptor, statement 
   const figureFirstBaseline = bottomBlockTop + (figureFit ? figureFit.fontSize * 0.86 : 0);
   const restFirstBaseline = bottomBlockTop + figureBlockHeight + figureRestGap + restFit.fontSize * 0.86;
 
+  // --- (Wikimedia) photo credit: tiny type, hugging the very bottom edge, inside the same
+  // bottomPad gap the statement already leaves clear (see the `credit` param doc above). Never
+  // independently font-shrunk below its own small floor the way the headline blocks are — a
+  // credit line that would need to shrink past readability is better wrapped by the caller's
+  // own formatting than by this module guessing.
+  const creditText = String(credit ?? "").trim();
+  const creditFit = creditText
+    ? fitText(creditText, {
+        fontFamily: FONT_FAMILY_MEDIUM, fontWeight: "500", maxWidth: maxTextWidth, maxLines: 1,
+        startSize: Math.max(9, Math.round(height * 0.017)), minSize: 8, step: 1,
+      })
+    : null;
+  const creditBaseline = height - height * 0.022;
+
   const b64 = photo.toString("base64");
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
     <image x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" href="data:${mime};base64,${b64}"/>
@@ -491,6 +513,7 @@ export function composePost({ photo, companyName, sector, descriptor, statement 
     ${textLines(descFit.lines, { x: cx, firstBaseline: descFirstBaseline, lineHeight: descLineHeight, fontFamily: FONT_FAMILY_MEDIUM, fontWeight: "500", fontSize: descFit.fontSize, fill: topHalo.textFill, halo: topHalo })}
     ${figureFit ? textLines(figureFit.lines, { x: cx, firstBaseline: figureFirstBaseline, lineHeight: figureLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: figureFit.fontSize, fill: directionColor, halo: bottomHalo }) : ""}
     ${textLines(restFit.lines, { x: cx, firstBaseline: restFirstBaseline, lineHeight: restLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: restFit.fontSize, fill: bottomHalo.textFill, halo: bottomHalo })}
+    ${creditFit ? textLines(creditFit.lines, { x: cx, firstBaseline: creditBaseline, lineHeight: 0, fontFamily: FONT_FAMILY_MEDIUM, fontWeight: "500", fontSize: creditFit.fontSize, fill: bottomHalo.textFill, halo: { ...bottomHalo, haloWidth: bottomHalo.haloWidth * 0.6 } }) : ""}
   </svg>`;
 
   const resvg = new Resvg(svg, { font: { loadSystemFonts: false, fontFiles: FONT_FILES } });
@@ -509,6 +532,8 @@ export function composePost({ photo, companyName, sector, descriptor, statement 
       figureText: figure,
       direction,
       maxTextWidth,
+      hasCredit: Boolean(creditFit),
+      creditFontSize: creditFit ? creditFit.fontSize : null,
     },
   };
 }

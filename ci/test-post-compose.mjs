@@ -332,9 +332,48 @@ assert.throws(() => imageDimensions(Buffer.from("not an image, just text")),
   }
 }
 
+// ============================================================ (Wikimedia) photo credit line ===
+{
+  const photo = solidPhoto(1024, 1024, "#f4f6f8");
+  const withoutCredit = composePost({
+    photo, companyName: "Alphabet", sector: "General", statement: "42% upside on 25 analysts.",
+  });
+  assert.equal(withoutCredit.layout.hasCredit, false, "no credit param -> no credit line (the Flux path)");
+  assert.equal(withoutCredit.layout.creditFontSize, null, "and no font size chosen for one either");
+
+  const withCredit = composePost({
+    photo, companyName: "Alphabet", sector: "General", statement: "42% upside on 25 analysts.",
+    credit: "Photo: A Photographer — Wikimedia Commons (CC BY-SA 4.0)",
+  });
+  assert.equal(withCredit.layout.hasCredit, true, "a credit param renders a credit line");
+  assert.ok(Number.isFinite(withCredit.layout.creditFontSize) && withCredit.layout.creditFontSize > 0,
+    "the credit line gets a real, positive font size");
+  assert.ok(withCredit.layout.creditFontSize < withCredit.layout.descriptorFontSize,
+    "the credit line is smaller than even the half-size descriptor — small type, per the spec");
+  assert.ok(Buffer.isBuffer(withCredit.jpeg) && withCredit.jpeg.length > 0, "composes successfully with a credit line");
+
+  // Blank/whitespace-only credit behaves exactly like omitting it, not like an empty visible line.
+  const blankCredit = composePost({
+    photo, companyName: "Alphabet", sector: "General", statement: "42% upside on 25 analysts.", credit: "   ",
+  });
+  assert.equal(blankCredit.layout.hasCredit, false, "a blank credit string is treated as no credit at all");
+}
+{
+  // A long attribution string must not throw or run off the canvas — fitText's own shrink-and-
+  // wrap guard applies to the credit line exactly like every other text block.
+  const photo = solidPhoto(1024, 1024, "#f4f6f8");
+  const longCredit =
+    "Photo: A Photographer With An Unusually Long Display Name Indeed — Wikimedia Commons (CC BY-SA 4.0)";
+  const out = composePost({
+    photo, companyName: "Alphabet", sector: "General", statement: "42% upside on 25 analysts.",
+    credit: longCredit,
+  });
+  assert.ok(Buffer.isBuffer(out.jpeg) && out.jpeg.length > 0, "a long credit line still composes successfully");
+}
+
 console.log("post-compose OK — image header parsing (PNG+JPEG), real-font text measurement, " +
             "word-wrap (including the lone-overlong-word trap), stepwise font shrinking, " +
             "brightness/contrast sampling, end-to-end composition at square and non-square sizes " +
             "with long names/statements and bright/dark/busy photos, number-first typography " +
             "(figure split + direction tint), the descriptor param overriding the sector " +
-            "fallback, and the bottom/top scrim gradient");
+            "fallback, the bottom/top scrim gradient, and the optional Wikimedia photo-credit line");
