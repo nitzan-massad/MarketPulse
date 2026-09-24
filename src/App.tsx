@@ -88,8 +88,11 @@ export default function App() {
      screener universe turns over, so a ticker may no longer be in STOCKS. Fall back to the
      same synthetic-row path search uses for an off-universe ticker rather than doing nothing. */
   function openPostTicker(ticker: string) {
+    // No sibling list on purpose. Opened from the table you are browsing a ranked set, so
+    // paging to the next row makes sense; opened from a post you came for THAT company, and
+    // swiping into an unrelated one is disorienting. handleOpen's default [] disables paging.
     const hit = STOCKS.find((s) => s.t === ticker);
-    if (hit) handleOpen(hit, STOCKS);
+    if (hit) handleOpen(hit);
     else handleOpenTicker(ticker);
   }
   function handleNav(id: NavId) {
