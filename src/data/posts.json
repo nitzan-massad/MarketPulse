@@ -1,5 +1,30 @@
 [
   {
+    "id": "MU-2026-09-24T18:53:31.766Z",
+    "ts": "2026-09-24T18:53:31.766Z",
+    "kind": "steady",
+    "ticker": "MU",
+    "name": "Micron Technology",
+    "sector": "General",
+    "text": "28 analysts hold Strong Buy for 30 days.",
+    "score": 68,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "snapshots": 145,
+      "days": 30.2,
+      "upside": 45.5,
+      "consensus": "StrongBuy",
+      "analysts": 28
+    },
+    "descriptor": "Memory Chip Maker",
+    "image": "MU-2026-09-24T18-53-31-766Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "XENE-2026-09-24T14:41:48.824Z",
     "ts": "2026-09-24T14:41:48.824Z",
     "kind": "record",

@@ -23,5 +23,10 @@
     "name": "Xenon Pharmaceuticals",
     "descriptor": "Neurological Disorder Treatments",
     "scene": "carefully measuring liquid into a laboratory vial with a pipette"
+  },
+  "MU": {
+    "name": "Micron Technology",
+    "descriptor": "Memory Chip Maker",
+    "scene": "inspecting semiconductor wafers with a precision microscope in a cleanroom environment"
   }
 }
