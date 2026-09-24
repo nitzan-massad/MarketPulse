@@ -8,6 +8,7 @@ import {
   buildImagePrompt, descriptorFor, generateImage, personPhrase, postImageFilename, scenePhrase,
   sectorScenePhrase,
 } from "./post-image.mjs";
+import { isExhausted, resetForTest } from "./cf-budget.mjs";
 
 // --- every real sector (src/data/stocks.json's `sec` values) maps to a scene ---------------
 const REAL_SECTORS = [
@@ -305,6 +306,72 @@ for (const sec of REAL_SECTORS) {
     sector: "Healthcare", ticker: "PRAX", scene, env: { CF_ACCOUNT_ID: "a", CF_API_TOKEN: "t" }, fetchImpl,
   });
 }
+
+// --- (Neuron accounting) onSuccess fires once, only on an actually-decoded image ------------
+resetForTest();
+{
+  let calls = 0;
+  const fetchImpl = async () => ({ ok: true, json: async () => ({ result: { image: Buffer.from("x").toString("base64") } }) });
+  const out = await generateImage({
+    sector: "Technology", ticker: "AAA", env: { CF_ACCOUNT_ID: "a", CF_API_TOKEN: "t" }, fetchImpl,
+    onSuccess: () => { calls++; },
+  });
+  assert.ok(Buffer.isBuffer(out), "the call still succeeds normally");
+  assert.equal(calls, 1, "onSuccess fires exactly once on a real decoded image");
+}
+{
+  // Declined (missing creds), non-ok, and malformed-body paths must never fire onSuccess —
+  // none of them were actually billed a usable image.
+  let calls = 0;
+  const onSuccess = () => { calls++; };
+  await generateImage({ sector: "Technology", ticker: "AAA", env: {}, fetchImpl: async () => { throw new Error("must not be called"); }, onSuccess });
+  await generateImage({
+    sector: "Technology", ticker: "AAA", env: { CF_ACCOUNT_ID: "a", CF_API_TOKEN: "t" }, onSuccess,
+    fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({}) }),
+  });
+  await generateImage({
+    sector: "Technology", ticker: "AAA", env: { CF_ACCOUNT_ID: "a", CF_API_TOKEN: "t" }, onSuccess,
+    fetchImpl: async () => ({ ok: true, json: async () => ({ result: {} }) }),
+  });
+  assert.equal(calls, 0, "no failure/decline path ever calls onSuccess");
+}
+{
+  // onSuccess is optional — omitting it must not throw.
+  const fetchImpl = async () => ({ ok: true, json: async () => ({ result: { image: Buffer.from("x").toString("base64") } }) });
+  await assert.doesNotReject(
+    generateImage({ sector: "Technology", ticker: "AAA", env: { CF_ACCOUNT_ID: "a", CF_API_TOKEN: "t" }, fetchImpl }),
+    "no onSuccess handler at all is fine",
+  );
+}
+resetForTest();
+
+// --- (Neuron accounting) exhaustion: code 4006 marks the shared flag and short-circuits later
+// calls, here too — the image endpoint shares the SAME Cloudflare account/daily budget as the
+// text model (ci/provider.mjs), so either one can be the first to see it.
+{
+  const exhaustedBody = { errors: [{ code: 4006, message: "daily free allocation of 10,000 neurons" }] };
+  const fetchImpl = async () => ({ ok: false, status: 429, json: async () => exhaustedBody });
+  const out = await generateImage({
+    sector: "Technology", ticker: "AAA", env: { CF_ACCOUNT_ID: "a", CF_API_TOKEN: "t" }, fetchImpl,
+  });
+  assert.equal(out, null, "an exhausted image call still returns null, never throws");
+  assert.equal(isExhausted(), true, "the SHARED flag (ci/cf-budget.mjs) is set from the image call site too");
+}
+{
+  // Once exhausted (from the block above), a further image call does not even touch the network.
+  let fetchCalls = 0;
+  const fetchImpl = async () => { fetchCalls++; return { ok: true, json: async () => ({ result: { image: "AAAA" } }) }; };
+  const out = await generateImage({
+    sector: "Technology", ticker: "AAA", env: { CF_ACCOUNT_ID: "a", CF_API_TOKEN: "t" }, fetchImpl,
+  });
+  assert.equal(out, null, "no image is generated once the account is known-exhausted");
+  assert.equal(fetchCalls, 0, "not even one network call is made — there is no point");
+}
+resetForTest();
+
+console.log("post-image neuron-accounting OK — onSuccess fires once per real decoded image " +
+            "(never on a decline/failure), and code 4006 marks the shared exhaustion flag and " +
+            "short-circuits further Flux calls with no network touch");
 
 console.log("post-image OK — every real sector has a scene WITH a person (deterministic, ~90% " +
             "woman), a descriptor, the prompt is digit-free and ticker-text-free and suppresses " +

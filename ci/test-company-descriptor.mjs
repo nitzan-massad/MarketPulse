@@ -9,6 +9,7 @@ import {
   buildDescriptorPrompt, describeCompany, parseModelResponse, sanitizeDescriptor, sanitizeScene,
 } from "./company-descriptor.mjs";
 import { descriptorFor, sectorScenePhrase } from "./post-image.mjs";
+import { markExhausted, resetForTest } from "./cf-budget.mjs";
 
 const alphabetRow = {
   t: "GOOGL", n: "Alphabet Inc. Class A", sec: "General", px: 178.4, mc: 2_100_000,
@@ -291,6 +292,58 @@ const modelReply = (descriptor, scene) => `DESCRIPTOR: ${descriptor}\nSCENE: ${s
   assert.equal(/server|data|cloud|network|cable/i.test(d.scene), true,
     "Alphabet's real scene lands on something about its actual business (a data-centre setting)");
 }
+
+// --- (Neuron accounting) onUsage is forwarded verbatim to the SAME provider() call ------------
+{
+  const cache = {};
+  const scene = "engineer inspecting a rack of servers in a data centre hall, hands on the cabling, mid-motion";
+  let seenUsage;
+  const provider = async ({ onUsage }) => {
+    onUsage?.({ prompt_tokens: 210, completion_tokens: 6 });
+    return [modelReply("shaping how we search", scene)];
+  };
+  const d = await describeCompany({
+    row: alphabetRow, provider, cache, onUsage: (usage) => { seenUsage = usage; },
+  });
+  assert.equal(d.descriptor, "shaping how we search", "the call still succeeds normally");
+  assert.deepEqual(seenUsage, { prompt_tokens: 210, completion_tokens: 6 }, "onUsage is forwarded to the real provider call untouched");
+}
+
+// --- (Neuron accounting) exhaustion: never a second confusing "fell back" line ----------------
+resetForTest();
+{
+  // Already exhausted BEFORE this call — the provider must not even be invoked.
+  markExhausted();
+  const provider = async () => { throw new Error("must not be called once already exhausted"); };
+  const d = await describeCompany({ row: alphabetRow, provider, cache: {} });
+  assert.equal(d.descriptor, descriptorFor("General"), "an already-exhausted account still falls back cleanly");
+  assert.equal(d.scene, sectorScenePhrase("General"));
+  resetForTest();
+}
+{
+  // Exhaustion is discovered DURING this very call (the provider's own batch() already logged
+  // the one clear global line and set the flag) — describeCompany must not ALSO print its own
+  // generic "model response failed validation: undefined" line on top of that.
+  const provider = async () => { markExhausted(); return []; }; // mirrors ci/provider.mjs's real behaviour on a 4006
+  let logs = [];
+  const realError = console.error;
+  console.error = (...args) => logs.push(args.join(" "));
+  let d;
+  try {
+    d = await describeCompany({ row: alphabetRow, provider, cache: {} });
+  } finally {
+    console.error = realError;
+  }
+  assert.equal(d.descriptor, descriptorFor("General"), "still falls back cleanly");
+  assert.equal(logs.filter((l) => /4006/.test(l)).length, 1, "the one global exhaustion line is present");
+  assert.equal(logs.some((l) => /fell back/.test(l)), false,
+    "no SECOND, more confusing fallback line is printed once exhaustion is the known cause");
+  resetForTest();
+}
+
+console.log("company-descriptor neuron-accounting OK — onUsage forwards to the real provider call, " +
+            "and exhaustion falls back silently instead of layering a second confusing log line " +
+            "on top of ci/cf-budget.mjs's one clear line");
 
 console.log("company-descriptor OK — one prompt asks for both a DESCRIPTOR and a SCENE, carries " +
             "display name/sector/cap/price/analysts/desc, parseModelResponse splits the two " +

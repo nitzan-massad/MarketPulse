@@ -53,6 +53,8 @@
 // setting itself (a data-centre hall, a corporate campus, a lab) carries the recognisability
 // instead, and the no-logo/no-brand-marks clause in `buildImagePrompt` stays untouched.
 
+import { CF_DAILY_ALLOCATION_EXHAUSTED_CODE, isExhausted, markExhausted } from "./cf-budget.mjs";
+
 /** DETERMINISTIC FALLBACK ONLY, one concrete WORKER + scene per sector TipRanks/Finviz actually
  *  emits (`src/data/stocks.json`'s `sec` values) — used when the per-company model call
  *  (ci/company-descriptor.mjs's `describeCompany`) fails or its scene fails validation. The
@@ -232,7 +234,15 @@ export function buildImagePrompt(sector, seed, customScene) {
 }
 
 const FLUX_MODEL = "@cf/black-forest-labs/flux-1-schnell";
-const FLUX_STEPS = 4; // ~43 neurons/image at this step count — see ci/README.md
+/** Exported (not just `const`) so ci/neuron-usage.mjs's per-image neuron ESTIMATE can multiply
+ *  against the exact same step count this module actually requests, rather than restating "4"
+ *  a second place it could silently drift out of sync with. See ci/neuron-usage.mjs's own
+ *  header for the documented per-step/per-tile neuron rate this feeds into (Cloudflare's
+ *  pricing page, verified live 2026-09-24: 4.80 neurons/512x512 tile + 9.60 neurons/step — this
+ *  module never sets width/height, so the model's own documented 1024x1024 default applies,
+ *  i.e. 4 tiles — giving ~58 neurons/image at 4 steps, not the older, unsourced "~43" this
+ *  comment used to say). */
+export const FLUX_STEPS = 4;
 
 /** Fire the Flux call for one post and return the decoded JPEG bytes, or `null` on ANY
  *  failure — missing credentials, a non-2xx response, a malformed/unexpected body, a thrown
@@ -249,12 +259,24 @@ const FLUX_STEPS = 4; // ~43 neurons/image at this step count — see ci/README.
  *  is the per-company model-written phrase from ci/company-descriptor.mjs (already validated by
  *  its `sanitizeScene`); omitted or falsy, `buildImagePrompt` falls back to the deterministic
  *  `sectorScenePhrase(sector)`. Either way this call never returns anything but a real Flux
- *  photo or `null` — no abstract-mark branch survives here (see the module header). */
-export async function generateImage({ sector, ticker, scene, env = process.env, fetchImpl = globalThis.fetch }) {
+ *  photo or `null` — no abstract-mark branch survives here (see the module header).
+ *
+ *  (Neuron accounting) `onSuccess`, if given, fires exactly once, only on an actual decoded
+ *  image — never on a declined/failed call, which was never billed. This endpoint's own
+ *  response (`{ result: { image: <base64> } }`) carries no usage/token field at all (unlike the
+ *  text model — see ci/provider.mjs/ci/neuron-usage.mjs), so a successful call can only ever
+ *  feed an ESTIMATE, never a measurement; ci/generate-posts.mjs wires this to
+ *  ci/neuron-usage.mjs's `recordImageCall`. (Neuron accounting) Also checks ci/cf-budget.mjs's
+ *  shared exhaustion flag FIRST, right after the credential check — once ANY Cloudflare call
+ *  this run has hit the documented daily-allocation-exhausted code, there is no point spending
+ *  a network round trip finding out again — and reads a non-ok response's real error body to
+ *  detect that code itself, in case the IMAGE call is the first one to see it. */
+export async function generateImage({ sector, ticker, scene, env = process.env, fetchImpl = globalThis.fetch, onSuccess }) {
   try {
     const acct = env.CF_ACCOUNT_ID;
     const token = env.CF_API_TOKEN;
     if (!acct || !token) return null;
+    if (isExhausted()) return null;
 
     const res = await fetchImpl(
       `https://api.cloudflare.com/client/v4/accounts/${acct}/ai/run/${FLUX_MODEL}`,
@@ -264,12 +286,22 @@ export async function generateImage({ sector, ticker, scene, env = process.env, 
         body: JSON.stringify({ prompt: buildImagePrompt(sector, ticker, scene), steps: FLUX_STEPS }),
       },
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      let cfCode = null;
+      try {
+        cfCode = (await res.json())?.errors?.[0]?.code ?? null;
+      } catch {
+        // Body wasn't JSON, or already consumed — no code to extract.
+      }
+      if (cfCode === CF_DAILY_ALLOCATION_EXHAUSTED_CODE) markExhausted(); // idempotent, see ci/cf-budget.mjs
+      return null;
+    }
 
     const body = await res.json();
     const b64 = body?.result?.image;
     if (typeof b64 !== "string" || !b64) return null;
 
+    onSuccess?.();
     return Buffer.from(b64, "base64");
   } catch (err) {
     console.error(`  image generation failed — ${err?.message ?? err}`);

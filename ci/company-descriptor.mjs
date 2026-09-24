@@ -59,6 +59,7 @@
 
 import { coverage, displayCompanyName } from "./hooks.mjs";
 import { descriptorFor, sectorScenePhrase } from "./post-image.mjs";
+import { isExhausted } from "./cf-budget.mjs";
 
 const escapeRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -285,8 +286,17 @@ export function buildDescriptorPrompt(row) {
  *   transient or partial failure gets retried next run instead of freezing a wrong (or
  *   half-wrong) answer forever. An older cache entry saved before this module gained `scene`
  *   (descriptor only) is treated as a miss, not a hit, and transparently upgraded on next use.
+ *
+ * (Neuron accounting) `onUsage`, if given, is forwarded verbatim to the SAME `provider()` call
+ * ci/generate-posts.mjs's writer already uses it on — see ci/provider.mjs/ci/neuron-usage.mjs.
+ * Also checks ci/cf-budget.mjs's shared exhaustion flag TWICE: once up front (skip the call
+ * entirely when the account is already known-exhausted from an earlier writer/image call this
+ * run) and once right after the call returns (in case THIS was the first Cloudflare call to see
+ * it) — either way, falling back silently rather than logging a second, more confusing "model
+ * response failed validation: undefined" line on top of the one clear line
+ * ci/cf-budget.mjs's `markExhausted` already printed once, globally, for the whole run.
  */
-export async function describeCompany({ row, provider, cache }) {
+export async function describeCompany({ row, provider, cache, onUsage }) {
   const ticker = row?.t;
   const name = displayCompanyName(row?.n);
   const sector = row?.sec;
@@ -297,11 +307,13 @@ export async function describeCompany({ row, provider, cache }) {
   }
 
   const fallback = () => ({ descriptor: descriptorFor(sector), scene: sectorScenePhrase(sector) });
+  if (isExhausted()) return fallback();
 
   try {
     if (typeof provider !== "function") throw new Error("no provider");
     const { system, prompt } = buildDescriptorPrompt(row);
-    const [raw] = await provider({ system, prompt, n: 1 });
+    const [raw] = await provider({ system, prompt, n: 1, onUsage });
+    if (isExhausted()) return fallback();
     const { descriptorRaw, sceneRaw } = parseModelResponse(raw);
     const descriptor = sanitizeDescriptor(descriptorRaw, { ticker });
     const scene = sanitizeScene(sceneRaw, { ticker });

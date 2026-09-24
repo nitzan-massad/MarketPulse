@@ -14,20 +14,65 @@
 // "stub" is what `npm test` uses — no network in checks, ever.
 //
 // ponytail: a plain switch, not a class hierarchy. Three providers, one function each.
+//
+// (Neuron accounting) `onUsage`, an optional extra field on every call's options object
+// (`{ system, prompt, n, onUsage }`), fires once per SUCCESSFUL Cloudflare call with exactly
+// whatever that response's `result.usage` was (possibly `undefined` — see ci/neuron-usage.mjs
+// on why that is tracked, not assumed away). Never called for a failed candidate (never
+// billed, nothing to record) or for "stub"/"anthropic" (neurons are a Cloudflare-only concept —
+// Anthropic's own token usage is a real, separate cost, ~$0.30/mo at this volume per the module
+// header above, tracked nowhere near this budget on purpose). The caller (ci/generate-posts.mjs,
+// ci/company-descriptor.mjs) is the one that knows whether a given call is the WRITER or the
+// DESCRIPTOR — this module has no opinion on that, same as it has none about hooks or scenes.
+//
+// (Neuron accounting) EXHAUSTION. A 429 whose body carries Cloudflare's documented code 4006
+// ("daily free allocation of 10,000 neurons used up") means every other call this run will fail
+// identically — see ci/cf-budget.mjs for the shared flag and the reasoning. `batch` below checks
+// it BEFORE firing a fresh round of calls (no point making five doomed requests at once) and,
+// on a rejection, distinguishes "the account is exhausted" (logged ONCE, globally, by
+// `markExhausted`) from any other genuine per-candidate failure (still logged per-candidate,
+// exactly as before) — this is the fix for the "five identical candidate failed: cloudflare
+// 429" lines the brief calls out: they were never actually five DIFFERENT failures, they were
+// one real cause reported five times with the real code never even read off the response body.
+
+import { isExhausted, isExhaustionError, markExhausted } from "./cf-budget.mjs";
 
 const CF_URL = (acct, model) => `https://api.cloudflare.com/client/v4/accounts/${acct}/ai/run/${model}`;
 
 /** Fire n independent calls. One failure must not lose the other four, so failures are
  *  logged and dropped rather than thrown — the caller decides whether what came back is
- *  enough to publish. */
+ *  enough to publish. Skips the round entirely (returns `[]` with no network call at all) once
+ *  `isExhausted()` is already known true — see the module header. */
 async function batch(n, one) {
+  if (isExhausted()) return [];
   const settled = await Promise.allSettled(Array.from({ length: n }, (_, i) => one(i)));
   const out = [];
   for (const r of settled) {
     if (r.status === "fulfilled" && r.value) out.push(r.value);
-    else if (r.status === "rejected") console.error(`  candidate failed: ${r.reason?.message ?? r.reason}`);
+    else if (r.status === "rejected") {
+      if (isExhaustionError(r.reason)) markExhausted(); // idempotent — see ci/cf-budget.mjs
+      else console.error(`  candidate failed: ${r.reason?.message ?? r.reason}`);
+    }
   }
   return out;
+}
+
+/** Read a non-ok Cloudflare response's real error body and attach its documented error code
+ *  (`errors[0].code`) to the thrown Error as `.cfCode`, so ci/cf-budget.mjs's
+ *  `isExhaustionError` can tell code 4006 apart from every other reason a call can fail — a
+ *  malformed/non-JSON error body (rare, but not assumed away) just leaves `cfCode` unset,
+ *  exactly like any other non-4006 failure. */
+async function cloudflareError(res) {
+  let cfCode = null;
+  try {
+    const body = await res.json();
+    cfCode = body?.errors?.[0]?.code ?? null;
+  } catch {
+    // Body wasn't JSON, or was already consumed — no code to extract, fall through.
+  }
+  const err = new Error(`cloudflare ${res.status}`);
+  err.cfCode = cfCode;
+  return err;
 }
 
 export function makeProvider(env = process.env, fetchImpl = globalThis.fetch) {
@@ -45,7 +90,7 @@ export function makeProvider(env = process.env, fetchImpl = globalThis.fetch) {
     if (!token) throw new Error("POST_PROVIDER=cloudflare needs CF_API_TOKEN");
     const model = env.CF_MODEL || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
-    return async ({ system, prompt, n = 1 }) =>
+    return async ({ system, prompt, n = 1, onUsage }) =>
       batch(n, async () => {
         const res = await fetchImpl(CF_URL(acct, model), {
           method: "POST",
@@ -57,8 +102,13 @@ export function makeProvider(env = process.env, fetchImpl = globalThis.fetch) {
             max_tokens: 300,
           }),
         });
-        if (!res.ok) throw new Error(`cloudflare ${res.status}`);
+        if (!res.ok) throw await cloudflareError(res);
         const j = await res.json();
+        // (Neuron accounting) `result.usage` is Cloudflare's own documented field for this
+        // model (`{ prompt_tokens, completion_tokens, total_tokens }` — verified against the
+        // real published response schema, see ci/neuron-usage.mjs) — passed through exactly as
+        // received, `undefined` and all, never guessed at.
+        onUsage?.(j?.result?.usage);
         return (j?.result?.response ?? "").trim();
       });
   }
