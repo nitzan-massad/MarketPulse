@@ -139,6 +139,18 @@ export function sanitizeScene(raw, { ticker } = {}) {
   s = s.replace(/\.+$/, "").trim();
   if (!s) return null;
 
+  // Despite the system prompt's explicit instruction not to, the model quite commonly still
+  // opens with its own gender choice anyway ("a man assembling circuit boards…", "a woman
+  // configuring a server rack…") — measured live, this was the single largest cause of an
+  // otherwise-good scene falling back needlessly. `personPhrase(seed)` picks the gender
+  // deterministically and `buildImagePrompt` prepends it separately, so a LEADING "a man "/"a
+  // woman " is stripped rather than treated as a hard rejection — it reduces to exactly the
+  // `sectorScenePhrase` shape (role + action, no leading article) once removed. A bare pronoun,
+  // or a gender word anywhere ELSE in the sentence, is still a real rejection via `PRONOUN_RE`
+  // below: only this one specific, commonly-observed LEADING shape is tolerated.
+  s = s.replace(/^a\s+(?:man|woman)\s+/i, "").trim();
+  if (!s) return null;
+
   if (/\d/.test(s)) return null; // no numbers, ever — same rule buildImagePrompt itself enforces.
   if (/[$%]/.test(s)) return null;
   if (PRONOUN_RE.test(s)) return null;

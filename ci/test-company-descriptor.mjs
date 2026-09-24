@@ -136,14 +136,31 @@ const modelReply = (descriptor, scene) => `DESCRIPTOR: ${descriptor}\nSCENE: ${s
     "the company's own ticker is rejected");
 }
 {
-  // Scene-specific constraints: no pronoun/gender word (gender is chosen separately), and no
+  // A LEADING "a man "/"a woman " is stripped, not rejected — measured live, the model quite
+  // commonly opens with its own gender choice despite the system prompt saying not to
+  // ("a man assembling circuit boards…"), and personPhrase(seed) picks the gender
+  // deterministically and prepends it separately anyway, so this is exactly the
+  // sectorScenePhrase shape (role + action) once the leading article+gender is removed.
+  assert.equal(
+    sanitizeScene("a woman engineer inspecting a server rack, hands on the cabling, mid-motion"),
+    "engineer inspecting a server rack, hands on the cabling, mid-motion",
+    "a leading \"a woman \" is stripped, not rejected",
+  );
+  assert.equal(
+    sanitizeScene("a man assembling circuit boards for smartphone hardware production"),
+    "assembling circuit boards for smartphone hardware production",
+    "a leading \"a man \" is stripped too — the real failure mode this fix addresses",
+  );
+  // Scene-specific constraints: a pronoun/gender word ANYWHERE ELSE (not just the leading
+  // shape above) is still a real rejection — gender is chosen separately, and a pronoun
+  // embedded mid-sentence cannot be cleanly stripped the way a leading one can — and so is a
   // logo/brand/chart/signage word (which would directly undermine buildImagePrompt's own clause).
   for (const bad of [
     "she solders a circuit board, hands and board filling the frame, mid-motion",
     "he inspects a server rack, hands on the cabling, mid-motion",
-    "a woman engineer inspecting a server rack, hands on the cabling, mid-motion",
+    "engineer inspecting a server rack while his colleague looks on, hands on the cabling",
   ]) {
-    assert.equal(sanitizeScene(bad), null, `a pronoun/gender word is rejected: "${bad}"`);
+    assert.equal(sanitizeScene(bad), null, `a pronoun/gender word elsewhere is rejected: "${bad}"`);
   }
   for (const bad of [
     "engineer polishing the company logo on the lobby wall, hands on the sign, mid-motion",
