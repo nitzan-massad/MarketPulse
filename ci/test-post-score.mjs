@@ -4,7 +4,7 @@
 
 import assert from "node:assert";
 import {
-  scorePost, pickBest, nameStem, factNumbers, unverifiedNumbers,
+  scorePost, pickBest, rankCandidates, nameStem, factNumbers, unverifiedNumbers,
   misdescribedMovementVerbs, misdescribedTimeframe,
   BANNED, MIN_PUBLISHABLE, TICKER_PENALTY, FABRICATION_PENALTY,
   MISDESCRIBED_MOVEMENT_PENALTY, MISDESCRIBED_TIMEFRAME_PENALTY,
@@ -201,6 +201,18 @@ assert.equal(nameStem(undefined), "", "missing name has no stem");
 assert.equal(pickBest([], ctx()), null, "no candidates means no post");
 assert.equal(pickBest(["Let's dive in! In the world of finance, a game-changer. Delve deeper!"], ctx()), null,
   "an all-slop field publishes nothing rather than shipping junk");
+
+// --- rankCandidates: pickBest's own working set, now exposed for telemetry --------
+{
+  const texts = ["Let's dive in! A game-changer.", "Nvidia target $210 — 42% upside, 38 analysts covering."];
+  const ranked = rankCandidates(texts, ctx());
+  assert.equal(ranked.length, 2, "every candidate is scored and returned, not just the winner");
+  assert.ok(ranked[0].score >= ranked[1].score, "best-first ordering");
+  assert.equal(ranked[0].text, pickBest(texts, ctx()).text, "rankCandidates()[0] agrees with pickBest's own winner");
+  assert.ok(Array.isArray(ranked[1].reasons) && ranked[1].reasons.length > 0, "a LOSING candidate still carries its own reasons");
+}
+assert.deepEqual(rankCandidates([], ctx()), [], "no candidates ranks to an empty array, not null");
+assert.deepEqual(rankCandidates(undefined, ctx()), [], "an undefined candidate list never throws");
 
 // --- hashtag spam penalty -------------------------------------------------------
 {

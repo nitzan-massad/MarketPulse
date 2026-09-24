@@ -464,11 +464,23 @@ export function scorePost(text, ctx = {}) {
   return { score: Math.round(score), reasons };
 }
 
-export function pickBest(candidates, ctx = {}) {
-  const ranked = (candidates ?? [])
+/**
+ * Score and rank EVERY candidate, best first — the full working set `pickBest` below picks its
+ * winner from. Split out (Task: run telemetry) so a caller that wants to know WHY the other
+ * N-1 candidates lost — not just who won — has real, structured data (`score` + `reasons` per
+ * candidate) to work with, instead of re-deriving it. Pure and side-effect-free, exactly like
+ * `scorePost` itself; `pickBest`'s own public contract (a single winner or `null`) is completely
+ * unchanged by this — it is now implemented in terms of this function rather than duplicating
+ * the ranking logic.
+ */
+export function rankCandidates(candidates, ctx = {}) {
+  return (candidates ?? [])
     .map((text) => ({ text: String(text ?? "").trim(), ...scorePost(text, ctx) }))
     .filter((c) => c.text)
     .sort((a, b) => b.score - a.score || a.text.localeCompare(b.text));
-  const top = ranked[0];
+}
+
+export function pickBest(candidates, ctx = {}) {
+  const top = rankCandidates(candidates, ctx)[0];
   return top && top.score >= MIN_PUBLISHABLE ? top : null;
 }

@@ -19,11 +19,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { detectHooks, deTickerHooks, displayCompanyName, MIN_WINDOW } from "./hooks.mjs";
-import { pickBest } from "./post-score.mjs";
+import { rankCandidates, MIN_PUBLISHABLE } from "./post-score.mjs";
 import { makeProvider } from "./provider.mjs";
 import { generateImage, postImageFilename } from "./post-image.mjs";
 import { composePost } from "./post-compose.mjs";
 import { describeCompany } from "./company-descriptor.mjs";
+import { findCompanyPhoto } from "./company-photo.mjs";
+import { isExhausted } from "./cf-budget.mjs";
+import { newUsageTracker, recordTextCall, recordImageCall } from "./neuron-usage.mjs";
+import {
+  newRunTelemetry, recordStageMs, recordHookAttempt, recordHookPublished, recordCandidateOutcomes,
+  buildHistoryRecord, formatSummaryBlock, computeHeadroom, sumNeuronsForDate, trimHistory, utcDateKey,
+  estimateRunCostFromHistory, totalNeuronsForRun, NEURON_HISTORY_KEEP,
+} from "./run-telemetry.mjs";
 
 const ROOT = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const STOCKS = path.join(ROOT, "src", "data", "stocks.json");
@@ -34,6 +42,11 @@ const IMAGES_DIR = path.join(ROOT, "public", "post-images");
 // Lives under src/data/ so the existing CI commit step (site.yml's "Commit refreshed data",
 // `git add src/data …`) persists it across runs with no workflow change.
 const DESCRIPTORS = path.join(ROOT, "src", "data", "company-descriptors.json");
+// (Run telemetry) One compact record per run — see ci/run-telemetry.mjs's `buildHistoryRecord`.
+// Same neighbourhood/commit step as POSTS/DESCRIPTORS above (both under src/data/, both staged
+// by site.yml's "Commit refreshed data" step, CLAUDE.md's "CI-owned" JSON) — nothing new to wire
+// into the workflow for this to persist across runs.
+const NEURON_HISTORY = path.join(ROOT, "src", "data", "neuron-usage-history.json");
 
 /** The ANGLE — one line per hook kind, telling the model what makes this particular hook
  *  postable. Without it a kind falls through to "Report the fact.", which throws away the
@@ -145,8 +158,22 @@ export function buildPrompt(hook, exemplars = []) {
 
 export async function generate({
   history, recent = [], provider, exemplars = [], config = {}, generateImageFor, getDescriptorFor,
+  getCompanyPhotoFor, usageTracker, telemetry,
 }) {
-  const { postsPerRun = 1, candidates = 5, kindMemory = 4 } = config;
+  // (Run telemetry) Every recording call below is wrapped through this — a telemetry bug must
+  // degrade to "this run's numbers are incomplete", never to "the post didn't ship" (the
+  // brief's own explicit caution). `telemetry` itself is optional (undefined in every existing
+  // test that predates this work, and in any caller that just doesn't care), so this is a
+  // no-op unless main() actually wired one in.
+  const safeTelemetry = (fn) => {
+    if (!telemetry) return;
+    try {
+      fn();
+    } catch (err) {
+      console.error(`  telemetry recording failed (ignored, post still ships) — ${err?.message ?? err}`);
+    }
+  };
+  const { postsPerRun = 1, candidates = 5, kindMemory = 4, photoSource = "flux" } = config;
   // Task 0, Finding 2: feed the last few posts' KINDS back into the detector so the top
   // hook rotates shape instead of being "big upside number" every single run.
   const recentKinds = recent.slice(0, kindMemory).map((p) => p.kind).filter(Boolean);
@@ -170,14 +197,37 @@ export async function generate({
 
     const { system, prompt } = buildPrompt(hook, exemplars);
     let texts = [];
+    const writerT0 = Date.now();
     try {
-      texts = await provider({ system, prompt, n: candidates });
+      // (Neuron accounting) onUsage fires once per successful candidate, with Cloudflare's own
+      // real usage object — see ci/provider.mjs/ci/neuron-usage.mjs. A no-op when no tracker is
+      // wired in (e.g. every existing test that never mentions `usageTracker` at all).
+      texts = await provider({
+        system, prompt, n: candidates,
+        onUsage: usageTracker ? (usage) => recordTextCall(usageTracker, "writer", usage) : undefined,
+      });
     } catch (err) {
       console.error(`  ${hook.ticker}: provider threw — ${err.message}`);
       continue;
+    } finally {
+      safeTelemetry(() => recordStageMs(telemetry, "writer", Date.now() - writerT0));
     }
+    // (Neuron accounting) Cloudflare's daily free allocation is a hard, account-wide cap — once
+    // ci/cf-budget.mjs's shared flag is set (by the call just above, or by an earlier hook's
+    // descriptor/image call this same run), every further hook would fail the exact same way.
+    // ci/cf-budget.mjs already printed the ONE clear line this needs; stop trying more hooks
+    // rather than repeating "0 candidates, none publishable" once per remaining hook.
+    if (isExhausted()) break;
 
-    const best = pickBest(texts, { hook, recent: [...recent, ...posts] });
+    // (Run telemetry) `rankCandidates` gives every candidate's OWN score/reasons, not just the
+    // winner's — see ci/post-score.mjs's own comment on why this exists. `pickBest`'s exact
+    // decision (a winner, or `null` when even the best falls below MIN_PUBLISHABLE) is
+    // reproduced inline rather than calling `pickBest` a second time, so the ranking is only
+    // ever computed once per hook.
+    safeTelemetry(() => recordHookAttempt(telemetry, hook.kind));
+    const ranked = rankCandidates(texts, { hook, recent: [...recent, ...posts] });
+    const best = ranked[0] && ranked[0].score >= MIN_PUBLISHABLE ? ranked[0] : null;
+    safeTelemetry(() => recordCandidateOutcomes(telemetry, { ranked, winnerText: best ? best.text : null }));
     if (!best) {
       console.error(`  ${hook.ticker} (${hook.kind}): ${texts.length} candidates, none publishable`);
       continue;
@@ -213,10 +263,13 @@ export async function generate({
     let scene;
     if (typeof getDescriptorFor === "function") {
       let result;
+      const descriptorT0 = Date.now();
       try {
         result = await getDescriptorFor(rowByTicker.get(hook.ticker) ?? { t: hook.ticker, n: hook.name, sec: hook.sec });
       } catch (err) {
         console.error(`  ${hook.ticker}: descriptor/scene generation threw — ${err.message}`);
+      } finally {
+        safeTelemetry(() => recordStageMs(telemetry, "descriptor", Date.now() - descriptorT0));
       }
       if (result && typeof result === "object") {
         if (typeof result.descriptor === "string" && result.descriptor.trim()) {
@@ -238,14 +291,58 @@ export async function generate({
     // fact, number, company name, or the ticker AS TEXT. EVERY sector, `General` included, now
     // reaches this call — there is no more skip. A declined or failed call just omits `image`
     // and the card renders the canvas fallback — the post still publishes.
-    if (typeof generateImageFor === "function") {
-      let photo = null;
-      try {
-        photo = await generateImageFor(hook.sec, hook.ticker, scene);
-      } catch (err) {
-        console.error(`  ${hook.ticker}: image generation threw — ${err.message}`);
+    //
+    // (Wikimedia) TWO SOURCES NOW, controlled by `photoSource` (config.photoSource ->
+    // POST_PHOTO_SOURCE — see main() below and ci/README.md): `"flux"` (the default and the
+    // only behaviour that existed before this) generates via `generateImageFor` only.
+    // `"wikimedia"` tries `getCompanyPhotoFor` (ci/company-photo.mjs's real, licensed photo)
+    // first and falls back to Flux only when Commons has no usable hit — same "degrade, never
+    // lose the post" posture as everything else here. `"both"` runs BOTH unconditionally (for a
+    // human to compare side by side, see ci/company-photo.mjs's coverage tool) — the Wikimedia
+    // photo still wins the PRIMARY slot when both succeed (a real photo beats a generated one
+    // whenever one is actually available), and the Flux generation is saved ALONGSIDE it under
+    // a `-compare-flux` suffix rather than discarded; that comparison file is never referenced
+    // by the post record itself (`post.compareImage`/`post.compareImageBuffer` are stripped by
+    // main() before posts.json is written, exactly like `imageBuffer`), so a reviewer finds it
+    // by filename convention in public/post-images/, not through the app.
+    if (typeof generateImageFor === "function" || typeof getCompanyPhotoFor === "function") {
+      const displayName = displayCompanyName(hook.name);
+      let wikiPhoto = null;
+      if ((photoSource === "wikimedia" || photoSource === "both") && typeof getCompanyPhotoFor === "function") {
+        const wikiT0 = Date.now();
+        try {
+          wikiPhoto = await getCompanyPhotoFor(displayName);
+        } catch (err) {
+          console.error(`  ${hook.ticker}: Wikimedia photo lookup threw — ${err.message}`);
+        } finally {
+          safeTelemetry(() => recordStageMs(telemetry, "wikimedia", Date.now() - wikiT0));
+        }
       }
-      if (photo) {
+      // Flux runs when the source calls for it directly ("flux"/"both"), or as the fallback
+      // when "wikimedia" came back with nothing usable.
+      const needsFlux = photoSource === "flux" || photoSource === "both" || !wikiPhoto;
+      let fluxPhoto = null;
+      if (needsFlux && typeof generateImageFor === "function") {
+        const imageT0 = Date.now();
+        try {
+          fluxPhoto = await generateImageFor(hook.sec, hook.ticker, scene);
+        } catch (err) {
+          console.error(`  ${hook.ticker}: image generation threw — ${err.message}`);
+        } finally {
+          safeTelemetry(() => recordStageMs(telemetry, "image", Date.now() - imageT0));
+        }
+      }
+
+      const primaryPhoto = wikiPhoto ? wikiPhoto.bytes : fluxPhoto;
+      // CC BY and CC BY-SA both legally require attribution — this credit line is where it
+      // lives on the card itself (ci/post-compose.mjs's `credit` param). Never set for a Flux
+      // photo: there is nothing to credit.
+      const primaryCredit = wikiPhoto ? `Photo: ${wikiPhoto.attribution}` : undefined;
+      // Only present under "both", and only when Wikimedia actually won the primary slot —
+      // otherwise there is nothing distinct left to compare against.
+      const comparisonPhoto = photoSource === "both" && wikiPhoto ? fluxPhoto : null;
+
+      if (primaryPhoto) {
         // FUSION — burn the words into the pixels so the file travels with its text when
         // posted elsewhere. Pure and local (no network, no randomness beyond what's already
         // deterministic from the hook), so unlike `provider`/`generateImageFor` this is called
@@ -258,14 +355,33 @@ export async function generate({
           // Materials" is what a person would actually call it. hook.name / post.name (above)
           // stay the raw legal name from src/data/stocks.json; only what gets BURNED INTO THE
           // PIXELS is stripped.
-          const displayName = displayCompanyName(hook.name);
           const composed = composePost({
-            photo, companyName: displayName, sector: hook.sec, descriptor: post.descriptor, statement: best.text,
+            photo: primaryPhoto, companyName: displayName, sector: hook.sec,
+            descriptor: post.descriptor, statement: best.text, credit: primaryCredit,
           });
           post.image = postImageFilename(id);
           post.imageBuffer = composed.jpeg; // internal only — main() writes it to disk and strips it
+          if (wikiPhoto) {
+            post.imageSource = "wikimedia";
+            post.imageLicense = wikiPhoto.license;
+            post.imageAttribution = wikiPhoto.attribution;
+          } else {
+            post.imageSource = "flux";
+          }
         } catch (err) {
           console.error(`  ${hook.ticker}: image composition threw — ${err.message}`);
+        }
+      }
+      if (comparisonPhoto && post.image) {
+        try {
+          const composedCompare = composePost({
+            photo: comparisonPhoto, companyName: displayName, sector: hook.sec,
+            descriptor: post.descriptor, statement: best.text,
+          });
+          post.compareImage = post.image.replace(/\.jpg$/, "-compare-flux.jpg");
+          post.compareImageBuffer = composedCompare.jpeg; // internal only, see main()
+        } catch (err) {
+          console.error(`  ${hook.ticker}: comparison image composition threw — ${err.message}`);
         }
       }
       if (!post.image) {
@@ -274,6 +390,7 @@ export async function generate({
     }
 
     posts.push(post);
+    safeTelemetry(() => recordHookPublished(telemetry, hook.kind));
     console.log(`  ${hook.ticker} (${hook.kind}) scored ${best.score} from ${texts.length} candidates`);
   }
 
@@ -356,9 +473,19 @@ async function main() {
     return;
   }
 
+  // (Wikimedia) POST_PHOTO_SOURCE — see ci/company-photo.mjs and generate()'s own comment on
+  // `photoSource` for what each value does. An unrecognised value falls back to the safe
+  // default rather than silently doing nothing.
+  const rawPhotoSource = String(process.env.POST_PHOTO_SOURCE ?? "flux").toLowerCase();
+  const photoSource = ["flux", "wikimedia", "both"].includes(rawPhotoSource) ? rawPhotoSource : "flux";
+  if (rawPhotoSource !== photoSource) {
+    console.error(`  POST_PHOTO_SOURCE="${rawPhotoSource}" is not flux/wikimedia/both — defaulting to "flux"`);
+  }
+
   const config = {
     postsPerRun: Number(process.env.POSTS_PER_RUN ?? 1),
     candidates: Number(process.env.POST_CANDIDATES ?? 5),
+    photoSource,
   };
   const keep = Number(process.env.POSTS_KEEP ?? 200);
   // Same on/off shape as POSTS_ENABLED — a real image call can be switched off without
@@ -374,20 +501,84 @@ async function main() {
   console.log(`generate-posts — ${curr.length} rows, ${history.length} snapshots in window, ` +
               `${existing.length} existing posts, ` +
               `${config.postsPerRun} post(s) x ${config.candidates} candidates, ` +
-              `images ${imagesEnabled ? "on" : "off"}`);
+              `images ${imagesEnabled ? "on" : "off"} (source: ${photoSource})`);
 
   const provider = makeProvider();
+  // (Run telemetry) THREE independent trackers, one per consumer, not one shared one — this is
+  // what lets ci/run-telemetry.mjs report each stage's OWN neuron cost (a total tells you
+  // nothing about which knob to pull; a per-stage breakdown does). `CF_MODEL` (env.CF_MODEL) is
+  // passed through to each so the measured-token->neuron conversion charges the documented rate
+  // for the model actually in use, not silently assuming the default.
+  const cfModel = process.env.CF_MODEL;
+  const writerUsage = newUsageTracker(cfModel);
+  const descriptorUsage = newUsageTracker(cfModel);
+  const imageUsage = newUsageTracker(cfModel);
+  const telemetry = newRunTelemetry({ writer: writerUsage, descriptor: descriptorUsage, image: imageUsage });
+
+  // (Run telemetry) "Say so before starting, rather than failing partway" — read the persisted
+  // history (if any), sum what today has already spent, and compare that against a rough
+  // estimate of what a run like this one typically costs (this run's OWN cost is not knowable
+  // until it has actually run). Advisory only: it changes nothing about whether the run
+  // proceeds — Cloudflare's own 4006 handling (ci/cf-budget.mjs) is what actually degrades
+  // gracefully if the budget really is gone.
+  const historyBefore = readJson(NEURON_HISTORY, []);
+  const todayKey = utcDateKey();
+  const usedTodayBeforeRun = sumNeuronsForDate(historyBefore, todayKey);
+  const estimatedRunCost = estimateRunCostFromHistory(historyBefore);
+  if (estimatedRunCost != null && usedTodayBeforeRun + estimatedRunCost > 10_000) {
+    console.error(
+      `  WARNING: ~${Math.round(usedTodayBeforeRun)} neurons already used today, and recent runs ` +
+      `average ~${Math.round(estimatedRunCost)} neurons — this run may not have enough of today's ` +
+      "free allocation left to complete. Proceeding anyway; a genuine exhaustion degrades gracefully (see ci/cf-budget.mjs).",
+    );
+  }
+
   const generateImageFor = imagesEnabled
-    ? (sector, ticker, scene) => generateImage({ sector, ticker, scene, env: process.env, fetchImpl: globalThis.fetch })
+    ? (sector, ticker, scene) => generateImage({
+        sector, ticker, scene, env: process.env, fetchImpl: globalThis.fetch,
+        onSuccess: () => recordImageCall(imageUsage),
+      })
+    : undefined;
+  // Wired in regardless of `photoSource` — generate() only ever CALLS this when the source
+  // config actually calls for it ("wikimedia"/"both"), so this costs nothing when POST_IMAGES
+  // is off or POST_PHOTO_SOURCE is left at the "flux" default. No cache: unlike the descriptor
+  // (a model call, worth caching against neuron cost) this is a free, keyless HTTP call, and a
+  // company's real-world Commons coverage does not change run to run in a way worth
+  // invalidating a cache for.
+  const getCompanyPhotoFor = imagesEnabled
+    ? (companyName) => findCompanyPhoto(companyName, { fetchImpl: globalThis.fetch })
     : undefined;
   // The descriptor cache persists per-company results ACROSS runs (see the DESCRIPTORS const
   // above) — reused, not regenerated, whenever the same ticker comes up again, so this call
   // costs neurons only on a genuine cache miss.
   const descriptorCache = readJson(DESCRIPTORS, {});
-  const getDescriptorFor = (row) => describeCompany({ row, provider, cache: descriptorCache });
+  const getDescriptorFor = (row) => describeCompany({
+    row, provider, cache: descriptorCache,
+    onUsage: (usage) => recordTextCall(descriptorUsage, "descriptor", usage),
+  });
   const posts = await generate({
     history, recent: existing.slice(0, 50), provider, exemplars, config, generateImageFor, getDescriptorFor,
+    getCompanyPhotoFor, usageTracker: writerUsage, telemetry,
   });
+
+  // (Run telemetry) The one compact, aligned block the brief asks for — printed every run,
+  // whether or not anything published, so a bad run's WASTE is visible even when it produced
+  // nothing. Per-candidate/per-hook detail already streamed above this, verbosely; this is the
+  // part meant to be read.
+  const headroomAfter = computeHeadroom(usedTodayBeforeRun, totalNeuronsForRun(telemetry));
+  let historyAfter = historyBefore;
+  try {
+    const record = buildHistoryRecord(telemetry, { publishedCount: posts.length });
+    historyAfter = trimHistory([...historyBefore, record], NEURON_HISTORY_KEEP);
+    writeFileSync(NEURON_HISTORY, `${JSON.stringify(historyAfter, null, 2)}\n`);
+  } catch (err) {
+    console.error(`  neuron usage history write failed (ignored) — ${err?.message ?? err}`);
+  }
+  console.log(formatSummaryBlock(telemetry, {
+    publishedCount: posts.length,
+    headroom: headroomAfter,
+    historyNote: `${historyAfter.length} run(s) in neuron usage history (${NEURON_HISTORY_KEEP} max kept).`,
+  }));
 
   if (!posts.length) {
     console.log("nothing publishable this run — leaving posts.json unchanged");
@@ -402,22 +593,40 @@ async function main() {
   // Write the image bytes now — generate() stays file-I/O-free (see the shape note up top),
   // so this is the only place in the pipeline that touches public/post-images/.
   mkdirSync(IMAGES_DIR, { recursive: true });
+  // (Wikimedia) The `-compare-flux` file (POST_PHOTO_SOURCE=both only — see generate()'s own
+  // comment) is written the same way but deliberately NEVER referenced by the post record: it
+  // exists purely for a human to open both files side by side in public/post-images/, and is
+  // dropped from `posts.json` before that file is even written, below.
+  const compareFilenames = [];
   for (const post of posts) {
     if (post.imageBuffer) {
       writeFileSync(path.join(IMAGES_DIR, post.image), post.imageBuffer);
       delete post.imageBuffer;
+    }
+    if (post.compareImageBuffer) {
+      writeFileSync(path.join(IMAGES_DIR, post.compareImage), post.compareImageBuffer);
+      compareFilenames.push(post.compareImage);
+      delete post.compareImageBuffer;
+      delete post.compareImage;
     }
   }
 
   const rolling = [...posts, ...existing].slice(0, keep);
   writeFileSync(POSTS, `${JSON.stringify(rolling, null, 2)}\n`);
   console.log(`wrote ${posts.length} post(s) — ${posts.map((p) => p.ticker).join(", ")}`);
+  if (compareFilenames.length) {
+    console.log(`  wrote ${compareFilenames.length} comparison image(s) for review, not in posts.json: ` +
+                compareFilenames.join(", "));
+  }
 
   // Prune: POSTS_KEEP bounds posts.json, but says nothing about the image files themselves —
   // at ~100KB/image that is unbounded growth in git otherwise. Anything under
   // public/post-images/ whose post fell out of the rolling window this write produced gets
-  // deleted right here.
-  const keptImages = new Set(rolling.filter((p) => p.image).map((p) => p.image));
+  // deleted right here. THIS RUN's `-compare-flux` files are spared for exactly one run (they
+  // are not in `rolling` at all, since posts.json never carries them — see above): a reviewer
+  // needs to look right after the run that produced them, because the next run's prune pass has
+  // no record of them and will delete them as orphaned, same as any other untracked file here.
+  const keptImages = new Set([...rolling.filter((p) => p.image).map((p) => p.image), ...compareFilenames]);
   let pruned = 0;
   for (const file of readdirSync(IMAGES_DIR)) {
     if (!keptImages.has(file)) {

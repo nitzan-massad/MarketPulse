@@ -6,6 +6,8 @@ import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { Resvg } from "@resvg/resvg-js";
 import { buildPrompt, generate, humanizeFactKey, KIND_BRIEF } from "./generate-posts.mjs";
+import { newUsageTracker } from "./neuron-usage.mjs";
+import { markExhausted, resetForTest } from "./cf-budget.mjs";
 
 const row = (over = {}) => ({
   t: "AAA", n: "Alpha Inc", sec: "Technology", px: 100, chg: 1, pt: 160, up: 60,
@@ -324,6 +326,146 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   assert.ok(prompt.includes("Angle: Report the fact."), "an unknown kind still gets the fallback");
 }
 
+// --- (Wikimedia) POST_PHOTO_SOURCE wiring: flux (default) / wikimedia / both -----------------
+// `photoSource` defaults to "flux" (config.photoSource), matching every test above that never
+// mentions it at all — those must keep passing unmodified, which is itself part of what this
+// section checks.
+{
+  const fakePhoto = new Resvg(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">' +
+    '<rect width="256" height="256" fill="#f4f6f8"/></svg>',
+  ).render().asPng();
+  const wikiPhoto = () => ({
+    bytes: fakePhoto, width: 256, height: 256, mime: "image/jpeg",
+    license: "CC BY-SA 4.0", attribution: "A Photographer — Wikimedia Commons (CC BY-SA 4.0)",
+    sourceUrl: "https://commons.wikimedia.org/wiki/File:Example.jpg", title: "Example.jpg",
+  });
+  const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
+
+  // Default config (no photoSource at all): getCompanyPhotoFor must never even be called.
+  {
+    let wikiCalls = 0;
+    const getCompanyPhotoFor = async () => { wikiCalls++; return wikiPhoto(); };
+    const generateImageFor = async () => fakePhoto;
+    const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                   config: { postsPerRun: 1, candidates: 1 }, generateImageFor, getCompanyPhotoFor });
+    assert.equal(wikiCalls, 0, "getCompanyPhotoFor is never called when photoSource is left at its default");
+    assert.equal(posts[0].imageSource, "flux", "the default source is flux");
+    assert.equal("imageLicense" in posts[0], false, "a Flux photo carries no license field");
+  }
+
+  // photoSource: "wikimedia", Commons hit -> Flux is never even attempted.
+  {
+    let fluxCalls = 0;
+    const getCompanyPhotoFor = async () => wikiPhoto();
+    const generateImageFor = async () => { fluxCalls++; return fakePhoto; };
+    const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                   config: { postsPerRun: 1, candidates: 1, photoSource: "wikimedia" },
+                                   generateImageFor, getCompanyPhotoFor });
+    assert.equal(fluxCalls, 0, "Flux is never called once Wikimedia already succeeded");
+    assert.equal(posts[0].imageSource, "wikimedia", "the post records which source actually won");
+    assert.equal(posts[0].imageLicense, "CC BY-SA 4.0", "the license rides along on the post record");
+    assert.ok(posts[0].imageAttribution.includes("A Photographer"), "the attribution rides along too");
+    assert.equal("compareImage" in posts[0], false, "no comparison image outside of \"both\"");
+  }
+
+  // photoSource: "wikimedia", Commons comes back empty -> falls back to Flux, same as a failed
+  // Flux call falls back to canvas art elsewhere — never lose the post over a missing photo.
+  {
+    const getCompanyPhotoFor = async () => null;
+    const generateImageFor = async () => fakePhoto;
+    const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                   config: { postsPerRun: 1, candidates: 1, photoSource: "wikimedia" },
+                                   generateImageFor, getCompanyPhotoFor });
+    assert.equal(posts[0].imageSource, "flux", "wikimedia falls back to flux when Commons has nothing");
+    assert.ok(posts[0].image, "the post still ships with a real image, just from the fallback source");
+  }
+
+  // photoSource: "wikimedia", the lookup itself throws -> same fallback, never an exception.
+  {
+    const getCompanyPhotoFor = async () => { throw new Error("boom"); };
+    const generateImageFor = async () => fakePhoto;
+    const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                   config: { postsPerRun: 1, candidates: 1, photoSource: "wikimedia" },
+                                   generateImageFor, getCompanyPhotoFor });
+    assert.equal(posts[0].imageSource, "flux", "a thrown Wikimedia lookup still falls back to Flux");
+  }
+
+  // photoSource: "both" — both run unconditionally; Wikimedia wins the primary slot, and the
+  // Flux generation is saved separately as the comparison shot, never in the post record.
+  {
+    let fluxCalls = 0;
+    const getCompanyPhotoFor = async () => wikiPhoto();
+    const generateImageFor = async () => { fluxCalls++; return fakePhoto; };
+    const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                   config: { postsPerRun: 1, candidates: 1, photoSource: "both" },
+                                   generateImageFor, getCompanyPhotoFor });
+    assert.equal(fluxCalls, 1, "both sources are actually exercised under \"both\"");
+    assert.equal(posts[0].imageSource, "wikimedia", "Wikimedia still wins the primary slot under \"both\"");
+    assert.ok(Buffer.isBuffer(posts[0].compareImageBuffer) && posts[0].compareImageBuffer.length > 0,
+      "the Flux generation survives as the comparison image's bytes");
+    assert.match(posts[0].compareImage, /-compare-flux\.jpg$/, "the comparison file carries a clear suffix");
+    assert.notEqual(posts[0].compareImage, posts[0].image, "the comparison file is never the same filename as the primary");
+  }
+
+  // photoSource: "both", but Wikimedia has nothing -> Flux alone becomes primary, and there is
+  // nothing left to save as a comparison (nothing distinct to compare it against).
+  {
+    const getCompanyPhotoFor = async () => null;
+    const generateImageFor = async () => fakePhoto;
+    const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                   config: { postsPerRun: 1, candidates: 1, photoSource: "both" },
+                                   generateImageFor, getCompanyPhotoFor });
+    assert.equal(posts[0].imageSource, "flux", "Flux is the only usable source, so it becomes primary");
+    assert.equal("compareImage" in posts[0], false, "no comparison file when only one source actually succeeded");
+  }
+}
+
+// --- (Neuron accounting) usageTracker: the writer's onUsage is wired and exhaustion breaks ----
+{
+  const tracker = newUsageTracker();
+  const provider = async ({ n, onUsage }) => {
+    onUsage?.({ prompt_tokens: 80, completion_tokens: 8 });
+    return ["Alpha Inc target $160, 60% upside, 21 analysts."].slice(0, n);
+  };
+  await generate({ history: [curr], recent: [], provider, exemplars,
+                   config: { postsPerRun: 1, candidates: 1 }, usageTracker: tracker });
+  assert.equal(tracker.calls.writer, 1, "a successful writer candidate is recorded on the shared tracker");
+  assert.ok(tracker.measuredTextCalls > 0, "the writer's onUsage call is a real measurement, not a guess");
+}
+{
+  // No usageTracker passed at all (every test above this one) must not throw — it is purely
+  // additive wiring.
+  const provider = async ({ n, onUsage }) => {
+    assert.equal(typeof onUsage, "undefined", "no tracker means no onUsage handler is even offered");
+    return ["Alpha Inc target $160, 60% upside, 21 analysts."].slice(0, n);
+  };
+  await assert.doesNotReject(
+    generate({ history: [curr], recent: [], provider, exemplars, config: { postsPerRun: 1, candidates: 1 } }),
+    "omitting usageTracker entirely is fine",
+  );
+}
+resetForTest();
+{
+  // Exhaustion detected on the FIRST hook's writer call stops the loop before trying the
+  // second hook at all — this is the "ends without posting" behaviour, not five more attempts.
+  let providerCalls = 0;
+  const provider = async () => {
+    providerCalls++;
+    markExhausted(); // mirrors ci/provider.mjs's real cloudflare branch on a 4006
+    return [];
+  };
+  const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                 config: { postsPerRun: 2, candidates: 5 } });
+  assert.equal(posts.length, 0, "no posts publish once the very first call hits exhaustion");
+  assert.equal(providerCalls, 1, "the loop stops after the FIRST hook — the second hook's provider call never happens");
+  resetForTest();
+}
+
+console.log("generate-posts neuron-accounting OK — the writer's real usage reaches the shared " +
+            "tracker, is purely additive when omitted, and exhaustion stops the hook loop " +
+            "immediately instead of retrying every remaining hook");
+
 // --- the composed image's companyName is ALSO the display name, not the raw legal name -----
 // The prompt half of this is exercised functionally above (buildPrompt uses hook.name
 // directly, so a real hook can drive it end to end). The composePost() call site cannot be
@@ -345,5 +487,6 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
 
 console.log("generate-posts OK — prompt shape, angle per hook kind, best-of-N, cadence config, " +
             "empty-field and penny-stock safety, image generation optional/injected/never loses a post, " +
-            "the descriptor optional/injected/never loses a post, and display name/descriptor both " +
-            "wired into the composed image");
+            "the descriptor optional/injected/never loses a post, display name/descriptor both " +
+            "wired into the composed image, and POST_PHOTO_SOURCE's flux/wikimedia/both wiring " +
+            "(fallback, never-throws, and the \"both\" comparison image staying out of posts.json)");
