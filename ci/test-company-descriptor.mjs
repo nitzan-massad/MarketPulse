@@ -151,6 +151,19 @@ const modelReply = (descriptor, scene) => `DESCRIPTOR: ${descriptor}\nSCENE: ${s
     "assembling circuit boards for smartphone hardware production",
     "a leading \"a man \" is stripped too — the real failure mode this fix addresses",
   );
+  // A plain leading article ("a technician…") is ALSO stripped, not just the gender phrase —
+  // buildImagePrompt always prepends personPhrase immediately before this text, so left in
+  // place it would double up into "a woman a technician pipetting…" (measured live on IRD/PRAX).
+  assert.equal(
+    sanitizeScene("a technician pipetting solutions into microtiter plates in a laboratory setting"),
+    "technician pipetting solutions into microtiter plates in a laboratory setting",
+    "a leading plain article is stripped so it never doubles up with personPhrase's own article",
+  );
+  assert.equal(
+    sanitizeScene("an engineer tuning server racks in a large data centre room"),
+    "engineer tuning server racks in a large data centre room",
+    "\"an\" is stripped the same way \"a\" is",
+  );
   // Scene-specific constraints: a pronoun/gender word ANYWHERE ELSE (not just the leading
   // shape above) is still a real rejection — gender is chosen separately, and a pronoun
   // embedded mid-sentence cannot be cleanly stripped the way a leading one can — and so is a

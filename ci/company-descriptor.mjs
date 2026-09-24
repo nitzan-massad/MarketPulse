@@ -150,6 +150,13 @@ export function sanitizeScene(raw, { ticker } = {}) {
   // below: only this one specific, commonly-observed LEADING shape is tolerated.
   s = s.replace(/^a\s+(?:man|woman)\s+/i, "").trim();
   if (!s) return null;
+  // A plain leading article ("a technician pipetting…") is also common, and — since
+  // `buildImagePrompt` ALWAYS prepends `personPhrase(seed)` immediately before this text —
+  // left in place it doubles up into "a woman a technician pipetting…". Stripped for the same
+  // reason as the gender phrase above: the model producing a natural, grammatical sentence on
+  // its own is not something to punish, just something to compose correctly.
+  s = s.replace(/^(?:a|an)\s+/i, "").trim();
+  if (!s) return null;
 
   if (/\d/.test(s)) return null; // no numbers, ever — same rule buildImagePrompt itself enforces.
   if (/[$%]/.test(s)) return null;
