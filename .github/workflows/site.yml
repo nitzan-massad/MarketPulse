@@ -127,7 +127,9 @@ jobs:
           POST_PROVIDER: cloudflare
           POSTS_PER_RUN: "1"
           POST_CANDIDATES: "5"
-          POST_WINDOW: "30"
+          # 144 snapshots at the 5h cadence is ~30 days. Measured: 1.9s to load, 87MB.
+          # This is why the checkout is not shallow — see fetch-depth above.
+          POST_WINDOW: "144"
           POST_IMAGES: "true"
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}

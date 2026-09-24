@@ -368,7 +368,7 @@ async function main() {
 
   const existing = readJson(POSTS, []);
   const exemplars = readJson(CORPUS, []);
-  const history = loadWindow(Number(process.env.POST_WINDOW ?? 30));
+  const history = loadWindow(Number(process.env.POST_WINDOW ?? 144));
   const curr = history[history.length - 1];
 
   console.log(`generate-posts — ${curr.length} rows, ${history.length} snapshots in window, ` +
