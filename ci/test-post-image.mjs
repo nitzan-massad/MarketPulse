@@ -122,11 +122,18 @@ for (const bad of ["Nonexistent Sector", "", undefined, null]) {
   assert.ok(/extreme close-up/i.test(prompt), "prompt asks for an extreme close-up (task 11)");
   assert.ok(/face and hands/i.test(prompt), "prompt asks for face AND hands in frame (task 11)");
   assert.ok(/shallow depth of field/i.test(prompt), "prompt asks for shallow depth of field (task 11)");
-  // Commercial-casting language (task 4) — described the way a photo director would, not
-  // crudely, and additive: none of the safety clauses above were removed to make room for it.
-  assert.ok(/attractive/i.test(prompt), "prompt directs commercial-stock-photography casting (task 4)");
-  assert.ok(/professionally lit|magazine|advertising|commercial/i.test(prompt),
-    "the casting language reads as a photo director's brief, not a crude physical description");
+  // Commercial-casting language ("strikingly attractive", "cast and styled", "magazine or
+  // advertising campaign") was added in a prior pass per the user's own direction, then
+  // EXPLICITLY RETRACTED by the user ("revert this") — it must be gone, not softened, while
+  // every other clause from that same pass (tight crops, the screen/bokeh redirect, the
+  // no-text/no-logos rules) stays exactly as asserted elsewhere in this file.
+  for (const banned of [
+    "attractive", "well-groomed", "grooms its models", "magazine", "advertising campaign",
+    "cast and styled", "production value", "commercial stock-photography shoot",
+  ]) {
+    assert.equal(prompt.toLowerCase().includes(banned), false,
+      `prompt no longer directs "${banned}" — the attractiveness/casting direction was retracted`);
+  }
   // The load-bearing assertion: nothing that could be a fabricated figure ever reaches Flux,
   // which renders text well and has no negative_prompt field to fall back on.
   assert.equal(/\d/.test(prompt), false, "the built prompt contains no digits whatsoever");
@@ -302,8 +309,8 @@ for (const sec of REAL_SECTORS) {
 console.log("post-image OK — every real sector has a scene WITH a person (deterministic, ~90% " +
             "woman), a descriptor, the prompt is digit-free and ticker-text-free and suppresses " +
             "text/logos/watermarks while giving screens a positive bokeh instruction, tight-crop " +
-            "and commercial-casting direction reach the prompt, filenames sanitise to .jpg, " +
-            "a per-company scene overrides the sector fallback " +
+            "framing reaches the prompt and the retracted attractiveness/casting direction does " +
+            "not, filenames sanitise to .jpg, a per-company scene overrides the sector fallback " +
             "and reaches the Flux request body, EVERY sector including General now reaches Flux " +
             "(no more abstract-mark skip), and generateImage returns null (never throws) on " +
             "missing creds, non-ok, malformed, and network-error responses");

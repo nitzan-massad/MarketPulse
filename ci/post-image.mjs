@@ -202,30 +202,31 @@ export function descriptorFor(sector) {
  *  incidentally (a background office display, a phone on a desk) despite no scene calling for
  *  one.
  *
- *  COMMERCIAL CASTING (the person is strikingly attractive, per the user's direction). Framed
- *  the way a photo director actually briefs a shoot — casting, grooming, lighting, production
- *  value — not a crude physical-appearance instruction. This changes nothing else: the
- *  deterministic ~90%/10% woman/man split (`personPhrase`) is untouched, the high-key/light
- *  aesthetic is untouched, and every no-text/no-numbers/no-logos/no-watermark clause below is
- *  untouched — this only ADDS casting/lighting direction, it never removes a safety clause. */
+ *  CASTING DIRECTION IS NEUTRAL, ON PURPOSE. A prior pass added "the subject is strikingly
+ *  attractive, cast and styled the way a commercial stock-photography shoot casts and grooms
+ *  its models — well-groomed, polished, professionally lit for a magazine or advertising
+ *  campaign" per the user's own direction at the time. The user has since explicitly retracted
+ *  that direction, and it is removed here — reverted precisely, not softened: no appearance
+ *  instruction beyond what the photographic style itself already implies (bright, high-key,
+ *  editorial). Everything else from that same pass survives unchanged: the deterministic
+ *  ~90%/10% woman/man split (`personPhrase`), the extreme-close-up/tight-crop framing, the
+ *  high-key/light aesthetic, the bokeh-not-legible-marks screen instruction, and every
+ *  no-text/no-numbers/no-logos/no-watermark clause below. */
 export function buildImagePrompt(sector, seed, customScene) {
   const roleAction = typeof customScene === "string" && customScene.trim()
     ? customScene.trim()
     : sectorScenePhrase(sector);
   const scene = `${personPhrase(seed)} ${roleAction}`;
   return (
-    `Editorial commercial stock photograph, extreme close-up shot, of ${scene}. The subject is ` +
-    `strikingly attractive, cast and styled the way a commercial stock-photography shoot casts ` +
-    `and grooms its models — well-groomed, polished, professionally lit for a magazine or ` +
-    `advertising campaign, high production value throughout. Face and hands are both in frame, ` +
-    `the subject and their work filling most of the frame, caught candidly mid-action, not ` +
-    `posed for the camera, shallow depth of field. Bright, airy, high-key lighting on a light ` +
-    `background; soft natural light, muted modern color palette. If any screen, monitor, or ` +
-    `display happens to appear anywhere in the frame, it shows only soft, out-of-focus coloured ` +
-    `light and bokeh — never legible marks of any kind. Even while the subject fills most of the ` +
-    `frame, keep the extreme top and bottom edges relatively simple so bold text can be overlaid ` +
-    `directly on the photo later. No text, no numbers, no digits, no logos, no brand marks, no ` +
-    `watermarks, no signage.`
+    `Editorial stock photograph, extreme close-up shot, of ${scene}. Face and hands are both ` +
+    `in frame, the person and their work filling most of the frame, caught candidly mid-action, ` +
+    `not posed for the camera, shallow depth of field. Bright, airy, high-key lighting on a ` +
+    `light background; soft natural light, muted modern color palette. If any screen, monitor, ` +
+    `or display happens to appear anywhere in the frame, it shows only soft, out-of-focus ` +
+    `coloured light and bokeh — never legible marks of any kind. Even while the person fills ` +
+    `most of the frame, keep the extreme top and bottom edges relatively simple so bold text ` +
+    `can be overlaid directly on the photo later. No text, no numbers, no digits, no logos, no ` +
+    `brand marks, no watermarks, no signage.`
   );
 }
 
