@@ -199,38 +199,49 @@ export async function generate({
       facts: hook.facts,
     };
 
-    // THE DESCRIPTOR — ci/company-descriptor.mjs, one extra call per PUBLISHED post (never per
-    // candidate — this runs exactly once here, after `pickBest` above already picked the winner),
-    // never per candidate. Injected exactly like `generateImageFor` below, so `generate()` stays
+    // THE DESCRIPTOR *AND* THE SCENE — ci/company-descriptor.mjs, one extra call per PUBLISHED
+    // post (never per candidate — this runs exactly once here, after `pickBest` above already
+    // picked the winner). Injected exactly like `generateImageFor` below, so `generate()` stays
     // network-free and testable offline; `main()` wires it to the real provider + a persisted
-    // cache. A missing injector, a thrown error, or an empty response all leave `post.descriptor`
-    // unset — composePost() (ci/post-compose.mjs) falls back to the sector-mapped descriptor on
-    // its own when none is supplied, so a failed call here never loses the post or its image.
+    // cache. `getDescriptorFor` now resolves `{ descriptor, scene }` together (one call feeds
+    // both — see ci/company-descriptor.mjs's module header): a missing injector, a thrown error,
+    // or a malformed (non-object) response leave BOTH `post.descriptor` and the local `scene`
+    // unset. `post.descriptor` unset falls back to composePost()'s own sector-mapped descriptor
+    // (ci/post-compose.mjs); `scene` unset falls back to generateImageFor's own sector-mapped
+    // scene (ci/post-image.mjs) — neither a failed call here nor a failed Flux call below ever
+    // loses the post.
+    let scene;
     if (typeof getDescriptorFor === "function") {
-      let descriptor;
+      let result;
       try {
-        descriptor = await getDescriptorFor(rowByTicker.get(hook.ticker) ?? { t: hook.ticker, n: hook.name, sec: hook.sec });
+        result = await getDescriptorFor(rowByTicker.get(hook.ticker) ?? { t: hook.ticker, n: hook.name, sec: hook.sec });
       } catch (err) {
-        console.error(`  ${hook.ticker}: descriptor generation threw — ${err.message}`);
+        console.error(`  ${hook.ticker}: descriptor/scene generation threw — ${err.message}`);
       }
-      if (typeof descriptor === "string" && descriptor.trim()) {
-        post.descriptor = descriptor.trim();
+      if (result && typeof result === "object") {
+        if (typeof result.descriptor === "string" && result.descriptor.trim()) {
+          post.descriptor = result.descriptor.trim();
+        }
+        if (typeof result.scene === "string" && result.scene.trim()) {
+          scene = result.scene.trim();
+        }
       }
     }
 
     // THREE separate steps, deliberately: text (above), image (here), fusion (below). Image
     // generation is injected exactly like `provider` above, so `generate()` stays
     // file-I/O-free and testable offline (see the shape note up top) — writing the bytes to
-    // public/post-images/ happens in main(). Only the SECTOR and the TICKER are passed in, and
-    // the ticker is used for exactly one thing: seeding buildImagePrompt's deterministic
-    // man/woman choice (ci/post-image.mjs). It is never concatenated into the prompt text
-    // itself — ci/post-image.mjs never sees a hook fact, number, company name, or the ticker
-    // AS TEXT. A declined or failed call just omits `image` and the card renders the canvas
-    // fallback — the post still publishes.
+    // public/post-images/ happens in main(). The SECTOR, the TICKER, and the SCENE (resolved
+    // above, or `undefined` on any failure) are passed in. The ticker is used for exactly one
+    // thing: seeding buildImagePrompt's deterministic man/woman choice (ci/post-image.mjs). It
+    // is never concatenated into the prompt text itself — ci/post-image.mjs never sees a hook
+    // fact, number, company name, or the ticker AS TEXT. EVERY sector, `General` included, now
+    // reaches this call — there is no more skip. A declined or failed call just omits `image`
+    // and the card renders the canvas fallback — the post still publishes.
     if (typeof generateImageFor === "function") {
       let photo = null;
       try {
-        photo = await generateImageFor(hook.sec, hook.ticker);
+        photo = await generateImageFor(hook.sec, hook.ticker, scene);
       } catch (err) {
         console.error(`  ${hook.ticker}: image generation threw — ${err.message}`);
       }
@@ -367,7 +378,7 @@ async function main() {
 
   const provider = makeProvider();
   const generateImageFor = imagesEnabled
-    ? (sector, ticker) => generateImage({ sector, ticker, env: process.env, fetchImpl: globalThis.fetch })
+    ? (sector, ticker, scene) => generateImage({ sector, ticker, scene, env: process.env, fetchImpl: globalThis.fetch })
     : undefined;
   // The descriptor cache persists per-company results ACROSS runs (see the DESCRIPTORS const
   // above) — reused, not regenerated, whenever the same ticker comes up again, so this call

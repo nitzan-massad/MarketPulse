@@ -171,26 +171,37 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
 }
 {
   // getDescriptorFor succeeds — it is called exactly once, with the FULL stocks.json row (not
-  // just the hook's own narrower facts), and the resolved descriptor rides on the post.
+  // just the hook's own narrower facts), and now resolves `{ descriptor, scene }` together (one
+  // model call feeds both — see ci/company-descriptor.mjs). The descriptor rides on the post;
+  // the scene is threaded into the image generator below, not stored on the post itself.
   const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
   const calls = [];
-  const getDescriptorFor = async (row) => { calls.push(row); return "building what's next"; };
+  const scene = "engineer soldering a circuit board, hands and board filling the frame, mid-motion";
+  const getDescriptorFor = async (row) => { calls.push(row); return { descriptor: "building what's next", scene }; };
+  const imageCalls = [];
+  const generateImageFor = async (sector, ticker, sc) => { imageCalls.push([sector, ticker, sc]); return null; };
   const posts = await generate({ history: [curr], recent: [], provider, exemplars,
-                                 config: { postsPerRun: 1, candidates: 1 }, getDescriptorFor });
+                                 config: { postsPerRun: 1, candidates: 1 }, getDescriptorFor, generateImageFor });
   assert.equal(posts.length, 1, "a post still publishes with a descriptor generator wired in");
   assert.equal(posts[0].descriptor, "building what's next", "the resolved descriptor rides on the post");
   assert.equal(calls.length, 1, "the descriptor generator is called exactly once per published post");
   assert.equal(calls[0].t, "AAA", "it receives the full stocks.json row for the post's ticker");
   assert.equal(calls[0].mc, 90_000, "including fields (market cap) a hook's own facts never carry");
+  assert.equal(imageCalls.length, 1, "the image generator is still called exactly once");
+  assert.equal(imageCalls[0][2], scene, "the resolved SCENE is threaded into the image generator's third argument");
 }
 {
-  // getDescriptorFor throws: the post still publishes, with no descriptor field.
+  // getDescriptorFor throws: the post still publishes, with no descriptor field, and the image
+  // generator receives no scene (falls back to its own sector-mapped scene).
   const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
   const getDescriptorFor = async () => { throw new Error("boom"); };
+  const imageCalls = [];
+  const generateImageFor = async (sector, ticker, sc) => { imageCalls.push(sc); return null; };
   const posts = await generate({ history: [curr], recent: [], provider, exemplars,
-                                 config: { postsPerRun: 1, candidates: 1 }, getDescriptorFor });
+                                 config: { postsPerRun: 1, candidates: 1 }, getDescriptorFor, generateImageFor });
   assert.equal(posts.length, 1, "a post still publishes when descriptor generation throws");
   assert.equal("descriptor" in posts[0], false, "no descriptor field when the generator throws");
+  assert.equal(imageCalls[0], undefined, "no scene reaches the image generator when the descriptor generator throws");
 }
 {
   // getDescriptorFor resolves empty: same graceful degradation.
@@ -199,7 +210,19 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   const posts = await generate({ history: [curr], recent: [], provider, exemplars,
                                  config: { postsPerRun: 1, candidates: 1 }, getDescriptorFor });
   assert.equal(posts.length, 1, "a post still publishes when the descriptor resolves empty");
-  assert.equal("descriptor" in posts[0], false, "no descriptor field for an empty resolution");
+  assert.equal("descriptor" in posts[0], false, "no descriptor field for an empty (non-object) resolution");
+}
+{
+  // getDescriptorFor resolves an object with a valid descriptor but no usable scene (e.g. a
+  // blank string): the descriptor still rides on the post, and no scene reaches the image call.
+  const provider = async () => ["Alpha Inc target $160, 60% upside, 21 analysts."];
+  const getDescriptorFor = async () => ({ descriptor: "building what's next", scene: "   " });
+  const imageCalls = [];
+  const generateImageFor = async (sector, ticker, sc) => { imageCalls.push(sc); return null; };
+  const posts = await generate({ history: [curr], recent: [], provider, exemplars,
+                                 config: { postsPerRun: 1, candidates: 1 }, getDescriptorFor, generateImageFor });
+  assert.equal(posts[0].descriptor, "building what's next", "a valid descriptor rides on the post even with a blank scene");
+  assert.equal(imageCalls[0], undefined, "a blank scene never reaches the image generator");
 }
 
 // --- image generation is optional, injected, and can never lose a post --------------------

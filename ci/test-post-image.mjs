@@ -5,8 +5,8 @@
 
 import assert from "node:assert";
 import {
-  buildImagePrompt, descriptorFor, generateImage, personPhrase, postImageFilename, renderAbstractMark,
-  scenePhrase,
+  buildImagePrompt, descriptorFor, generateImage, personPhrase, postImageFilename, scenePhrase,
+  sectorScenePhrase,
 } from "./post-image.mjs";
 
 // --- every real sector (src/data/stocks.json's `sec` values) maps to a scene ---------------
@@ -118,7 +118,7 @@ for (const bad of ["Nonexistent Sector", "", undefined, null]) {
   // clause.
   assert.ok(/screen|monitor|display/i.test(prompt) && /bokeh|out-of-focus/i.test(prompt),
     "prompt gives a positive instruction for how an incidental screen should look, not just a ban");
-  // (11) tight-crop framing direction.
+  // (11) tight-crop framing direction — survives the casting retraction below unchanged.
   assert.ok(/extreme close-up/i.test(prompt), "prompt asks for an extreme close-up (task 11)");
   assert.ok(/face and hands/i.test(prompt), "prompt asks for face AND hands in frame (task 11)");
   assert.ok(/shallow depth of field/i.test(prompt), "prompt asks for shallow depth of field (task 11)");
@@ -142,6 +142,36 @@ for (const sec of REAL_SECTORS) {
   for (const t of tickers) {
     const prompt = buildImagePrompt("Technology", t);
     assert.equal(prompt.includes(t), false, `the ticker ${t} itself never appears in its own prompt`);
+  }
+}
+
+// --- sectorScenePhrase: the role+action half of scenePhrase, with no person prefix ----------
+// This is what buildImagePrompt falls back to when no per-company model scene is supplied —
+// split out so a custom scene and the sector fallback share the exact same "prepend
+// personPhrase" code path (see ci/post-image.mjs's own comment).
+for (const sec of REAL_SECTORS) {
+  const phrase = sectorScenePhrase(sec);
+  assert.equal(/^a (woman|man) /.test(phrase), false, "sectorScenePhrase carries no person prefix");
+  assert.equal(scenePhrase(sec, "AAA"), `${personPhrase("AAA")} ${phrase}`,
+    "scenePhrase is exactly personPhrase + sectorScenePhrase");
+}
+
+// --- buildImagePrompt's third argument: a per-company CUSTOM SCENE, in place of the sector map
+{
+  const customScene = "engineer inspecting a rack of servers in a data centre hall, hands on the cabling, mid-motion";
+  const prompt = buildImagePrompt("General", "GOOGL", customScene);
+  assert.ok(prompt.includes(customScene), "a supplied custom scene reaches the prompt verbatim");
+  assert.equal(prompt.includes(sectorScenePhrase("General")), false,
+    "the sector-mapped fallback scene is NOT used when a custom scene is supplied");
+  assert.ok(new RegExp(`extreme close-up shot, of a (woman|man) ${customScene}`).test(prompt),
+    "the custom scene is composed with personPhrase exactly like the sector fallback is");
+}
+{
+  // Falsy/blank/non-string customScene values all fall back to the sector map, never crash.
+  for (const bad of [undefined, null, "", "   "]) {
+    const prompt = buildImagePrompt("Technology", "AAA", bad);
+    assert.ok(prompt.includes(sectorScenePhrase("Technology")),
+      `a ${JSON.stringify(bad)} custom scene falls back to the sector-mapped scene`);
   }
 }
 
@@ -226,39 +256,54 @@ for (const sec of REAL_SECTORS) {
   assert.ok(out.equals(payload), "the base64 body decodes back to the original bytes");
 }
 
-// --- (9) General never reaches Flux at all — a palette-driven abstract mark instead ---------
+// --- EVERY sector, `General` included, now reaches Flux — no more skip ---------------------
+// A prior pass skipped the Flux call entirely for `General` (TipRanks' unclassified catch-all,
+// ~44 rows including Alphabet) and rendered a palette-driven abstract mark instead. The user
+// rejected that: every post gets a real generated photo, always, `General` included — the
+// personalised scene comes from ci/company-descriptor.mjs, not the sector, so `General` no
+// longer needs special-casing here at all.
 {
-  const fetchImpl = async () => { throw new Error("must not call Flux for the General sector"); };
+  const payload = Buffer.from("a real flux jpeg for a General-sector company");
+  let called = false;
+  const fetchImpl = async (url, init) => {
+    called = true;
+    const body = JSON.parse(init.body);
+    assert.equal(/\d/.test(body.prompt), false, "General's prompt is still digit-free");
+    return { ok: true, json: async () => ({ result: { image: payload.toString("base64") } }) };
+  };
   const out = await generateImage({
-    sector: "General", ticker: "AAA", env: { CF_ACCOUNT_ID: "acct", CF_API_TOKEN: "tok" }, fetchImpl,
+    sector: "General", ticker: "GOOGL", env: { CF_ACCOUNT_ID: "acct", CF_API_TOKEN: "tok" }, fetchImpl,
   });
-  assert.ok(Buffer.isBuffer(out), "General still resolves to a real image buffer");
-  // PNG magic bytes (89 50 4E 47) — renderAbstractMark returns a PNG, not a Flux JPEG.
-  assert.deepEqual([...out.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], "the abstract mark is a real PNG");
+  assert.ok(called, "General reaches the Flux call exactly like every other sector");
+  assert.ok(out.equals(payload), "General decodes the real Flux response like every other sector");
 }
 {
-  // Even with NO credentials at all, General still succeeds — the whole point is that it never
-  // depends on Flux/Cloudflare in the first place.
-  const out = await generateImage({ sector: "General", ticker: "AAA", env: {}, fetchImpl: async () => {
-    throw new Error("must not be called");
+  // Missing credentials degrades exactly the same way for General as for any other sector —
+  // null, never a silent abstract-mark substitute.
+  const out = await generateImage({ sector: "General", ticker: "GOOGL", env: {}, fetchImpl: async () => {
+    throw new Error("must not be called without credentials");
   } });
-  assert.ok(Buffer.isBuffer(out), "General resolves without any Cloudflare credentials");
+  assert.equal(out, null, "General with no credentials returns null, not an abstract mark");
 }
 
-// --- renderAbstractMark: deterministic, ticker-varying, always a valid PNG -------------------
+// --- the per-company SCENE (ci/company-descriptor.mjs) reaches the Flux request body --------
 {
-  assert.ok(renderAbstractMark("AAA").equals(renderAbstractMark("AAA")),
-    "the same ticker renders byte-identical marks every time");
-  assert.equal(renderAbstractMark("AAA").equals(renderAbstractMark("BBB")), false,
-    "different tickers render visibly different marks");
-  const png = renderAbstractMark("GOOGL");
-  assert.deepEqual([...png.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], "renderAbstractMark returns a real PNG");
+  const scene = "technician calibrating lab equipment, hands on the instrument, mid-motion";
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    assert.ok(body.prompt.includes(scene), "a scene passed into generateImage reaches the Flux prompt");
+    return { ok: true, json: async () => ({ result: { image: Buffer.from("x").toString("base64") } }) };
+  };
+  await generateImage({
+    sector: "Healthcare", ticker: "PRAX", scene, env: { CF_ACCOUNT_ID: "a", CF_API_TOKEN: "t" }, fetchImpl,
+  });
 }
 
 console.log("post-image OK — every real sector has a scene WITH a person (deterministic, ~90% " +
             "woman), a descriptor, the prompt is digit-free and ticker-text-free and suppresses " +
             "text/logos/watermarks while giving screens a positive bokeh instruction, tight-crop " +
             "and commercial-casting direction reach the prompt, filenames sanitise to .jpg, " +
-            "General skips Flux entirely for a deterministic abstract mark, and generateImage " +
-            "returns null (never throws) on missing creds, non-ok, malformed, and network-error " +
-            "responses");
+            "a per-company scene overrides the sector fallback " +
+            "and reaches the Flux request body, EVERY sector including General now reaches Flux " +
+            "(no more abstract-mark skip), and generateImage returns null (never throws) on " +
+            "missing creds, non-ok, malformed, and network-error responses");

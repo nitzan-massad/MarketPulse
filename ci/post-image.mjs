@@ -1,24 +1,30 @@
-// THE PICTURE, FOR REAL — Cloudflare Workers AI Flux Schnell, sector (+ a deterministic
-// gender seed) only.
+// THE PICTURE, FOR REAL — Cloudflare Workers AI Flux Schnell, ALWAYS, for every post. Scene
+// comes from the SAME per-company model call ci/company-descriptor.mjs already makes (the
+// identity-line descriptor), extended to also return a scene; the sector-role map below is
+// only the deterministic FALLBACK for when that call fails.
 //
-// src/postArt.ts draws the fallback: cheap, deterministic, and safe by construction because
-// it carries no text at all. But it is procedural canvas, and canvas cannot be both genuinely
-// light (the card is light now) and visually substantial — two of the seven scenes measured a
-// mean brightness of 240 with a visual variation of 12 on 0-255, i.e. a blank white rectangle.
-// So: one real image per post, from @cf/black-forest-labs/flux-1-schnell (Apache-2.0, ~43
-// neurons/image at 4 steps, against the same free 10,000/day pool the text candidates already
-// spend ~15% of). Canvas stays wired in ci/generate-posts.mjs as the fallback for any failure.
+// src/postArt.ts draws a canvas fallback: cheap, deterministic, and safe by construction
+// because it carries no text at all. But it is procedural canvas, and canvas cannot be both
+// genuinely light (the card is light now) and visually substantial — two of the seven scenes
+// measured a mean brightness of 240 with a visual variation of 12 on 0-255, i.e. a blank white
+// rectangle. So: one real Flux image per post, from @cf/black-forest-labs/flux-1-schnell
+// (Apache-2.0, ~43 neurons/image at 4 steps, against the same free 10,000/day pool the text
+// candidates already spend ~15% of). Canvas stays wired in ci/generate-posts.mjs as the
+// fallback for any failure — never the abstract mark this module used to render for `General`
+// (removed, see below).
 //
-// CRITICAL, read before touching buildImagePrompt: the prompt below is built from the SECTOR
-// and a SEED only — never a hook fact, number, ticker-as-text or company name. Flux is well
-// known for rendering text accurately, and the flux-1-schnell schema exposes no
-// `negative_prompt` to suppress it. A number or name that reached the prompt would be a
-// plausible route to a fabricated figure — a wrong price, a wrong date, a misspelled ticker —
-// baked as pixels into a picture that sits next to a real public company's name. The seed
-// (the post's ticker, passed by ci/generate-posts.mjs) is used for exactly one thing — see
+// CRITICAL, read before touching buildImagePrompt: the prompt below is built from the SECTOR,
+// a SEED, and now an optional per-company SCENE string — never a hook fact, number,
+// ticker-as-text or company name. Flux is well known for rendering text accurately, and the
+// flux-1-schnell schema exposes no `negative_prompt` to suppress it. A number or name that
+// reached the prompt would be a plausible route to a fabricated figure — a wrong price, a wrong
+// date, a misspelled ticker — baked as pixels into a picture that sits next to a real public
+// company's name. The scene string is validated upstream by ci/company-descriptor.mjs's
+// `sanitizeScene` (no digits, no $/%, no ticker, no logos/brand/chart words) before it ever
+// reaches this module, on the same posture as the descriptor's own `sanitizeDescriptor`. The
+// seed (the post's ticker, passed by ci/generate-posts.mjs) is used for exactly one thing — see
 // `personPhrase` below — and is never concatenated into the prompt AS TEXT, only hashed into a
-// coin flip. The sector and that coin flip are the only things this module ever bases the
-// prompt on.
+// coin flip.
 //
 // PEOPLE, NOW REQUIRED. The prompt used to end "no people, no faces, no hands, no
 // silhouettes" — deliberately, because there was nothing for a person to be doing that
@@ -29,22 +35,32 @@
 // text is being burned onto this image next (ci/post-compose.mjs), and a photo that already
 // contains stray rendered text or a logo would corrupt that.
 //
-// (9) NO PHOTO FOR THE UNCLASSIFIED SECTOR. `General` is TipRanks' own catch-all bucket, not an
-// industry — there is no real job to depict, so a Flux photo for it is filler at best (and, per
-// the `descriptorFor` comment below, sometimes actively absurd — Alphabet). `generateImage`
-// below skips the Flux call entirely for this one sector and renders a palette-driven abstract
-// mark instead, via `renderAbstractMark`: real neurons saved (no Flux call at all), and
-// ci/post-compose.mjs still gets a real image buffer to burn the post's text onto, same as any
-// other sector — the mark is never a second-class citizen, just an honest one.
+// EVERY POST GETS A PHOTO, INCLUDING `General`. This used to skip Flux entirely for TipRanks'
+// unclassified catch-all sector (~44 of 455 rows, including Alphabet) and render a
+// palette-driven abstract mark instead — the reasoning was that an unclassified bucket gives
+// nothing concrete to depict. The user rejected that outright: an abstract mark for a real,
+// named company (Alphabet chief among them) is exactly the bland, generic imagery this whole
+// effort has been moving away from. The fix is NOT a generic "person in an office" scene for
+// `General` either — it is the same fix already shipped for the text descriptor
+// (`descriptorFor` below is now a fallback, not the primary path; see
+// ci/company-descriptor.mjs): ask the model for a scene specific to what the company actually
+// DOES, informed by its real business description, sector be damned. `SECTOR_ROLE` below
+// therefore now serves only as the deterministic fallback scene for when that model call fails
+// or a company's scene fails validation — never the primary source for any sector, `General`
+// included. On the user's own logo suggestion (a Google logo on the building) — deliberately
+// NOT done: Flux renders brand marks as garbled pseudo-text, and a fabricated logo on a real,
+// named, public company is a misrepresentation in a way an anonymous glass campus is not. The
+// setting itself (a data-centre hall, a corporate campus, a lab) carries the recognisability
+// instead, and the no-logo/no-brand-marks clause in `buildImagePrompt` stays untouched.
 
-import { Resvg } from "@resvg/resvg-js";
-
-/** One concrete WORKER + scene per sector TipRanks/Finviz actually emits (`src/data/
- *  stocks.json`'s `sec` values) — the person doing that industry's actual work, not a person
- *  incidentally standing in front of it. `General` is TipRanks' own unclassified bucket, not
- *  an industry, so its phrase is deliberately as generic as the fallback below (see
- *  postArt.ts's identical honesty about `General` -> the fallback scene). Add a scene here and
- *  the mapping is done — no seed, no draw function.
+/** DETERMINISTIC FALLBACK ONLY, one concrete WORKER + scene per sector TipRanks/Finviz actually
+ *  emits (`src/data/stocks.json`'s `sec` values) — used when the per-company model call
+ *  (ci/company-descriptor.mjs's `describeCompany`) fails or its scene fails validation. The
+ *  PRIMARY scene for every company, `General` included, is now the model-written one — see the
+ *  module header. `General`'s entry here is deliberately as generic as the fallback below (it
+ *  is TipRanks' own unclassified bucket, not an industry, and this map is never asked to be
+ *  more than an honest last resort). Add a scene here and the fallback mapping is done — no
+ *  seed, no draw function.
  *
  *  CLOSE, LARGE, MID-ACTION (Task: "images need to be more interesting, people much more
  *  prominent"). The old scenes put the person mid-distance in a mostly-empty room — safe, but
@@ -52,12 +68,13 @@ import { Resvg } from "@resvg/resvg-js";
  *  fill most of the frame, caught doing something rather than posed for a portrait. Never a
  *  pronoun ("her"/"his") in these strings — `scenePhrase` prepends the gender choice
  *  separately, so the action text has to read correctly after EITHER "a woman ROLE" or "a man
- *  ROLE". Screens/monitors/price-boards are deliberately avoided (Technology and
- *  CommunicationServices used to feature a "wall of glowing display panels"/"screens" — exactly
- *  the kind of prop Flux has been seen inventing chart-like numeric marks onto, see
- *  buildImagePrompt below): a scene with no natural reason to contain signage is less likely to
- *  produce it, since the no-numbers instruction cannot be enforced (no negative_prompt on this
- *  model). */
+ *  ROLE" (the model-written scene follows the identical rule — see
+ *  ci/company-descriptor.mjs's `buildDescriptorPrompt`). Screens/monitors/price-boards are
+ *  deliberately avoided (Technology and CommunicationServices used to feature a "wall of
+ *  glowing display panels"/"screens" — exactly the kind of prop Flux has been seen inventing
+ *  chart-like numeric marks onto, see buildImagePrompt below): a scene with no natural reason to
+ *  contain signage is less likely to produce it, since the no-numbers instruction cannot be
+ *  enforced (no negative_prompt on this model). */
 const SECTOR_ROLE = {
   Healthcare: { role: "scientist", action: "leaning in close over a lab bench, gloved hands pipetting a sample into a rack of vials mid-motion, hands and work filling most of the frame in a bright, clean laboratory" },
   Technology: { role: "engineer", action: "soldering a circuit board at a bright workbench, hands and board close and filling most of the frame, caught mid-motion" },
@@ -103,10 +120,22 @@ export function personPhrase(seed) {
   return seedFraction(seed) < 0.1 ? "a man" : "a woman";
 }
 
-export function scenePhrase(sector, seed) {
+/** The deterministic sector-mapped ROLE + ACTION text alone, with no person prefix — this is
+ *  what `buildImagePrompt` falls back to when no (or no valid) model-written scene is supplied.
+ *  Split out from `scenePhrase` below so `buildImagePrompt` can prepend `personPhrase` to
+ *  EITHER this fallback OR a model-written scene through the identical code path. */
+export function sectorScenePhrase(sector) {
   const key = String(sector ?? "").trim();
   const { role, action } = SECTOR_ROLE[key] ?? FALLBACK_ROLE;
-  return `${personPhrase(seed)} ${role} ${action}`;
+  return `${role} ${action}`;
+}
+
+/** `personPhrase` + the deterministic sector fallback scene, unchanged in shape from before this
+ *  module gained a per-company model-written scene — still used directly by
+ *  ci/test-post-image.mjs's sector-coverage assertions, and by `buildImagePrompt` whenever no
+ *  custom scene is supplied. */
+export function scenePhrase(sector, seed) {
+  return `${personPhrase(seed)} ${sectorScenePhrase(sector)}`;
 }
 
 /** Two-to-four word industry descriptor, rendered beneath the company name at half its font
@@ -153,27 +182,25 @@ export function descriptorFor(sector) {
 /** The fixed template. Every clause after the scene exists to suppress a specific way Flux
  *  would otherwise contradict or embarrass the real data sitting on top of the card — numbers,
  *  tickers, logos — or interfere with the text ci/post-compose.mjs is about to burn onto this
- *  photo. Nothing here is per-post except `scenePhrase()`'s scene + person, and it never sees
- *  anything but the sector string and the seed fraction described above.
+ *  photo. Nothing here is per-post except the scene + person, and the scene is either a
+ *  per-company model-written phrase (`customScene`, validated upstream by
+ *  ci/company-descriptor.mjs's `sanitizeScene`) or, absent/failed, the deterministic sector
+ *  fallback (`sectorScenePhrase`).
  *
- *  THREE deliberate refinements on top of the original template, all from the same round of
- *  review:
+ *  TIGHT CROPS. The best image produced under the old wording (a scientist mid-pipette) was
+ *  already an extreme close-up with hands doing real work filling the frame; the weakest was
+ *  mid-distance and static. "Close or medium-close" left Flux room to pick the weaker option —
+ *  "extreme close-up" plus an explicit "face and hands both in frame" removes that choice.
  *
- *  (11) TIGHT CROPS. The best image produced under the old wording (a scientist mid-pipette)
- *  was already an extreme close-up with hands doing real work filling the frame; the weakest
- *  was mid-distance and static. "Close or medium-close" left Flux room to pick the weaker
- *  option — "extreme close-up" plus an explicit "face and hands both in frame" removes that
- *  choice.
- *
- *  (10) SCREENS, REDIRECTED, NOT JUST FORBIDDEN. Flux exposes no `negative_prompt` on this
- *  model, and a purely negative instruction ("no charts, no graphs, no diagrams") has already
- *  been ignored once — a generated screen wall rendered chart-like numeric marks despite it
- *  (see the SECTOR_ROLE comment above, which is why Technology/CommunicationServices no longer
- *  route through screens at all). Telling a model what NOT to draw still requires it to imagine
- *  the forbidden thing first; telling it what a screen looks like INSTEAD (soft, out-of-focus
- *  colour and bokeh) gives it a positive target to paint even if a monitor sneaks into frame
- *  incidentally (a background office display, a phone on a desk) despite no sector scene
- *  calling for one.
+ *  SCREENS, REDIRECTED, NOT JUST FORBIDDEN. Flux exposes no `negative_prompt` on this model, and
+ *  a purely negative instruction ("no charts, no graphs, no diagrams") has already been ignored
+ *  once — a generated screen wall rendered chart-like numeric marks despite it (see the
+ *  SECTOR_ROLE comment above, which is why Technology/CommunicationServices no longer route
+ *  through screens at all). Telling a model what NOT to draw still requires it to imagine the
+ *  forbidden thing first; telling it what a screen looks like INSTEAD (soft, out-of-focus colour
+ *  and bokeh) gives it a positive target to paint even if a monitor sneaks into frame
+ *  incidentally (a background office display, a phone on a desk) despite no scene calling for
+ *  one.
  *
  *  COMMERCIAL CASTING (the person is strikingly attractive, per the user's direction). Framed
  *  the way a photo director actually briefs a shoot — casting, grooming, lighting, production
@@ -181,8 +208,11 @@ export function descriptorFor(sector) {
  *  deterministic ~90%/10% woman/man split (`personPhrase`) is untouched, the high-key/light
  *  aesthetic is untouched, and every no-text/no-numbers/no-logos/no-watermark clause below is
  *  untouched — this only ADDS casting/lighting direction, it never removes a safety clause. */
-export function buildImagePrompt(sector, seed) {
-  const scene = scenePhrase(sector, seed);
+export function buildImagePrompt(sector, seed, customScene) {
+  const roleAction = typeof customScene === "string" && customScene.trim()
+    ? customScene.trim()
+    : sectorScenePhrase(sector);
+  const scene = `${personPhrase(seed)} ${roleAction}`;
   return (
     `Editorial commercial stock photograph, extreme close-up shot, of ${scene}. The subject is ` +
     `strikingly attractive, cast and styled the way a commercial stock-photography shoot casts ` +
@@ -202,69 +232,7 @@ export function buildImagePrompt(sector, seed) {
 const FLUX_MODEL = "@cf/black-forest-labs/flux-1-schnell";
 const FLUX_STEPS = 4; // ~43 neurons/image at this step count — see ci/README.md
 
-// -------------------------------------------------------- (9) the abstract mark --
-
-/** Same palette family postArt.ts restates from src/index.css's :root (ci/ has no CSS pipeline
- *  to read it from, same reasoning as that file's own comment) — navy, green, amber, red, teal,
- *  in that order. Kept as a flat list, not named per-token, since the mark picks among them by
- *  index rather than by meaning (there is no "up"/"down" here, just a light abstract graphic). */
-const MARK_PALETTE = ["#1b3f73", "#17864f", "#b8860b", "#c73a2b", "#147c86"];
-const MARK_BG = "#f9fafb"; // --bg
-
-/** mulberry32, seeded by an FNV-1a hash of the ticker — same construction as postArt.ts's
- *  `seeded()`, reimplemented locally (this module already reimplements `seedFraction` above for
- *  the same reason: no dependency from ci/ ESM onto src/). Deterministic: a given ticker's
- *  abstract mark looks the same every time it is regenerated. */
-function markRand(seed) {
-  let h = 2166136261 >>> 0;
-  const s = String(seed ?? "");
-  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return () => {
-    h += 0x6d2b79f5;
-    let t = h;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/**
- * A light, palette-driven abstract graphic — a handful of soft overlapping circles in the
- * app's own accent colours — for the one sector with no real job to depict (`General`, see the
- * module header). Deterministic per `seed` (the post's ticker), same posture as every other
- * seeded choice in this file. Built with @resvg/resvg-js, already a dependency for exactly this
- * kind of local rasterisation (ci/post-compose.mjs), so this needs nothing new.
- *
- * Returns a PNG buffer — `imageDimensions()` (ci/post-compose.mjs) reads PNG or JPEG headers
- * interchangeably, so the fusion step downstream needs no changes to accept this in place of a
- * Flux JPEG. Never throws: like `generateImage` itself, a rendering failure here returns `null`
- * rather than propagating, so it degrades exactly like a failed Flux call would.
- */
-export function renderAbstractMark(seed, size = 1024) {
-  try {
-    const rand = markRand(seed);
-    const shapes = [];
-    const n = 5 + Math.floor(rand() * 3); // 5-7 soft shapes
-    for (let i = 0; i < n; i++) {
-      const cx = rand() * size;
-      const cy = rand() * size;
-      const r = size * (0.14 + rand() * 0.24);
-      const color = MARK_PALETTE[Math.floor(rand() * MARK_PALETTE.length)];
-      const opacity = (0.16 + rand() * 0.22).toFixed(2);
-      shapes.push(`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="${color}" opacity="${opacity}"/>`);
-    }
-    const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">` +
-      `<rect width="${size}" height="${size}" fill="${MARK_BG}"/>${shapes.join("")}</svg>`;
-    const resvg = new Resvg(svg, { font: { loadSystemFonts: false } });
-    return resvg.render().asPng();
-  } catch (err) {
-    console.error(`  abstract mark render failed — ${err?.message ?? err}`);
-    return null;
-  }
-}
-
-/** Fire the Flux call for one sector and return the decoded JPEG bytes, or `null` on ANY
+/** Fire the Flux call for one post and return the decoded JPEG bytes, or `null` on ANY
  *  failure — missing credentials, a non-2xx response, a malformed/unexpected body, a thrown
  *  network error. This must never throw: a failed image has to degrade to the canvas fallback
  *  in ci/generate-posts.mjs, never lose the post, so every failure path returns `null` instead
@@ -275,15 +243,12 @@ export function renderAbstractMark(seed, size = 1024) {
  *  written into the request body as text. Omitting it just means the image always renders the
  *  90%-likely "a woman" branch (`seedFraction(undefined)` is still deterministic).
  *
- *  (9) `General` — TipRanks' unclassified bucket, not an industry — never reaches Flux at all:
- *  there is no real job to depict, so any photo would be filler, and skipping the call also
- *  saves ~43 neurons every time this sector's hook fires. `renderAbstractMark` above still
- *  hands the caller a real image buffer, so the rest of the pipeline (ci/post-compose.mjs) is
- *  completely unaware anything different happened here. */
-export async function generateImage({ sector, ticker, env = process.env, fetchImpl = globalThis.fetch }) {
-  if (String(sector ?? "").trim() === "General") {
-    return renderAbstractMark(ticker);
-  }
+ *  EVERY sector, including `General`, reaches Flux — there is no more skip. `scene`, if given,
+ *  is the per-company model-written phrase from ci/company-descriptor.mjs (already validated by
+ *  its `sanitizeScene`); omitted or falsy, `buildImagePrompt` falls back to the deterministic
+ *  `sectorScenePhrase(sector)`. Either way this call never returns anything but a real Flux
+ *  photo or `null` — no abstract-mark branch survives here (see the module header). */
+export async function generateImage({ sector, ticker, scene, env = process.env, fetchImpl = globalThis.fetch }) {
   try {
     const acct = env.CF_ACCOUNT_ID;
     const token = env.CF_API_TOKEN;
@@ -294,7 +259,7 @@ export async function generateImage({ sector, ticker, env = process.env, fetchIm
       {
         method: "POST",
         headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-        body: JSON.stringify({ prompt: buildImagePrompt(sector, ticker), steps: FLUX_STEPS }),
+        body: JSON.stringify({ prompt: buildImagePrompt(sector, ticker, scene), steps: FLUX_STEPS }),
       },
     );
     if (!res.ok) return null;
