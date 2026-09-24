@@ -18,5 +18,10 @@
     "name": "Praxis Precision Medicines",
     "descriptor": "Brain Disorder Therapies",
     "scene": "scientist pipetting samples into microplates for neuronal activity assays"
+  },
+  "XENE": {
+    "name": "Xenon Pharmaceuticals",
+    "descriptor": "Neurological Disorder Treatments",
+    "scene": "carefully measuring liquid into a laboratory vial with a pipette"
   }
 }

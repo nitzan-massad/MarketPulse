@@ -1,5 +1,33 @@
 [
   {
+    "id": "XENE-2026-09-24T14:41:48.824Z",
+    "ts": "2026-09-24T14:41:48.824Z",
+    "kind": "record",
+    "ticker": "XENE",
+    "name": "Xenon Pharmaceuticals",
+    "sector": "Healthcare",
+    "text": "~92% upside, highest in 31 snapshots.",
+    "score": 68,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "upside": 92.3,
+      "windowLow": 22.4,
+      "windowHigh": 92.3,
+      "snapshots": 31,
+      "days": 6.5,
+      "price": 36.56,
+      "priceTarget": 70.3,
+      "analysts": 14,
+      "sectorMedianUpside": 41.5
+    },
+    "descriptor": "Neurological Disorder Treatments",
+    "image": "XENE-2026-09-24T14-41-48-824Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "SCHW-2026-09-24T02:15:25.781Z",
     "ts": "2026-09-24T02:15:25.781Z",
     "kind": "contrarian",
