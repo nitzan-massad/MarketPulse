@@ -86,21 +86,30 @@ function CanvasArt({ post }: { post: Post }) {
  *  ACCESSIBILITY: since the post's text now exists only as pixels, `alt` carries the actual
  *  post text (not a generic sector label) — that text is the only thing here worth a screen
  *  reader announcing, and it is otherwise invisible to one. */
-function PostArt({ post, base }: { post: Post; base: string }) {
-  if (post.image) {
-    return (
-      <img
-        className="feed-art"
-        src={`${base}post-images/${post.image}`}
-        alt={post.text}
-        loading="lazy"
-      />
-    );
-  }
-  return <CanvasArt post={post} />;
+function PostArt({ post, base, onOpen }: { post: Post; base: string; onOpen: (t: string) => void }) {
+  const art = post.image ? (
+    <img
+      className="feed-art"
+      src={`${base}post-images/${post.image}`}
+      alt={post.text}
+      loading="lazy"
+    />
+  ) : (
+    <CanvasArt post={post} />
+  );
+
+  /* A real <button>, not an onClick on the <img>: this is the only way into the stock's
+     detail view from the feed, so it has to be reachable by keyboard and announced as a
+     control. The label says where it goes, because the image's own alt is the post text. */
+  return (
+    <button type="button" className="feed-art-btn" onClick={() => onOpen(post.ticker)}
+            aria-label={`Open ${post.name}`}>
+      {art}
+    </button>
+  );
 }
 
-export function PostFeed({ base }: { base: string }) {
+export function PostFeed({ base, onOpenTicker }: { base: string; onOpenTicker: (t: string) => void }) {
   // `as unknown as Post[]`, not `as Post[]`. With resolveJsonModule, tsc infers a UNION of
   // one object type per post in the file, and every branch of that union gets `key?: undefined`
   // for the `facts` keys the other branches have. Those optional-undefined members are not
@@ -132,7 +141,7 @@ export function PostFeed({ base }: { base: string }) {
             <span className="feed-kind">{p.kind}</span>
             <time className="feed-stamp" dateTime={p.ts}>{formatStamp(p.ts)}</time>
           </div>
-          <PostArt post={p} base={base} />
+          <PostArt post={p} base={base} onOpen={onOpenTicker} />
         </li>
       ))}
     </ul>

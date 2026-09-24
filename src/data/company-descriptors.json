@@ -1,0 +1,22 @@
+{
+  "IRD": {
+    "name": "Opus Genetics",
+    "descriptor": "Eye Therapy Developer",
+    "scene": "technician carefully pipetting a solution into a row of tiny vials on a laboratory bench"
+  },
+  "GOOGL": {
+    "name": "Alphabet",
+    "descriptor": "Digital Platform Provider",
+    "scene": "tuning a server rack in a large data centre with wires and circuit boards visible"
+  },
+  "MSFT": {
+    "name": "Microsoft",
+    "descriptor": "Software Developer",
+    "scene": "carefully assembling a computer motherboard on a workbench with various tools"
+  },
+  "PRAX": {
+    "name": "Praxis Precision Medicines",
+    "descriptor": "Brain Disorder Therapies",
+    "scene": "scientist pipetting samples into microplates for neuronal activity assays"
+  }
+}

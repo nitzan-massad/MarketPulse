@@ -84,6 +84,14 @@ export default function App() {
     setOpenList(list);
     setFcHighlight(null);
   }
+  /* Feed -> stock modal. A post can outlive its row: posts.json keeps 200 entries while the
+     screener universe turns over, so a ticker may no longer be in STOCKS. Fall back to the
+     same synthetic-row path search uses for an off-universe ticker rather than doing nothing. */
+  function openPostTicker(ticker: string) {
+    const hit = STOCKS.find((s) => s.t === ticker);
+    if (hit) handleOpen(hit, STOCKS);
+    else handleOpenTicker(ticker);
+  }
   function handleNav(id: NavId) {
     track("select_section", { section: id });
     setNav(id);
@@ -461,7 +469,7 @@ export default function App() {
       ) : nav === "new" ? (
         <NewArrivals onOpen={handleOpen} onOpenReview={openReview} marks={marks} onMark={requestMark} />
       ) : nav === "feed" ? (
-        FEED_ON ? <PostFeed base={import.meta.env.BASE_URL} /> : null
+        FEED_ON ? <PostFeed base={import.meta.env.BASE_URL} onOpenTicker={openPostTicker} /> : null
       ) : (
         <Watchlist
           watchlist={watchlist}
