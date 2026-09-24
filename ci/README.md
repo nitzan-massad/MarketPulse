@@ -463,14 +463,31 @@ uses whatever is on `main`.
   `churn` were already cut on, now visible for every surviving kind (`steady` included) instead
   of assumed.
 
-  **Headroom, and a before-the-fact warning.** `computeHeadroom` sums what today (UTC — the
-  allocation resets at 00:00 UTC) has already spent, from the persisted history below, plus this
-  run's own total, against the real 10,000/day cap. Before a run even starts, `main()` compares
-  today's spend-so-far against a rough estimate from the last few runs' ACTUAL cost
-  (`estimateRunCostFromHistory` — there is no way to know a run's real cost before running it)
-  and prints one WARNING line if the two together would blow the daily budget. Advisory only —
-  it changes nothing about whether the run proceeds; a genuine exhaustion still degrades
-  gracefully via the code-4006 handling below.
+  **Headroom is RECORDED spend, never claimed as the account's true usage — and a real 4006
+  always wins.** `computeHeadroom` sums what today (UTC — the allocation resets at 00:00 UTC)
+  this process and the persisted history below have RECORDED, plus this run's own total, against
+  the real 10,000/day cap — and the summary block says "recorded", never "used", on purpose:
+  this process cannot see what another CI run, another machine, or a person testing locally
+  drew from the SAME Cloudflare account, so a "used today" claim would overstate what is
+  actually known. Worse than that gap on its own: a run where Cloudflare returns code 4006 (see
+  below) records **zero** local spend — a rejected call is never billed, so nothing ever calls
+  `recordTextCall`/`recordImageCall` — which used to make the summary print "10,000 remaining"
+  a few lines after it had already printed "the daily free allocation is exhausted": a number
+  that looks authoritative and directly contradicts an error the same run already logged. Fixed
+  by an explicit `exhausted` flag on `computeHeadroom` (fed `ci/cf-budget.mjs`'s real
+  `isExhausted()`, not derived from local counters): when true, it overrides all the arithmetic
+  and the block prints `Headroom: EXHAUSTED` with the real code and the real 00:00 UTC reset
+  time — no numeric "remaining" figure at all, since any number would imply a precision this
+  process does not have once Cloudflare has already said "gone". `ci/test-run-telemetry.mjs` has
+  a dedicated regression test for exactly this case, and `ci/test-generate-posts.mjs` pins that
+  `main()` actually wires the real flag in (see that file's own comment on why a source-level
+  check, not an end-to-end one, is what pins a `main()`-only wiring fact).
+
+  Before a run even starts, `main()` also compares today's RECORDED spend-so-far against a rough
+  estimate from the last few runs' ACTUAL cost (`estimateRunCostFromHistory` — there is no way to
+  know a run's real cost before running it) and prints one WARNING line if the two together would
+  blow the daily budget. Advisory only — it changes nothing about whether the run proceeds; a
+  genuine exhaustion still degrades gracefully via the code-4006 handling below regardless.
 
   **A persisted history, so a trend is visible, not just one run's noise.** One compact record
   per run — timestamp, model, per-kind call counts, measured/estimated/total neurons, published

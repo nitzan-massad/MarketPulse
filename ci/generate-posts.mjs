@@ -565,7 +565,15 @@ async function main() {
   // whether or not anything published, so a bad run's WASTE is visible even when it produced
   // nothing. Per-candidate/per-hook detail already streamed above this, verbosely; this is the
   // part meant to be read.
-  const headroomAfter = computeHeadroom(usedTodayBeforeRun, totalNeuronsForRun(telemetry));
+  //
+  // `exhausted: isExhausted()` is load-bearing, not decorative: a run where every call 429'd on
+  // code 4006 records ZERO local spend (a rejected call is never billed, so onUsage/onSuccess
+  // never fire — see ci/neuron-usage.mjs), which used to make this line report "10,000
+  // remaining" in the SAME summary that had already printed "the daily free allocation is
+  // exhausted" a few lines earlier. A real 4006 is authoritative regardless of what this
+  // process measured locally — see ci/run-telemetry.mjs's `computeHeadroom` for the full
+  // reasoning and ci/test-run-telemetry.mjs for the regression test pinning this exact case.
+  const headroomAfter = computeHeadroom(usedTodayBeforeRun, totalNeuronsForRun(telemetry), { exhausted: isExhausted() });
   let historyAfter = historyBefore;
   try {
     const record = buildHistoryRecord(telemetry, { publishedCount: posts.length });

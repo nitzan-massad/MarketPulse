@@ -7,7 +7,7 @@ import {
   classifyRejectionReason, newRunTelemetry, recordStageMs, recordHookAttempt, recordHookPublished,
   recordCandidateOutcomes, neuronsPerPublishedPost, dailyPostCapacity, computeHeadroom, utcDateKey,
   sumNeuronsForDate, trimHistory, buildHistoryRecord, formatSummaryBlock, perStageUsage,
-  totalNeuronsForRun, estimateRunCostFromHistory, CRON_RUNS_PER_DAY, NEURON_HISTORY_KEEP,
+  totalNeuronsForRun, estimateRunCostFromHistory, CRON_RUNS_PER_DAY,
 } from "./run-telemetry.mjs";
 import { newUsageTracker, recordTextCall, recordImageCall } from "./neuron-usage.mjs";
 import { rankCandidates } from "./post-score.mjs";
@@ -125,8 +125,35 @@ console.log("cost/capacity OK — neurons-per-post and daily-capacity maths, inc
   assert.equal(h.usedTotal, 0, "missing/undefined inputs degrade to zero, never NaN");
   assert.equal(Number.isNaN(h.percentUsed), false);
 }
+{
+  const h = computeHeadroom(0, 0);
+  assert.equal(h.exhausted, false, "the normal (non-exhausted) shape says so explicitly, not just by omission");
+}
 
-console.log("computeHeadroom OK — sums correctly, clamps at zero, never produces NaN on bad input");
+// --- THE REGRESSION THIS WAS BUILT TO CATCH -----------------------------------------------
+// A run where Cloudflare returns code 4006 (see ci/cf-budget.mjs) records ZERO local spend —
+// a rejected call is never billed, so nothing ever calls recordTextCall/recordImageCall. Before
+// `exhausted` existed, computeHeadroom(0, 0) reported "10,000 remaining" in the exact same
+// summary that had already printed "the daily free allocation is exhausted" a few lines above
+// it — a number that looks authoritative and directly contradicts an error the same run already
+// logged. A real 4006 must win, unconditionally, over whatever the local counter says.
+{
+  const h = computeHeadroom(0, 0, { exhausted: true });
+  assert.equal(h.exhausted, true);
+  assert.equal(h.remaining, 0, "exhausted means zero remaining, never a number computed from local-only spend");
+  assert.equal(h.usedTotal, null, "the true used-today figure is UNKNOWN once Cloudflare says exhausted — never a fabricated number");
+  assert.equal(h.percentUsed, 100);
+  assert.equal(h.resetsAt, "00:00 UTC", "names the real, documented reset time");
+}
+{
+  // Exhaustion overrides even when the local counters would otherwise show plenty of headroom —
+  // it is never a tie-break, it is decisive regardless of the other arguments.
+  const h = computeHeadroom(0, 9999999, { exhausted: true });
+  assert.equal(h.remaining, 0, "exhausted wins even against a huge local totalNeurons figure");
+}
+
+console.log("computeHeadroom OK — sums correctly, clamps at zero, never produces NaN on bad input, " +
+            "and a real Cloudflare exhaustion (code 4006) always overrides local-only spend, never the reverse");
 
 // --------------------------------------------------------------------------- history ----------
 assert.equal(utcDateKey(Date.UTC(2026, 8, 24, 23, 59)), "2026-09-24", "the UTC date, not a local one — the allocation resets at 00:00 UTC");
@@ -222,6 +249,12 @@ console.log("buildHistoryRecord OK — compact, correct totals, matches totalNeu
   assert.ok(block.includes("surprise 1/1") && block.includes("movement 0/1"), "reports per-hook-kind outcomes");
   assert.ok(block.includes("Headroom"), "reports headroom");
   assert.ok(block.includes("3 run(s) in history."), "carries the caller's history note through verbatim");
+  // (Bugfix regression) The non-exhausted headroom line must say it is RECORDED spend, never
+  // claim to be the account's true USED-today figure — this process cannot see every consumer
+  // of the same Cloudflare account (other machines, local testing, another CI job).
+  assert.ok(/recorded/i.test(block), "the honest word is \"recorded\"");
+  assert.ok(/not the whole account/i.test(block), "explicitly disclaims being the whole account's true usage");
+  assert.equal(/\bused today\b/i.test(block), false, "never claims to be \"used today\" — that overstates what this process can actually see");
 
   // No post published: must not crash formatting a "no cost-per-post" branch.
   const t2 = newRunTelemetry({ writer: newUsageTracker(), descriptor: newUsageTracker(), image: newUsageTracker() });
@@ -229,6 +262,32 @@ console.log("buildHistoryRecord OK — compact, correct totals, matches totalNeu
   assert.ok(/no post published/i.test(block2), "explicitly says so rather than printing a bogus 0 neurons/post");
 }
 
-console.log("formatSummaryBlock OK — one aligned block naming every stage, cost-per-post, daily capacity, waste breakdown, hook-kind outcomes, and headroom");
+// --- THE REGRESSION THIS WAS BUILT TO CATCH, at the formatting layer ---------------------------
+// The exact real-world failure reported: a run logs "the daily free allocation is exhausted"
+// (ci/cf-budget.mjs's markExhausted, printed separately, above this block) and then this
+// summary block used to ALSO print "10,000 remaining" a few lines later — a full-looking budget
+// printed right after an error that says the budget is gone. The exhausted branch must never
+// print a "remaining: N" figure that could be read as a real number, and must never contradict
+// the exhaustion.
+{
+  const writer = newUsageTracker();
+  const t = newRunTelemetry({ writer, descriptor: newUsageTracker(), image: newUsageTracker() });
+  // Every call 429'd — exactly zero local spend recorded, which is precisely the condition that
+  // slipped through before this fix (see the module's own header on `computeHeadroom`).
+  const headroom = computeHeadroom(0, totalNeuronsForRun(t), { exhausted: true });
+  const block = formatSummaryBlock(t, { publishedCount: 0, headroom });
+  assert.ok(/EXHAUSTED/.test(block), "the block states exhaustion plainly, in the headroom line itself");
+  assert.ok(/4006/.test(block), "names the real, specific error code, not a vague \"rate limited\"");
+  assert.ok(/00:00 UTC/.test(block), "names the real, documented daily reset time");
+  assert.equal(/10,000 remaining|remaining \(10,000|-> 10,000/.test(block), false,
+    "MUST NEVER print a full-looking \"10,000 remaining\" figure in the same block that just declared exhaustion");
+  assert.equal(/\d[\d,]* would remain/.test(block), false,
+    "the exhausted branch prints NO numeric remaining figure at all — any number would imply false precision");
+}
+
+console.log("formatSummaryBlock OK — one aligned block naming every stage, cost-per-post, daily " +
+            "capacity, waste breakdown, hook-kind outcomes, honestly-worded (\"recorded\", not " +
+            "\"used\") headroom, and an exhausted run reporting EXHAUSTED headroom rather than a " +
+            "full-looking remaining figure computed from zero local spend");
 
 console.log("run-telemetry OK — rejection classification, candidate/hook accounting, cost/headroom/history maths, and the summary block, all pure and all offline");

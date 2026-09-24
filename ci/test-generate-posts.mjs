@@ -485,8 +485,29 @@ console.log("generate-posts neuron-accounting OK — the writer's real usage rea
     "the composed image's descriptor is the resolved model-written one, not left to the sector fallback alone");
 }
 
+// --- (Bugfix regression) main()'s headroom must be told about a REAL exhaustion -------------
+// main() itself is not exported/callable in isolation (it does real fs I/O against the actual
+// repo paths — see the shape note up top: only generate() is file-I/O-free and testable with
+// fakes), so the wiring fact this pins — that computeHeadroom is handed the REAL, live
+// ci/cf-budget.mjs exhaustion flag, not just local counters — cannot be exercised end to end
+// here. This is a static check on the source, same posture and same reason as the
+// displayCompanyName/descriptor checks just above: a real run once printed "the daily free
+// allocation is exhausted" and then, a few lines later in the SAME summary, "10,000 remaining"
+// — because headroom was computed purely from local spend, which is zero when every call
+// 429'd. `computeHeadroom`'s own `exhausted` param exists specifically to prevent that
+// contradiction (see ci/run-telemetry.mjs and ci/test-run-telemetry.mjs's dedicated regression
+// test) — this pins that main() actually PASSES it in, so the fix cannot silently regress by a
+// future edit that calls computeHeadroom without it.
+{
+  const src = readFileSync(new URL("./generate-posts.mjs", import.meta.url), "utf8");
+  assert.ok(/computeHeadroom\([\s\S]{0,200}?isExhausted\(\)/.test(src),
+    "main() passes the REAL, live exhaustion flag into computeHeadroom — a 4006 must report " +
+    "EXHAUSTED headroom, never a full-looking remaining figure computed from local-only spend");
+}
+
 console.log("generate-posts OK — prompt shape, angle per hook kind, best-of-N, cadence config, " +
             "empty-field and penny-stock safety, image generation optional/injected/never loses a post, " +
             "the descriptor optional/injected/never loses a post, display name/descriptor both " +
-            "wired into the composed image, and POST_PHOTO_SOURCE's flux/wikimedia/both wiring " +
-            "(fallback, never-throws, and the \"both\" comparison image staying out of posts.json)");
+            "wired into the composed image, POST_PHOTO_SOURCE's flux/wikimedia/both wiring " +
+            "(fallback, never-throws, and the \"both\" comparison image staying out of posts.json), " +
+            "and main()'s headroom being wired to the REAL exhaustion flag, not just local counters");

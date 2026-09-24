@@ -151,15 +151,41 @@ export function dailyPostCapacity(costPerPost) {
   return Math.floor(DAILY_FREE_NEURONS / costPerPost);
 }
 
+/** Cloudflare's documented daily reset time for the free allocation — UTC midnight. Restated
+ *  here as a label for the exhausted branch of `computeHeadroom` below, not re-derived. */
+const DAILY_RESET_UTC = "00:00 UTC";
+
 /**
- * Headroom left in TODAY's 10,000-neuron allocation, given how much history says was already
- * spent today (`usedTodayBeforeThisRun`, from the persisted history — see `sumNeuronsForDate`
- * below) plus this run's own total. Never negative (Cloudflare's own hard cap means the true
- * floor is zero, not a negative number that implies debt).
+ * Headroom against TODAY's 10,000-neuron allocation. THIS IS NOT, AND CANNOT BE, a measurement
+ * of the real Cloudflare account's true remaining balance — this process can only ever see what
+ * IT (and, via the persisted history, other RUNS OF THIS SAME PIPELINE that bothered to write a
+ * record) spent. A person testing locally, a second CI job, or anything else drawing on the same
+ * account is invisible to this number. `usedTodayBeforeThisRun` and `thisRunNeurons` are
+ * therefore RECORDED spend, not ACCOUNT spend — `formatSummaryBlock` below is careful to say
+ * "recorded", never "used", for exactly this reason.
+ *
+ * `{ exhausted: true }` (pass whatever ci/cf-budget.mjs's `isExhausted()` returned for this run)
+ * OVERRIDES all of that arithmetic. A real 4006 from Cloudflare is authoritative — it means the
+ * account-wide allocation is gone, full stop, regardless of what this process happened to
+ * measure locally. Before this override existed, a run where every single call 429'd recorded
+ * ZERO local spend and reported "10,000 remaining" in the same summary that had ALREADY printed
+ * "the daily free allocation is exhausted" five lines earlier — a number that looks authoritative
+ * and directly contradicts an error the same run already logged. This is the fix: exhaustion
+ * always wins over the local counter, never the other way round.
  */
-export function computeHeadroom(usedTodayBeforeThisRun, thisRunNeurons) {
+export function computeHeadroom(usedTodayBeforeThisRun, thisRunNeurons, { exhausted = false } = {}) {
+  if (exhausted) {
+    return {
+      exhausted: true,
+      usedTotal: null, // unknown, and unknowable from here — see the header above.
+      remaining: 0,
+      percentUsed: 100,
+      resetsAt: DAILY_RESET_UTC,
+    };
+  }
   const usedTotal = Math.max(0, Number(usedTodayBeforeThisRun) || 0) + Math.max(0, Number(thisRunNeurons) || 0);
   return {
+    exhausted: false,
     usedTotal,
     remaining: Math.max(0, DAILY_FREE_NEURONS - usedTotal),
     percentUsed: (usedTotal / DAILY_FREE_NEURONS) * 100,
@@ -346,10 +372,25 @@ export function formatSummaryBlock(telemetry, { publishedCount, headroom, histor
   }
   lines.push(bar("-"));
 
-  if (headroom) {
+  if (headroom?.exhausted) {
+    // A real 4006 is authoritative — never printed alongside a "remaining" figure computed from
+    // local spend, which is exactly the contradiction this branch exists to prevent (see
+    // `computeHeadroom`'s own header). No numbers here at all: any number would imply a
+    // precision this process does not have once Cloudflare has already said "gone".
     lines.push(
-      ` Headroom: ${fmtNeurons(headroom.usedTotal)} used today of ${DAILY_FREE_NEURONS.toLocaleString()} ` +
-      `-> ${fmtNeurons(headroom.remaining)} remaining (${fmtPct(headroom.percentUsed)} of today's allocation used)`,
+      ` Headroom: EXHAUSTED — Cloudflare reported the daily free allocation used up (code 4006) ` +
+      `during this run. Treat today's remaining allocation as ZERO; resets ${headroom.resetsAt}.`,
+    );
+  } else if (headroom) {
+    // "Recorded", never "used" — this is this run plus whatever same-day runs happened to write
+    // a history record, NOT a measurement of the whole Cloudflare account (see
+    // `computeHeadroom`'s own header: local testing, another machine, another CI job all draw on
+    // the same 10,000/day and none of them are visible here).
+    lines.push(
+      ` Headroom (recorded today: this run + history — NOT the whole account; other processes ` +
+      `may also draw on the same pool): ~${fmtNeurons(headroom.usedTotal)} of ${DAILY_FREE_NEURONS.toLocaleString()} ` +
+      `-> ~${fmtNeurons(headroom.remaining)} would remain if nothing else drew on it today ` +
+      `(${fmtPct(headroom.percentUsed)} recorded)`,
     );
   }
   if (historyNote) lines.push(` ${historyNote}`);
