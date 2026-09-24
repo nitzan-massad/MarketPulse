@@ -207,10 +207,10 @@ export function descriptorFor(sector) {
  *  its models — well-groomed, polished, professionally lit for a magazine or advertising
  *  campaign" per the user's own direction at the time. The user has since explicitly retracted
  *  that direction, and it is removed here — reverted precisely, not softened: no appearance
- *  instruction beyond what the photographic style itself already implies (bright, high-key,
+ *  instruction beyond what the photographic style itself already implies (bright, brightly but naturally lit,
  *  editorial). Everything else from that same pass survives unchanged: the deterministic
  *  ~90%/10% woman/man split (`personPhrase`), the extreme-close-up/tight-crop framing, the
- *  high-key/light aesthetic, the bokeh-not-legible-marks screen instruction, and every
+ *  medium-key lighting aesthetic, the bokeh-not-legible-marks screen instruction, and every
  *  no-text/no-numbers/no-logos/no-watermark clause below. */
 export function buildImagePrompt(sector, seed, customScene) {
   const roleAction = typeof customScene === "string" && customScene.trim()
@@ -220,8 +220,9 @@ export function buildImagePrompt(sector, seed, customScene) {
   return (
     `Editorial stock photograph, extreme close-up shot, of ${scene}. Face and hands are both ` +
     `in frame, the person and their work filling most of the frame, caught candidly mid-action, ` +
-    `not posed for the camera, shallow depth of field. Bright, airy, high-key lighting on a ` +
-    `light background; soft natural light, muted modern color palette. If any screen, monitor, ` +
+    `not posed for the camera, shallow depth of field. Bright, evenly lit and clearly visible, ` +
+    `with soft daylight and gentle, natural shadows — light and open, but never washed out or ` +
+    `blown out; keep real tonal depth and rich, true-to-life colour. If any screen, monitor, ` +
     `or display happens to appear anywhere in the frame, it shows only soft, out-of-focus ` +
     `coloured light and bokeh — never legible marks of any kind. Even while the person fills ` +
     `most of the frame, keep the extreme top and bottom edges relatively simple so bold text ` +
