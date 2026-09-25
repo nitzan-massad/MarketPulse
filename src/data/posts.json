@@ -1,5 +1,29 @@
 [
   {
+    "id": "PRAX-2026-09-25T23:04:50.649Z",
+    "ts": "2026-09-25T23:04:50.649Z",
+    "kind": "list",
+    "ticker": "PRAX",
+    "name": "Praxis Precision Medicines, Inc.",
+    "sector": "Healthcare",
+    "text": "159% upside leads the board of 5.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "PRAX appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Praxis Precision Medicines (159.3% to $730.58), Viking Therapeutics (157.6% to $94.67), Opus Genetics (146.4% to $12), Vera Therapeutics (135.8% to $78.63), Cullinan Management (130.8% to $35.63)",
+      "count": 5,
+      "leader": "Praxis Precision Medicines",
+      "leaderUpside": 159.3
+    },
+    "descriptor": "Brain Disorder Therapies",
+    "image": "PRAX-2026-09-25T23-04-50-649Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "GOOGL-2026-09-25T19:28:06.573Z",
     "ts": "2026-09-25T19:28:06.573Z",
     "kind": "steady",
