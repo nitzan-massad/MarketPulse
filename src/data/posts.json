@@ -1,5 +1,33 @@
 [
   {
+    "id": "SCHW-2026-09-25T10:05:41.037Z",
+    "ts": "2026-09-25T10:05:41.037Z",
+    "kind": "contrarian",
+    "ticker": "SCHW",
+    "name": "Charles Schwab",
+    "sector": "Financial",
+    "text": "17 analysts say 22% upside, AI says 75.",
+    "score": 60,
+    "reasons": [
+      "6 digits of concrete detail",
+      "length in band",
+      "SCHW appeared in a recent post"
+    ],
+    "facts": {
+      "smartScore": 2,
+      "aiScore": 75,
+      "aiRating": "Outperform",
+      "consensus": "StrongBuy",
+      "upside": 22,
+      "price": 99.49,
+      "analysts": 17,
+      "bullish": "ai"
+    },
+    "descriptor": "Wealth Management Services",
+    "image": "SCHW-2026-09-25T10-05-41-037Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "PRAX-2026-09-25T02:50:35.861Z",
     "ts": "2026-09-25T02:50:35.861Z",
     "kind": "surprise",

@@ -28,5 +28,10 @@
     "name": "Micron Technology",
     "descriptor": "Memory Chip Maker",
     "scene": "inspecting semiconductor wafers with a precision microscope in a cleanroom environment"
+  },
+  "SCHW": {
+    "name": "Charles Schwab",
+    "descriptor": "Wealth Management Services",
+    "scene": "adjusting stock portfolios on a desktop terminal with financial papers scattered nearby"
   }
 }
