@@ -1,5 +1,32 @@
 [
   {
+    "id": "PRAX-2026-09-25T02:50:35.861Z",
+    "ts": "2026-09-25T02:50:35.861Z",
+    "kind": "surprise",
+    "ticker": "PRAX",
+    "name": "Praxis Precision Medicines, Inc.",
+    "sector": "Healthcare",
+    "text": "~159% upside, more than sector's 40%.",
+    "score": 58,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band",
+      "PRAX appeared in a recent post"
+    ],
+    "facts": {
+      "upside": 159,
+      "price": 282.12,
+      "priceTarget": 730.58,
+      "consensus": "StrongBuy",
+      "analysts": 12,
+      "sector": "Healthcare",
+      "sectorMedianUpside": 40.3
+    },
+    "descriptor": "Brain Disorder Therapies",
+    "image": "PRAX-2026-09-25T02-50-35-861Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "PRAX-2026-09-24T23:11:22.609Z",
     "ts": "2026-09-24T23:11:22.609Z",
     "kind": "list",
