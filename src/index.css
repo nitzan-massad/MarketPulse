@@ -1398,17 +1398,17 @@ thead th:hover .col-resize::after{opacity:.6}
    clipping to the moment a burst is running instead.
    Position never transitions: during a burst the host DOES clip, and the × has to be
    tucked back inside instantly rather than being sliced for the length of an animation. */
-.mp-close{position:absolute; top:-11px; right:-11px; z-index:56; width:26px; height:26px;
+.mp-close{position:absolute; top:-16px; right:-16px; z-index:56; width:39px; height:39px;
   display:flex; align-items:center; justify-content:center; cursor:pointer;
   border-radius:50%; border:1px solid var(--line); background:var(--bg); color:var(--muted);
-  font-size:17px; line-height:1; font-family:"Archivo",sans-serif; padding:0;
+  font-size:26px; line-height:1; font-family:"Archivo",sans-serif; padding:0;
   box-shadow:0 3px 10px -3px rgba(19,26,36,.4); transition:color .15s, border-color .15s}
 .mp-close:hover{color:var(--ink); border-color:var(--gold-soft)}
 .mp-close:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
 [data-burst] .mp-close{top:8px; right:8px; box-shadow:none}
 /* On a phone the stock modal is calc(100vw - 32px), so an 11px overhang puts the button
    flush against the screen edge (and under a rounded display corner). Pull it in. */
-@media(max-width:640px){ .mp-close{top:-8px; right:-8px} }
+@media(max-width:640px){ .mp-close{top:-12px; right:-12px} }
 
 /* The scroller is the BODY, not the panel: the panel has to stay overflow:visible for the
    corner × to hang outside it, and pinning the × above the scroll area is better anyway —
@@ -1494,6 +1494,9 @@ thead th:hover .col-resize::after{opacity:.6}
 /* LIVE already carries the margin-left:auto that right-pushes this group. The close used
    to sit here too and fight for that space; it rides the modal's corner now (.mp-close). */
 .mkm-live ~ .mp-share{margin-left:12px}
+/* Clear the corner × (.mp-close), which reaches ~23px into the host (27px on phones). */
+.mp-share{margin-right:12px}
+@media(max-width:640px){ .mp-share{margin-right:16px} }
 .mp-share ~ /* Phones: 22px ticker + star + thumbs + LIVE + chip + × overflows a 344px modal, so the
    label goes and the glyph stays. Not a graceful degradation — the icon alone is the
    same control, and a wrapped title bar would be worse than a wordless button. */
