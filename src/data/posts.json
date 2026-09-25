@@ -1,5 +1,31 @@
 [
   {
+    "id": "GOOGL-2026-09-25T19:28:06.573Z",
+    "ts": "2026-09-25T19:28:06.573Z",
+    "kind": "steady",
+    "ticker": "GOOGL",
+    "name": "Alphabet Inc. Class A",
+    "sector": "General",
+    "text": "25 analysts agree, held at 10 for 30 days.",
+    "score": 38,
+    "reasons": [
+      "6 digits of concrete detail",
+      "too long (9 words > 8)",
+      "GOOGL appeared in a recent post"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "snapshots": 145,
+      "days": 30.2,
+      "upside": 25.4,
+      "consensus": "StrongBuy",
+      "analysts": 25
+    },
+    "descriptor": "Digital Platform Provider",
+    "image": "GOOGL-2026-09-25T19-28-06-573Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "CGEM-2026-09-25T15:01:10.499Z",
     "ts": "2026-09-25T15:01:10.499Z",
     "kind": "record",
