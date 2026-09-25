@@ -33,5 +33,10 @@
     "name": "Charles Schwab",
     "descriptor": "Wealth Management Services",
     "scene": "adjusting stock portfolios on a desktop terminal with financial papers scattered nearby"
+  },
+  "CGEM": {
+    "name": "Cullinan Management",
+    "descriptor": "Biopharmaceutical Developer",
+    "scene": "technician pipetting samples into microplates for cell analysis in a laboratory setting"
   }
 }
