@@ -38,5 +38,10 @@
     "name": "Cullinan Management",
     "descriptor": "Biopharmaceutical Developer",
     "scene": "technician pipetting samples into microplates for cell analysis in a laboratory setting"
+  },
+  "VKTX": {
+    "name": "Viking Therapeutics",
+    "descriptor": "Metabolic Therapy Developer",
+    "scene": "researcher pipetting samples into microplates for hormone receptor assays"
   }
 }
