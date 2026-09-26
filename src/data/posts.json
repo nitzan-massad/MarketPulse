@@ -1,5 +1,31 @@
 [
   {
+    "id": "NET-2026-09-26T18:18:51.703Z",
+    "ts": "2026-09-26T18:18:51.703Z",
+    "kind": "newcomer",
+    "ticker": "NET",
+    "name": "Cloudflare Inc",
+    "sector": "Technology",
+    "text": "17 days on board, 27 analysts covering.",
+    "score": 68,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "seenIn": 64,
+      "windowSnapshots": 145,
+      "days": 17.9,
+      "upside": 0.2,
+      "consensus": "Buy",
+      "analysts": 27,
+      "smartScore": 6
+    },
+    "descriptor": "building what's next",
+    "image": "NET-2026-09-26T18-18-51-703Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "CGEM-2026-09-26T14:07:13.985Z",
     "ts": "2026-09-26T14:07:13.985Z",
     "kind": "record",
