@@ -43,5 +43,10 @@
     "name": "Viking Therapeutics",
     "descriptor": "Metabolic Therapy Developer",
     "scene": "researcher pipetting samples into microplates for hormone receptor assays"
+  },
+  "NET": {
+    "name": "Cloudflare",
+    "descriptor": "Cloud Security Provider",
+    "scene": "tuning network firewall equipment in a crowded datacenter room"
   }
 }
