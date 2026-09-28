@@ -48,5 +48,10 @@
     "name": "Cloudflare",
     "descriptor": "Cloud Security Provider",
     "scene": "tuning network firewall equipment in a crowded datacenter room"
+  },
+  "BA": {
+    "name": "Boeing",
+    "descriptor": "Aircraft Manufacturer",
+    "scene": "meticulously assembling engine components on a partially built airliner fuselage"
   }
 }
