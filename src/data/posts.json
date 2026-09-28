@@ -1,5 +1,29 @@
 [
   {
+    "id": "VKTX-2026-09-28T02:54:36.757Z",
+    "ts": "2026-09-28T02:54:36.757Z",
+    "kind": "list",
+    "ticker": "VKTX",
+    "name": "Viking Therapeutics",
+    "sector": "Healthcare",
+    "text": "166% upside, tops a 5-name list.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "VKTX appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Viking Therapeutics (166.2% to $94.67), Praxis Precision Medicines (160.2% to $730.58), Fervo Energy Company Class A (152.3% to $38.3), Opus Genetics (152.1% to $12), Vera Therapeutics (141.6% to $78.63)",
+      "count": 5,
+      "leader": "Viking Therapeutics",
+      "leaderUpside": 166.2
+    },
+    "descriptor": "Metabolic Therapy Developer",
+    "image": "VKTX-2026-09-28T02-54-36-757Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "NET-2026-09-27T22:49:33.719Z",
     "ts": "2026-09-27T22:49:33.719Z",
     "kind": "newcomer",
