@@ -63,5 +63,10 @@
     "name": "Mongodb",
     "descriptor": "Database Platform Provider",
     "scene": "tuning a database cluster with diagnostic equipment and cables"
+  },
+  "FRVO": {
+    "name": "Fervo Energy",
+    "descriptor": "Geothermal Energy Developer",
+    "scene": "operating a drilling rig in a geothermal field surrounded by pipes and machinery"
   }
 }
