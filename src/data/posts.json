@@ -1,5 +1,34 @@
 [
   {
+    "id": "MDB-2026-09-29T11:08:34.199Z",
+    "ts": "2026-09-29T11:08:34.199Z",
+    "kind": "movement",
+    "ticker": "MDB",
+    "name": "Mongodb, Inc.",
+    "sector": "Technology",
+    "text": "~43% upside now, was 17% five hours ago.",
+    "score": 68,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "upsideFrom": 17.1,
+      "upsideTo": 43.7,
+      "consensusFrom": "StrongBuy",
+      "consensusTo": "StrongBuy",
+      "price": 334.68,
+      "priceTarget": 480.83,
+      "analysts": 25,
+      "sector": "Technology",
+      "smartScoreFrom": 8,
+      "smartScoreTo": 6
+    },
+    "descriptor": "Database Platform Provider",
+    "image": "MDB-2026-09-29T11-08-34-199Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "CLDX-2026-09-29T03:39:17.645Z",
     "ts": "2026-09-29T03:39:17.645Z",
     "kind": "record",

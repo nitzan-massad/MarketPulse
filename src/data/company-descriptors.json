@@ -58,5 +58,10 @@
     "name": "Celldex",
     "descriptor": "Antibody Therapies",
     "scene": "researcher pipetting samples into microplates for antibody binding assays"
+  },
+  "MDB": {
+    "name": "Mongodb",
+    "descriptor": "Database Platform Provider",
+    "scene": "tuning a database cluster with diagnostic equipment and cables"
   }
 }
