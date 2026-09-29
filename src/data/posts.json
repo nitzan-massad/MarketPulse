@@ -1,5 +1,34 @@
 [
   {
+    "id": "CLDX-2026-09-29T03:39:17.645Z",
+    "ts": "2026-09-29T03:39:17.645Z",
+    "kind": "record",
+    "ticker": "CLDX",
+    "name": "Celldex",
+    "sector": "Healthcare",
+    "text": "~125% upside, climbed from 43% low.",
+    "score": 36,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (43% word overlap)"
+    ],
+    "facts": {
+      "upside": 125.1,
+      "windowLow": 43.5,
+      "windowHigh": 125.1,
+      "snapshots": 145,
+      "days": 30.2,
+      "price": 31.1,
+      "priceTarget": 70,
+      "analysts": 12,
+      "sectorMedianUpside": 42.6
+    },
+    "descriptor": "Antibody Therapies",
+    "image": "CLDX-2026-09-29T03-39-17-645Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "BA-2026-09-28T21:15:11.875Z",
     "ts": "2026-09-28T21:15:11.875Z",
     "kind": "contrarian",

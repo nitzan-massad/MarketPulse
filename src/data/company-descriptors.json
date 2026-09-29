@@ -53,5 +53,10 @@
     "name": "Boeing",
     "descriptor": "Aircraft Manufacturer",
     "scene": "meticulously assembling engine components on a partially built airliner fuselage"
+  },
+  "CLDX": {
+    "name": "Celldex",
+    "descriptor": "Antibody Therapies",
+    "scene": "researcher pipetting samples into microplates for antibody binding assays"
   }
 }

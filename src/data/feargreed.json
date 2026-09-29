@@ -1,7 +1,7 @@
 {
  "score": 33.9,
  "rating": "fear",
- "asOf": "2026-09-28T20:56:39",
+ "asOf": "2026-09-28T23:59:50",
  "previous": {
   "close": 37,
   "week": 34.2,
@@ -42,7 +42,7 @@
   {
    "key": "junk_bond_demand",
    "label": "Junk bond demand",
-   "score": 64,
+   "score": 64.4,
    "rating": "greed"
   },
   {
