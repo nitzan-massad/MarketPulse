@@ -485,6 +485,27 @@ console.log("generate-posts neuron-accounting OK — the writer's real usage rea
     "the composed image's descriptor is the resolved model-written one, not left to the sector fallback alone");
 }
 
+// --- (3)/(4) colour/"when" is fact-derived, never guessed from the statement's own words -----
+// The trap: most numbers in this feed are analyst upside-to-target — a standing forecast, not
+// something that happened — and word-sniffing the statement ("upside" reads as "up" regardless)
+// is exactly how a published post once read "IRD soared 151.7%" for a number that never moved.
+// composePost()'s own tests (ci/test-post-compose.mjs) pin that `directionOverride` wins over
+// the statement's words; this pins that generate-posts.mjs actually COMPUTES and WIRES that
+// verdict from ci/hooks.mjs's own classification, the same static-check posture as the
+// displayCompanyName/descriptor checks just above (composePost is called directly, not
+// injected, so there is no fake to intercept the call and inspect its arguments).
+{
+  const src = readFileSync(new URL("./generate-posts.mjs", import.meta.url), "utf8");
+  assert.ok(/hasGenuineChange\(hook\)\s*\?\s*genuineChangeDirection\(hook\)\s*:\s*"neutral"/.test(src),
+    "the direction verdict is computed from ci/hooks.mjs's own genuine-change classification, " +
+    "falling back to neutral for a standing-state hook — never left to composePost to guess");
+  const composePostCalls = src.match(/composePost\(\{[\s\S]*?\}\);/g) ?? [];
+  assert.ok(composePostCalls.length >= 1, "at least one composePost call site exists to check");
+  for (const call of composePostCalls) {
+    assert.ok(/directionOverride/.test(call), `every composePost call site passes directionOverride: ${call.slice(0, 40)}…`);
+  }
+}
+
 // --- (Bugfix regression) main()'s headroom must be told about a REAL exhaustion -------------
 // main() itself is not exported/callable in isolation (it does real fs I/O against the actual
 // repo paths — see the shape note up top: only generate() is file-I/O-free and testable with

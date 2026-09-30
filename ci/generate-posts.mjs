@@ -18,7 +18,9 @@ import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "nod
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { detectHooks, deTickerHooks, displayCompanyName, MIN_WINDOW } from "./hooks.mjs";
+import {
+  detectHooks, deTickerHooks, displayCompanyName, MIN_WINDOW, hasGenuineChange, genuineChangeDirection,
+} from "./hooks.mjs";
 import { rankCandidates, MIN_PUBLISHABLE } from "./post-score.mjs";
 import { makeProvider } from "./provider.mjs";
 import { generateImage, postImageFilename } from "./post-image.mjs";
@@ -342,6 +344,14 @@ export async function generate({
       // otherwise there is nothing distinct left to compare against.
       const comparisonPhoto = photoSource === "both" && wikiPhoto ? fluxPhoto : null;
 
+      // COLOUR/DIRECTION — a fact-derived verdict, never a guess from the statement's own words
+      // (see ci/hooks.mjs's `hasGenuineChange`/`genuineChangeDirection` and
+      // ci/post-compose.mjs's `directionOverride` doc for the full reasoning). A standing figure
+      // (surprise/contrarian/steady/newcomer/list) always renders neutral ink here, regardless of
+      // what the model's prose happens to say. Computed once and reused for both the primary
+      // composition below and the `-compare-flux` debug composition (same hook, same verdict).
+      const directionOverride = hasGenuineChange(hook) ? genuineChangeDirection(hook) : "neutral";
+
       if (primaryPhoto) {
         // FUSION — burn the words into the pixels so the file travels with its text when
         // posted elsewhere. Pure and local (no network, no randomness beyond what's already
@@ -358,6 +368,7 @@ export async function generate({
           const composed = composePost({
             photo: primaryPhoto, companyName: displayName, sector: hook.sec,
             descriptor: post.descriptor, statement: best.text, credit: primaryCredit,
+            directionOverride,
           });
           post.image = postImageFilename(id);
           post.imageBuffer = composed.jpeg; // internal only — main() writes it to disk and strips it
@@ -376,7 +387,7 @@ export async function generate({
         try {
           const composedCompare = composePost({
             photo: comparisonPhoto, companyName: displayName, sector: hook.sec,
-            descriptor: post.descriptor, statement: best.text,
+            descriptor: post.descriptor, statement: best.text, directionOverride,
           });
           post.compareImage = post.image.replace(/\.jpg$/, "-compare-flux.jpg");
           post.compareImageBuffer = composedCompare.jpeg; // internal only, see main()

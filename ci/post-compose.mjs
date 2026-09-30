@@ -37,12 +37,30 @@
 // (8) BOTTOM (AND TOP) SCRIM — added on top of the halo, not instead of it, per review feedback
 // that a stroke alone was not always enough over a genuinely busy photograph. Unlike the old
 // plate, `scrimRect` below is a soft GRADIENT, not a hard-edged rectangle: fully transparent
-// around mid-height, easing up to a tinted edge only at the very top (for the company/descriptor
-// block) and the very bottom (for the statement) — the photo reads clearly through the middle of
-// the frame, and only darkens/lightens exactly where text actually sits. The tint direction
-// matches whichever ink colour `haloStyle` already chose for that band (light-on-dark or
-// dark-on-light), so the scrim always pushes contrast the same way the halo does, never against
-// it.
+// around mid-height, easing up to a tinted edge only at the very top (for the STATEMENT block —
+// see "TOP/BOTTOM LAYOUT" below) and the very bottom (for the company/descriptor block) — the
+// photo reads clearly through the middle of the frame, and only darkens/lightens exactly where
+// text actually sits. The tint direction matches whichever ink colour `haloStyle` already chose
+// for that band (light-on-dark or dark-on-light), so the scrim always pushes contrast the same
+// way the halo does, never against it.
+//
+// TOP/BOTTOM LAYOUT, INVERTED ON REVIEW. v1 of this card put the company name large at the top
+// and the statement at the bottom; a later review round asked for "what happened" to lead, so
+// `composePost` below now renders the STATEMENT at the top (large — unchanged size, only moved)
+// and the company name + descriptor smaller at the bottom, as a byline under the headline rather
+// than a second headline of its own. The brightness sampling bands (`stats.top`/`stats.bottom`,
+// still literally the photo's own top/bottom regions) and the halo/scrim machinery did not need
+// to change at all — only WHICH text block gets rendered into each region did.
+//
+// COLOUR IS NOT A WORD GUESS ANY MORE, for the caller that has a real verdict. `direction` below
+// used to come entirely from `detectDirection(statement)` — sniffing the model's own prose for
+// up/down vocabulary. That is a trap: most numbers on this card are analyst upside-to-target, a
+// standing forecast, and words like "upside" read as "up" regardless of whether anything
+// actually moved (a published post once read "IRD soared 151.7%" — a real number, framed as a
+// move it never made). `directionOverride` (see `composePost`'s own doc) lets the caller
+// (ci/generate-posts.mjs, from ci/hooks.mjs's `hasGenuineChange`/`genuineChangeDirection`) hand
+// this module a fact-derived verdict instead, which always wins. Word-sniffing survives only as
+// the fallback for a caller that never supplies one — every pre-existing test.
 //
 // OUTPUT IS JPEG, NOT PNG. resvg only rasterises to PNG or raw RGBA pixels (see
 // @resvg/resvg-js's RenderedImage) — there is no JPEG encoder in it, and this repo carries no
@@ -385,12 +403,14 @@ function scrimDefs({ width, height, topHalo, bottomHalo, topStats, bottomStats }
  * Fuse one photo + the post's text into a single JPEG — text sits directly on the photo, a
  * stroke halo plus a soft scrim gradient for legibility (see the module header).
  *
- * Layout, top to bottom (inverts the old browser-overlay layout, which put the hook at the
- * top): the COMPANY NAME large at the top, a two-to-four-word DESCRIPTOR directly beneath it at
- * half the company-name size, and the STATEMENT (the post's own text) at the bottom — split (7)
- * into its lead FIGURE, rendered markedly larger and tinted by direction, with the surrounding
- * WORDS smaller beneath it (see `extractFigure`/`detectDirection` above). A statement with no
- * number at all (rare) renders as a single block, exactly as it did before this feature existed.
+ * Layout, top to bottom — INVERTED from this feature's original shape (v1 put the company name
+ * at the top; the user's review round asked for "what happened" to lead instead): the STATEMENT
+ * (the post's own text) large at the TOP — split (7) into its lead FIGURE, rendered markedly
+ * larger and tinted by direction, with the surrounding WORDS smaller beneath it (see
+ * `extractFigure`/`detectDirection` above) — then the COMPANY NAME, smaller now (a byline under
+ * the headline, not a second headline), at the BOTTOM, with the two-to-four-word DESCRIPTOR
+ * directly beneath it at half the company-name size, same as before. A statement with no number
+ * at all (rare) renders as a single block, exactly as it did before this feature existed.
  *
  * @param photo Buffer — the raw Flux JPEG (or any PNG/JPEG).
  * @param companyName the DISPLAY name — ci/hooks.mjs's `displayCompanyName(hook.name)`, with
@@ -409,19 +429,30 @@ function scrimDefs({ width, height, topHalo, bottomHalo, topStats, bottomStats }
  *   company name — this module has no opinion on that, it just renders whatever it is given.
  * @param credit optional — a photo-credit line (ci/company-photo.mjs's `attribution`/`license`,
  *   formatted by the caller), rendered in small type right at the bottom edge, below the
- *   statement block, inside the same bottom-padding gap the statement already leaves clear of
- *   the frame's edge. Omitted for a Flux-generated photo (nothing to credit); REQUIRED by the
+ *   company/descriptor block, inside the same bottom-padding gap that block already leaves clear
+ *   of the frame's edge. Omitted for a Flux-generated photo (nothing to credit); REQUIRED by the
  *   caller whenever the photo came from Wikimedia Commons — CC BY and CC BY-SA both legally
  *   require attribution, and this is where it lives on the card itself (ci/generate-posts.mjs
  *   never posts a Commons photo without one). Unobtrusive by design (small type, bottom edge,
  *   the same halo treatment as everything else) but always present, never omitted silently.
+ * @param directionOverride optional — "up"/"down"/"neutral", the CALLER's fact-derived verdict
+ *   (ci/hooks.mjs's `hasGenuineChange`/`genuineChangeDirection`, wired in by
+ *   ci/generate-posts.mjs) on whether the figure being coloured describes a genuine, measured
+ *   change. When supplied it ALWAYS wins over guessing from the statement's own words — a
+ *   model's prose is not a source of truth about which way a number moved, and colouring a
+ *   STANDING figure (most of this feed's numbers are analyst upside-to-target, a forecast, not
+ *   something that already happened) as though it rose is the exact "IRD soared 151.7%" lie in a
+ *   quieter shape (see ci/hooks.mjs's own comment on this, right above `hasGenuineChange`).
+ *   Omitted — every pre-existing caller/test — keeps the old word-sniffing behaviour
+ *   (`detectDirection`) unchanged, so nothing already wired to this function breaks. An
+ *   unrecognised override value is treated as "neutral", never silently ignored back to guessing.
  * @returns `{ jpeg: Buffer, width: number, height: number, layout }` — `layout` is debug/test
  *   metadata (chosen font sizes, line counts, the split figure and its direction), not needed by
  *   the one real caller (ci/generate-posts.mjs, which only reads `.jpeg`) but is what
  *   ci/test-post-compose.mjs verifies the layout rules against, rather than re-deriving them
  *   from raw pixels.
  */
-export function composePost({ photo, companyName, sector, descriptor, statement, credit }) {
+export function composePost({ photo, companyName, sector, descriptor, statement, credit, directionOverride }) {
   const { width, height, mime } = imageDimensions(photo);
   const cx = width / 2;
   const marginX = width * 0.08;
@@ -431,13 +462,16 @@ export function composePost({ photo, companyName, sector, descriptor, statement,
   const desc = String(descriptor ?? "").trim() || descriptorFor(sector);
   const line = String(statement ?? "").trim();
 
+  // The company name + descriptor now render SMALL, at the BOTTOM (the byline under the
+  // headline — see the docstring above). Roughly half the size this block used to render at
+  // when it was the card's large top element, on the user's explicit "smaller" direction.
   const nameFit = fitText(name, {
     fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", maxWidth: maxTextWidth, maxLines: 2,
-    startSize: Math.round(height * 0.095), minSize: Math.round(height * 0.04), step: 2,
+    startSize: Math.round(height * 0.05), minSize: Math.round(height * 0.025), step: 2,
   });
-  // Exactly half the company-name size, per spec — not independently fit-shrunk, only
-  // fed through wrapText's own overflow guard as a defensive floor (a fixed 2-3 word
-  // descriptor should never need it in practice).
+  // Exactly half the company-name size, per spec (unchanged rule — only the base size it's
+  // half OF got smaller) — not independently fit-shrunk, only fed through wrapText's own
+  // overflow guard as a defensive floor (a fixed 2-3 word descriptor should never need it).
   const descStart = Math.max(10, Math.round(nameFit.fontSize / 2));
   const descFit = fitText(desc, {
     fontFamily: FONT_FAMILY_MEDIUM, fontWeight: "500", maxWidth: maxTextWidth, maxLines: 1,
@@ -446,9 +480,13 @@ export function composePost({ photo, companyName, sector, descriptor, statement,
 
   // (7) NUMBER-FIRST TYPOGRAPHY — split the statement into its lead figure (rendered large and
   // tinted by direction) and the words around it (smaller, beneath). A numberless statement
-  // (figure === null) falls back to the old single-block rendering untouched.
+  // (figure === null) falls back to the old single-block rendering untouched. Sizing here is
+  // UNCHANGED from before this pass — the statement was already the card's most dominant text
+  // (the figure alone could reach 16% of the card's height); only its POSITION moves, to the top.
   const { figure, rest } = extractFigure(line);
-  const direction = detectDirection(line);
+  const direction = directionOverride !== undefined
+    ? (Object.prototype.hasOwnProperty.call(DIRECTION_COLOR, directionOverride) ? directionOverride : "neutral")
+    : detectDirection(line);
   const directionColor = DIRECTION_COLOR[direction];
   const figureFit = figure
     ? fitText(figure, {
@@ -468,31 +506,35 @@ export function composePost({ photo, companyName, sector, descriptor, statement,
   const topHalo = haloStyle(stats.top);
   const bottomHalo = haloStyle(stats.bottom);
 
-  // --- top block: company name, then the descriptor directly beneath it ---
+  // --- top block: the STATEMENT — "what happened", leading the card, top-anchored (1) ---
   const topPad = height * 0.06;
-  const nameLineHeight = nameFit.fontSize * 1.08;
-  const nameBlockHeight = nameFit.lines.length * nameLineHeight;
-  const nameDescGap = nameFit.fontSize * 0.34;
-  const descLineHeight = descFit.fontSize * 1.15;
-
-  const nameFirstBaseline = topPad + nameFit.fontSize * 0.86;
-  const descFirstBaseline = topPad + nameBlockHeight + nameDescGap + descFit.fontSize * 0.86;
-
-  // --- bottom block: the (optional) figure, then the rest of the statement, bottom-anchored ---
-  const bottomPad = height * 0.07;
   const figureLineHeight = figureFit ? figureFit.fontSize * 1.15 : 0;
   const figureBlockHeight = figureFit ? figureFit.lines.length * figureLineHeight : 0;
   const figureRestGap = figureFit && restFit.lines.length ? figureFit.fontSize * 0.22 : 0;
   const restLineHeight = restFit.fontSize * 1.2;
-  const restBlockHeight = restFit.lines.length * restLineHeight;
-  const bottomBlockHeight = figureBlockHeight + figureRestGap + restBlockHeight;
-  const bottomBlockTop = height - bottomPad - bottomBlockHeight;
+  const statementBlockTop = topPad;
 
-  const figureFirstBaseline = bottomBlockTop + (figureFit ? figureFit.fontSize * 0.86 : 0);
-  const restFirstBaseline = bottomBlockTop + figureBlockHeight + figureRestGap + restFit.fontSize * 0.86;
+  const figureFirstBaseline = statementBlockTop + (figureFit ? figureFit.fontSize * 0.86 : 0);
+  const restFirstBaseline = statementBlockTop + figureBlockHeight + figureRestGap + restFit.fontSize * 0.86;
+
+  // --- bottom block: the company NAME, then the descriptor directly beneath it — the byline,
+  // smaller, bottom-anchored (2) ---
+  const bottomPad = height * 0.07;
+  const nameLineHeight = nameFit.fontSize * 1.08;
+  const nameBlockHeight = nameFit.lines.length * nameLineHeight;
+  const nameDescGap = nameFit.fontSize * 0.34;
+  const descLineHeight = descFit.fontSize * 1.15;
+  const descBlockHeight = descFit.lines.length * descLineHeight;
+  const companyBlockHeight = nameBlockHeight + nameDescGap + descBlockHeight;
+  const companyBlockTop = height - bottomPad - companyBlockHeight;
+
+  const nameFirstBaseline = companyBlockTop + nameFit.fontSize * 0.86;
+  const descFirstBaseline = companyBlockTop + nameBlockHeight + nameDescGap + descFit.fontSize * 0.86;
 
   // --- (Wikimedia) photo credit: tiny type, hugging the very bottom edge, inside the same
-  // bottomPad gap the statement already leaves clear (see the `credit` param doc above). Never
+  // bottomPad gap the company/descriptor block already leaves clear (see the `credit` param doc
+  // above — unchanged in position; it now sits under the byline instead of the old statement
+  // block, but the very-bottom-edge placement and the maths behind it are untouched). Never
   // independently font-shrunk below its own small floor the way the headline blocks are — a
   // credit line that would need to shrink past readability is better wrapped by the caller's
   // own formatting than by this module guessing.
@@ -509,10 +551,10 @@ export function composePost({ photo, companyName, sector, descriptor, statement,
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
     <image x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" href="data:${mime};base64,${b64}"/>
     ${scrimDefs({ width, height, topHalo, bottomHalo, topStats: stats.top, bottomStats: stats.bottom })}
-    ${textLines(nameFit.lines, { x: cx, firstBaseline: nameFirstBaseline, lineHeight: nameLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: nameFit.fontSize, fill: topHalo.textFill, halo: topHalo })}
-    ${textLines(descFit.lines, { x: cx, firstBaseline: descFirstBaseline, lineHeight: descLineHeight, fontFamily: FONT_FAMILY_MEDIUM, fontWeight: "500", fontSize: descFit.fontSize, fill: topHalo.textFill, halo: topHalo })}
-    ${figureFit ? textLines(figureFit.lines, { x: cx, firstBaseline: figureFirstBaseline, lineHeight: figureLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: figureFit.fontSize, fill: directionColor, halo: bottomHalo }) : ""}
-    ${textLines(restFit.lines, { x: cx, firstBaseline: restFirstBaseline, lineHeight: restLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: restFit.fontSize, fill: bottomHalo.textFill, halo: bottomHalo })}
+    ${figureFit ? textLines(figureFit.lines, { x: cx, firstBaseline: figureFirstBaseline, lineHeight: figureLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: figureFit.fontSize, fill: directionColor, halo: topHalo }) : ""}
+    ${textLines(restFit.lines, { x: cx, firstBaseline: restFirstBaseline, lineHeight: restLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: restFit.fontSize, fill: topHalo.textFill, halo: topHalo })}
+    ${textLines(nameFit.lines, { x: cx, firstBaseline: nameFirstBaseline, lineHeight: nameLineHeight, fontFamily: FONT_FAMILY_BOLD, fontWeight: "700", fontSize: nameFit.fontSize, fill: bottomHalo.textFill, halo: bottomHalo })}
+    ${textLines(descFit.lines, { x: cx, firstBaseline: descFirstBaseline, lineHeight: descLineHeight, fontFamily: FONT_FAMILY_MEDIUM, fontWeight: "500", fontSize: descFit.fontSize, fill: bottomHalo.textFill, halo: bottomHalo })}
     ${creditFit ? textLines(creditFit.lines, { x: cx, firstBaseline: creditBaseline, lineHeight: 0, fontFamily: FONT_FAMILY_MEDIUM, fontWeight: "500", fontSize: creditFit.fontSize, fill: bottomHalo.textFill, halo: { ...bottomHalo, haloWidth: bottomHalo.haloWidth * 0.6 } }) : ""}
   </svg>`;
 

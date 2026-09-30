@@ -371,6 +371,69 @@ assert.throws(() => imageDimensions(Buffer.from("not an image, just text")),
   assert.ok(Buffer.isBuffer(out.jpeg) && out.jpeg.length > 0, "a long credit line still composes successfully");
 }
 
+// ========================================== (1)/(2) statement leads, name/descriptor follow ===
+// The user's review round: "what happened" (the statement) moves to the top, where the company
+// name used to be; the name + descriptor move below it, smaller. Pinned via layout metrics
+// rather than pixel-diffing the JPEG — nameFontSize shrank relative to what a plain "large name
+// at the top" layout used to produce, and the descriptor/name half-size RULE survives unchanged.
+{
+  const photo = solidPhoto(1024, 1024, "#f4f6f8");
+  const out = composePost({
+    photo, companyName: "Nvidia", sector: "Technology", statement: "42% upside on 25 analysts.",
+  });
+  // The old layout started the company name at ~9.5% of the card height; the new "byline"
+  // treatment is deliberately smaller — well under half of what it used to be.
+  assert.ok(out.layout.nameFontSize < 1024 * 0.07, "the company name renders noticeably smaller than before");
+  assert.equal(out.layout.descriptorFontSize, Math.round(out.layout.nameFontSize / 2),
+    "the descriptor still renders at exactly half the (now smaller) company-name size");
+  assert.ok(out.layout.figureFontSize > out.layout.nameFontSize,
+    "the statement's lead figure is still the single largest element on the card");
+}
+
+// ==================================== (3)/(4) directionOverride — fact-derived, not word-sniffed
+// The trap: most numbers in this feed are analyst upside-to-target, a standing forecast, and
+// "upside" reads as "up" to detectDirection() regardless of whether anything actually happened —
+// exactly how a published post once read "IRD soared 151.7%" for a number that never moved.
+// ci/generate-posts.mjs now always supplies a fact-derived verdict; composePost must let it win.
+{
+  const photo = solidPhoto(1024, 1024, "#f4f6f8");
+  // The statement's own words say "upside" (detectDirection alone would read this as "up"), but
+  // the caller's fact-derived verdict says this is a standing figure — neutral wins.
+  const out = composePost({
+    photo, companyName: "Nvidia", sector: "Technology", statement: "144% upside, 25 analysts covering.",
+    directionOverride: "neutral",
+  });
+  assert.equal(out.layout.direction, "neutral", "an explicit neutral override beats up-reading words");
+  assert.equal(detectDirection("144% upside, 25 analysts covering."), "up",
+    "sanity: the SAME statement's words alone would have read as up — proving the override, not the words, decided this");
+}
+{
+  // The mirror: an explicit "down" override wins even over neutral/up-reading words.
+  const photo = solidPhoto(1024, 1024, "#f4f6f8");
+  const out = composePost({
+    photo, companyName: "Nvidia", sector: "Technology", statement: "Held Strong Buy for 6 days straight.",
+    directionOverride: "down",
+  });
+  assert.equal(out.layout.direction, "down", "an explicit down override wins even over neutral-reading words");
+}
+{
+  // Omitting directionOverride entirely (every pre-existing caller) keeps the old word-sniffing
+  // behaviour byte-for-byte — already proven by the untouched tests above, restated here as an
+  // explicit contract check.
+  const photo = solidPhoto(1024, 1024, "#f4f6f8");
+  const out = composePost({ photo, companyName: "Nvidia", sector: "Technology", statement: "42% upside on 25 analysts." });
+  assert.equal(out.layout.direction, "up", "omitting the override falls back to detectDirection on the words");
+}
+{
+  // An unrecognised override value is treated as neutral, never silently ignored back to guessing.
+  const photo = solidPhoto(1024, 1024, "#f4f6f8");
+  const out = composePost({
+    photo, companyName: "Nvidia", sector: "Technology", statement: "42% upside on 25 analysts.",
+    directionOverride: "sideways",
+  });
+  assert.equal(out.layout.direction, "neutral", "a garbage override value is neutral, not a silent fallback to word-sniffing");
+}
+
 console.log("post-compose OK — image header parsing (PNG+JPEG), real-font text measurement, " +
             "word-wrap (including the lone-overlong-word trap), stepwise font shrinking, " +
             "brightness/contrast sampling, end-to-end composition at square and non-square sizes " +
