@@ -25,7 +25,7 @@
 // exactly what it was: a plain call/token accumulator, one per consumer.
 
 import { computeNeuronUsage, DAILY_FREE_NEURONS } from "./neuron-usage.mjs";
-import { MIN_PUBLISHABLE } from "./post-score.mjs";
+import { MIN_PUBLISHABLE, MAX_WORDS } from "./post-score.mjs";
 
 /** `.github/workflows/site.yml`'s own cron schedule fires on the hour, every 5 hours — 24/5 =
  *  4.8 runs/day. Restated here (not imported — the workflow YAML has no exports) so the "how
@@ -57,7 +57,7 @@ export function classifyRejectionReason(reasons) {
   if (/names the ticker/.test(all)) return "contains a ticker";
   if (/movement verb misdescribes/.test(all)) return "banned movement verb";
   if (/claims a timeframe/.test(all)) return "misdescribed timeframe";
-  if (/too long \(/.test(all)) return "over the 8-word cap";
+  if (/too long \(/.test(all)) return `over the ${MAX_WORDS}-word cap`;
   if (/duplicate of a recent post/.test(all)) return "duplicate of a recent post";
   if (/too short \(/.test(all)) return "too short";
   if (/no numbers/.test(all)) return "no numbers";

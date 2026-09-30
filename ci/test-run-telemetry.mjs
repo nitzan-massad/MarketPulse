@@ -17,7 +17,8 @@ assert.equal(classifyRejectionReason(["unverified numbers not in the hook's fact
 assert.equal(classifyRejectionReason(["names the ticker AAA instead of the company"]), "contains a ticker");
 assert.equal(classifyRejectionReason(["movement verb misdescribes a target/score/forecast number: soared"]), "banned movement verb");
 assert.equal(classifyRejectionReason(["claims a timeframe the data cannot support: overnight"]), "misdescribed timeframe");
-assert.equal(classifyRejectionReason(["too long (12 words > 8)"]), "over the 8-word cap");
+assert.equal(classifyRejectionReason(["too long (14 words > 10)"]), "over the 10-word cap",
+  "the label reads MAX_WORDS from ci/post-score.mjs, not a hardcoded number");
 assert.equal(classifyRejectionReason(["duplicate of a recent post (61% word overlap)"]), "duplicate of a recent post");
 assert.equal(classifyRejectionReason(["too short (2 words < 3)"]), "too short");
 assert.equal(classifyRejectionReason(["no numbers — not a data post"]), "no numbers");
@@ -28,7 +29,7 @@ assert.equal(classifyRejectionReason([]), "other", "an empty reasons array is \"
 assert.equal(classifyRejectionReason(undefined), "other", "undefined reasons never throws");
 // Priority: the MOST SEVERE reason wins when a candidate carries several.
 assert.equal(
-  classifyRejectionReason(["too long (12 words > 8)", "unverified numbers not in the hook's facts: 99%"]),
+  classifyRejectionReason(["too long (14 words > 10)", "unverified numbers not in the hook's facts: 99%"]),
   "fabricated number",
   "fabrication outranks a merely-too-long candidate — it is the more decisive, higher-penalty rule",
 );
@@ -236,7 +237,7 @@ console.log("buildHistoryRecord OK — compact, correct totals, matches totalNeu
   recordHookPublished(t, "surprise");
   recordHookAttempt(t, "movement");
   t.candidates = { generated: 5, used: 1, outscored: 1, rejected: 3 };
-  t.rejectionReasons = { "fabricated number": 2, "over the 8-word cap": 1 };
+  t.rejectionReasons = { "fabricated number": 2, "over the 10-word cap": 1 };
 
   const headroom = computeHeadroom(0, totalNeuronsForRun(t));
   const block = formatSummaryBlock(t, { publishedCount: 1, headroom, historyNote: "3 run(s) in history." });

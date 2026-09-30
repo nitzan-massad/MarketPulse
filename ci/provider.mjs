@@ -2,7 +2,7 @@
 //
 // Default is Cloudflare Workers AI because it is free: 10,000 neurons/day. The default MODEL
 // is `@cf/meta/llama-3.3-70b-instruct-fp8-fast`, not the 8B instruct model this used to run —
-// an 8B model writing an 8-word headline has a low ceiling on wit, which was the root cause of
+// an 8B model writing a short headline has a low ceiling on wit, which was the root cause of
 // the flat, repetitive copy that kept getting flagged, and side-by-side generations against
 // the same hooks (see the task's own report) showed the 70B model consistently punchier and
 // less generic at the same temperature. `CF_MODEL` still overrides this either way. NOTE: the

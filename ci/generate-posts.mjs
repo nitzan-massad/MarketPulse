@@ -63,8 +63,14 @@ export const KIND_BRIEF = {
   surprise: "The number is the story. Lead with it.",
   contrarian: "Two models disagree. Name the disagreement, do not resolve it.",
   list: "A short ranked list. No preamble before the first name.",
-  movement: "Something changed since five hours ago. Say what, and from what to what.",
-  record: "This is the highest reading of the whole window. Say it is a high, and say how far it came.",
+  movement: "Something changed since the last update — that is real and current, not a forecast. " +
+    "Say what changed and work in the Timeframe fact (e.g. \"today\") — both required. The earlier " +
+    "(\"from\") figure and the analyst count are welcome too if they fit inside the 10-word cap.",
+  record: "This is the highest reading of the whole window. Call it a high (\"a 3-week high\", " +
+    "\"this week's high\") using the Timeframe fact you're given — never say the RISE itself took " +
+    "that long, the window could have been flat until its last two days. The headline number and " +
+    "the timeframe are both required; the analyst count and a sector comparison are welcome too " +
+    "if they fit inside the 10-word cap.",
   steady: "Nothing moved, and that is the story. Say what it has held and for how long.",
   newcomer: "This name was not on the board when the window opened. Say it is new, and how long it has been here.",
 };
@@ -116,20 +122,80 @@ const FACT_LABELS = {
 
 export const humanizeFactKey = (key) => FACT_LABELS[key] ?? key;
 
+// ----------------------------------------------------------- timeframe phrasing --
+//
+// (Burned-in timeframe) `hasGenuineChange` (ci/hooks.mjs) already tells the pipeline whether a
+// hook describes something that actually happened or a standing figure; this reuses that
+// verdict rather than re-deriving it. Until now the "when" only reached the DOM context
+// sentence below the image (src/components/PostFeed.tsx's `movementLine`/`recordLine`) — the
+// user's own example ("55% more added by 34 analysts only in the last week") asks for it in
+// the burned-in statement itself, the line actually printed on the meme.
+//
+// NATURAL-LANGUAGE BANDS, not a raw day count — "6.3 days" is exactly the kind of precision
+// that reads as a machine copying a spreadsheet cell (see the system prompt's own "ROUND THE
+// NUMBERS" rule below). `hook.facts.days` ranges from a fraction of a day up to ~30 across this
+// pipeline (POST_WINDOW=144 snapshots at a 5h cadence), but only two kinds ever reach here at
+// all (`hasGenuineChange` — see ci/hooks.mjs's own comment — is true only for `movement` and
+// `record`):
+//   - `movement` (ci/hooks.mjs's `# 3. MOVEMENT`) carries NO `days` fact — its "before" reading
+//     is always exactly the PRIOR snapshot, never longer ago than the 5h cadence (see
+//     ci/post-score.mjs's own comment: "this pipeline's fastest comparison is one run to the
+//     last"). There is nothing to band; it is always "today".
+//   - `record` (ci/hooks.mjs's `# 4. RECORD`) carries `days` = the length of the WINDOW behind
+//     today's new high (`round((hist.length * 5) / 24)`), which spans ~2 (MIN_WINDOW=10
+//     snapshots) to ~30 (the full window) days.
+//
+// Bands (upper bound exclusive; picked so 6.3 — the task's own worked example — lands on "this
+// week", not "today" and not "in two weeks"):
+//   days <  1.5  -> "today"
+//   days <  8.5  -> "this week"
+//   days < 15.5  -> "in two weeks"
+//   days < 22.5  -> "in three weeks"
+//   days >= 22.5 -> "this month"
+//
+// TRUTHFULNESS is why `record`'s KIND_BRIEF (above) is told to phrase this as a HIGH, never as
+// a "changed" claim: `record`'s `days` is how far back the WINDOW goes, not how long the climb
+// from `windowLow` to today's reading actually took — the window could have sat flat and only
+// climbed in its last two days. "A 3-week high" is true either way (today's reading really is
+// the highest of the last 3 weeks — that is `record`'s own firing condition); "climbed for
+// three weeks" is not, unless the rise really was gradual the whole time.
+export function describeTimeframeBand(days) {
+  if (days < 1.5) return "today";
+  if (days < 8.5) return "this week";
+  if (days < 15.5) return "in two weeks";
+  if (days < 22.5) return "in three weeks";
+  return "this month";
+}
+
+/** The phrase to hand the writer model for a hook's `Timeframe` fact — `null` for a standing
+ *  state (surprise/contrarian/steady/newcomer/list), which must never be given one at all: see
+ *  `hasGenuineChange`'s own comment in ci/hooks.mjs for why a bare current figure ("steady"'s
+ *  Smart Score, "newcomer"'s first-seen date) is a data-availability fact or an absence of
+ *  change, never a dated event. A genuine change with no numeric `days` (`movement`, see the
+ *  band comment above) always reads "today" — a fixed, always-true fallback, not a guess. */
+export function genuineChangeTimeframe(hook) {
+  if (!hasGenuineChange(hook)) return null;
+  const days = hook?.facts?.days;
+  return Number.isFinite(days) ? describeTimeframeBand(days) : "today";
+}
+
 export function buildPrompt(hook, exemplars = []) {
   const system = [
     "You write short, punchy posts for a stock-data feed — the voice of a sharp finance editor",
     "on X who wants the read to stop a thumb mid-scroll, not sound like a ledger entry.",
     "Rules, all of them hard:",
-    "- MAXIMUM 8 WORDS. Count them before you answer. 9 words is a failure, not a rounding error.",
+    "- MAXIMUM 10 WORDS. Count them before you answer. 11 words is a failure, not a rounding error. Shorter is fine too — a clean 6-word post beats a 10-word one that wanders; the cap exists for legibility on the image, not as a length to aim for.",
     "- LEAD WITH THE NUMBER. Open the sentence on the figure itself — the percentage, the price, or the count — not the company, not a verb, not \"it\". \"~15% upside, 25 analysts covering\" beats \"Microsoft held...\" every time.",
-    "- Good 8-word example: \"144% upside, 25 analysts — sector's usual is 60.\" — that is 8 words, opens on the number, cites the analyst count, and compares the name against its sector instead of stating the number alone.",
+    "- Good example: \"144% upside, 25 analysts — sector's usual is 60.\" — 8 words, comfortably inside the 10-word cap, opens on the number, cites the analyst count, and compares the name against its sector instead of stating the number alone.",
+    "- On a genuine change, using the fuller budget is fine: \"55% upside, up from 22%, 34 analysts this week.\" — 9 words. It states the timeframe AND keeps the earlier figure AND the analyst count, because the cap now has room for all of it — nothing here needs to be dropped to fit.",
     "- The company name is already printed large on the card, above this text — do NOT repeat it here. Refer to \"it\"/\"its\" if you need a subject, or just state the fact with no subject at all.",
     "- Never use the ticker symbol, ever, for any reason.",
     "- Be BOLD, not flat. Find the one surprising angle in the numbers — the thing that makes someone look twice — instead of just restating them in order like a ledger.",
     "- Open with the fact. No greeting, no preamble, no 'Let's dive in'.",
     "- ROUND THE NUMBERS. You will be given some figures with decimal precision (143.6, 300.65, 6.3 days) — round each to a whole number before you use it (round half up: 143.6 becomes 144, 6.3 days becomes 6 days), or use it as a plain 1-decimal figure if that reads better (38.6 stays 38.6). A leading '~' (\"~144%\") is a good way to signal \"about\" when that reads more naturally than a bare rounded number — use your judgement. Never invent a different number, and never round UP past the true value (143.6 rounds to 144, never 145) — you are rounding the number you were given, not replacing it.",
     "- ANALYST COUNT AS SOCIAL PROOF. When you are given how many analysts cover a name, prefer working that count into the sentence (\"25 analysts agree\") over a bare percentage alone — a headcount reads like a jury verdict; a percentage on its own reads abstract.",
+    "- STATE THE TIMEFRAME ON A GENUINE CHANGE. When the facts include a \"Timeframe\" line, this is a real, measured move (or a new high), not a standing forecast — the headline number AND that timeframe word (\"today\", \"this week\", \"in three weeks\") are both REQUIRED, worked into the statement so it reads as something that just happened. Everything else — the analyst count, the earlier (\"from\"/\"before\") figure, a sector comparison — is discretionary: include whichever of those read best, in whatever order, as long as the whole thing fits inside the 10-word cap.",
+    "- NEVER INVENT A TIMEFRAME. When the facts do NOT include a \"Timeframe\" line, never write \"today\", \"this week\", \"in N days\", or any other day/week/month phrase for these numbers — most figures here are a standing analyst forecast, not something that just happened, and giving one a \"when\" states an event that never occurred.",
     "- COMPARE, DON'T JUST STATE, WHEN YOU CAN. If you are given the sector's typical (median) number alongside the name's own, prefer the comparison (\"more than double its sector's median\") over the bare figure — a comparison gives the reader something to agree or disagree with. Only compare when you are actually given both numbers; never invent a sector average you were not handed.",
     "- Never use a verb that claims a stock's PRICE moved (soared, plunged, plummeted, rocketed, crashed, jumped, surged, spiked, tanked, tumbled, nosedived, or the like) unless the number attached to it is an actual past price change. A price target, a Smart Score, an AI score, or an analyst upside is a forecast, a score, or a rating — not something that has already happened to the stock. Describe it as what it is (a target, a score, a call), never as a move.",
     "- No hashtags beyond one. No emoji. At most one exclamation mark, ideally zero.",
@@ -146,13 +212,23 @@ export function buildPrompt(hook, exemplars = []) {
     .map(([k, v]) => `- ${humanizeFactKey(k)}: ${v}`)
     .join("\n");
 
+  // (Burned-in timeframe) A synthetic fact line, never a key of `hook.facts` itself — it must
+  // stay out of `factNumbers`/`unverifiedNumbers` (ci/post-score.mjs), which vouch for numbers
+  // strictly from `hook.facts`. It never needs to: every phrase `genuineChangeTimeframe` can
+  // return ("today", "this week", …) is plain words, no digit, so there is nothing for the
+  // fabrication verifier to check in the first place. Present only for a genuine change; absent
+  // entirely for a standing state, which is what the "NEVER INVENT A TIMEFRAME" rule above
+  // actually gates on (the model is told to check for this line, not to judge the hook itself).
+  const timeframe = genuineChangeTimeframe(hook);
+  const timeframeLine = timeframe ? `\n- Timeframe: ${timeframe}` : "";
+
   // DISPLAY name, not the raw legal name: the writer model is told the same clean name that
   // is about to be printed on the card (below), never "Applied Materials, Inc." or "Alphabet
   // Inc. Class A" — see ci/hooks.mjs's displayCompanyName(). hook.name itself is untouched;
   // this only affects what the prompt SHOWS the model.
   const prompt =
     `${shots}Angle: ${KIND_BRIEF[hook.kind] ?? "Report the fact."}\n\n` +
-    `Company: ${displayCompanyName(hook.name)} (${hook.ticker}), ${hook.sec}\nFacts:\n${facts}\n\n` +
+    `Company: ${displayCompanyName(hook.name)} (${hook.ticker}), ${hook.sec}\nFacts:\n${facts}${timeframeLine}\n\n` +
     `Write the post.`;
 
   return { system, prompt };

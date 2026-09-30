@@ -7,7 +7,7 @@ import {
   scorePost, pickBest, rankCandidates, nameStem, factNumbers, unverifiedNumbers,
   misdescribedMovementVerbs, misdescribedTimeframe,
   BANNED, MIN_PUBLISHABLE, TICKER_PENALTY, FABRICATION_PENALTY,
-  MISDESCRIBED_MOVEMENT_PENALTY, MISDESCRIBED_TIMEFRAME_PENALTY,
+  MISDESCRIBED_MOVEMENT_PENALTY, MISDESCRIBED_TIMEFRAME_PENALTY, TIMEFRAME_BONUS,
 } from "./post-score.mjs";
 
 // The FULL `surprise` fact shape ci/hooks.mjs emits — { upside, price, priceTarget, consensus,
@@ -38,36 +38,54 @@ assert.ok(Number.isFinite(MIN_PUBLISHABLE), "there is a publish floor");
   assert.ok(withNum.score > without.score, "concrete numbers beat vibes");
 }
 
-// --- length band: 8 WORDS, not characters ---------------------------------------
+// --- length band: 10 WORDS, not characters ---------------------------------------
 // The feed card now overlays the post text as a headline, so the band moved from a
-// character count to a word count (MAX_WORDS=8, MIN_WORDS=3, both exported).
+// character count to a word count (MAX_WORDS=10, MIN_WORDS=3, both exported). MAX_WORDS was
+// raised from 8 to 10 to give a genuine-change post's Timeframe fact somewhere to sit
+// alongside the headline number without displacing anything (see ci/post-score.mjs's own
+// MAX_WORDS doc) — MIN_WORDS did not move, and does not need to: it is checked independently
+// of MAX_WORDS in scorePost, so raising the ceiling cannot loosen the floor.
 {
   const good = scorePost("NVDA target $210, 42% upside.", ctx()); // 5 words, in band
   const tooShort = scorePost("NVDA up.", ctx()); // 2 words, below MIN_WORDS
   const tooLong = scorePost(
-    "NVDA hits $210 target on 42% upside today with 38 analysts covering.", ctx(),
-  ); // 12 words, 4 over MAX_WORDS
+    "NVDA hits $210 target on 42% upside today with 38 analysts covering shares broadly.", ctx(),
+  ); // 14 words, 4 over MAX_WORDS
   assert.ok(good.score > tooShort.score, "a too-short post is penalised");
   assert.ok(good.score > tooLong.score, "a too-long post is penalised");
   assert.ok(tooShort.reasons.some((r) => /too short.*word/.test(r)), "the reason counts words, not characters");
   assert.ok(tooLong.reasons.some((r) => /too long.*word/.test(r)), "the reason counts words, not characters");
 }
 
-// --- the task's own worked example: an 8-word candidate must beat a 12-word one, and
-// both must beat a 1-2 word fragment, even though the longer ones carry more digits ------
+// --- the lower bound is unaffected by the ceiling move: MIN_WORDS=3 is independent of
+// MAX_WORDS in scorePost's own logic, so a genuine fragment (below the floor) loses exactly as
+// it did when the ceiling was 8, and exactly-3-words is still a real, complete claim, not a
+// fragment — the floor was never "relative to" the ceiling in the first place. ------------
+{
+  const fragment = scorePost("NVDA up.", ctx()); // 2 words, below MIN_WORDS=3
+  const minimal = scorePost("Upside hits 40%.", ctx()); // exactly 3 words
+  assert.ok(fragment.reasons.some((r) => /too short.*word/.test(r)), "a genuine fragment is still flagged");
+  assert.equal(minimal.reasons.some((r) => /too short.*word/.test(r)), false,
+    "exactly MIN_WORDS=3 is not a fragment — unchanged by the 8->10 ceiling move");
+  assert.ok(fragment.score < MIN_PUBLISHABLE, "the genuine fragment still fails to publish");
+}
+
+// --- the task's own worked example, rescaled to the 10-word ceiling: a 10-word candidate must
+// beat a 14-word one, and both must beat a 1-2 word fragment, even though the longer ones carry
+// more digits ------------------------------------------------------------------------------
 // Named by the COMPANY, not the ticker, so this isolates the word-count effect the block is
 // actually about — the ticker penalty is decisive now (see below) and would otherwise sink
 // every fixture here regardless of length.
 {
-  const eightWords = scorePost("Nvidia hits $210 target on 42% upside today.", ctx()); // 8 words
-  const twelveWords = scorePost(
-    "Nvidia hits $210 target on 42% upside today with 38 analysts covering.", ctx(),
-  ); // 12 words — same digits-and-naming shape, just longer
+  const tenWords = scorePost("Nvidia hits $210 target on 42% upside today, 38 analysts.", ctx()); // 10 words
+  const fourteenWords = scorePost(
+    "Nvidia hits $210 target on 42% upside today with 38 analysts covering shares broadly.", ctx(),
+  ); // 14 words — same digits-and-naming shape, just longer
   const fragment = scorePost("Nvidia up.", ctx()); // 2 words
-  assert.ok(eightWords.score > twelveWords.score, "an 8-word candidate beats a 12-word one");
-  assert.ok(eightWords.score > fragment.score, "an 8-word candidate beats a 1-2 word fragment");
-  assert.ok(eightWords.score >= MIN_PUBLISHABLE, "the 8-word candidate clears the publish floor");
-  assert.ok(twelveWords.score < MIN_PUBLISHABLE, "the 12-word candidate does not");
+  assert.ok(tenWords.score > fourteenWords.score, "a 10-word candidate beats a 14-word one");
+  assert.ok(tenWords.score > fragment.score, "a 10-word candidate beats a 1-2 word fragment");
+  assert.ok(tenWords.score >= MIN_PUBLISHABLE, "the 10-word candidate clears the publish floor");
+  assert.ok(fourteenWords.score < MIN_PUBLISHABLE, "the 14-word candidate does not");
   assert.ok(fragment.score < MIN_PUBLISHABLE, "the fragment does not either");
 }
 
@@ -267,7 +285,7 @@ assert.deepEqual(rankCandidates(undefined, ctx()), [], "an undefined candidate l
   const roundedText = "IRD is up 120% to a $75 target on 11 analysts.";
   assert.deepEqual(unverifiedNumbers(roundedText, ird), [],
     "a truthful number rounded down to a whole number passes");
-  // Kept within the 8-word cap (unlike `roundedText` above, which is only used for the
+  // Kept within the 10-word cap (unlike `roundedText` above, which is only used for the
   // number-verification check, not scored) so this isolates "rounding is accepted" from the
   // unrelated too-long penalty.
   const roundedShort = "Up 120% to a $75 target, 11 analysts.";
@@ -495,4 +513,44 @@ assert.deepEqual(misdescribedTimeframe("Nothing unusual here, just a plain sente
   "ordinary text carries no timeframe claim");
 assert.deepEqual(misdescribedTimeframe(""), [], "empty text is handled, not a crash");
 
-console.log("post-score OK — banned phrases, numbers, number VERIFICATION, decisive ticker penalty, misdescribed movement verbs, unsupported timeframe claims, naming no longer required, length, dedupe, full-list scan, hashtags, exclamations, pickBest floor, determinism");
+// ---------------------------------------------- (burned-in timeframe) TIMEFRAME_BONUS ----
+// ci/generate-posts.mjs's buildPrompt now teaches a genuine-change hook to work a short
+// timeframe word into the 10-word statement. Two candidates below are built to be IDENTICAL in
+// every other scoring dimension (same word count, same digit count, no banned phrase, no
+// ticker, no movement verb) so the score delta isolates the bonus itself, not a side effect of
+// picking different filler words.
+{
+  const withTimeframe = "55% upside, up this week, 34 analysts.";
+  const withoutTimeframe = "55% upside, up a bit, 34 analysts.";
+  assert.equal(withTimeframe.trim().split(/\s+/).length, withoutTimeframe.trim().split(/\s+/).length,
+    "fixture sanity: both candidates are the same word count");
+  assert.equal((withTimeframe.match(/\d/g) ?? []).length, (withoutTimeframe.match(/\d/g) ?? []).length,
+    "fixture sanity: both candidates carry the same digit count, so the digit bonus cannot differ");
+
+  // GENUINE CHANGE (movement's upsideFrom/upsideTo pair) — the timeframe candidate earns
+  // exactly TIMEFRAME_BONUS more than its otherwise-identical twin, and only that much.
+  const genuineHook = { kind: "movement", name: "Alpha Inc", facts: { upsideFrom: 20, upsideTo: 55, analysts: 34 } };
+  const withR = scorePost(withTimeframe, { hook: genuineHook });
+  const withoutR = scorePost(withoutTimeframe, { hook: genuineHook });
+  assert.equal(withR.score - withoutR.score, TIMEFRAME_BONUS,
+    "the ONLY scoring difference between these two candidates is the timeframe bonus");
+  assert.ok(withR.reasons.includes("states a timeframe for the genuine change"), "the bonus reason is named");
+  assert.equal(withoutR.reasons.includes("states a timeframe for the genuine change"), false,
+    "omitting the timeframe never adds the reason — and never subtracts anything either");
+
+  // STANDING STATE (surprise's bare `upside`/`analysts`, no before/after pair) — GATED ON THE
+  // HOOK'S OWN FACTS, not the candidate's text, so a standing-state candidate cannot fake its
+  // way to the bonus just by reusing the same words: both candidates score IDENTICALLY here.
+  const standingHook = { kind: "surprise", name: "Alpha Inc", facts: { upside: 55, analysts: 34 } };
+  const standingWithR = scorePost(withTimeframe, { hook: standingHook });
+  const standingWithoutR = scorePost(withoutTimeframe, { hook: standingHook });
+  assert.equal(standingWithR.score, standingWithoutR.score,
+    "a standing-state hook cannot be gamed into the bonus by writing \"this week\" anyway");
+  assert.equal(standingWithR.reasons.includes("states a timeframe for the genuine change"), false,
+    "the bonus reason never appears for a standing-state hook, however the text reads");
+
+  assert.ok(TIMEFRAME_BONUS > 0 && TIMEFRAME_BONUS < MIN_PUBLISHABLE,
+    "small and additive — never itself enough to publish a candidate that fails elsewhere");
+}
+
+console.log("post-score OK — banned phrases, numbers, number VERIFICATION, decisive ticker penalty, misdescribed movement verbs, unsupported timeframe claims, naming no longer required, length, dedupe, full-list scan, hashtags, exclamations, pickBest floor, determinism, the burned-in timeframe bonus (additive-only, gated on the hook's own genuine-change facts, never gameable by text alone)");

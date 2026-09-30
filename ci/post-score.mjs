@@ -22,6 +22,8 @@
 // caps at +16 and saturates, and ties break alphabetically. That ceiling is accepted on
 // purpose. The lever for better copy is ci/style-corpus.json, not a cleverer formula here.
 
+import { hasGenuineChange } from "./hooks.mjs";
+
 /** Phrases that mark copy as machine-written. Lowercase; matched as substrings. */
 export const BANNED = [
   "let's dive in", "lets dive in", "dive into", "in the world of", "in today's",
@@ -35,19 +37,29 @@ export const BANNED = [
 /** Below this, publish nothing. A skipped run beats a bad post. */
 export const MIN_PUBLISHABLE = 30;
 
-// THE HEADLINE LIMIT — 8 WORDS, not characters. The feed card (src/components/PostFeed.tsx)
-// now overlays the post text large and bold directly on the image; it reads as a headline,
-// not a caption, and has to be readable at a glance. This replaces the old character band
-// (`IDEAL = { min: 25, max: 110 }`): a post can pack five numeral-heavy words into 60
-// characters, or one long compound word into 12 — character count never tracked "does this
-// read like a headline", word count does.
+// THE HEADLINE LIMIT — 10 WORDS, not characters (raised from 8: the burned-in Timeframe fact
+// needed room to sit ALONGSIDE the headline number and the analyst count, not displace one of
+// them — see ci/generate-posts.mjs's "STATE THE TIMEFRAME ON A GENUINE CHANGE" rule and the
+// user's own worked example, "55% upside, up from 22%, 34 analysts this week."). The feed card
+// (src/components/PostFeed.tsx) now overlays the post text large and bold directly on the
+// image; it reads as a headline, not a caption, and has to be readable at a glance. This
+// replaces the old character band (`IDEAL = { min: 25, max: 110 }`): a post can pack five
+// numeral-heavy words into 60 characters, or one long compound word into 12 — character count
+// never tracked "does this read like a headline", word count does. Ten words still renders
+// legibly even in the adversarial case (all-long-word, no short filler) — verified directly
+// against ci/post-compose.mjs's own `fitText`/`wrapText` (the exact functions the real card
+// uses): the font shrinks to its existing floor (unchanged by this bump — that floor already
+// existed for the 8-word cap and already got exercised by long-word 8-word candidates) and
+// `overflow` stays `false`. No separate character budget is needed alongside the word count.
 //
-// MAX_WORDS=8 is a hard ceiling: over it is penalised hard enough that a 12-word candidate
-// loses to an 8-word one even after the longer one's larger digit bonus (see the worked
-// example in ci/test-post-score.mjs). MIN_WORDS=3 is the floor below which a "post" is a
-// fragment, not a claim — enough for "$NAME up 42%." to be a complete sentence, not enough
-// for a bare "NVDA up." to earn a pass.
-export const MAX_WORDS = 8;
+// MAX_WORDS=10 is a hard ceiling: over it is penalised hard enough that a 14-word candidate
+// loses to a 10-word one even after the longer one's larger digit bonus (see the worked
+// example in ci/test-post-score.mjs). MIN_WORDS=3 is UNCHANGED and independent of the
+// ceiling — the floor below which a "post" is a fragment, not a claim, whichever the ceiling
+// is: enough for "$NAME up 42%." to be a complete sentence, not enough for a bare "NVDA up."
+// to earn a pass. A short, clean candidate is never rewarded merely for USING the extra room —
+// legibility was always the reason for a cap, not a target length to hit.
+export const MAX_WORDS = 10;
 export const MIN_WORDS = 3;
 
 /** A word is a run of non-space characters — "$174.25" and "42%" each count as one word,
@@ -262,6 +274,37 @@ export function misdescribedTimeframe(text) {
   return s.match(UNSUPPORTED_TIMEFRAME_RE) ?? [];
 }
 
+// ------------------------------------------------- (burned-in timeframe) a soft nudge, not a gate --
+//
+// ci/generate-posts.mjs's `buildPrompt` now teaches a genuine-change hook (`hasGenuineChange`,
+// imported from ci/hooks.mjs — the same verdict ci/generate-posts.mjs/ci/post-compose.mjs use
+// for the card's direction colour, reused here rather than re-derived) to work a short
+// timeframe word into the 10-word statement itself. This is a REWARD, deliberately not a
+// requirement: a hard word cap plus a mandatory phrase is exactly how a run ends up publishing
+// nothing (a genuine-change post that skips the timeframe must still be able to clear
+// MIN_PUBLISHABLE on its other merits) — so this only ever ADDS to a score, never subtracts for
+// omitting it.
+//
+// GATED ON THE HOOK, NOT THE TEXT — this is what stops a standing-state candidate from gaming
+// the bonus by simply writing "today" on a bare forecast number: `TIMEFRAME_MENTION_RE` matching
+// the text is necessary but never sufficient, `hasGenuineChange(hook)` must ALSO be true, and
+// that verdict comes from the hook's own real facts, not anything a candidate's text can spoof.
+// A standing-state hook cannot satisfy it no matter what the candidate says.
+//
+// Loose on purpose — this only ever hands out a small bonus, so a false negative (missed
+// phrasing this doesn't recognise) costs nothing but that bonus, never a rejection. Covers the
+// vocabulary ci/generate-posts.mjs's `describeTimeframeBand` actually teaches ("today", "this
+// week", "in two/three weeks", "this month"), the "N-day/-week high" framing `record`'s own
+// KIND_BRIEF asks for, and the plain "N days/weeks ago" a model reaches for on its own.
+const TIMEFRAME_MENTION_RE =
+  /\b(?:today|this week|this month|in (?:two|three) weeks|\d+[- ](?:day|week)s?[- ]high|\d+\s*(?:days?|weeks?)\s*ago)\b/i;
+
+/** Small and additive-only — see the module comment above for why this can never cost a
+ *  candidate anything for omitting it. Sized well under the length band's own +10 and the
+ *  digit bonus's +16 ceiling: a nice-to-have tiebreaker among a hook's own candidates, never a
+ *  reason on its own that a candidate does or doesn't clear MIN_PUBLISHABLE. */
+export const TIMEFRAME_BONUS = 6;
+
 /**
  * A movement verb (soared/plunged/rocketed/crashed/jumped/…) is a claim that something
  * happened to the stock's PRICE — a lie, not bold framing, when the number it sits next to is
@@ -412,6 +455,15 @@ export function scorePost(text, ctx = {}) {
     reasons.push(
       `claims a timeframe the data cannot support: ${[...new Set(badTimeframes)].join(", ")}`,
     );
+  }
+
+  // (Burned-in timeframe) A small, additive-only nudge for actually using the Timeframe fact
+  // ci/generate-posts.mjs's buildPrompt now hands a genuine-change hook — see
+  // TIMEFRAME_MENTION_RE's own doc above for why this is gated on `hasGenuineChange(hook)`
+  // (the hook's real facts), never on the candidate's text alone, and why it never subtracts.
+  if (hasGenuineChange(hook) && TIMEFRAME_MENTION_RE.test(s)) {
+    score += TIMEFRAME_BONUS;
+    reasons.push("states a timeframe for the genuine change");
   }
 
   const nWords = wordCount(s);

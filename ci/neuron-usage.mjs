@@ -121,7 +121,7 @@ export function computeNeuronUsage(tracker) {
   // The only number available for a text call Cloudflare didn't hand real tokens back for:
   // this run's own measured average per call, when there is at least one real sample to
   // average (closer to reality than a blind guess) — or a small fixed floor (a short system
-  // prompt + an 8-word reply is a few hundred tokens either way) when NOTHING this run was
+  // prompt + a short reply is a few hundred tokens either way) when NOTHING this run was
   // measured at all, which should not happen against the documented schema but is never
   // assumed away.
   const avgMeasuredPerTextCall = tracker.measuredTextCalls

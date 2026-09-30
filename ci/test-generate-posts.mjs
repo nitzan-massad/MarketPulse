@@ -5,7 +5,9 @@
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { Resvg } from "@resvg/resvg-js";
-import { buildPrompt, generate, humanizeFactKey, KIND_BRIEF } from "./generate-posts.mjs";
+import {
+  buildPrompt, generate, humanizeFactKey, KIND_BRIEF, describeTimeframeBand, genuineChangeTimeframe,
+} from "./generate-posts.mjs";
 import { newUsageTracker } from "./neuron-usage.mjs";
 import { markExhausted, resetForTest } from "./cf-budget.mjs";
 
@@ -103,6 +105,88 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   assert.ok(/soared/.test(system) && /plunged/.test(system) && /plummeted/.test(system) && /jumped/.test(system),
     "the system prompt names the banned false-movement verbs");
   assert.ok(/never use the ticker/i.test(system), "the no-ticker rule is still stated explicitly");
+}
+
+// --- (burned-in timeframe) describeTimeframeBand: natural-language bands, not raw day counts --
+{
+  assert.equal(describeTimeframeBand(0.2), "today", "movement's own ~5h gap reads as today");
+  assert.equal(describeTimeframeBand(1), "today", "just under the today/this-week boundary");
+  assert.equal(describeTimeframeBand(1.5), "this week", "the boundary itself rounds up to the next band");
+  assert.equal(describeTimeframeBand(6.3), "this week", "the task's own worked example (6.3 days) lands on \"this week\"");
+  assert.equal(describeTimeframeBand(8), "this week", "just under the next boundary");
+  assert.equal(describeTimeframeBand(8.5), "in two weeks");
+  assert.equal(describeTimeframeBand(12), "in two weeks");
+  assert.equal(describeTimeframeBand(15.5), "in three weeks");
+  assert.equal(describeTimeframeBand(18), "in three weeks");
+  assert.equal(describeTimeframeBand(22.5), "this month");
+  assert.equal(describeTimeframeBand(30), "this month", "the full POST_WINDOW=144-snapshot window");
+}
+
+// --- (burned-in timeframe) genuineChangeTimeframe: reuses hasGenuineChange, never re-derives it --
+{
+  // Standing-state kinds — surprise/contrarian/steady/newcomer/list — get no timeframe at all,
+  // even though steady/newcomer carry their own `days` fact (a duration of persistence /
+  // first-seen date, never a dated CHANGE — see ci/hooks.mjs's hasGenuineChange doc).
+  const standing = [
+    { kind: "surprise", facts: { upside: 60 } },
+    { kind: "contrarian", facts: { smartScore: 1, aiScore: 90 } },
+    { kind: "steady", facts: { smartScore: 10, days: 6.3, snapshots: 30 } },
+    { kind: "newcomer", facts: { seenIn: 5, days: 0.2, windowSnapshots: 30 } },
+    { kind: "list", facts: { count: 3, leaderUpside: 40 } },
+  ];
+  for (const hook of standing) {
+    assert.equal(genuineChangeTimeframe(hook), null, `${hook.kind}: a standing state gets no Timeframe`);
+  }
+  // movement never carries a `days` fact (its "before" is always the prior snapshot, a few
+  // hours back) — always "today", regardless of which pair fired it.
+  assert.equal(
+    genuineChangeTimeframe({ kind: "movement", facts: { upsideFrom: 20, upsideTo: 60 } }),
+    "today", "movement's upside pair reads as today",
+  );
+  assert.equal(
+    genuineChangeTimeframe({ kind: "movement", facts: { smartScoreFrom: 4, smartScoreTo: 9, upsideFrom: 20, upsideTo: 20 } }),
+    "today", "movement's Smart Score pair also reads as today",
+  );
+  // record carries a real `days` fact — banded, not read as a raw number.
+  assert.equal(
+    genuineChangeTimeframe({ kind: "record", facts: { windowLow: 10, windowHigh: 60, days: 6.3 } }),
+    "this week", "record's window length is banded through describeTimeframeBand",
+  );
+  assert.equal(genuineChangeTimeframe(undefined), null, "a missing hook gets no timeframe, never a guess");
+  assert.equal(genuineChangeTimeframe({ kind: "surprise", facts: {} }), null, "empty facts is not a genuine change");
+}
+
+// --- (burned-in timeframe) the Timeframe fact line reaches the prompt for a genuine change, and
+// only for a genuine change --------------------------------------------------------------------
+{
+  const movementHook = { kind: "movement", ticker: "AAA", name: "Alpha Inc", sec: "Technology",
+                          facts: { upsideFrom: 20, upsideTo: 60, analysts: 21 } };
+  const { prompt: movementPrompt } = buildPrompt(movementHook);
+  assert.ok(movementPrompt.includes("- Timeframe: today"), "movement's Timeframe line reads today");
+
+  const recordHook = { kind: "record", ticker: "AAA", name: "Alpha Inc", sec: "Technology",
+                        facts: { upside: 60, windowLow: 10, windowHigh: 60, days: 6.3, snapshots: 30 } };
+  const { prompt: recordPrompt } = buildPrompt(recordHook);
+  assert.ok(recordPrompt.includes("- Timeframe: this week"), "record's Timeframe line is banded from its days fact");
+
+  const surpriseHook = { kind: "surprise", ticker: "AAA", name: "Alpha Inc", sec: "Technology",
+                          facts: { upside: 60, analysts: 21 } };
+  const { prompt: surprisePrompt } = buildPrompt(surpriseHook);
+  assert.equal(surprisePrompt.includes("Timeframe"), false, "a standing-state hook gets no Timeframe line at all");
+
+  // The system prompt states both halves of the rule — mandate for a genuine change, ban for a
+  // standing one — so the model has both without having to infer the hook's own classification.
+  const { system } = buildPrompt(movementHook);
+  assert.ok(/STATE THE TIMEFRAME ON A GENUINE CHANGE/i.test(system), "the system prompt mandates a timeframe when one is given");
+  assert.ok(/NEVER INVENT A TIMEFRAME/i.test(system), "the system prompt bans inventing one when none is given");
+  // The 8->10 word cap move (mid-task) means the model is no longer told to DROP anything to
+  // make room — the headline number and the timeframe are required, everything else (analyst
+  // count, earlier figure, sector comparison) is discretionary within the wider cap.
+  assert.ok(/required/i.test(system) && /discretionary/i.test(system),
+    "required-vs-discretionary framing replaces the old drop-something-to-fit guidance");
+  assert.equal(/drop the analyst count/i.test(system), false,
+    "the model is no longer told to drop the analyst count now that the cap is 10 words");
+  assert.ok(/10-word cap/.test(system), "the system prompt states the actual (raised) cap");
 }
 
 // --- cadence is configuration, not code ---------------------------------------------
@@ -531,4 +615,6 @@ console.log("generate-posts OK — prompt shape, angle per hook kind, best-of-N,
             "the descriptor optional/injected/never loses a post, display name/descriptor both " +
             "wired into the composed image, POST_PHOTO_SOURCE's flux/wikimedia/both wiring " +
             "(fallback, never-throws, and the \"both\" comparison image staying out of posts.json), " +
-            "and main()'s headroom being wired to the REAL exhaustion flag, not just local counters");
+            "main()'s headroom being wired to the REAL exhaustion flag, not just local counters, " +
+            "and the burned-in Timeframe fact (banded natural language, genuine-change-only, " +
+            "reaching both the prompt's facts and its system rules)");

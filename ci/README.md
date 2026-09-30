@@ -121,7 +121,7 @@ uses whatever is on `main`.
   this is a display concern only.
 
   **The writer model is `@cf/meta/llama-3.3-70b-instruct-fp8-fast` by default, not an 8B
-  model.** An 8B model writing an 8-word headline has a low ceiling on wit, which was the root
+  model.** An 8B model writing a short headline has a low ceiling on wit, which was the root
   cause of flat, repetitive copy. `CF_MODEL` still overrides the default either way. The style
   corpus (`ci/style-corpus.json`) — the few-shot exemplars a model imitates far more than it
   follows the system prompt's rules — was rewritten alongside this to be punchier and to drop
@@ -454,7 +454,7 @@ uses whatever is on `main`.
   each one into exactly one bucket (the winner: "used"; scored high enough but simply
   outscored: healthy best-of-N, not a problem; scored below `MIN_PUBLISHABLE`: "rejected") and
   `classifyRejectionReason` boils a rejected candidate's `reasons` down to its single most
-  decisive cause — fabricated number, over the 8-word cap, contains a ticker, banned movement
+  decisive cause — fabricated number, over the word cap, contains a ticker, banned movement
   verb, misdescribed timeframe, duplicate of a recent post, too short, no numbers, banned
   phrase — in the same priority order `scorePost`'s own penalties are sized. "4 of 5 candidates
   die on the fabrication check, every run" is a finding; a bag of untallied tags is not.
