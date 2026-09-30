@@ -68,5 +68,10 @@
     "name": "Fervo Energy",
     "descriptor": "Geothermal Energy Developer",
     "scene": "operating a drilling rig in a geothermal field surrounded by pipes and machinery"
+  },
+  "CSX": {
+    "name": "CSX",
+    "descriptor": "Rail Cargo Transport",
+    "scene": "inspecting freight cars in a bustling rail yard"
   }
 }

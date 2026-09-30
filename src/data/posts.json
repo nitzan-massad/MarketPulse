@@ -1,5 +1,31 @@
 [
   {
+    "id": "CSX-2026-09-30T03:02:14.985Z",
+    "ts": "2026-09-30T03:02:14.985Z",
+    "kind": "newcomer",
+    "ticker": "CSX",
+    "name": "CSX",
+    "sector": "Industrials",
+    "text": "16 days in, 15.9% upside, 21 analysts.",
+    "score": 74,
+    "reasons": [
+      "7 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "seenIn": 74,
+      "windowSnapshots": 145,
+      "days": 15.4,
+      "upside": 15.9,
+      "consensus": "Buy",
+      "analysts": 21,
+      "smartScore": 6
+    },
+    "descriptor": "Rail Cargo Transport",
+    "image": "CSX-2026-09-30T03-02-14-985Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "FRVO-2026-09-29T23:24:49.574Z",
     "ts": "2026-09-29T23:24:49.574Z",
     "kind": "surprise",
