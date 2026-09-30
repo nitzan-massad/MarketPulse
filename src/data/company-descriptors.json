@@ -73,5 +73,10 @@
     "name": "CSX",
     "descriptor": "Rail Cargo Transport",
     "scene": "inspecting freight cars in a bustling rail yard"
+  },
+  "ABT": {
+    "name": "Abbott Laboratories",
+    "descriptor": "Medical Device Maker",
+    "scene": "inspecting a production line of heart stents and implantable devices"
   }
 }

@@ -1,5 +1,33 @@
 [
   {
+    "id": "ABT-2026-09-30T11:02:51.413Z",
+    "ts": "2026-09-30T11:02:51.413Z",
+    "kind": "contrarian",
+    "ticker": "ABT",
+    "name": "Abbott Laboratories",
+    "sector": "Healthcare",
+    "text": "14 analysts agree, AI score says outperform.",
+    "score": 34,
+    "reasons": [
+      "2 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (38% word overlap)"
+    ],
+    "facts": {
+      "smartScore": 2,
+      "aiScore": 73,
+      "aiRating": "Outperform",
+      "consensus": "StrongBuy",
+      "upside": 22.5,
+      "price": 100.95,
+      "analysts": 14,
+      "bullish": "ai"
+    },
+    "descriptor": "Medical Device Maker",
+    "image": "ABT-2026-09-30T11-02-51-413Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "CSX-2026-09-30T03:02:14.985Z",
     "ts": "2026-09-30T03:02:14.985Z",
     "kind": "newcomer",
