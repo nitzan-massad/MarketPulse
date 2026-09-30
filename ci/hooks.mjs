@@ -428,3 +428,75 @@ export function deTickerHooks(hooks, rows) {
     return changed ? { ...h, facts: nextFacts } : h;
   });
 }
+
+// ------------------------------------------------- genuine change vs. standing state --
+//
+// The card used to colour a figure green/red whenever the STATEMENT'S OWN WORDS read as
+// up/down ("upside", "raised", "cut", …) and stamped a "when" on it regardless of kind. That is
+// a trap: most numbers in this feed are analyst upside-to-target — a standing forecast, never
+// something that already happened to the stock. A published post once read "IRD soared 151.7%
+// to $13.14" — the fabrication verifier passed it because every number was real, but the CLAIM
+// (a price move) was not; "soared" is banned now (see ci/post-score.mjs's
+// `misdescribedMovementVerbs`), but colouring the number green or saying "today" is the exact
+// same lie in a quieter shape.
+//
+// THE RULE, straight from the data, not the kind name: a hook only describes a genuine,
+// measured event when its facts carry a real BEFORE/AFTER pair for the SAME metric —
+// `upsideFrom`/`upsideTo` (movement), `windowLow`/`windowHigh` (record — the window's own low
+// sitting next to today's new high; the hook's own firing condition, `r.up >= high - 0.01`,
+// guarantees the current reading IS that high), or `smartScoreFrom`/`smartScoreTo`. A hook
+// carrying only a BARE current figure (`upside`, `smartScore`, `leaderUpside`, …) — `surprise`,
+// `contrarian`, `steady`, `newcomer`, `list` — is a snapshot of a standing state, no matter how
+// interesting; it must never be painted as though it just rose, and must never carry an
+// "it happened at" timestamp for that figure. `movement` and `record` are the only two kinds
+// that can ever satisfy this today, but the check is on the FACTS, not the kind string, so a
+// future kind is classified correctly with zero edits here — exactly the "let the data decide"
+// posture the brief asks for.
+//
+// ci/generate-posts.mjs feeds `genuineChangeDirection`'s verdict into ci/post-compose.mjs as
+// `directionOverride`, which always wins over guessing the direction from the model's own prose
+// (see that module's header). src/components/PostFeed.tsx duplicates `hasGenuineChange` (never
+// imports this file — ci/ is the Node pipeline, src/ is the browser app, two runtimes this repo
+// deliberately never shares code between, see CLAUDE.md) to decide whether the DOM context
+// sentence is allowed to say "since the last update" / "over the past N days"; both sides are
+// pinned against ci/hooks.mjs's real, live fact shapes (ci/test-hooks.mjs and
+// src/postfeed.check.ts) so the two classifications cannot quietly drift apart.
+
+/** Whether `hook.facts` carries a genuine, measured before/after pair — see the comment above
+ *  for the full reasoning and the exact three pairs this checks. */
+export function hasGenuineChange(hook) {
+  const f = hook?.facts ?? {};
+  return (
+    (isNum(f.upsideFrom) && isNum(f.upsideTo)) ||
+    (isNum(f.smartScoreFrom) && isNum(f.smartScoreTo)) ||
+    (isNum(f.windowLow) && isNum(f.windowHigh))
+  );
+}
+
+/**
+ * The genuine direction of that change, derived from the SAME fact pair — "up"/"down"/
+ * "neutral", matching ci/post-compose.mjs's `DIRECTION_COLOR` keys exactly. Never reads the
+ * statement's own wording: a model's prose is not a source of truth about which way a number
+ * moved (see the module comment above). Checked in the order a `movement` hook itself writes
+ * its facts (upside is the lead fact; Smart Score is written last, and only when it actually
+ * changed — see `detectHooks`'s own comment on the `movement` rule), so a hook that happens to
+ * carry more than one pair is read the same way the writer prompt already prioritises them.
+ * Returns "neutral" whenever `hasGenuineChange` is false, or the one pair present did not
+ * actually move (e.g. a `movement` hook that fired on a consensus flip alone, upside unchanged).
+ */
+export function genuineChangeDirection(hook) {
+  const f = hook?.facts ?? {};
+  if (isNum(f.upsideFrom) && isNum(f.upsideTo) && f.upsideTo !== f.upsideFrom) {
+    return f.upsideTo > f.upsideFrom ? "up" : "down";
+  }
+  // `record` only ever fires when today's upside IS the window high (`r.up >= high - 0.01`), so
+  // a real windowLow/windowHigh pair is, by construction, a climb — never flat (a flat series
+  // has `high - low < 20`, below the hook's own firing margin) and never a fall.
+  if (isNum(f.windowLow) && isNum(f.windowHigh) && f.windowHigh > f.windowLow) {
+    return "up";
+  }
+  if (isNum(f.smartScoreFrom) && isNum(f.smartScoreTo) && f.smartScoreTo !== f.smartScoreFrom) {
+    return f.smartScoreTo > f.smartScoreFrom ? "up" : "down";
+  }
+  return "neutral";
+}

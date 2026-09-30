@@ -6,6 +6,7 @@ import assert from "node:assert";
 import {
   detectHooks, deTickerHooks, shortCompanyName, displayCompanyName,
   eligible, coverage, SANE_MAX_UPSIDE, MIN_WINDOW, MIN_SECTOR_PEERS, MIN_COMPARISON_GAP,
+  hasGenuineChange, genuineChangeDirection,
 } from "./hooks.mjs";
 
 const row = (over = {}) => ({
@@ -525,5 +526,94 @@ assert.equal(displayCompanyName(undefined), "", "missing in, empty out");
 assert.equal(displayCompanyName("Inc."), "Inc.", "a bare suffix with nothing in front of it is left alone");
 assert.equal(displayCompanyName("Class A"), "Class A", "same for a bare share-class label");
 
+// ==================================== GENUINE CHANGE vs. STANDING STATE ====================
+// "Let the data decide, not the kind name alone" — a fact set with upsideFrom/upsideTo or
+// smartScoreFrom/smartScoreTo (or record's windowLow/windowHigh) is a genuine, measured change;
+// a bare `upside` is not, no matter how the kind is named. Fixtures below run REAL hooks through
+// detectHooks (not hand-rolled fact bags) so this is pinned against what ci/hooks.mjs actually
+// emits today, not a guess at its shape.
+
+// --- movement: a genuine change, direction follows the real upside delta -------------------
+{
+  const hooks = detectHooks([
+    [row({ t: "MV", up: 20 })],
+    [row({ t: "MV", up: 65 })],
+  ]).filter((h) => h.kind === "movement");
+  assert.equal(hasGenuineChange(hooks[0]), true, "movement's upsideFrom/upsideTo is a genuine change");
+  assert.equal(genuineChangeDirection(hooks[0]), "up", "upside rose 20 -> 65, so the direction is up");
+}
+{
+  const hooks = detectHooks([
+    [row({ t: "MVD", up: 65 })],
+    [row({ t: "MVD", up: 20 })],
+  ]).filter((h) => h.kind === "movement");
+  assert.equal(genuineChangeDirection(hooks[0]), "down", "upside fell 65 -> 20, so the direction is down");
+}
+{
+  // A pure consensus flip, upside unchanged: still a genuine change (movement fired), but there
+  // is no numeric delta to point a direction at.
+  const hooks = detectHooks([
+    [row({ t: "FLIP", con: "Hold", up: 20 })],
+    [row({ t: "FLIP", con: "StrongBuy", up: 20 })],
+  ]).filter((h) => h.kind === "movement");
+  assert.equal(hasGenuineChange(hooks[0]), true, "a consensus flip alone still fires movement, still genuine");
+  assert.equal(genuineChangeDirection(hooks[0]), "neutral",
+    "but with upside unchanged and no Smart Score pair, there is no direction to claim");
+}
+
+// --- record: a genuine change, direction is always up (it IS a new high, by construction) ---
+{
+  const hooks = detectHooks(win(30, (i) => row({ t: "HIGH", up: 60 + i * 1.7 }))).filter((h) => h.kind === "record");
+  assert.equal(hasGenuineChange(hooks[0]), true, "record's windowLow/windowHigh is a genuine change");
+  assert.equal(genuineChangeDirection(hooks[0]), "up", "a window record can only ever be a climb");
+}
+
+// --- surprise/contrarian/steady/newcomer/list: standing states, never a genuine change ------
+{
+  const surprise = detectHooks([[row({ t: "S1", up: 85 })]]).filter((h) => h.kind === "surprise")[0];
+  assert.equal(hasGenuineChange(surprise), false,
+    "surprise carries a bare `upside` (analyst upside-to-target) — a standing forecast, not an event");
+  assert.equal(genuineChangeDirection(surprise), "neutral", "so it gets no direction, regardless of the number");
+}
+{
+  const contrarian = detectHooks([[row({ t: "C1", ss: 9, ai: 25, air: "Bearish" })]])
+    .filter((h) => h.kind === "contrarian")[0];
+  assert.equal(hasGenuineChange(contrarian), false,
+    "contrarian compares two DIFFERENT models at the same time, not a before/after of either");
+}
+{
+  const steady = detectHooks(win(30, () => row({ t: "ST1", ss: 10, up: 32 }))).filter((h) => h.kind === "steady")[0];
+  assert.equal(hasGenuineChange(steady), false, "steady fires on the ABSENCE of a change, not a change itself");
+}
+{
+  const history = win(30, (i) => row({ t: "OLD2" }));
+  for (let i = 20; i < 30; i++) history[i].push(row({ t: "FRESH2", up: 70 }));
+  const newcomer = detectHooks(history).filter((h) => h.kind === "newcomer")[0];
+  assert.equal(hasGenuineChange(newcomer), false,
+    "newcomer has no prior reading to compare against — appearance is not a measured change");
+}
+{
+  const curr = [row({ t: "L1", up: 60 }), row({ t: "L2", up: 55 }), row({ t: "L3", up: 50 })];
+  const list = detectHooks([curr]).filter((h) => h.kind === "list")[0];
+  assert.equal(hasGenuineChange(list), false, "list ranks standing upsides, it does not describe an event");
+}
+
+// --- a Smart Score pair alone is also a genuine change (movement's supporting fact) ---------
+{
+  const hook = { kind: "movement", facts: { smartScoreFrom: 4, smartScoreTo: 9, upsideFrom: 20, upsideTo: 21 } };
+  assert.equal(hasGenuineChange(hook), true, "a Smart Score before/after pair is a genuine change too");
+}
+{
+  const hook = { kind: "movement", facts: { smartScoreFrom: 9, smartScoreTo: 4, upsideFrom: 20, upsideTo: 20 } };
+  // Upside unchanged, so the delta check falls through to Smart Score's own pair.
+  assert.equal(genuineChangeDirection(hook), "down", "falls through to the Smart Score pair when upside itself did not move");
+}
+
+// --- defensive: missing/malformed input never throws, never claims a change -----------------
+assert.equal(hasGenuineChange(undefined), false, "a missing hook is not a genuine change");
+assert.equal(hasGenuineChange({}), false, "a hook with no facts at all is not a genuine change");
+assert.equal(hasGenuineChange({ facts: {} }), false, "empty facts is not a genuine change");
+assert.equal(genuineChangeDirection(undefined), "neutral", "a missing hook gets neutral, never a guess");
+
 console.log("hooks OK — 4 floors, 7 rule families, window rules gated, damping, sorting, determinism, " +
-            "de-tickering, display-name stripping");
+            "de-tickering, display-name stripping, genuine-change vs. standing-state classification");
