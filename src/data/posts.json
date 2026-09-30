@@ -1,5 +1,32 @@
 [
   {
+    "id": "ALLY-2026-09-30T19:56:05.427Z",
+    "ts": "2026-09-30T19:56:05.427Z",
+    "kind": "movement",
+    "ticker": "ALLY",
+    "name": "Ally Financial",
+    "sector": "Financial",
+    "text": "~44% upside, consensus upgraded to StrongBuy.",
+    "score": 64,
+    "reasons": [
+      "2 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "upsideFrom": 39.1,
+      "upsideTo": 43.8,
+      "consensusFrom": "Buy",
+      "consensusTo": "StrongBuy",
+      "price": 37.81,
+      "priceTarget": 54.38,
+      "analysts": 15,
+      "sector": "Financial"
+    },
+    "descriptor": "Auto Finance Provider",
+    "image": "ALLY-2026-09-30T19-56-05-427Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "ABT-2026-09-30T11:02:51.413Z",
     "ts": "2026-09-30T11:02:51.413Z",
     "kind": "contrarian",

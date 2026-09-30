@@ -78,5 +78,10 @@
     "name": "Abbott Laboratories",
     "descriptor": "Medical Device Maker",
     "scene": "inspecting a production line of heart stents and implantable devices"
+  },
+  "ALLY": {
+    "name": "Ally Financial",
+    "descriptor": "Auto Finance Provider",
+    "scene": "inspecting a car's engine during a vehicle inspection for financing approval"
   }
 }
