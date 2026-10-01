@@ -1,5 +1,32 @@
 [
   {
+    "id": "TTWO-2026-10-01T20:29:18.404Z",
+    "ts": "2026-10-01T20:29:18.404Z",
+    "kind": "contrarian",
+    "ticker": "TTWO",
+    "name": "Take-Two Interactive",
+    "sector": "CommunicationServices",
+    "text": "~44% upside, quant and AI sharply diverge.",
+    "score": 64,
+    "reasons": [
+      "2 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "aiScore": 54,
+      "aiRating": "Neutral",
+      "consensus": "StrongBuy",
+      "upside": 44.3,
+      "price": 207.5,
+      "analysts": 11,
+      "bullish": "quant"
+    },
+    "descriptor": "Video Game Publisher",
+    "image": "TTWO-2026-10-01T20-29-18-404Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "FRVO-2026-10-01T11:25:56.889Z",
     "ts": "2026-10-01T11:25:56.889Z",
     "kind": "list",

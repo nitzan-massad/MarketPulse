@@ -88,5 +88,10 @@
     "name": "Axon Enterprise",
     "descriptor": "Less Lethal Weapons",
     "scene": "assembling stun gun components on a workbench with wiring and tools scattered nearby"
+  },
+  "TTWO": {
+    "name": "Take-Two Interactive",
+    "descriptor": "Video Game Publisher",
+    "scene": "tweaking character designs on a digital modeling workstation with sculpting tools nearby"
   }
 }
