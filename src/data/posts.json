@@ -1,5 +1,29 @@
 [
   {
+    "id": "FRVO-2026-10-01T11:25:56.889Z",
+    "ts": "2026-10-01T11:25:56.889Z",
+    "kind": "list",
+    "ticker": "FRVO",
+    "name": "Fervo Energy Company Class A",
+    "sector": "General",
+    "text": "182% upside leads the list of 5.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "FRVO appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Fervo Energy Company Class A (181.8% to $38.3), Agenus (171.9% to $27), Praxis Precision Medicines (154.3% to $740.7), Terawulf (148.5% to $36.77), Opus Genetics (147.9% to $12)",
+      "count": 5,
+      "leader": "Fervo Energy Company Class A",
+      "leaderUpside": 181.8
+    },
+    "descriptor": "Geothermal Energy Developer",
+    "image": "FRVO-2026-10-01T11-25-56-889Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "AXON-2026-10-01T03:26:24.199Z",
     "ts": "2026-10-01T03:26:24.199Z",
     "kind": "record",
