@@ -83,5 +83,10 @@
     "name": "Ally Financial",
     "descriptor": "Auto Finance Provider",
     "scene": "inspecting a car's engine during a vehicle inspection for financing approval"
+  },
+  "AXON": {
+    "name": "Axon Enterprise",
+    "descriptor": "Less Lethal Weapons",
+    "scene": "assembling stun gun components on a workbench with wiring and tools scattered nearby"
   }
 }
