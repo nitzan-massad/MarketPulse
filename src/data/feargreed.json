@@ -1,7 +1,7 @@
 {
  "score": 28.1,
  "rating": "fear",
- "asOf": "2026-10-01T20:13:15",
+ "asOf": "2026-10-01T23:53:25",
  "previous": {
   "close": 30.8,
   "week": 35.7,
@@ -30,7 +30,7 @@
   {
    "key": "put_call_options",
    "label": "Put / call ratio",
-   "score": 36.2,
+   "score": 36,
    "rating": "fear"
   },
   {
@@ -42,7 +42,7 @@
   {
    "key": "junk_bond_demand",
    "label": "Junk bond demand",
-   "score": 45.4,
+   "score": 46,
    "rating": "neutral"
   },
   {
