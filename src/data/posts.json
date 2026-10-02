@@ -1,5 +1,34 @@
 [
   {
+    "id": "CMPS-2026-10-02T11:18:14.606Z",
+    "ts": "2026-10-02T11:18:14.606Z",
+    "kind": "record",
+    "ticker": "CMPS",
+    "name": "COMPASS Pathways",
+    "sector": "Healthcare",
+    "text": "~119% upside, its window high, up from 67%.",
+    "score": 41,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (36% word overlap)"
+    ],
+    "facts": {
+      "upside": 119.2,
+      "windowLow": 66.8,
+      "windowHigh": 119.2,
+      "snapshots": 145,
+      "days": 30.2,
+      "price": 11.95,
+      "priceTarget": 26.2,
+      "analysts": 14,
+      "sectorMedianUpside": 39.2
+    },
+    "descriptor": "Psilocybin Therapy Developer",
+    "image": "CMPS-2026-10-02T11-18-14-606Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "FRVO-2026-10-02T03:09:14.356Z",
     "ts": "2026-10-02T03:09:14.356Z",
     "kind": "surprise",

@@ -93,5 +93,10 @@
     "name": "Take-Two Interactive",
     "descriptor": "Video Game Publisher",
     "scene": "tweaking character designs on a digital modeling workstation with sculpting tools nearby"
+  },
+  "CMPS": {
+    "name": "COMPASS Pathways",
+    "descriptor": "Psilocybin Therapy Developer",
+    "scene": "carefully measuring psilocybin compounds in a laboratory setting with various equipment"
   }
 }
