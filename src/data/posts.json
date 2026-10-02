@@ -1,5 +1,32 @@
 [
   {
+    "id": "BKR-2026-10-02T23:36:33.770Z",
+    "ts": "2026-10-02T23:36:33.770Z",
+    "kind": "newcomer",
+    "ticker": "BKR",
+    "name": "Baker Hughes Company",
+    "sector": "Energy",
+    "text": "17 days on board, 33% upside.",
+    "score": 36,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (40% word overlap)"
+    ],
+    "facts": {
+      "seenIn": 85,
+      "windowSnapshots": 145,
+      "days": 17.7,
+      "upside": 32.7,
+      "consensus": "StrongBuy",
+      "analysts": 15,
+      "smartScore": 9
+    },
+    "descriptor": "Oilfield Equipment",
+    "image": "BKR-2026-10-02T23-36-33-770Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "MU-2026-10-02T19:48:35.380Z",
     "ts": "2026-10-02T19:48:35.380Z",
     "kind": "steady",

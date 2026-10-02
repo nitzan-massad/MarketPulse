@@ -98,5 +98,10 @@
     "name": "COMPASS Pathways",
     "descriptor": "Psilocybin Therapy Developer",
     "scene": "carefully measuring psilocybin compounds in a laboratory setting with various equipment"
+  },
+  "BKR": {
+    "name": "Baker Hughes",
+    "descriptor": "Oilfield Equipment",
+    "scene": "inspecting drill pipes on a offshore rig floor"
   }
 }
