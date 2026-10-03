@@ -1,5 +1,32 @@
 [
   {
+    "id": "NET-2026-10-03T18:56:31.219Z",
+    "ts": "2026-10-03T18:56:31.219Z",
+    "kind": "newcomer",
+    "ticker": "NET",
+    "name": "Cloudflare Inc",
+    "sector": "Technology",
+    "text": "27 analysts covering, just 23 days.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "NET appeared in a recent post"
+    ],
+    "facts": {
+      "seenIn": 80,
+      "windowSnapshots": 145,
+      "days": 23.5,
+      "upside": 0.2,
+      "consensus": "Buy",
+      "analysts": 27,
+      "smartScore": 6
+    },
+    "descriptor": "Cloud Security Provider",
+    "image": "NET-2026-10-03T18-56-31-219Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "APP-2026-10-03T10:15:09.247Z",
     "ts": "2026-10-03T10:15:09.247Z",
     "kind": "record",
