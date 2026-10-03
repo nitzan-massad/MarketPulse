@@ -103,5 +103,10 @@
     "name": "Baker Hughes",
     "descriptor": "Oilfield Equipment",
     "scene": "inspecting drill pipes on a offshore rig floor"
+  },
+  "PCTY": {
+    "name": "Paylocity",
+    "descriptor": "Payroll Software",
+    "scene": "configuring payroll processing equipment in a data centre"
   }
 }

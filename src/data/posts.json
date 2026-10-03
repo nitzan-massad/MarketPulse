@@ -1,5 +1,32 @@
 [
   {
+    "id": "PCTY-2026-10-03T02:57:11.270Z",
+    "ts": "2026-10-03T02:57:11.270Z",
+    "kind": "movement",
+    "ticker": "PCTY",
+    "name": "Paylocity",
+    "sector": "General",
+    "text": "17 analysts bumped consensus to StrongBuy.",
+    "score": 64,
+    "reasons": [
+      "2 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "upsideFrom": 13.6,
+      "upsideTo": 13.6,
+      "consensusFrom": "Buy",
+      "consensusTo": "StrongBuy",
+      "price": 146.6,
+      "priceTarget": 166.6,
+      "analysts": 17,
+      "sector": "General"
+    },
+    "descriptor": "Payroll Software",
+    "image": "PCTY-2026-10-03T02-57-11-270Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "BKR-2026-10-02T23:36:33.770Z",
     "ts": "2026-10-02T23:36:33.770Z",
     "kind": "newcomer",
