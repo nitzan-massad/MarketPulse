@@ -108,5 +108,10 @@
     "name": "Paylocity",
     "descriptor": "Payroll Software",
     "scene": "configuring payroll processing equipment in a data centre"
+  },
+  "APP": {
+    "name": "AppLovin",
+    "descriptor": "Mobile App Marketing",
+    "scene": "calibrating a mobile device with advertising test software and diagnostic tools nearby"
   }
 }

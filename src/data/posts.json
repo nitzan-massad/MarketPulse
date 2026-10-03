@@ -1,5 +1,34 @@
 [
   {
+    "id": "APP-2026-10-03T10:15:09.247Z",
+    "ts": "2026-10-03T10:15:09.247Z",
+    "kind": "record",
+    "ticker": "APP",
+    "name": "AppLovin Corp. Class A",
+    "sector": "CommunicationServices",
+    "text": "~101% upside, highest in 30 days.",
+    "score": 38,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (40% word overlap)"
+    ],
+    "facts": {
+      "upside": 100.7,
+      "windowLow": 58.8,
+      "windowHigh": 100.7,
+      "snapshots": 145,
+      "days": 30.2,
+      "price": 268.22,
+      "priceTarget": 538.42,
+      "analysts": 13,
+      "sectorMedianUpside": 26.1
+    },
+    "descriptor": "Mobile App Marketing",
+    "image": "APP-2026-10-03T10-15-09-247Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "PCTY-2026-10-03T02:57:11.270Z",
     "ts": "2026-10-03T02:57:11.270Z",
     "kind": "movement",
