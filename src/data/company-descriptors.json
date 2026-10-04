@@ -113,5 +113,10 @@
     "name": "AppLovin",
     "descriptor": "Mobile App Marketing",
     "scene": "calibrating a mobile device with advertising test software and diagnostic tools nearby"
+  },
+  "PCOR": {
+    "name": "Procore Technologies",
+    "descriptor": "Construction Management",
+    "scene": "inspecting building plans on a tablet at a construction site"
   }
 }

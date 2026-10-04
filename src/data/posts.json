@@ -1,5 +1,33 @@
 [
   {
+    "id": "PCOR-2026-10-04T10:58:24.438Z",
+    "ts": "2026-10-04T10:58:24.438Z",
+    "kind": "contrarian",
+    "ticker": "PCOR",
+    "name": "Procore Technologies Inc",
+    "sector": "Technology",
+    "text": "12 analysts see 33% upside, AI score 66.",
+    "score": 32,
+    "reasons": [
+      "6 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (50% word overlap)"
+    ],
+    "facts": {
+      "smartScore": 1,
+      "aiScore": 66,
+      "aiRating": "Neutral",
+      "consensus": "StrongBuy",
+      "upside": 32.9,
+      "price": 50.95,
+      "analysts": 12,
+      "bullish": "ai"
+    },
+    "descriptor": "Construction Management",
+    "image": "PCOR-2026-10-04T10-58-24-438Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "CMPS-2026-10-03T22:43:06.895Z",
     "ts": "2026-10-03T22:43:06.895Z",
     "kind": "record",
