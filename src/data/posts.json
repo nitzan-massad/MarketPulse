@@ -1,5 +1,32 @@
 [
   {
+    "id": "SPCX-2026-10-04T18:37:47.912Z",
+    "ts": "2026-10-04T18:37:47.912Z",
+    "kind": "movement",
+    "ticker": "SPCX",
+    "name": "Space Exploration Technologies Corp.",
+    "sector": "General",
+    "text": "~51% upside, consensus downgraded to Buy.",
+    "score": 64,
+    "reasons": [
+      "2 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "upsideFrom": 51.3,
+      "upsideTo": 51.5,
+      "consensusFrom": "StrongBuy",
+      "consensusTo": "Buy",
+      "price": 158.96,
+      "priceTarget": 240.76,
+      "analysts": 23,
+      "sector": "General"
+    },
+    "descriptor": "Rocket Manufacturer",
+    "image": "SPCX-2026-10-04T18-37-47-912Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "PCOR-2026-10-04T10:58:24.438Z",
     "ts": "2026-10-04T10:58:24.438Z",
     "kind": "contrarian",

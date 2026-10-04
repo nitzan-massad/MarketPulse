@@ -118,5 +118,10 @@
     "name": "Procore Technologies",
     "descriptor": "Construction Management",
     "scene": "inspecting building plans on a tablet at a construction site"
+  },
+  "SPCX": {
+    "name": "Space Exploration Technologies",
+    "descriptor": "Rocket Manufacturer",
+    "scene": "assembling engine components for a launch vehicle in a large production hall"
   }
 }
