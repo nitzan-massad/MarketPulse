@@ -89,6 +89,19 @@ jobs:
           FLARESOLVERR_URL: http://localhost:8191/v1
         run: node ci/scrape-bullbear.mjs
 
+      # 5-year weekly P/E history per ticker (public/pe/<T>.json) for the stock modal's P/E
+      # chart: Finnhub quarterly EPS + Twelve Data weekly closes, no FlareSolverr (both are
+      # plain keyed APIs). LIMIT rotates ~40 tickers per run, oldest attempt first, so it stays
+      # under Twelve Data's 8 calls/min free tier (~5 min) and the full set turns over every
+      # ~2-3 days. Same additive + failure-tolerant pattern; never blocks the deploy.
+      - name: Refresh P/E history
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+          TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }}
+        run: node ci/scrape-pe.mjs
+
       # Rebuild the compact "recent reviews" feed New Arrivals reads (from the forecasts on disk).
       - name: Build recent-reviews feed
         if: github.event_name != 'push'
@@ -156,10 +169,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- src/data public/forecasts public/bullbear public/reviews-recent.json public/post-images; then
+          if git diff --quiet -- src/data public/forecasts public/bullbear public/pe public/reviews-recent.json public/post-images; then
             echo "No data change."
           else
-            git add src/data public/forecasts public/bullbear public/reviews-recent.json public/post-images
+            git add src/data public/forecasts public/bullbear public/pe public/reviews-recent.json public/post-images
             git commit -m "chore: refresh TipRanks snapshot [skip ci]"
             git push
           fi

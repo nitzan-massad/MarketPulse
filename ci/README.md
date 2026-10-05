@@ -785,6 +785,37 @@ the commit step's existing `src/data` glob already stages it.
   (column offsets, header reshuffle, `-` → `null`, dropdown decoys). No test framework, same
   posture as `node ci/keep.mjs`.
 
+## P/E history — automated ✅
+
+`ci/scrape-pe.mjs` writes `public/pe/<T>.json` — `{ asOf, pts: [[date, pe|null], …] }`, 5 years
+of weekly trailing P/E — for the stock modal's P/E history chart (`src/components/PeHistory.tsx`).
+
+- **Sources:** Finnhub `/stock/metric?metric=all` (`series.quarterly.eps` and
+  `series.quarterly.peTTM`) and Twelve Data 5Y weekly closes (`interval=1week&outputsize=262`).
+  Plain keyed APIs, no FlareSolverr. Keys: the `FINNHUB_KEY` / `TWELVEDATA_KEY` secrets (locally
+  `.env.local`).
+- **Maths:** `src/peHistory.ts`, imported straight into the script (Node type stripping), and the
+  same module the app uses to compute it live for off-universe tickers. One TTM EPS per quarter,
+  applied from **35 days after quarter end** (when it was actually reported, not the period end),
+  judged at each weekly bar's Friday close (Twelve Data stamps weekly bars with their Monday):
+  - US filers: sum of 4 consecutive quarters of EPS (adjacent quarter ends ≤ 120 days apart;
+    a quarter Finnhub lists twice, under fiscal and calendar end dates, is counted once).
+    Split-adjusted on both sides; verified flat across the NVDA, AVGO, WMT and CMG splits.
+  - Foreign filers (EPS in home currency per ordinary share: TSM in TWD, ASND in EUR, ONON in
+    CHF): when the summed EPS is more than 7% off the TTM implied by Finnhub's quarterly
+    `peTTM`, use the implied one (quarter-end close ÷ `peTTM`). Per quarter, so FX drift is
+    followed.
+  - No EPS series at all (banks, e.g. BAC): the implied TTM from `peTTM` alone.
+  - A TTM ≤ 0, no quarter for 200+ days, or a P/E outside 3–200× ("not meaningful") is a gap
+    (`null`), never 0. A chart needs at least 26 weeks with a value.
+- **Rotation:** `public/pe/_asOf.json` holds `{ T: { a: attemptISO, ok, err? } }`. `err` marks a
+  failed fetch, so it is never mistaken for "no earnings" and is retried first. Then missing, then
+  oldest attempt; Finnhub calls are paced at 1.1s (60/min); `LIMIT=40` per run keeps one run inside Twelve Data's 8 calls/min (~5 min).
+  `ALL=1` does everyone (local backfill, ~1h). The app reads the same index to decide whether to
+  show the P/E card as a button.
+- **Gate:** `ci/test-pe-files.mjs` checks every file's shape (dates increasing, values positive or
+  null) and that the index never claims a missing file.
+
 ## Recent reviews feed (New Arrivals) — automated ✅
 
 `ci/build-reviews-recent.mjs` reads the forecast files on disk and writes
