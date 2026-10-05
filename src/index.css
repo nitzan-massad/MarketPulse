@@ -1879,20 +1879,16 @@ thead th:hover .col-resize::after{opacity:.6}
 .feed-art-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 
 /* (5)/(6) the derived context sentence — commentary ABOUT the post, not a caption ON the photo.
-   The user's own words: "visually separated so that it doesn't appear directly related to the
-   image itself". Three deliberate breaks from .feed-art's own look, so it reads as the app
-   talking, not more of the picture: (1) an editorial SERIF italic (the same "Fraunces" voice
-   .dek already uses for the app's own read on the data, never used inside the composed image,
-   which is Inter throughout — ci/post-compose.mjs), (2) a left rule in the post's own kind
-   accent (`--acc`, set per .feed-card.k-* above) rather than a border framing the whole block —
-   a margin note, not a second panel, (3) --muted ink and a slightly indented, inset paragraph
-   instead of the card's own edge-to-edge width. Derived text (contextSentence(),
-   src/components/PostFeed.tsx), never model-generated — see that function's own header comment. */
+   Set like a social caption (Facebook/X), which is what the user asked for: the app's own
+   sans at body size, regular weight, upright. An earlier pass set this as a serif italic with
+   an accent rule down the side; that read as a pull-quote — decorative, and louder than the
+   post it is annotating. Separation now comes from SPACE and a hairline above it, not from a
+   different voice, so it sits apart from the image without competing with it.
+   Derived text (contextSentence(), src/components/PostFeed.tsx), never model-generated. */
 .feed-context {
-  margin: 1px 0 0; padding: 9px 0 0 13px;
-  border-left: 2px solid color-mix(in srgb, var(--acc) 50%, transparent);
-  font-family: "Fraunces", serif; font-style: italic; font-weight: 500;
-  font-size: 13.5px; line-height: 1.48; color: var(--muted);
+  margin: 11px 0 0; padding: 11px 0 0;
+  border-top: 1px solid var(--t-line-2);
+  font-size: 14px; line-height: 1.5; color: var(--ink);
 }
 
 .feed-empty { padding: 48px 20px; text-align: center; color: var(--muted); }
