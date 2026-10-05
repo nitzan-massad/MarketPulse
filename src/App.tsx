@@ -106,12 +106,15 @@ export default function App() {
   // price/chart and marks the TipRanks metrics as unavailable
   function handleOpenTicker(ticker: string) {
     track("search_open_ticker", { ticker });
-    setOpenList([]); // off-universe search result has no sibling list to page
-    setFcHighlight(null);
-    setOpenStock({
+    const s: Stock = {
       t: ticker, n: "", sec: "", px: null, chg: null, pt: null, up: null, con: "",
       b: 0, h: 0, s: 0, ss: null, ai: null, air: null, aipt: null, mc: null, desc: null,
-    });
+    };
+    // ONE-ITEM list, not [] — StockModal draws one slide per list entry, so [] opened it blank
+    // (same trap as openPostTicker above). [s] gives it its slide and nowhere to page to.
+    setOpenList([s]);
+    setFcHighlight(null);
+    setOpenStock(s);
   }
 
   // Tracking requires an account (when sync is configured): a signed-out ★
