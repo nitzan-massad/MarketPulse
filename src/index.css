@@ -1423,6 +1423,7 @@ thead th:hover .col-resize::after{opacity:.6}
 .fg-pop[data-burst]{overflow:hidden}
 .fg-title{margin:0; font-size:13.5px; font-weight:700; color:var(--ink); font-family:"Archivo",sans-serif}
 .fg-rule{height:1px; background:var(--line); margin:13px 0 11px}
+.fg-ranges{margin-bottom:9px}
 .fg-sect{font-size:9.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--faint);
   font-weight:700; margin-bottom:7px}
 .fg-spark{display:block; width:100%; height:auto; overflow:visible}

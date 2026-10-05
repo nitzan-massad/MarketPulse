@@ -1,12 +1,12 @@
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import data from "../data/feargreed.json";
 import { panelTarget } from "../share";
 import { useShare } from "../useShare";
 import ShareBurst from "./ShareBurst";
 import CloseButton from "./CloseButton";
 import ShareButton, { ShareFail } from "./ShareButton";
-import { ariaSummary, bandOf, extremes, needlePoint, shortDate, sparkPath, trend,
-  type FearGreed } from "../feargreed";
+import { ariaSummary, bandOf, extremes, needlePoint, RANGES, shortDate, sliceDays, sparkPath, trend,
+  zoomDomain, type FearGreed } from "../feargreed";
 
 const fg = data as FearGreed;
 
@@ -107,9 +107,16 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
   }, [open, onOpenChange]);
 
   const band = bandOf(fg.score);
-  const t = trend(fg.score, fg.previous.week);
-  const spark = sparkPath(fg.history, SPARK_W, SPARK_H);
-  const ext = extremes(fg.history, 2, 6);
+  const [rangeKey, setRangeKey] = useState("1W"); // 1W by default
+  const range = RANGES.find((r) => r.key === rangeKey) ?? RANGES[0];
+  const hist = sliceDays(fg.history, range.days);
+  const t = trend(fg.score, hist[0]?.v ?? fg.score);
+  const spark = sparkPath(hist, SPARK_W, SPARK_H, range.fixedAxis ? undefined : zoomDomain(hist));
+  // two labelled peaks/troughs only once there is room for them; gap scales with the points
+  const ext = extremes(hist, hist.length > 60 ? 2 : 1, Math.max(2, Math.round(hist.length / 8)));
+  const vals = hist.map((p) => p.v);
+  const iHi = vals.indexOf(Math.max(...vals));
+  const iLo = vals.indexOf(Math.min(...vals));
   /** Keep an edge label inside the box — a peak in week 1 sits hard against the left. */
   const labelX = (x: number) => Math.max(22, Math.min(SPARK_W - 22, x));
 
@@ -157,7 +164,16 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
 
           <div className="fg-rule" />
 
-          <div className="fg-sect">52-week trend</div>
+          <div className="mkm-ranges fg-ranges" role="group" aria-label="Trend range">
+            {RANGES.map((r) => (
+              <button key={r.key} type="button" className={r.key === range.key ? "on" : ""}
+                      aria-pressed={r.key === range.key} onClick={() => setRangeKey(r.key)}>
+                {r.key}
+              </button>
+            ))}
+          </div>
+
+          <div className="fg-sect">{range.label}</div>
           {spark && (
             <>
               {/* aria-hidden: the caption below is the text alternative, so a screen
@@ -187,7 +203,7 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
                 <path d={`${spark.d} L ${SPARK_W} ${spark.mid} L 0 ${spark.mid} Z`}
                       fill="var(--fg-fe)" opacity=".26" clipPath="url(#fg-clip-dn)" />
 
-                {/* 52-week high and low, with the value in the right margin */}
+                {/* the range's high and low, with the value in the right margin */}
                 <line x1="0" y1={spark.hiY} x2={SPARK_W} y2={spark.hiY}
                       stroke="var(--fg-gr)" strokeWidth=".9" strokeDasharray="3 3" opacity=".7" />
                 <line x1="0" y1={spark.loY} x2={SPARK_W} y2={spark.loY}
@@ -195,7 +211,10 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
                 <text x={SPARK_W + 4} y={spark.hiY + 2.5} className="fg-ax hi">{Math.round(spark.hi)}</text>
                 <text x={SPARK_W + 4} y={spark.loY + 2.5} className="fg-ax lo">{Math.round(spark.lo)}</text>
 
-                <line x1="0" y1={spark.mid} x2={SPARK_W} y2={spark.mid} stroke="var(--faint)" strokeWidth="1" />
+                {/* the neutral line only when 50 is inside the (possibly zoomed) axis */}
+                {spark.mid > 0 && spark.mid < SPARK_H && (
+                  <line x1="0" y1={spark.mid} x2={SPARK_W} y2={spark.mid} stroke="var(--faint)" strokeWidth="1" />
+                )}
 
                 <path d={spark.d} fill="none" stroke="var(--ink)" strokeWidth="1.6" strokeLinejoin="round" />
 
@@ -207,7 +226,7 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
                     <circle cx={spark.points[i].x} cy={spark.points[i].y} r="2.5"
                             fill="var(--fg-gr)" stroke="var(--bg)" strokeWidth="1.3" />
                     <text x={labelX(spark.points[i].x)} y={spark.points[i].y - 6} className="fg-pk hi">
-                      {shortDate(fg.history[i].d)}
+                      {shortDate(hist[i].d)}
                     </text>
                   </g>
                 ))}
@@ -216,7 +235,7 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
                     <circle cx={spark.points[i].x} cy={spark.points[i].y} r="2.5"
                             fill="var(--fg-ef)" stroke="var(--bg)" strokeWidth="1.3" />
                     <text x={labelX(spark.points[i].x)} y={spark.points[i].y + 12} className="fg-pk lo">
-                      {shortDate(fg.history[i].d)}
+                      {shortDate(hist[i].d)}
                     </text>
                   </g>
                 ))}
@@ -228,11 +247,11 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
               {/* the caption is the text alternative, and carries the dates too so a
                   screen reader gets what the labels show */}
               <p className="fg-cap">
-                High <b>{Math.round(spark.hi)}</b> on {shortDate(fg.history[ext.peaks[ext.peaks.length - 1]].d)}
-                {" · "}low <b>{Math.round(spark.lo)}</b> on {shortDate(fg.history[ext.troughs[0]].d)}
+                High <b>{Math.round(spark.hi)}</b> on {shortDate(hist[iHi].d)}
+                {" · "}low <b>{Math.round(spark.lo)}</b> on {shortDate(hist[iLo].d)}
                 <br />
                 now <b>{Math.round(fg.score)}</b>
-                {t.dir !== "flat" && <> · {t.delta} {t.dir} on the week</>}
+                {t.dir !== "flat" && <> · {t.delta} {t.dir} on the {range.per}</>}
               </p>
             </>
           )}

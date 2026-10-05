@@ -10,7 +10,7 @@
 //     --module commonjs --target es2020 --lib es2020,dom --resolveJsonModule \
 //     --esModuleInterop --skipLibCheck \
 //   && node /tmp/fg/feargreed.check.js
-import { ariaSummary, bandOf, clamp01, extremes, needlePoint, shortDate, sparkPath, trend, yOf,
+import { ariaSummary, bandOf, clamp01, extremes, needlePoint, shortDate, sliceDays, sparkPath, trend, yOf, zoomDomain,
   type FearGreed } from "./feargreed";
 
 let n = 0;
@@ -122,6 +122,19 @@ ok(ex.peaks[0] < ex.peaks[1], "peaks come back in chronological order");
 const few = extremes([pt("a", 1), pt("b", 2), pt("c", 3)], 2, 6);
 eq(few.peaks.length, 1, "a short series yields one peak rather than two overlapping ones");
 eq(new Set(few.peaks).size, few.peaks.length, "no index is returned twice");
+
+// ── ranges: sliceDays + zoomDomain ────────────────────────────────────────────
+const days = ["2026-09-24", "2026-09-25", "2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"]
+  .map((d, i) => pt(d, 30 + i));
+eq(sliceDays(days, 7).map((p) => p.d)[0], "2026-09-28", "1W keeps the last 7 calendar days, not 7 points");
+eq(sliceDays(days.slice(0, 1), 7).length, 1, "a one-point series comes back as is");
+eq(sliceDays([pt("2026-01-01", 1), pt("2026-09-01", 2)], 7).length, 2, "a sparse range still has a line");
+const [z0, z1] = zoomDomain([pt("a", 40), pt("b", 42)]);
+ok(z1 - z0 >= 20 && z0 <= 40 && z1 >= 42, "a quiet week zooms to a 20-point window around it");
+const [e0, e1] = zoomDomain([pt("a", 1), pt("b", 3)]);
+ok(e0 === 0 && e1 >= 20, "the zoom window never leaves 0-100");
+const zs = sparkPath([pt("a", 40), pt("b", 42)], 300, 60, [z0, z1]);
+ok(zs!.points.every((p) => p.y >= 0 && p.y <= 60), "a zoomed line stays inside the box");
 
 // ── shortDate ─────────────────────────────────────────────────────────────────
 // Parsed as UTC: `new Date("2026-05-11")` is midnight UTC, and rendering it in a

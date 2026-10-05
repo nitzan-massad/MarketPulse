@@ -29,7 +29,6 @@ const KEEP = [
 ];
 
 const MIN_HISTORY = 120; // a good run returns ~250 trading days; far fewer means a truncated payload
-const WEEKLY = 5; // trading days per week — sample the daily series down to ~52 points
 
 const r1 = (n) => Math.round(n * 10) / 10;
 
@@ -56,18 +55,20 @@ export function parseFearGreed(doc) {
   if (!Array.isArray(raw) || raw.length < MIN_HISTORY) {
     throw new Error(`history has ${raw?.length ?? 0} points (need ${MIN_HISTORY}) — not writing`);
   }
-  // Sample weekly, oldest-first, and always keep the newest point so the sparkline's
-  // last value matches the headline score rather than drifting up to a week behind it.
+  // Keep the DAILY series (~250 points, ~6KB) — the app's 1W/1M ranges need every trading
+  // day; weekly sampling left 1W with two dots. One point per date, the newest wins: CNN's
+  // last point is today's intraday reading and can share a date with the prior close.
   //
-  // Each point carries its own date rather than the app counting back a week per index:
-  // these are every 5th TRADING day, so holidays make the spacing drift, and the chart
-  // labels the dates of the year's high and low — a derived date would be quietly wrong.
-  const history = [];
-  for (let i = raw.length - 1; i >= 0; i -= WEEKLY) {
-    const ms = Number(raw[i].x);
+  // Each point carries its own date rather than the app counting back per index:
+  // holidays make trading-day spacing drift, and the chart labels the dates of the
+  // range's high and low — a derived date would be quietly wrong.
+  const byDate = new Map();
+  for (const pt of raw) {
+    const ms = Number(pt.x);
     if (!Number.isFinite(ms)) throw new Error("history point has no timestamp — payload reshaped");
-    history.unshift({ d: new Date(ms).toISOString().slice(0, 10), v: score01(raw[i].y, "history point") });
+    byDate.set(new Date(ms).toISOString().slice(0, 10), score01(pt.y, "history point"));
   }
+  const history = [...byDate].map(([d, v]) => ({ d, v })).sort((a, b) => (a.d < b.d ? -1 : 1));
 
   return {
     score: score01(fg.score, "headline"),
@@ -104,6 +105,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(`feargreed.json: kept ${prev.asOf} (fetched ${next.asOf} is older)`);
   } else {
     writeFileSync(OUT, JSON.stringify(next, null, 1) + "\n");
-    console.log(`feargreed.json: ${next.score} ${next.rating}, ${next.history.length} weekly points, asOf ${next.asOf}`);
+    console.log(`feargreed.json: ${next.score} ${next.rating}, ${next.history.length} daily points, asOf ${next.asOf}`);
   }
 }

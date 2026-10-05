@@ -88,20 +88,24 @@ export interface Spark {
  */
 export const yOf = (v: number, h: number): number => h - (clamp01(v) / 100) * h;
 
-export function sparkPath(history: HistoryPoint[], w: number, h: number): Spark | null {
+/** `[lo, hi]` of the y axis. Defaults to the fixed 0-100 — see yOf. Short ranges pass a
+ *  zoomed domain, or a week that moved 4 points would draw as a flat line. */
+export function sparkPath(history: HistoryPoint[], w: number, h: number, domain: [number, number] = [0, 100]): Spark | null {
   if (!history || history.length < 2) return null;
+  const [d0, d1] = domain;
+  const y = (v: number) => Math.min(h, Math.max(0, h - ((v - d0) / (d1 - d0)) * h));
   const vals = history.map((p) => p.v);
   const hi = Math.max(...vals);
   const lo = Math.min(...vals);
   const points = history.map((p, i) => ({
     x: (i / (history.length - 1)) * w,
-    y: yOf(p.v, h),
+    y: y(p.v),
     i,
   }));
   let d = "";
   for (const pt of points) d += (d ? " L " : "M ") + pt.x.toFixed(1) + " " + pt.y.toFixed(1);
   const last = points[points.length - 1];
-  return { d, mid: yOf(50, h), lastX: last.x, lastY: last.y, hiY: yOf(hi, h), loY: yOf(lo, h), hi, lo, points };
+  return { d, mid: y(50), lastX: last.x, lastY: last.y, hiY: y(hi), loY: y(lo), hi, lo, points };
 }
 
 export interface Extremes {
@@ -151,4 +155,33 @@ export function ariaSummary(fg: FearGreed): string {
   const move =
     t.dir === "flat" ? "unchanged from a week ago" : `${t.delta} ${t.dir} from a week ago`;
   return `Fear and Greed Index ${Math.round(fg.score)} of 100, ${bandOf(fg.score).label}, ${move}. Show breakdown`;
+}
+
+export interface Range { key: string; days: number; label: string; per: string; fixedAxis: boolean }
+/** The trend chart's ranges. 6M and 1Y keep the fixed 0-100 axis; shorter ones zoom. */
+export const RANGES: Range[] = [
+  { key: "1W", days: 7, label: "1-week trend", per: "week", fixedAxis: false },
+  { key: "1M", days: 31, label: "1-month trend", per: "month", fixedAxis: false },
+  { key: "3M", days: 92, label: "3-month trend", per: "3 months", fixedAxis: false },
+  { key: "6M", days: 183, label: "6-month trend", per: "6 months", fixedAxis: true },
+  { key: "1Y", days: 366, label: "52-week trend", per: "year", fixedAxis: true },
+];
+
+/** The points inside the last `days` calendar days (by the newest point's date), never fewer than 2. */
+export function sliceDays(history: HistoryPoint[], days: number): HistoryPoint[] {
+  if (history.length < 2) return history;
+  const end = Date.parse(history[history.length - 1].d);
+  const out = history.filter((p) => end - Date.parse(p.d) < days * 864e5);
+  return out.length >= 2 ? out : history.slice(-2);
+}
+
+/** A zoomed y domain: the series' own range, padded, at least `minSpan` tall so a quiet
+ *  week does not inflate a 2-point wiggle to full height. Clamped to 0-100. */
+export function zoomDomain(history: HistoryPoint[], minSpan = 20): [number, number] {
+  const vals = history.map((p) => p.v);
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const span = Math.max(minSpan, (hi - lo) * 1.25);
+  const mid = (hi + lo) / 2;
+  const d0 = Math.max(0, Math.min(100 - span, mid - span / 2));
+  return [d0, Math.min(100, d0 + span)];
 }

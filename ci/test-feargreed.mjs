@@ -74,8 +74,7 @@ for (const c of fg.components) {
 }
 
 // ── history ───────────────────────────────────────────────────────────────────
-assert.ok(fg.history.length >= 45 && fg.history.length <= 55,
-  `250 daily points sample to ~52 weekly (got ${fg.history.length})`);
+assert.equal(fg.history.length, 250, "every daily point is kept — the 1W/1M ranges need them");
 assert.equal(fg.history[fg.history.length - 1].v, 33.3,
   "the newest point is always kept, so the sparkline ends on the headline score");
 assert.ok(fg.history.every((p) => Number.isFinite(p.v) && p.v >= 0 && p.v <= 100),
