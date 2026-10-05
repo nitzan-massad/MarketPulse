@@ -6,13 +6,15 @@ import sectorPe from "../data/sectors.json";
 import { consClass, consLabel, DATE_LOCALE, fmtMc, pxDp } from "../lib";
 import { reviewKey } from "../reviewAlerts";
 import type { Stock } from "../types";
-import { tickerTarget } from "../share";
+import { tickerTarget, type TickerView } from "../share";
 import { useShare } from "../useShare";
 import type { Mark, MarkEntry } from "../watchlist";
 import ShareBurst from "./ShareBurst";
 import CloseButton from "./CloseButton";
 import ShareButton, { ShareFail } from "./ShareButton";
 import ThumbMark from "./ThumbMark";
+import PeHistory from "./PeHistory";
+import { parseEps, type EpsPoint } from "../peHistory";
 
 // Keys come from build-time env (same pattern App uses for Finnhub). Never hardcoded.
 const FINNHUB_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
@@ -63,6 +65,8 @@ interface Metric {
   beta: number | null;
   avgVol3M: number | null;
   avgVol10D: number | null;
+  epsQ: EpsPoint[]; // quarterly EPS history (Finnhub series) — drives the P/E history overlay
+  peQ: EpsPoint[]; // quarterly peTTM (Finnhub series) — the foreign-filer / bank anchor for it
 }
 
 // live company profile (name / industry / market cap) — replaces the scraped
@@ -92,6 +96,16 @@ interface Series {
 }
 
 // module-level caches so reopening / re-selecting ranges never refetches
+// Which tickers CI has a P/E history file for (public/pe/_asOf.json, ci/scrape-pe.mjs).
+// Fetched once per page load and shared; a failed fetch just means "rely on live EPS".
+type PeIndex = Record<string, { ok: boolean }>;
+let peIndexP: Promise<PeIndex> | null = null;
+const loadPeIndex = (): Promise<PeIndex> =>
+  (peIndexP ??= fetch(`${import.meta.env.BASE_URL}pe/_asOf.json`)
+    .then((r): Promise<PeIndex> | PeIndex => (r.ok ? r.json() : {}))
+    .catch((): PeIndex => ({})));
+
+const NO_EPS: EpsPoint[] = []; // stable empty list, so PeHistory's effect doesn't refire every render
 const quoteMetricCache = new Map<string, { quote: Quote; metric: Metric; profile: Profile }>();
 const seriesCache = new Map<string, Series>();
 
@@ -218,6 +232,8 @@ async function fetchQuoteMetric(ticker: string): Promise<{ quote: Quote; metric:
       beta: num(m.beta),
       avgVol3M: num(m["3MonthAverageTradingVolume"]),
       avgVol10D: num(m["10DayAverageTradingVolume"]),
+      epsQ: parseEps(mRes?.series?.quarterly?.eps),
+      peQ: parseEps(mRes?.series?.quarterly?.peTTM),
     },
     profile: {
       name: typeof pRes?.name === "string" && pRes.name ? pRes.name : null,
@@ -439,6 +455,8 @@ interface StockModalProps {
   markOf: (t: string) => MarkEntry | undefined;
   onMark: (t: string, v: Mark) => void;
   highlightReviews?: string[] | null; // opened from a review notification: open forecasts + glow these rows
+  openView?: TickerView | null; // a shared link's view to open over the modal (#TSM/pe)
+  onViewClosed?: () => void;
 }
 
 interface StockCardProps {
@@ -452,12 +470,14 @@ interface StockCardProps {
   onPrev?: () => void;
   onNext?: () => void;
   highlightReviews?: string[] | null;
+  openView?: TickerView | null;
+  onViewClosed?: () => void;
   /** The card the user is actually looking at. The off-screen two still fetch — that is the
    *  whole point of mounting them — but they take no keyboard and open no overlay. */
   active: boolean;
 }
 
-function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext, highlightReviews, active }: StockCardProps) {
+function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext, highlightReviews, openView, onViewClosed, active }: StockCardProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
@@ -472,6 +492,19 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
   const [bbOpen, setBbOpen] = useState<Set<number>>(() => new Set()); // per-topic expanded indices
   const [forecasts, setForecasts] = useState<Forecast[] | null>(null);
   const [fcOpen, setFcOpen] = useState(false);
+  const [peOpen, setPeOpen] = useState(false);
+  const [peFile, setPeFile] = useState(false); // CI has a precomputed history for this ticker
+  useEffect(() => {
+    let live = true;
+    loadPeIndex().then((idx) => live && setPeFile(!!idx[stock.t]?.ok));
+    return () => {
+      live = false;
+    };
+  }, [stock.t]);
+  const closePe = useCallback(() => {
+    setPeOpen(false);
+    onViewClosed?.();
+  }, [onViewClosed]);
   const [hotKeys, setHotKeys] = useState<Set<string>>(() => new Set()); // review rows to glow, from a notification
   const highlightDone = useRef<string[] | null>(null);
   const [liveDesc, setLiveDesc] = useState<string | null>(null);
@@ -505,16 +538,17 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (fcOpen) setFcOpen(false); // close the forecasts modal first
+        else if (peOpen) closePe();
         else onClose();
         return;
       }
-      if (fcOpen) return; // don't page the underlying stock while forecasts is up
+      if (fcOpen || peOpen) return; // don't page the underlying stock while an overlay is up
       if (e.key === "ArrowLeft" && onPrev) onPrev();
       else if (e.key === "ArrowRight" && onNext) onNext();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, onClose, fcOpen, onPrev, onNext]);
+  }, [active, onClose, fcOpen, peOpen, closePe, onPrev, onNext]);
 
   // fetch quote + metric on open (per ticker, cached). Gated on `active`: the neighbours
   // render immediately from the snapshot row and only reach for the network once you land
@@ -550,6 +584,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
     setDescOpen(false);
     setForecasts(null);
     setFcOpen(false);
+    setPeOpen(false);
     setLiveDesc(null);
     if (!active) return;
     fetchBullBear(stock.t).then((r) => {
@@ -568,6 +603,11 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
       cancelled = true;
     };
   }, [stock.t, stock.desc, active]);
+  // a shared `#TSM/pe` link opens the chart straight over this card. Declared AFTER the
+  // reset above, which closes every overlay on a ticker change and would otherwise win.
+  useEffect(() => {
+    if (active && openView === "pe") setPeOpen(true);
+  }, [active, openView, stock.t]);
 
   // opened from a review notification: once forecasts load, open the forecast view and
   // glow the new rows for 2s, then let the CSS transition fade them out. Fires once per
@@ -615,15 +655,23 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
   // `button` only when there are forecasts to show — an empty card must not be focusable
   // or announce itself as something you can activate.
   const CardTag = (forecasts ? "button" : "div") as "button";
+  const canPe = peFile || (metric?.epsQ.length ?? 0) >= 4 || (metric?.peQ.length ?? 0) >= 4;
+  const PeTag = (canPe ? "button" : "div") as "button";
+  const loadPeSeries = useCallback(() => fetchSeries(stock.t, "5Y"), [stock.t]);
 
   // ---- derived display values (live extras layered over the snapshot row) ----
   const price = quote?.c ?? stock.px;
   const dayPct = quote?.dp ?? stock.chg;
   // Apple Stocks shows a live trailing P/E = current price / trailing EPS. Recompute
   // it that way so it tracks the shown price; fall back to Finnhub's peTTM if no EPS.
+  const peFromEps =
+    metric?.epsTtm != null && metric.epsTtm > 0 && price != null ? price / metric.epsTtm : null;
+  // Foreign filers report EPS in their home currency per ordinary share, so price/EPS is off by
+  // FX x ADR ratio (TSM ~5x, EUR/CHF filers ~15-20%). US filers sit within ~5% of Finnhub's own
+  // P/E, so beyond 7% it is a currency gap and Finnhub's (listing-currency) figure wins.
   const peLive =
-    metric?.epsTtm != null && metric.epsTtm > 0 && price != null
-      ? price / metric.epsTtm
+    peFromEps != null && (metric?.pe == null || Math.abs(peFromEps / metric.pe - 1) <= 0.07)
+      ? peFromEps
       : metric?.pe ?? null;
   // Sector averages are keyed by the app's own sector vocab, so this looks up
   // stock.sec — NOT the `sector` below, which prefers Finnhub's finhubIndustry
@@ -1090,35 +1138,44 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
                   {metric?.beta == null ? "—" : metric.beta.toFixed(2)}
                 </div>
               </div>
-              <div className="row">
-                <div className="k">P/E</div>
-                <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>
-                  {peLive == null || peLive <= 0 ? "—" : peLive.toFixed(2)}
-                </div>
-              </div>
-              <div className="row">
-                <div className="k">Fwd P/E</div>
-                {/* green/red vs the sector's FORWARD average — comparing it to the
-                    trailing half would flatter every stock */}
-                <div
-                  className={`v ${fwdPeClass} ${qmLoading && !metric ? "skel" : ""}`}
-                >
-                  {metric?.fwdPe == null || metric.fwdPe <= 0 ? "—" : metric.fwdPe.toFixed(2)}
-                </div>
-              </div>
-              <div className="row">
-                <div className="k">Sector Avg P/E</div>
-                <div className="split">
-                  <div>
-                    <div className="n">{secAvg?.pe == null ? "—" : secAvg.pe.toFixed(2)}</div>
-                    <div className="l">Today</div>
-                  </div>
-                  <div>
-                    <div className="n">{secAvg?.fpe == null ? "—" : secAvg.fpe.toFixed(2)}</div>
-                    <div className="l">Fwd</div>
+              {/* the three valuation cells are ONE button into the 5Y P/E history — a raised
+                  card with a chevron, so it reads as something to press. Plain cells when there
+                  are fewer than 4 quarters of EPS to build a history from. */}
+              <PeTag
+                className={`mkm-pe-open${canPe ? " on" : ""}`}
+                {...(canPe ? { type: "button", onClick: () => setPeOpen(true), "aria-haspopup": "dialog", "aria-label": `P/E ${peLive == null || peLive <= 0 ? "not available" : peLive.toFixed(2)}. Open ${stock.t} 5-year P/E history` } : {})}
+              >
+                <div className="row">
+                  <div className="k">P/E</div>
+                  <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>
+                    {peLive == null || peLive <= 0 ? "—" : peLive.toFixed(2)}
                   </div>
                 </div>
-              </div>
+                <div className="row">
+                  <div className="k">Fwd P/E</div>
+                  {/* green/red vs the sector's FORWARD average — comparing it to the
+                      trailing half would flatter every stock */}
+                  <div
+                    className={`v ${fwdPeClass} ${qmLoading && !metric ? "skel" : ""}`}
+                  >
+                    {metric?.fwdPe == null || metric.fwdPe <= 0 ? "—" : metric.fwdPe.toFixed(2)}
+                  </div>
+                </div>
+                <div className="row">
+                  <div className="k">Sector Avg P/E</div>
+                  <div className="split">
+                    <div>
+                      <div className="n">{secAvg?.pe == null ? "—" : secAvg.pe.toFixed(2)}</div>
+                      <div className="l">Today</div>
+                    </div>
+                    <div>
+                      <div className="n">{secAvg?.fpe == null ? "—" : secAvg.fpe.toFixed(2)}</div>
+                      <div className="l">Fwd</div>
+                    </div>
+                  </div>
+                </div>
+                {canPe && <span className="mkm-pe-chev" aria-hidden="true">›</span>}
+              </PeTag>
             </div>
           </div>
 
@@ -1223,6 +1280,17 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
 
     {/* Full analyst forecast list. Portalled to the body because the card now lives inside
         the snap track, and an overlay rendered in there would be clipped by it. */}
+    {active && peOpen && (
+      <PeHistory
+        ticker={stock.t}
+        eps={metric?.epsQ ?? NO_EPS}
+        nowPe={peLive}
+        peq={metric?.peQ ?? NO_EPS}
+        sectorPe={secAvg?.pe ?? null}
+        loadSeries={loadPeSeries}
+        onClose={closePe}
+      />
+    )}
     {active && fcOpen && forecasts && createPortal(
       <div
         className="mkm-scrim mkm-scrim-top"
@@ -1340,6 +1408,7 @@ function SwipeCoach({ onDismiss }: { onDismiss: () => void }) {
 
 export default function StockModal({
   stock, list, onIndex, onClose, isTracked, onToggleTrack, isCovered, markOf, onMark, highlightReviews,
+  openView, onViewClosed,
 }: StockModalProps) {
   const swipeRef = useRef<HTMLDivElement>(null);
   const idx = Math.max(0, list.findIndex((s) => s.t === stock.t));
@@ -1444,6 +1513,8 @@ export default function StockModal({
                   onPrev={goPrev}
                   onNext={goNext}
                   highlightReviews={i === idx ? highlightReviews : null}
+                  openView={i === idx ? openView : null}
+                  onViewClosed={onViewClosed}
                 />
               )}
               {coach && i === idx && <SwipeCoach onDismiss={dismissCoach} />}

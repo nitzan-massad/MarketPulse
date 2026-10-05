@@ -1894,3 +1894,39 @@ thead th:hover .col-resize::after{opacity:.6}
 .feed-empty { padding: 48px 20px; text-align: center; color: var(--muted); }
 .feed-empty p { margin: 0; font-size: 14px; }
 .feed-empty-sub { margin-top: 5px !important; font-size: 12px; color: var(--faint); }
+
+/* P/E history: the three valuation cells as one raised card (StockModal), and the overlay
+   (PeHistory.tsx). The card spans the last three columns of row 2 on desktop and a full row
+   on phones, with its own 3-column grid so the cells keep their widths. */
+.mkm-pe-open{grid-column:4 / span 3; display:grid; grid-template-columns:1fr 1fr 1.4fr; gap:0 18px; position:relative;
+  appearance:none; font:inherit; color:inherit; text-align:left; background:none; border:0; padding:0; margin:0}
+.mkm-pe-open.on{cursor:pointer; background:var(--t-bg); border:1px solid var(--t-line); border-radius:8px;
+  box-shadow:0 1px 0 var(--t-line), 0 4px 12px -6px rgba(19,26,36,.35);
+  padding:7px 30px 8px 8px; margin:-8px -8px -9px; transition:box-shadow .15s, transform .1s}
+.mkm-pe-open.on:hover{box-shadow:0 1px 0 var(--t-line), 0 8px 18px -8px rgba(19,26,36,.45)}
+.mkm-pe-open.on:active{transform:scale(.99)}
+.mkm-pe-open.on:focus-visible{outline:2px solid var(--t-gold); outline-offset:2px}
+.mkm-pe-chev{position:absolute; right:10px; top:50%; transform:translateY(-50%); color:var(--gold-soft); font-weight:800; font-size:20px; line-height:1}
+@media(max-width:640px){.mkm-pe-open{grid-column:1 / -1; grid-template-columns:1fr 1fr 1.5fr; gap:0 10px}}
+
+.mkm-pe{padding:16px 18px 18px}
+/* Share sits on the right of the titlebar, clear of the corner close button */
+.mkm-modal-fc .mkm-titlebar .mp-share{margin-left:auto; margin-right:28px; flex:none}
+.mkm-pe-cmd{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px}
+.mkm-pe-legend{margin-left:auto; display:flex; gap:12px; font-size:10.5px; color:var(--t-faint)}
+.mkm-pe-legend i{display:inline-block; width:13px; vertical-align:middle; margin-right:5px; border-top:2px solid}
+.mkm-pe-legend .ln{border-color:var(--t-gold)} .mkm-pe-legend .md{border-color:var(--t-faint); border-top-style:dashed}
+.mkm-pe-legend .sc{border-color:var(--t-teal); border-top-style:dotted}
+.mkm-pe-legend .ls{height:8px; border:0; border-radius:2px; background:color-mix(in srgb,var(--t-red) 16%,transparent); vertical-align:-1px}
+/* loss weeks: a P/E there is meaningless (negative or infinite), so the line breaks and this
+   strip says why, instead of plotting a negative number or a misleading zero */
+.mkm-pe-loss{fill:var(--t-red); fill-opacity:.14}
+.mkm-pe-losst{font-family:var(--t-head); font-size:10px; font-weight:700; letter-spacing:.06em; fill:var(--t-red); text-anchor:middle}
+.mkm-pe-plot{min-height:0; cursor:crosshair}
+.mkm-pe-plot svg{display:block; width:100%; height:auto; touch-action:pan-y}
+.mkm-pe-ax{font-family:var(--t-head); font-size:11px; font-weight:700; fill:var(--t-ink)}
+.mkm-pe-yr{font-size:10px; fill:var(--t-faint); text-anchor:middle}
+.mkm-pe-kv{grid-template-columns:repeat(4,1fr); margin-top:14px}
+.mkm-kv .v.teal{color:var(--t-teal)}
+/* the chart scales down ~2x on a phone, so its labels are drawn bigger to land near 10px */
+@media(max-width:640px){.mkm-pe-kv{grid-template-columns:repeat(2,1fr)} .mkm-pe-ax{font-size:18px} .mkm-pe-yr{font-size:17px} .mkm-pe-losst{font-size:16px}}

@@ -172,4 +172,11 @@ for (let i = 0; i < 500; i++) {
 eq("500 live picks produce no back-to-back repeat", repeats, 0);
 
 if (failed) throw new Error(`${failed} share check(s) failed`);
+// ── a view on top of the stock modal: #TSM/pe ─────────────────────────────────
+eq("a P/E link builds TICKER/pe", buildShareUrl(tickerTarget("tsm", "pe"), ORIGIN, "/MarketPulse/"), ORIGIN + "/MarketPulse/#TSM/pe");
+eq("…and parses back to the stock plus the view", parseShareHash("#TSM/pe"), { kind: "ticker", id: "TSM", view: "pe" });
+eq("an unknown view still opens the stock", parseShareHash("#TSM/zzz"), tk("TSM"));
+eq("a plain link is unchanged", parseShareHash("#TSM"), tk("TSM"));
+eq("a bad symbol with a view is still nothing", parseShareHash("#123/pe"), null);
+
 console.log("\nall share checks passed");

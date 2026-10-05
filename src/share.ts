@@ -40,11 +40,17 @@ export const PANEL_SIGIL = "!";
 export const PANELS = ["feargreed"] as const;
 export type PanelId = (typeof PANELS)[number];
 
+/** Views inside a stock modal that a link can open on top of it: `#TSM/pe`. Whitelisted. */
+export const TICKER_VIEWS = ["pe"] as const;
+export type TickerView = (typeof TICKER_VIEWS)[number];
+
 export type ShareTarget =
-  | { kind: "ticker"; id: string }
+  | { kind: "ticker"; id: string; view?: TickerView }
   | { kind: "panel"; id: PanelId };
 
-export const tickerTarget = (id: string): ShareTarget => ({ kind: "ticker", id });
+/** `view` is only set when given, so a plain stock link stays `{kind, id}` exactly. */
+export const tickerTarget = (id: string, view?: TickerView): ShareTarget =>
+  view ? { kind: "ticker", id, view } : { kind: "ticker", id };
 export const panelTarget = (id: PanelId): ShareTarget => ({ kind: "panel", id });
 
 /**
@@ -63,7 +69,10 @@ export function buildShareUrl(target: ShareTarget, origin: string, base: string)
       : `${root}${path}`;
   }
   const t = normalizeTicker(target.id);
-  return t ? `${root}${path}#${t}` : `${root}${path}`;
+  if (!t) return `${root}${path}`;
+  return target.view && (TICKER_VIEWS as readonly string[]).includes(target.view)
+    ? `${root}${path}#${t}/${target.view}`
+    : `${root}${path}#${t}`;
 }
 
 /**
@@ -87,8 +96,15 @@ export function parseShareHash(hash: string | null | undefined): ShareTarget | n
     // whitelist, so `#!whatever` is inert rather than opening something that isn't there
     return (PANELS as readonly string[]).includes(id) ? { kind: "panel", id: id as PanelId } : null;
   }
-  const t = normalizeTicker(decoded);
-  return t ? { kind: "ticker", id: t } : null;
+  // `TSM/pe` -> the stock plus a view on top of it. An unknown view still opens the stock:
+  // the symbol half is the part that has always worked, so it should not stop working.
+  const [sym, view] = decoded.split("/", 2);
+  const t = normalizeTicker(sym);
+  if (!t) return null;
+  const v = (view ?? "").trim().toLowerCase();
+  return (TICKER_VIEWS as readonly string[]).includes(v)
+    ? { kind: "ticker", id: t, view: v as TickerView }
+    : { kind: "ticker", id: t };
 }
 
 /**

@@ -15,7 +15,7 @@ import Watchlist from "./components/Watchlist";
 import stocksData from "./data/stocks.json";
 import { flagOn } from "./featureFlags";
 import { passes, sortRows, VIEWS } from "./lib";
-import { parseShareHash, type PanelId } from "./share";
+import { parseShareHash, type PanelId, type TickerView } from "./share";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
 import { useNotifications, type Notification } from "./useNotifications";
@@ -60,7 +60,8 @@ export default function App() {
   const [cap, setCap] = useState(0);
   const [panel, setPanel] = useState<PanelId | null>(null);
   const [openStock, setOpenStock] = useState<Stock | null>(null);
-  const [fcHighlight, setFcHighlight] = useState<string[] | null>(null); // review keys to glow when opened from a notification
+  const [fcHighlight, setFcHighlight] = useState<string[] | null>(null);
+  const [openView, setOpenView] = useState<TickerView | null>(null); // a view a link opens over the modal (#TSM/pe) // review keys to glow when opened from a notification
   // the list the modal was opened from, so ‹ › can page prev/next in place
   const [openList, setOpenList] = useState<Stock[]>([]);
   const { list: watchlist, toggle: toggleTrack, reorder: reorderWatchlist, marks, toggleMark, user, authReady, signIn, signOut, ready: syncReady } = useWatchlist();
@@ -185,6 +186,7 @@ export default function App() {
       setFcHighlight(null);
       return;
     }
+    setOpenView(target.view ?? null);
     const hit = STOCKS.find((s) => s.t === target.id);
     if (hit) handleOpen(hit, STOCKS);
     else handleOpenTicker(target.id); // off-universe symbol: live price + chart, metrics N/A
@@ -506,6 +508,13 @@ export default function App() {
             markOf={(t) => marks[t]}
             onMark={requestMark}
             highlightReviews={fcHighlight}
+            openView={openView}
+            onViewClosed={() => {
+              setOpenView(null);
+              // `#TSM/pe` -> `#TSM`: closing the chart keeps the stock's own link
+              const t = parseShareHash(location.hash);
+              if (t?.kind === "ticker" && t.view) history.replaceState(null, "", location.pathname + location.search + "#" + t.id);
+            }}
             list={openList}
             onIndex={(n) => setOpenStock(openList[n])}
           />
