@@ -787,34 +787,56 @@ the commit step's existing `src/data` glob already stages it.
 
 ## P/E history — automated ✅
 
-`ci/scrape-pe.mjs` writes `public/pe/<T>.json` — `{ asOf, pts: [[date, pe|null], …] }`, 5 years
-of weekly trailing P/E — for the stock modal's P/E history chart (`src/components/PeHistory.tsx`).
+`ci/scrape-pe.mjs` writes `public/pe/<T>.json` — `{ asOf, pts: [[date, pe|null, loss?], …] }`,
+5 years of weekly trailing P/E — for the stock modal's P/E chart (`src/components/PeHistory.tsx`).
+A third element marks why a week has no value: `1` trailing earnings ≤ 0 (drawn as an
+"Unprofitable" strip along the bottom), `2` P/E above 200× (an "Over 200×" strip along the top).
 
-- **Sources:** Finnhub `/stock/metric?metric=all` (`series.quarterly.eps` and
-  `series.quarterly.peTTM`) and Twelve Data 5Y weekly closes (`interval=1week&outputsize=262`).
-  Plain keyed APIs, no FlareSolverr. Keys: the `FINNHUB_KEY` / `TWELVEDATA_KEY` secrets (locally
-  `.env.local`).
-- **Maths:** `src/peHistory.ts`, imported straight into the script (Node type stripping), and the
-  same module the app uses to compute it live for off-universe tickers. One TTM EPS per quarter,
-  applied from **35 days after quarter end** (when it was actually reported, not the period end),
-  judged at each weekly bar's Friday close (Twelve Data stamps weekly bars with their Monday):
-  - US filers: sum of 4 consecutive quarters of EPS (adjacent quarter ends ≤ 120 days apart;
-    a quarter Finnhub lists twice, under fiscal and calendar end dates, is counted once).
-    Split-adjusted on both sides; verified flat across the NVDA, AVGO, WMT and CMG splits.
-  - Foreign filers (EPS in home currency per ordinary share: TSM in TWD, ASND in EUR, ONON in
-    CHF): when the summed EPS is more than 7% off the TTM implied by Finnhub's quarterly
-    `peTTM`, use the implied one (quarter-end close ÷ `peTTM`). Per quarter, so FX drift is
-    followed.
-  - No EPS series at all (banks, e.g. BAC): the implied TTM from `peTTM` alone.
-  - A TTM ≤ 0, no quarter for 200+ days, or a P/E outside 3–200× ("not meaningful") is a gap
-    (`null`), never 0. A chart needs at least 26 weeks with a value.
-- **Rotation:** `public/pe/_asOf.json` holds `{ T: { a: attemptISO, ok, err? } }`. `err` marks a
-  failed fetch, so it is never mistaken for "no earnings" and is retried first. Then missing, then
-  oldest attempt; Finnhub calls are paced at 1.1s (60/min); `LIMIT=40` per run keeps one run inside Twelve Data's 8 calls/min (~5 min).
-  `ALL=1` does everyone (local backfill, ~1h). The app reads the same index to decide whether to
-  show the P/E card as a button.
-- **Gate:** `ci/test-pe-files.mjs` checks every file's shape (dates increasing, values positive or
-  null) and that the index never claims a missing file.
+- **Cache, committed: `ci/cache/pe/<T>.json`** `{ cik, closes, eps, peq, reports, secAt }`.
+  - `closes`: 5Y weekly closes from Twelve Data, fetched **once per ticker**. Its free 800/day
+    quota is the same key visitors' price charts use, so it is never polled. Every run then
+    writes this week's close from `src/data/stocks.json` (`px`) into the Monday-stamped bar.
+  - `eps` / `peq`: Finnhub `series.quarterly.eps` / `series.quarterly.peTTM`, on rotation.
+  - `reports`: quarter end → announcement date from SEC EDGAR (`ci/sec-reports.mjs`). Fetched
+    when a quarter has none; never re-fetched once known. A quarter still undated 120+ days
+    after it ended keeps the 35-day guess for good.
+- **Every run** recomputes every ticker's chart from its cache (offline), so all charts follow the
+  latest price; only the rotation (`LIMIT=60`, `STALE_DAYS=3`) spends API calls.
+- **Maths:** `src/peHistory.ts`, imported straight into the script (Node type stripping) — the
+  same module the app uses live for off-universe tickers. One TTM EPS per quarter:
+  - US filers: sum of 4 consecutive quarters (adjacent ends ≤ 120 days apart; a quarter Finnhub
+    lists twice, under fiscal and calendar ends, counts once). Split-adjusted on both sides.
+  - Foreign filers (home-currency EPS per ordinary share: TSM TWD, ASND EUR, ONON CHF): when the
+    sum is >7% off the TTM implied by Finnhub's quarterly `peTTM`, use the implied one
+    (quarter-end close ÷ `peTTM`), per quarter so FX drift is followed. Banks with no EPS series
+    (BAC) use the implied one too.
+  - Each quarter counts from its **announcement date** (`reports`, matched within a week of the
+    quarter end), else 35 days after quarter end; judged at each weekly bar's Friday close.
+  - A TTM ≤ 0 is a loss week; > 200× is an over-200× week; no quarter for 200+ days or a P/E
+    under 3× is a plain gap. A chart needs ≥ 26 weeks with a value or over 200×.
+  - A weekly close that halves or doubles with no new quarter (a spin-off: CTVA 78.52 → 11.92)
+    blanks the chart until the next report, instead of a fake P/E collapse.
+  - A foreign filer's implied TTM more than 1.5× off its currency-adjusted sum is one bad
+    Finnhub `peTTM` row (ONON Q3-24) — the adjusted sum wins.
+- **Report dates (`ci/sec-reports.mjs`):** `data.sec.gov/submissions/CIK….json` (+ older pages for
+  heavy filers like BAC, ≤ 30), decided **per quarter** (some filers moved from 6-K to 10-Q):
+  - Quarter has a 10-Q/10-K → the first 8-K item 2.02 between quarter end and that filing (a
+    preliminary release counts). Item 2.02 is also used for non-results (ABBV's IPR&D heads-up,
+    FANG's realized prices, HOOD's monthly metrics, recasts, spin-offs), so with 2+ candidates
+    each filing is read and must carry results wording ("not been finalized" alone doesn't
+    count). None does → the one closest to the 10-Q; no 2.02 → the 10-Q/10-K date.
+  - Else 6-K → the earliest 6-K ≥ 250KB whose period is the quarter end and ≥ 3 days before
+    its filing date (most 6-Ks carry their filing date as the period). None → the 35-day guess
+    (BABA).
+  - Accepted ≥ 16:00 ET counts from the next day; `/A` amendments ignored. Needs a User-Agent
+    with a contact (`SEC_USER_AGENT`), throttled under 5 req/s.
+- **Index `public/pe/_asOf.json`** `{ T: { a, ok, err?, n?, wait? } }`, also read by the app: `ok` →
+  chart; missing / `err` (fetch failed, retried first with doubling backoff) / `wait` (has
+  earnings, price history still to come) → the chart says "updating"; `ok:false` → no P/E history.
+  Ranked tickers never compute live in the browser.
+- **Gates:** each series is checked before it is written (one bad ticker is skipped, not the whole
+  data commit); a ticker that loses its history has its chart file deleted; `ci/test-pe-files.mjs` checks every shipped file and that the index never claims a
+  missing file; `ci/test-sec-reports.mjs` covers the date picking.
 
 ## Recent reviews feed (New Arrivals) — automated ✅
 

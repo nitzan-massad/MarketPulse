@@ -22,9 +22,10 @@ for (const f of files) {
   assert.ok(Array.isArray(j.pts) && j.pts.length >= 2, `${t}: at least two points`);
   let prev = "";
   let real = 0;
-  for (const [d, v, loss] of j.pts) {
-    // a third element marks a loss week, and only ever on a gap
-    assert.ok(loss === undefined || (loss === 1 && v === null), `${t}: loss flag on ${d} is 1 on a null`);
+  for (const [d, v, flag] of j.pts) {
+    // a third element marks a loss week (1) or an over-200x week (2), and only ever on a gap
+    assert.ok(flag === undefined || ((flag === 1 || flag === 2) && v === null), `${t}: flag on ${d} is 1 or 2 on a null`);
+    if (flag === 2) real++; // an over-200x week counts toward "has a history"
     assert.match(d, /^\d{4}-\d{2}-\d{2}$/, `${t}: point date ${d}`);
     assert.ok(d > prev, `${t}: dates strictly increase (${prev} -> ${d})`);
     prev = d;
