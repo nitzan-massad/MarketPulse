@@ -1,7 +1,7 @@
 {
  "score": 47.4,
  "rating": "neutral",
- "asOf": "2026-10-06T20:03:48",
+ "asOf": "2026-10-06T23:18:59",
  "previous": {
   "close": 43,
   "week": 28.9,
@@ -42,13 +42,13 @@
   {
    "key": "junk_bond_demand",
    "label": "Junk bond demand",
-   "score": 95.2,
+   "score": 95,
    "rating": "extreme greed"
   },
   {
    "key": "safe_haven_demand",
    "label": "Safe haven demand",
-   "score": 76.6,
+   "score": 76.8,
    "rating": "extreme greed"
   }
  ],
@@ -1043,7 +1043,7 @@
   },
   {
    "d": "2026-10-01",
-   "v": 28.9
+   "v": 29
   },
   {
    "d": "2026-10-02",

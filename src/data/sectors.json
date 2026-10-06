@@ -2,7 +2,7 @@
  "asOf": "2026-10-06",
  "sectors": {
   "BasicMaterials": {
-   "pe": 20.39,
+   "pe": 20.38,
    "fpe": 14.62
   },
   "CommunicationServices": {
@@ -35,7 +35,7 @@
   },
   "RealEstate": {
    "pe": 30.8,
-   "fpe": 27.31
+   "fpe": 27.32
   },
   "Technology": {
    "pe": 32.96,
