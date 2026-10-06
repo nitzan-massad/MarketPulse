@@ -1,5 +1,5 @@
 // Checks for src/peHistory.ts — run by `npm test`.
-import { closeAt, hasPeHistory, lastYears, niceTicks, parseEps, peSeries, peStats, quarterTtm, ttmSum } from "./peHistory";
+import { adjustSplits, closeAt, hasPeHistory, lastYears, niceTicks, parseEps, peSeries, peStats, quarterTtm, ttmSum } from "./peHistory";
 
 let n = 0;
 function eq(actual: unknown, expected: unknown, msg: string) {
@@ -44,7 +44,20 @@ near(at("2026-02-02"), 10, "the week whose Friday is 35+ days after the Dec quar
 eq(at("2025-06-02"), null, "before four quarters exist, no P/E");
 eq(pe.find((p) => p.d >= "2026-01-26")!.loss, true, "a TTM of 0 is marked as a loss, not just a gap");
 eq(pe.find((p) => p.d >= "2025-06-02")!.loss, undefined, "no data is not a loss");
-eq(peSeries(wk, px.map(() => 5000), eps).find((p) => p.d >= "2026-02-09")!.v, null, "1000x is not meaningful: a gap");
+// a real report date for the newest quarter beats the 35-day guess (Dec quarter reported Jan 14)
+const rep = { "2025-12-31": "2026-01-14" };
+near(peSeries(wk, px, eps, [], rep).find((p) => p.d >= "2026-01-12")!.v, 10, "the week it is reported, the new quarter applies");
+eq(peSeries(wk, px, eps, [], rep).find((p) => p.d >= "2026-01-05")!.v, null, "…and not the week before");
+near(peSeries(wk, px, eps, [], { "2025-12-28": "2026-01-14" }).find((p) => p.d >= "2026-01-12")!.v, 10, "a fiscal quarter end a few days off still matches");
+eq(peSeries(wk, px, eps, [], { "2025-12-31": "2024-01-01" }).find((p) => p.d >= "2026-01-26")!.v, null, "a report date before the quarter ended is ignored");
+const rich = peSeries(wk, px.map(() => 5000), eps).find((p) => p.d >= "2026-02-09")!;
+eq([rich.v, rich.high], [null, true], "1000x is drawn as 'over 200x', not a value");
+eq(hasPeHistory(wk.map((d) => ({ d, v: null, high: true as const }))), true, "a stock always over 200x still has a history");
+// a spin-off: price halves with no new quarter -> blank until the next report
+const spin = px.map((v, i) => (wk[i] >= "2026-03-02" ? 10 : v));
+const sp = peSeries(wk, spin, eps);
+eq(sp.find((p) => p.d >= "2026-03-02")!.v, null, "a price break with no new quarter is not charted");
+near(sp.find((p) => p.d >= "2026-02-23")!.v, 10, "…the weeks before it are");
 
 // foreign filer: EPS in another currency (5x), Finnhub's quarterly peTTM is right
 const peq = parseEps([{ period: "2025-12-31", v: 20 }, { period: "2025-09-30", v: 25 }]);
@@ -54,6 +67,14 @@ const us = quarterTtm(eps, parseEps([{ period: "2025-12-31", v: 10.2 }]), wk, px
 eq(us.find((q) => q.d === "2025-12-31")!.v, 5, "US filer within tolerance keeps its exact summed EPS");
 const bank = quarterTtm([], parseEps([{ period: "2025-12-31", v: 12.5 }]), wk, px);
 near(bank[0].v, 4, "no EPS series (banks): TTM from peTTM alone");
+
+// an unadjusted 15:1 split in the EPS series (ORLY): pre-split TTM 40.2 vs Finnhub's adjusted 2.68
+const orly = [{ d: "2023-12-31", v: 9.1 }, { d: "2024-03-31", v: 9.2 }, { d: "2024-06-30", v: 10.5 }, { d: "2024-09-30", v: 11.4 }, { d: "2024-12-31", v: 0.63 }];
+const adjTtm = new Map([["2024-09-30", 2.68]]);
+near(adjustSplits(orly, adjTtm)[3].v, 0.76, "pre-split quarters are divided by the split factor (15, not 18)");
+eq(adjustSplits(orly, adjTtm)[4].v, 0.63, "post-split quarters are untouched");
+eq(adjustSplits(orly, new Map([["2024-09-30", 38]]))[3].v, 11.4, "a real earnings collapse (no split factor between the TTMs) is not a split");
+eq(adjustSplits(orly, new Map())[3].v, 11.4, "no Finnhub P/E to compare against: left alone");
 
 // weekly bars are stamped Monday, closed Friday
 eq(closeAt(["2025-03-24", "2025-03-31"], [10, 7], "2025-03-31"), 10, "a Monday quarter end takes the PREVIOUS week's Friday close, not that week's");

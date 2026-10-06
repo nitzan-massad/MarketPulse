@@ -98,7 +98,7 @@ interface Series {
 // module-level caches so reopening / re-selecting ranges never refetches
 // Which tickers CI has a P/E history file for (public/pe/_asOf.json, ci/scrape-pe.mjs).
 // Fetched once per page load and shared; a failed fetch just means "rely on live EPS".
-type PeIndex = Record<string, { ok: boolean }>;
+type PeIndex = Record<string, { ok: boolean; err?: boolean; wait?: boolean }>;
 let peIndexP: Promise<PeIndex> | null = null;
 const loadPeIndex = (): Promise<PeIndex> =>
   (peIndexP ??= fetch(`${import.meta.env.BASE_URL}pe/_asOf.json`)
@@ -493,10 +493,14 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
   const [forecasts, setForecasts] = useState<Forecast[] | null>(null);
   const [fcOpen, setFcOpen] = useState(false);
   const [peOpen, setPeOpen] = useState(false);
-  const [peFile, setPeFile] = useState(false); // CI has a precomputed history for this ticker
+  // CI's verdict for this ticker: a chart file, still being prepared, or no P/E history at all
+  const [peState, setPeState] = useState<"ok" | "pending" | "none" | null>(null);
   useEffect(() => {
     let live = true;
-    loadPeIndex().then((idx) => live && setPeFile(!!idx[stock.t]?.ok));
+    loadPeIndex().then((idx) => {
+      const e = idx[stock.t];
+      if (live) setPeState(e?.ok ? "ok" : !e || e.err || e.wait ? "pending" : "none");
+    });
     return () => {
       live = false;
     };
@@ -655,7 +659,11 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
   // `button` only when there are forecasts to show — an empty card must not be focusable
   // or announce itself as something you can activate.
   const CardTag = (forecasts ? "button" : "div") as "button";
-  const canPe = peFile || (metric?.epsQ.length ?? 0) >= 4 || (metric?.peQ.length ?? 0) >= 4;
+  // In the ranked set, CI owns this: a file, or "updating" while it is being prepared — never a
+  // live computation, which would spend the Twelve Data quota every visitor shares. Off-universe
+  // tickers have no CI file, so they still compute live from Finnhub's series.
+  const peLiveOk = (metric?.epsQ.length ?? 0) >= 4 || (metric?.peQ.length ?? 0) >= 4;
+  const canPe = covered ? peState === "ok" || peState === "pending" : peLiveOk;
   const PeTag = (canPe ? "button" : "div") as "button";
   const loadPeSeries = useCallback(() => fetchSeries(stock.t, "5Y"), [stock.t]);
 
@@ -1287,6 +1295,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
         nowPe={peLive}
         peq={metric?.peQ ?? NO_EPS}
         sectorPe={secAvg?.pe ?? null}
+        pending={covered && peState === "pending"}
         loadSeries={loadPeSeries}
         onClose={closePe}
       />

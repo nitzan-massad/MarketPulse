@@ -22,6 +22,7 @@ export interface PePoint {
   d: string;
   v: number | null; // null = gap: no positive TTM earnings, or not meaningful (see PE_MAX)
   loss?: true; // the gap is because trailing earnings were <= 0 — the chart marks it "Unprofitable"
+  high?: true; // the gap is because the P/E was above PE_MAX — the chart marks it "Over 200×"
 }
 
 const DAY = 864e5;
@@ -92,17 +93,43 @@ const median = (v: number[]) => {
 };
 
 /** One TTM EPS per quarter end, in the price's currency (see the header for the rules). */
-export function quarterTtm(eps: EpsPoint[], peq: EpsPoint[], stamps: string[], closes: number[]): EpsPoint[] {
-  const sums = new Map<string, number>();
-  eps.forEach((p, i) => {
-    const s = ttmSum(eps, i);
-    if (s != null) sums.set(p.d, s);
-  });
+const SPLIT_FACTORS = [2, 3, 4, 5, 8, 10, 15, 20, 25, 30, 40, 50, 100];
+
+/** Finnhub sometimes leaves EPS from before a stock split unadjusted (ORLY 15:1 in 2025: 11.41
+ *  then 0.63) while prices ARE adjusted, so TTMs straddling the split come out ~15x off. A
+ *  quarter-to-quarter EPS drop where the pre-split TTM is a common split factor times Finnhub's
+ *  own (adjusted) TTM for that same quarter is a split: earlier quarters are divided by it. A real
+ *  earnings collapse has no such factor between the two, so it is left alone. */
+export function adjustSplits(eps: EpsPoint[], implied: Map<string, number>): EpsPoint[] {
+  const out = eps.map((p) => ({ ...p }));
+  for (let k = out.length - 1; k > 0; k--) {
+    const a = out[k - 1].v, b = out[k].v;
+    if (!(a > 0 && b > 0) || a / b < 1.8) continue;
+    // the split factor = pre-split TTM / Finnhub's adjusted TTM for that same quarter (exact,
+    // unlike a/b, which also carries that quarter's real earnings change)
+    const raw = ttmSum(out, k - 1);
+    const adj = implied.get(out[k - 1].d);
+    if (raw == null || adj == null || !(raw > 0)) continue; // no evidence: leave it
+    const ratio = raw / adj;
+    const f = SPLIT_FACTORS.reduce((best, x) => (Math.abs(Math.log(x / ratio)) < Math.abs(Math.log(best / ratio)) ? x : best));
+    if (Math.abs(Math.log(f / ratio)) > Math.log(1.35)) continue; // not near a split factor: a real collapse
+    for (let i = 0; i < k; i++) out[i].v /= f;
+  }
+  return out;
+}
+
+export function quarterTtm(epsRaw: EpsPoint[], peq: EpsPoint[], stamps: string[], closes: number[]): EpsPoint[] {
   const implied = new Map<string, number>();
   for (const p of peq) {
     const c = p.v > 0 ? closeAt(stamps, closes, p.d) : null;
     if (c != null) implied.set(p.d, c / p.v);
   }
+  const eps = adjustSplits(epsRaw, implied);
+  const sums = new Map<string, number>();
+  eps.forEach((p, i) => {
+    const s = ttmSum(eps, i);
+    if (s != null) sums.set(p.d, s);
+  });
   // how far the summed EPS sits from the listing-currency one: ~1 for US filers
   const ratios: number[] = [];
   for (const [d, s] of sums) {
@@ -119,26 +146,50 @@ export function quarterTtm(eps: EpsPoint[], peq: EpsPoint[], stamps: string[], c
     // a loss quarter has no positive peTTM, so `im` is absent and the (negative) sum carries it.
     // A non-positive sum while Finnhub's own TTM is positive is a bad EPS row on our side:
     // Finnhub's figure wins.
-    const v = !foreign && s != null && !(s <= 0 && im != null) ? s : im != null ? im : s != null ? s * r : null;
+    let v = !foreign && s != null && !(s <= 0 && im != null) ? s : im != null ? im : s != null ? s * r : null;
+    // A foreign filer's implied TTM that is way off its own currency-adjusted sum is one bad
+    // Finnhub peTTM row (ONON Q3-24: 209x), not a currency gap: the adjusted sum wins.
+    if (foreign && im != null && s != null && s > 0 && (im / (s * r) > 1.5 || (s * r) / im > 1.5)) v = s * r;
     if (v != null) out.push({ d, v });
   }
   return out;
 }
 
-/** Weekly P/E. Stamps may carry a time; only the date is used. */
-export function peSeries(stamps: string[], closes: number[], eps: EpsPoint[], peq: EpsPoint[] = []): PePoint[] {
+/** Weekly P/E. Stamps may carry a time; only the date is used.
+ *  `reports` maps a quarter end to the day its results were announced (SEC filings, see
+ *  ci/sec-reports.mjs), matched within a week to absorb 52/53-week fiscal calendars. A quarter
+ *  with no known date falls back to the REPORT_LAG_DAYS guess. */
+export function peSeries(
+  stamps: string[], closes: number[], eps: EpsPoint[], peq: EpsPoint[] = [], reports: Record<string, string> = {},
+): PePoint[] {
   const q = quarterTtm(eps, peq, stamps, closes);
+  const keys = Object.keys(reports);
+  const reportOf = (d: string) => {
+    const k = keys.find((r) => Math.abs(days(r, d)) <= 7);
+    const at = k ? reports[k] : undefined;
+    return at && at > d && days(at, d) < 200 ? at : undefined;
+  };
+  const eff = q.map((x) => reportOf(x.d));
+  const effective = (k: number, fri: string) => (eff[k] ? fri >= eff[k]! : days(fri, q[k].d) >= REPORT_LAG_DAYS);
   let j = -1;
+  // A price that halves or doubles in one week while no new quarter lands is a corporate action
+  // (CTVA's spin-off: 78.52 -> 11.92) that the old per-share EPS doesn't reflect. Blank the
+  // weeks from that break until the next quarter is reported, instead of charting a fake collapse.
+  let brokenAt = -2;
   return stamps.map((s, i) => {
     const d = s.slice(0, 10);
     // the bar is stamped Monday but closes Friday: judge "reported yet?" at the close
     const fri = new Date(Date.parse(d) + 4 * DAY).toISOString().slice(0, 10);
-    while (j + 1 < q.length && days(fri, q[j + 1].d) >= REPORT_LAG_DAYS) j++;
-    if (j < 0 || days(fri, q[j].d) > REPORT_LAG_DAYS + STALE_DAYS) return { d, v: null };
+    const before = j;
+    while (j + 1 < q.length && effective(j + 1, fri)) j++;
+    if (j !== before) brokenAt = -2;
+    else if (i > 0 && closes[i - 1] > 0 && (closes[i] / closes[i - 1] < 0.5 || closes[i] / closes[i - 1] > 2)) brokenAt = j;
+    if (j < 0 || days(fri, q[j].d) > REPORT_LAG_DAYS + STALE_DAYS || brokenAt === j) return { d, v: null };
     const ttm = q[j].v;
     if (ttm <= 0) return { d, v: null, loss: true };
     const pe = Number.isFinite(closes[i]) ? closes[i] / ttm : null;
-    return { d, v: pe != null && pe >= PE_MIN && pe <= PE_MAX ? pe : null };
+    if (pe != null && pe > PE_MAX) return { d, v: null, high: true };
+    return { d, v: pe != null && pe >= PE_MIN ? pe : null };
   });
 }
 
@@ -156,8 +207,9 @@ export function peStats(pts: PePoint[]): PeStats | null {
   return { lo: Math.min(...v), hi: Math.max(...v), med: median(v) };
 }
 
-/** Worth a chart: at least half a year of weeks with a meaningful P/E. */
-export const hasPeHistory = (pts: PePoint[]): boolean => pts.filter((p) => p.v != null).length >= 26;
+/** Worth a chart: at least half a year of weeks with a P/E (counting "over 200x" weeks, so a
+ *  richly valued grower like DDOG still gets one). */
+export const hasPeHistory = (pts: PePoint[]): boolean => pts.filter((p) => p.v != null || p.high).length >= 26;
 
 /** Axis ticks: a "nice" step giving ~4-6 lines across [lo, hi] (NVDA's 25-243 got 24 before). */
 export function niceTicks(lo: number, hi: number): number[] {

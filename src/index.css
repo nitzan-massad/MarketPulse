@@ -1922,11 +1922,15 @@ thead th:hover .col-resize::after{opacity:.6}
    strip says why, instead of plotting a negative number or a misleading zero */
 .mkm-pe-loss{fill:var(--t-red); fill-opacity:.14}
 .mkm-pe-losst{font-family:var(--t-head); font-size:10px; font-weight:700; letter-spacing:.06em; fill:var(--t-red); text-anchor:middle}
+.mkm-pe-high{fill:var(--t-gold); fill-opacity:.1}
+.mkm-pe-hight{font-family:var(--t-head); font-size:10px; font-weight:700; letter-spacing:.06em; fill:var(--t-gold); text-anchor:middle}
+.mkm-pe-legend .hs{height:8px; border:0; border-radius:2px; background:color-mix(in srgb,var(--t-gold) 14%,transparent); vertical-align:-1px}
 .mkm-pe-plot{min-height:0; cursor:crosshair}
 .mkm-pe-plot svg{display:block; width:100%; height:auto; touch-action:pan-y}
 .mkm-pe-ax{font-family:var(--t-head); font-size:11px; font-weight:700; fill:var(--t-ink)}
 .mkm-pe-yr{font-size:10px; fill:var(--t-faint); text-anchor:middle}
 .mkm-pe-kv{grid-template-columns:repeat(4,1fr); margin-top:14px}
+.mkm-pe-asof{margin:12px 0 0; font-size:11px; color:var(--t-faint)}
 .mkm-kv .v.teal{color:var(--t-teal)}
 /* the chart scales down ~2x on a phone, so its labels are drawn bigger to land near 10px */
-@media(max-width:640px){.mkm-pe-kv{grid-template-columns:repeat(2,1fr)} .mkm-pe-ax{font-size:18px} .mkm-pe-yr{font-size:17px} .mkm-pe-losst{font-size:16px}}
+@media(max-width:640px){.mkm-pe-kv{grid-template-columns:repeat(2,1fr)} .mkm-pe-ax{font-size:18px} .mkm-pe-yr{font-size:17px} .mkm-pe-losst{font-size:16px} .mkm-pe-hight{font-size:16px}}
