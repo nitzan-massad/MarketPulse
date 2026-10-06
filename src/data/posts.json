@@ -1,5 +1,35 @@
 [
   {
+    "id": "IRD-2026-10-06T04:00:51.897Z",
+    "ts": "2026-10-06T04:00:51.897Z",
+    "kind": "record",
+    "ticker": "IRD",
+    "name": "Opus Genetics",
+    "sector": "Healthcare",
+    "text": "~197% upside, this month's high, 13 analysts.",
+    "score": 64,
+    "reasons": [
+      "5 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "IRD appeared in a recent post"
+    ],
+    "facts": {
+      "upside": 196.9,
+      "windowLow": 108.1,
+      "windowHigh": 196.9,
+      "snapshots": 142,
+      "days": 29.6,
+      "price": 4.58,
+      "priceTarget": 13.6,
+      "analysts": 13,
+      "sectorMedianUpside": 35.7
+    },
+    "descriptor": "Eye Therapy Developer",
+    "image": "IRD-2026-10-06T04-00-51-897Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "IRD-2026-10-05T21:53:07.659Z",
     "ts": "2026-10-05T21:53:07.659Z",
     "kind": "list",
