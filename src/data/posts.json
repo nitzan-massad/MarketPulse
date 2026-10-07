@@ -1,5 +1,30 @@
 [
   {
+    "id": "TSM-2026-10-07T20:29:19.084Z",
+    "ts": "2026-10-07T20:29:19.084Z",
+    "kind": "steady",
+    "ticker": "TSM",
+    "name": "TSMC",
+    "sector": "Technology",
+    "text": "10 Smart Score held for 2 days.",
+    "score": 66,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "snapshots": 10,
+      "days": 2.1,
+      "upside": 13.7,
+      "consensus": "StrongBuy",
+      "analysts": 8
+    },
+    "descriptor": "Semiconductor Manufacturer",
+    "image": "TSM-2026-10-07T20-29-19-084Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "CMPS-2026-10-07T11:55:07.081Z",
     "ts": "2026-10-07T11:55:07.081Z",
     "kind": "record",

@@ -123,5 +123,10 @@
     "name": "Space Exploration Technologies",
     "descriptor": "Rocket Manufacturer",
     "scene": "assembling engine components for a launch vehicle in a large production hall"
+  },
+  "TSM": {
+    "name": "TSMC",
+    "descriptor": "Semiconductor Manufacturer",
+    "scene": "inspecting silicon wafers under a microscope in a cleanroom facility"
   }
 }
