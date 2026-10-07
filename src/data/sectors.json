@@ -1,9 +1,9 @@
 {
- "asOf": "2026-10-06",
+ "asOf": "2026-10-07",
  "sectors": {
   "BasicMaterials": {
    "pe": 20.38,
-   "fpe": 14.62
+   "fpe": 14.61
   },
   "CommunicationServices": {
    "pe": 18.33,
@@ -19,7 +19,7 @@
   },
   "Energy": {
    "pe": 14.07,
-   "fpe": 11.93
+   "fpe": 11.92
   },
   "Financial": {
    "pe": 14.59,
