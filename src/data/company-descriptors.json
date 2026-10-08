@@ -133,5 +133,10 @@
     "name": "International Business Machines",
     "descriptor": "Cloud Software Developer",
     "scene": "calibrating a server rack with diagnostic tools and cables"
+  },
+  "ORLY": {
+    "name": "O'Reilly Automotive",
+    "descriptor": "Auto Parts Retailer",
+    "scene": "inspecting used engine blocks on a warehouse shelf"
   }
 }
