@@ -128,5 +128,10 @@
     "name": "TSMC",
     "descriptor": "Semiconductor Manufacturer",
     "scene": "inspecting silicon wafers under a microscope in a cleanroom facility"
+  },
+  "IBM": {
+    "name": "International Business Machines",
+    "descriptor": "Cloud Software Developer",
+    "scene": "calibrating a server rack with diagnostic tools and cables"
   }
 }

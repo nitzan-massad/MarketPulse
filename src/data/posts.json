@@ -1,5 +1,32 @@
 [
   {
+    "id": "IBM-2026-10-08T03:49:53.341Z",
+    "ts": "2026-10-08T03:49:53.341Z",
+    "kind": "newcomer",
+    "ticker": "IBM",
+    "name": "International Business Machines",
+    "sector": "Technology",
+    "text": "2.5 days in, 15% upside already.",
+    "score": 36,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (40% word overlap)"
+    ],
+    "facts": {
+      "seenIn": 12,
+      "windowSnapshots": 145,
+      "days": 2.5,
+      "upside": 15.2,
+      "consensus": "Buy",
+      "analysts": 19,
+      "smartScore": 6
+    },
+    "descriptor": "Cloud Software Developer",
+    "image": "IBM-2026-10-08T03-49-53-341Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "TSM-2026-10-07T20:29:19.084Z",
     "ts": "2026-10-07T20:29:19.084Z",
     "kind": "steady",

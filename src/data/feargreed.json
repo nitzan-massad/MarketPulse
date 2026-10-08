@@ -1,7 +1,7 @@
 {
  "score": 44.6,
  "rating": "fear",
- "asOf": "2026-10-07T20:14:26",
+ "asOf": "2026-10-07T23:59:52",
  "previous": {
   "close": 47.2,
   "week": 30.3,
@@ -30,7 +30,7 @@
   {
    "key": "put_call_options",
    "label": "Put / call ratio",
-   "score": 30.6,
+   "score": 30.4,
    "rating": "fear"
   },
   {
@@ -42,7 +42,7 @@
   {
    "key": "junk_bond_demand",
    "label": "Junk bond demand",
-   "score": 93,
+   "score": 93.2,
    "rating": "extreme greed"
   },
   {
@@ -53,10 +53,6 @@
   }
  ],
  "history": [
-  {
-   "d": "2025-10-07",
-   "v": 51.9
-  },
   {
    "d": "2025-10-08",
    "v": 52.9
