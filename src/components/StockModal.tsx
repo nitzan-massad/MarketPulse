@@ -1325,7 +1325,15 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
           aria-label={`${stock.t} analyst forecasts`}
         >
           <div className="mkm-titlebar">
-            <div className="mkm-path"><b>{stock.t}</b> · Analyst Forecasts</div>
+            <div className="mkm-fctitle">
+              <div className="mkm-path"><b>{stock.t}</b> · Analyst Forecasts</div>
+              {name && (
+                <div className="mkm-fcsub">
+                  {name}
+                  {sector ? " · " + consLabel(sector) : ""}
+                </div>
+              )}
+            </div>
           </div>
           <CloseButton what={`${stock.t} analyst forecasts`} onClose={() => setFcOpen(false)} />
           <div className="mkm-scroll">
