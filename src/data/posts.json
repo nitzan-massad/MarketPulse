@@ -1,5 +1,35 @@
 [
   {
+    "id": "ARGX-2026-10-09T11:46:14.400Z",
+    "ts": "2026-10-09T11:46:14.400Z",
+    "kind": "movement",
+    "ticker": "ARGX",
+    "name": "Argenx",
+    "sector": "Healthcare",
+    "text": "~48% upside, up from 29%, today, 14 analysts.",
+    "score": 78,
+    "reasons": [
+      "6 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band"
+    ],
+    "facts": {
+      "upsideFrom": 28.7,
+      "upsideTo": 47.6,
+      "consensusFrom": "StrongBuy",
+      "consensusTo": "StrongBuy",
+      "price": 818.63,
+      "priceTarget": 1207.93,
+      "analysts": 14,
+      "sector": "Healthcare",
+      "smartScoreFrom": 8,
+      "smartScoreTo": 7
+    },
+    "descriptor": "Autoimmune Therapies",
+    "image": "ARGX-2026-10-09T11-46-14-400Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "FRVO-2026-10-09T03:44:12.425Z",
     "ts": "2026-10-09T03:44:12.425Z",
     "kind": "list",

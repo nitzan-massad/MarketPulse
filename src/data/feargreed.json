@@ -1,12 +1,12 @@
 {
  "score": 38.1,
  "rating": "fear",
- "asOf": "2026-10-08T23:59:44",
+ "asOf": "2026-10-09T11:26:46",
  "previous": {
-  "close": 44.5,
-  "week": 29,
-  "month": 39.1,
-  "year": 52.9
+  "close": 37.9,
+  "week": 40,
+  "month": 38.2,
+  "year": 48.6
  },
  "components": [
   {
@@ -18,13 +18,13 @@
   {
    "key": "stock_price_strength",
    "label": "Stock price strength",
-   "score": 2.6,
+   "score": 3.2,
    "rating": "extreme fear"
   },
   {
    "key": "stock_price_breadth",
    "label": "Stock price breadth",
-   "score": 2.8,
+   "score": 3.4,
    "rating": "extreme fear"
   },
   {
@@ -42,7 +42,7 @@
   {
    "key": "junk_bond_demand",
    "label": "Junk bond demand",
-   "score": 84,
+   "score": 82.4,
    "rating": "extreme greed"
   },
   {
@@ -1051,6 +1051,10 @@
   },
   {
    "d": "2026-10-08",
+   "v": 38.1
+  },
+  {
+   "d": "2026-10-09",
    "v": 38.1
   }
  ]

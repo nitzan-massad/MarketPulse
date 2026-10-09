@@ -138,5 +138,10 @@
     "name": "O'Reilly Automotive",
     "descriptor": "Auto Parts Retailer",
     "scene": "inspecting used engine blocks on a warehouse shelf"
+  },
+  "ARGX": {
+    "name": "Argenx",
+    "descriptor": "Autoimmune Therapies",
+    "scene": "researcher pipetting samples into microplates in a laboratory setting"
   }
 }
