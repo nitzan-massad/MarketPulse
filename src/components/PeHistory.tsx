@@ -201,9 +201,9 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
                     </g>
                   ))}
                   <path d={chart.area} fill="var(--t-gold)" fillOpacity=".08" />
-                  <line x1={L} x2={R} y1={chart.Y(stats.med)} y2={chart.Y(stats.med)} stroke="var(--t-faint)" strokeWidth="1.2" strokeDasharray="5 4" />
+                  <line x1={L} x2={R} y1={chart.Y(stats.med)} y2={chart.Y(stats.med)} stroke="var(--t-amber)" strokeWidth="1.8" strokeDasharray="6 4" />
                   {sectorPe != null && (
-                    <line x1={L} x2={R} y1={chart.Y(sectorPe)} y2={chart.Y(sectorPe)} stroke="var(--t-teal)" strokeWidth="1.5" strokeDasharray="2 4" />
+                    <line x1={L} x2={R} y1={chart.Y(sectorPe)} y2={chart.Y(sectorPe)} stroke="var(--t-teal)" strokeWidth="2" strokeDasharray="1 4" strokeLinecap="round" />
                   )}
                   <path d={chart.line} fill="none" stroke="var(--t-gold)" strokeWidth="2" strokeLinejoin="round" />
                   {/* the "now" dot only on the newest week; a gap at the end means no current P/E */}
@@ -230,7 +230,7 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
               </div>
               <div className="row">
                 <div className="k">{range} median</div>
-                <div className="v">{stats ? x1(stats.med) : "—"}</div>
+                <div className="v amber">{stats ? x1(stats.med) : "—"}</div>
               </div>
               <div className="row">
                 <div className="k">{range} range</div>

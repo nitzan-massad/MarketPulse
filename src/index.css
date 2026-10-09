@@ -17,7 +17,7 @@
   /* stock detail modal — echoes the steel palette */
   --t-bg:#ffffff; --t-panel:#eef1f5; --t-line:#d3dae3; --t-line-2:#e9edf2;
   --t-ink:#131a24; --t-muted:#3a4453; --t-faint:#5c6675;
-  --t-gold:#1b3f73; --t-green:#17864f; --t-red:#c73a2b; --t-teal:#147c86;
+  --t-gold:#1b3f73; --t-green:#17864f; --t-red:#c73a2b; --t-teal:#147c86; --t-amber:#b8860b;
   /* Inter — most legible for the small, uppercase, tracked modal headlines */
   --t-head:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
 }
@@ -1918,7 +1918,7 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-pe-cmd{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px}
 .mkm-pe-legend{margin-left:auto; display:flex; gap:12px; font-size:10.5px; color:var(--t-faint)}
 .mkm-pe-legend i{display:inline-block; width:13px; vertical-align:middle; margin-right:5px; border-top:2px solid}
-.mkm-pe-legend .ln{border-color:var(--t-gold)} .mkm-pe-legend .md{border-color:var(--t-faint); border-top-style:dashed}
+.mkm-pe-legend .ln{border-color:var(--t-gold)} .mkm-pe-legend .md{border-color:var(--t-amber); border-top-style:dashed}
 .mkm-pe-legend .sc{border-color:var(--t-teal); border-top-style:dotted}
 .mkm-pe-legend .ls{height:8px; border:0; border-radius:2px; background:color-mix(in srgb,var(--t-red) 16%,transparent); vertical-align:-1px}
 /* loss weeks: a P/E there is meaningless (negative or infinite), so the line breaks and this
@@ -1935,5 +1935,6 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-pe-kv{grid-template-columns:repeat(4,1fr); margin-top:14px}
 .mkm-pe-asof{margin:12px 0 0; font-size:11px; color:var(--t-faint)}
 .mkm-kv .v.teal{color:var(--t-teal)}
+.mkm-kv .v.amber{color:var(--t-amber)}
 /* the chart scales down ~2x on a phone, so its labels are drawn bigger to land near 10px */
 @media(max-width:640px){.mkm-pe-kv{grid-template-columns:repeat(2,1fr)} .mkm-pe-ax{font-size:18px} .mkm-pe-yr{font-size:17px} .mkm-pe-losst{font-size:16px} .mkm-pe-hight{font-size:16px}}
