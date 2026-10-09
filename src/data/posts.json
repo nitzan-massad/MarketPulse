@@ -1,5 +1,29 @@
 [
   {
+    "id": "FRVO-2026-10-09T03:44:12.425Z",
+    "ts": "2026-10-09T03:44:12.425Z",
+    "kind": "list",
+    "ticker": "FRVO",
+    "name": "Fervo Energy Company Class A",
+    "sector": "General",
+    "text": "174% tops list of 5, 170% close second.",
+    "score": 62,
+    "reasons": [
+      "7 digits of concrete detail",
+      "length in band",
+      "FRVO appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Fervo Energy Company Class A (174.2% to $38.3), Praxis Precision Medicines (169.8% to $750), Vera Therapeutics (159.9% to $78.63), Terawulf (155.4% to $36.77), COMPASS Pathways (143.2% to $28.43)",
+      "count": 5,
+      "leader": "Fervo Energy Company Class A",
+      "leaderUpside": 174.2
+    },
+    "descriptor": "Geothermal Energy Developer",
+    "image": "FRVO-2026-10-09T03-44-12-425Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "FRVO-2026-10-08T20:37:38.857Z",
     "ts": "2026-10-08T20:37:38.857Z",
     "kind": "surprise",
