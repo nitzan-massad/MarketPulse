@@ -143,5 +143,10 @@
     "name": "Argenx",
     "descriptor": "Autoimmune Therapies",
     "scene": "researcher pipetting samples into microplates in a laboratory setting"
+  },
+  "TMUS": {
+    "name": "T Mobile US",
+    "descriptor": "Mobile Network Operator",
+    "scene": "adjusting antennas on a cellular tower outdoors"
   }
 }

@@ -1,7 +1,7 @@
 {
- "score": 45.4,
- "rating": "neutral",
- "asOf": "2026-10-09T19:59:55",
+ "score": 45,
+ "rating": "fear",
+ "asOf": "2026-10-09T23:42:59",
  "previous": {
   "close": 37.9,
   "week": 40,
@@ -18,7 +18,7 @@
   {
    "key": "stock_price_strength",
    "label": "Stock price strength",
-   "score": 5.6,
+   "score": 5.4,
    "rating": "extreme fear"
   },
   {
@@ -30,7 +30,7 @@
   {
    "key": "put_call_options",
    "label": "Put / call ratio",
-   "score": 35,
+   "score": 34.6,
    "rating": "fear"
   },
   {
@@ -42,7 +42,7 @@
   {
    "key": "junk_bond_demand",
    "label": "Junk bond demand",
-   "score": 89.2,
+   "score": 87.8,
    "rating": "extreme greed"
   },
   {
@@ -1055,7 +1055,7 @@
   },
   {
    "d": "2026-10-09",
-   "v": 45.4
+   "v": 45
   }
  ]
 }
