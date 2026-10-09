@@ -8,6 +8,7 @@ interface Props {
   onMarkAllRead: () => void;
   onClearAll: () => void;
   onOpen: (n: Notification) => void;
+  reopenKey?: number; // bumped by the app to reopen the panel where the user left it
 }
 
 const BellIcon = (
@@ -48,12 +49,23 @@ export default function NotificationBell({
   onMarkAllRead,
   onClearAll,
   onOpen,
+  reopenKey = 0,
 }: Props) {
   const [open, setOpen] = useState(false);
   // ids that were unread when the panel was opened — their coloured dots persist
   // for this viewing even though the panel-open marked them read.
   const [sessionNew, setSessionNew] = useState<Set<string>>(new Set());
   const rootRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const savedScroll = useRef(0);
+
+  // reopen without re-marking: the session's "new" dots and scroll position are kept
+  useEffect(() => {
+    if (reopenKey) setOpen(true);
+  }, [reopenKey]);
+  useEffect(() => {
+    if (open && bodyRef.current) bodyRef.current.scrollTop = savedScroll.current;
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -75,6 +87,7 @@ export default function NotificationBell({
     setOpen((o) => {
       const next = !o;
       if (next) {
+        savedScroll.current = 0;
         setSessionNew(new Set(notifications.filter((n) => !n.read).map((n) => n.id)));
         onMarkAllRead();
       }
@@ -96,6 +109,7 @@ export default function NotificationBell({
   function renderRow(n: Notification) {
     const isNew = sessionNew.has(n.id);
     const open = () => {
+      savedScroll.current = bodyRef.current?.scrollTop ?? 0;
       onOpen(n);
       setOpen(false);
     };
@@ -167,7 +181,7 @@ export default function NotificationBell({
             </div>
           ) : (
             <>
-              <div className="nb-body nb-fade">
+              <div className="nb-body nb-fade" ref={bodyRef}>
                 {groups.today.length > 0 && <div className="nb-group">Today</div>}
                 {groups.today.map(renderRow)}
                 {groups.earlier.length > 0 && <div className="nb-group">Earlier</div>}

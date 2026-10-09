@@ -61,6 +61,8 @@ export default function App() {
   const [panel, setPanel] = useState<PanelId | null>(null);
   const [openStock, setOpenStock] = useState<Stock | null>(null);
   const [fcHighlight, setFcHighlight] = useState<string[] | null>(null);
+  const [bellReturn, setBellReturn] = useState(false); // stock opened from the bell → closing it goes back there
+  const [bellReopen, setBellReopen] = useState(0);
   const [openView, setOpenView] = useState<TickerView | null>(null); // a view a link opens over the modal (#TSM/pe) // review keys to glow when opened from a notification
   // the list the modal was opened from, so ‹ › can page prev/next in place
   const [openList, setOpenList] = useState<Stock[]>([]);
@@ -211,6 +213,7 @@ export default function App() {
   const closeStock = useCallback(() => {
     setOpenStock(null);
     setFcHighlight(null);
+    setBellReturn(false);
     if (parseShareHash(location.hash)?.kind === "ticker") dropHash();
   }, [dropHash]);
 
@@ -325,6 +328,13 @@ export default function App() {
     if (s) handleOpen(s, STOCKS.filter((x) => watchlist.includes(x.t)));
     else handleOpenTicker(n.ticker);
     if (n.type === "review") setFcHighlight(n.keys ?? []);
+    setBellReturn(true);
+  }
+
+  // stock (or its reviews) opened from the bell: closing it goes back to the bell panel
+  function closeToBell() {
+    closeStock();
+    setBellReopen((k) => k + 1);
   }
 
   // New Arrivals review row: open the stock + its forecast view with that review glowing
@@ -381,6 +391,7 @@ export default function App() {
               onMarkAllRead={notif.markAllRead}
               onClearAll={notif.clearAll}
               onOpen={openFromNotification}
+              reopenKey={bellReopen}
             />
           )}
           {syncReady && (
@@ -501,13 +512,14 @@ export default function App() {
       {openStock && (
           <StockModal
             stock={openStock}
-            onClose={closeStock}
+            onClose={bellReturn ? closeToBell : closeStock}
             isTracked={(t) => watchlist.includes(t)}
             onToggleTrack={requestToggle}
             isCovered={(t) => STOCKS.some((s) => s.t === t)}
             markOf={(t) => marks[t]}
             onMark={requestMark}
             highlightReviews={fcHighlight}
+            onReviewsClosed={bellReturn ? closeToBell : undefined}
             openView={openView}
             onViewClosed={() => {
               setOpenView(null);

@@ -457,6 +457,7 @@ interface StockModalProps {
   highlightReviews?: string[] | null; // opened from a review notification: open forecasts + glow these rows
   openView?: TickerView | null; // a shared link's view to open over the modal (#TSM/pe)
   onViewClosed?: () => void;
+  onReviewsClosed?: () => void; // the notification-opened forecasts view was closed
 }
 
 interface StockCardProps {
@@ -472,12 +473,13 @@ interface StockCardProps {
   highlightReviews?: string[] | null;
   openView?: TickerView | null;
   onViewClosed?: () => void;
+  onReviewsClosed?: () => void;
   /** The card the user is actually looking at. The off-screen two still fetch — that is the
    *  whole point of mounting them — but they take no keyboard and open no overlay. */
   active: boolean;
 }
 
-function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext, highlightReviews, openView, onViewClosed, active }: StockCardProps) {
+function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext, highlightReviews, openView, onViewClosed, onReviewsClosed, active }: StockCardProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
@@ -511,6 +513,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
   }, [onViewClosed]);
   const [hotKeys, setHotKeys] = useState<Set<string>>(() => new Set()); // review rows to glow, from a notification
   const highlightDone = useRef<string[] | null>(null);
+  const fcFromHighlight = useRef(false);
   const [liveDesc, setLiveDesc] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -621,10 +624,18 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
     if (highlightDone.current === highlightReviews) return;
     highlightDone.current = highlightReviews;
     setFcOpen(true);
+    fcFromHighlight.current = true;
     setHotKeys(new Set(highlightReviews));
     const id = window.setTimeout(() => setHotKeys(new Set()), 2000);
     return () => window.clearTimeout(id);
   }, [highlightReviews, forecasts]);
+
+  // closing that notification-opened forecasts view hands control back to the opener
+  useEffect(() => {
+    if (fcOpen || !fcFromHighlight.current) return;
+    fcFromHighlight.current = false;
+    onReviewsClosed?.();
+  }, [fcOpen, onReviewsClosed]);
 
   // fetch series for the active range (default 1M on open; others on tab click)
   useEffect(() => {
@@ -1417,7 +1428,7 @@ function SwipeCoach({ onDismiss }: { onDismiss: () => void }) {
 
 export default function StockModal({
   stock, list, onIndex, onClose, isTracked, onToggleTrack, isCovered, markOf, onMark, highlightReviews,
-  openView, onViewClosed,
+  openView, onViewClosed, onReviewsClosed,
 }: StockModalProps) {
   const swipeRef = useRef<HTMLDivElement>(null);
   const idx = Math.max(0, list.findIndex((s) => s.t === stock.t));
@@ -1524,6 +1535,7 @@ export default function StockModal({
                   highlightReviews={i === idx ? highlightReviews : null}
                   openView={i === idx ? openView : null}
                   onViewClosed={onViewClosed}
+                  onReviewsClosed={i === idx ? onReviewsClosed : undefined}
                 />
               )}
               {coach && i === idx && <SwipeCoach onDismiss={dismissCoach} />}
