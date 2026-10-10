@@ -1,5 +1,31 @@
 [
   {
+    "id": "AMZN-2026-10-10T19:23:30.001Z",
+    "ts": "2026-10-10T19:23:30.001Z",
+    "kind": "steady",
+    "ticker": "AMZN",
+    "name": "Amazon.Com, Inc.",
+    "sector": "ConsumerCyclical",
+    "text": "32% upside held for 30 days.",
+    "score": 36,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (40% word overlap)"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "snapshots": 145,
+      "days": 30.2,
+      "upside": 32.7,
+      "consensus": "StrongBuy",
+      "analysts": 37
+    },
+    "descriptor": "Global Online Retailer",
+    "image": "AMZN-2026-10-10T19-23-30-001Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "FRVO-2026-10-10T11:03:35.481Z",
     "ts": "2026-10-10T11:03:35.481Z",
     "kind": "surprise",

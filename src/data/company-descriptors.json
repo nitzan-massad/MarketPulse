@@ -148,5 +148,10 @@
     "name": "T Mobile US",
     "descriptor": "Mobile Network Operator",
     "scene": "adjusting antennas on a cellular tower outdoors"
+  },
+  "AMZN": {
+    "name": "Amazon.Com",
+    "descriptor": "Global Online Retailer",
+    "scene": "scanning inventory shelves with a handheld barcode scanner in a vast warehouse"
   }
 }
