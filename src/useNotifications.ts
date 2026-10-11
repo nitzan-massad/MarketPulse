@@ -94,6 +94,10 @@ export function useNotifications(
     user && !DEV_AUTH ? readNotifsCache(user.uid) : [],
   );
   const [meta, setMeta] = useState<MetaMap>({});
+  // True once THIS user's stored meta has arrived. Until then an empty `meta` means "not loaded",
+  // not "no baselines" — seeding from it would overwrite every stored alert baseline with the
+  // current price (the reconcile effect below), so both alert effects wait for it.
+  const [metaLoaded, setMetaLoaded] = useState(false);
   const notifsRef = useRef(notifications);
   notifsRef.current = notifications;
   // In-memory price at each ticker's last alert. The re-fire guard reads this
@@ -106,8 +110,10 @@ export function useNotifications(
     if (DEV_AUTH) {
       setNotifs(user ? readNotifsLocal() : []);
       setMeta(user ? readMetaLocal() : {});
+      setMetaLoaded(!!user);
       return;
     }
+    setMetaLoaded(false);
     if (!db) return;
     if (!user) {
       setNotifs([]);
@@ -125,7 +131,10 @@ export function useNotifications(
       setNotifs(arr);
       writeNotifsCache(user.uid, arr);
     });
-    const unMeta = onValue(mref, (snap) => setMeta((snap.val() as MetaMap) || {}));
+    const unMeta = onValue(mref, (snap) => {
+      setMeta((snap.val() as MetaMap) || {});
+      setMetaLoaded(true);
+    });
     return () => {
       unNotif();
       unMeta();
@@ -201,7 +210,7 @@ export function useNotifications(
 
   // reconcile meta: create for newly-watched tickers (reqs 11 + 12), prune the rest
   useEffect(() => {
-    if (!user) return;
+    if (!user || !metaLoaded) return;
     for (const t of watchlist) {
       if (!meta[t] && typeof prices[t] === "number") {
         persistMeta(t, { addPx: prices[t], ref: prices[t] });
@@ -213,11 +222,11 @@ export function useNotifications(
         delete lastFiredPxRef.current[t]; // fresh baseline if it's ever re-added
       }
     }
-  }, [user, watchlist, prices, meta, persistMeta]);
+  }, [user, metaLoaded, watchlist, prices, meta, persistMeta]);
 
   // fire alerts on the ratchet
   useEffect(() => {
-    if (!user) return;
+    if (!user || !metaLoaded) return;
     for (const t of watchlist) {
       const m = meta[t];
       const cur = prices[t];
@@ -233,7 +242,7 @@ export function useNotifications(
       addNotif({ type: "price", ticker: t, dir: res.dir, pct: res.pct, at: Date.now(), read: false });
       persistMeta(t, { addPx: m.addPx, ref: res.newRef });
     }
-  }, [user, watchlist, prices, meta, addNotif, persistMeta]);
+  }, [user, metaLoaded, watchlist, prices, meta, addNotif, persistMeta]);
 
   const markAllRead = useCallback(() => {
     if (!user) return;

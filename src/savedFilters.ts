@@ -54,12 +54,20 @@ export function useSavedFilters(
   // never survive a reload. Skipping exactly one save per load closes the window, and it
   // is a window no user input can land in — it is the same tick as the load.
   const skipNextSave = useRef(false);
+  // False until THIS user's stored filters have loaded. The account is known at boot now (the
+  // cached sign-in), so without this the save effect ran on the defaults before the remote
+  // record arrived and wrote them over it — every reload reset the saved filters.
+  const loaded = useRef(false);
   const onLoadRef = useRef(onLoad);
   onLoadRef.current = onLoad;
 
   // hydrate: signed in -> live remote; otherwise localStorage (once)
   useEffect(() => {
+    loaded.current = false;
+    const local = readLocal();
     if (user && db) {
+      // paint this device's last copy at once; the remote record replaces it when it lands
+      if (local) onLoadRef.current(local);
       const r = ref(db, `filters/${user.uid}`);
       return onValue(r, (snap) => {
         const v = snap.val() as SavedFilters | null;
@@ -67,10 +75,13 @@ export function useSavedFilters(
           lastSynced.current = JSON.stringify(v);
           onLoadRef.current(v);
         }
-        skipNextSave.current = true; // even when the account has no record yet
+        // No skipNextSave here: this callback is async, so the next save run already sees the
+        // loaded filters (equal to lastSynced -> no write). Setting it could swallow the user's
+        // next real change if the load didn't alter the filters.
+        loaded.current = true;
       });
     }
-    const local = readLocal();
+    loaded.current = true;
     if (local) {
       lastSynced.current = JSON.stringify(local);
       onLoadRef.current(local);
@@ -80,6 +91,7 @@ export function useSavedFilters(
 
   // persist on change (skip the value we just loaded)
   useEffect(() => {
+    if (!loaded.current) return; // the stored filters haven't arrived yet — don't overwrite them
     if (skipNextSave.current) {
       skipNextSave.current = false;
       return; // this run still holds the pre-load filters — writing it would clobber
