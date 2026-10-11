@@ -32,6 +32,25 @@ export interface NotificationsApi {
 type MetaMap = Record<string, Meta>;
 
 const NOTIFS_LS = "mp_notifs";
+// Signed-in boot cache: the last list RTDB sent for this uid, painted on reload while the
+// session restores and the listener connects; the first RTDB value replaces it.
+const NOTIFS_CACHE = "mp_notifs_cache";
+function readNotifsCache(uid: string): Notification[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(NOTIFS_CACHE) || "null");
+    return v && v.uid === uid && Array.isArray(v.list) ? v.list : [];
+  } catch {
+    return [];
+  }
+}
+function writeNotifsCache(uid: string | null, list: Notification[]): void {
+  try {
+    if (uid) localStorage.setItem(NOTIFS_CACHE, JSON.stringify({ uid, list }));
+    else localStorage.removeItem(NOTIFS_CACHE);
+  } catch {
+    /* ignore */
+  }
+}
 const META_LS = "mp_watch_meta";
 
 function readNotifsLocal(): Notification[] {
@@ -71,7 +90,9 @@ export function useNotifications(
   watchlist: string[],
   prices: Record<string, number>,
 ): NotificationsApi {
-  const [notifications, setNotifs] = useState<Notification[]>([]);
+  const [notifications, setNotifs] = useState<Notification[]>(() =>
+    user && !DEV_AUTH ? readNotifsCache(user.uid) : [],
+  );
   const [meta, setMeta] = useState<MetaMap>({});
   const notifsRef = useRef(notifications);
   notifsRef.current = notifications;
@@ -91,6 +112,7 @@ export function useNotifications(
     if (!user) {
       setNotifs([]);
       setMeta({});
+      writeNotifsCache(null, []);
       return;
     }
     const nref = ref(db, `notifications/${user.uid}`);
@@ -101,6 +123,7 @@ export function useNotifications(
       const arr = Object.entries(v).map(([id, n]) => ({ id, ...n, type: n.type ?? "price" }));
       arr.sort((a, b) => b.at - a.at);
       setNotifs(arr);
+      writeNotifsCache(user.uid, arr);
     });
     const unMeta = onValue(mref, (snap) => setMeta((snap.val() as MetaMap) || {}));
     return () => {

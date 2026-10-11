@@ -75,6 +75,26 @@ export const AUTH_PROVIDERS: AuthProviderDef[] = [
 ];
 
 const LS_KEY = "mp_watchlist";
+// The last signed-in account, so a reload paints as signed in at once instead of waiting
+// ~1-2s for Firebase to restore (and maybe refresh) its session. Only the public profile
+// bits — no token. Firebase's answer always wins: a different/no user replaces it.
+const AUTH_LS = "mp_auth_user";
+function readAuthHint(): User | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(AUTH_LS) || "null");
+    return v && typeof v.uid === "string" ? (v as User) : null;
+  } catch {
+    return null;
+  }
+}
+function writeAuthHint(u: User | null): void {
+  try {
+    if (u) localStorage.setItem(AUTH_LS, JSON.stringify({ uid: u.uid, email: u.email, displayName: u.displayName, photoURL: u.photoURL }));
+    else localStorage.removeItem(AUTH_LS);
+  } catch {
+    /* ignore */
+  }
+}
 function readLocal(): string[] {
   try {
     const v = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
@@ -140,14 +160,17 @@ export function useWatchlist(): WatchlistApi {
   // and re-rendering on a key change would repaint the table for a value nothing displays.
   // Empty in local mode — there the array's own order IS the order (see `reorder`).
   const keysRef = useRef<KeyMap>({});
-  const [fbUser, setFbUser] = useState<User | null>(null);
+  // Seeded from the last session's account. The RTDB listeners below can attach with its uid
+  // right away: the database SDK waits for Auth to finish restoring before it sends a token,
+  // so the fresh data lands as soon as the session is back and simply replaces the cached copy.
+  const [fbUser, setFbUser] = useState<User | null>(() => (DEV_AUTH || !auth ? null : readAuthHint()));
   const [devUser, setDevUser] = useState<User | null>(
     () => (DEV_AUTH && localStorage.getItem(DEV_FLAG) === "1" ? DEV_USER : null),
   );
   const user = DEV_AUTH ? devUser : fbUser;
   // false until Firebase reports the first auth state — lets the UI avoid the
   // "Sign in" flash before a persisted session is restored (dev resolves at once)
-  const [authReady, setAuthReady] = useState<boolean>(DEV_AUTH || !auth);
+  const [authReady, setAuthReady] = useState<boolean>(() => DEV_AUTH || !auth || readAuthHint() != null);
   const [marks, setMarks] = useState<Record<string, MarkEntry>>(() => readMarks());
   const marksRef = useRef(marks);
   marksRef.current = marks;
@@ -156,7 +179,9 @@ export function useWatchlist(): WatchlistApi {
   useEffect(() => {
     if (DEV_AUTH || !auth) return;
     return onAuthStateChanged(auth, (u) => {
-      setFbUser(u);
+      writeAuthHint(u);
+      // same account as the hint: keep the object, so nothing re-subscribes or repaints
+      setFbUser((prev) => (u && prev && prev.uid === u.uid && prev.photoURL === u.photoURL && prev.email === u.email ? prev : u));
       setAuthReady(true);
     });
   }, []);
@@ -356,6 +381,7 @@ export function useWatchlist(): WatchlistApi {
     }
     writeLocal([]); // drop the boot cache so a signed-out reload paints empty
     writeMarks({});
+    writeAuthHint(null);
     if (auth) void fbSignOut(auth);
   }, []);
 
