@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { DATE_LOCALE } from "../lib";
-import { hasPeHistory, lastYears, niceTicks, peSeries, peStats, type EpsPoint, type PePoint } from "../peHistory";
+import { hasPeHistory, lastYears, LOG_FROM, logTicks, niceTicks, PE_MAX, peSeries, peStats, type EpsPoint, type PePoint } from "../peHistory";
 import { tickerTarget } from "../share";
 import { useShare } from "../useShare";
 import CloseButton from "./CloseButton";
@@ -36,7 +36,7 @@ const fmtDate = (d: string) =>
 const x1 = (v: number) => v.toFixed(1) + "×";
 
 /** `{ asOf, pts: [[date, pe|null, flag?], ...] }` written by ci/scrape-pe.mjs; flag 1 = loss
- *  (trailing earnings <= 0), 2 = P/E above 200x. */
+ *  (trailing earnings <= 0), 2 = P/E above PE_MAX (1000x). */
 async function loadStatic(t: string): Promise<{ asOf: string | null; pts: PePoint[] }> {
   const r = await fetch(`${import.meta.env.BASE_URL}pe/${encodeURIComponent(t)}.json`);
   if (!r.ok) throw new Error("no file");
@@ -47,7 +47,6 @@ async function loadStatic(t: string): Promise<{ asOf: string | null; pts: PePoin
 
 export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, loadSeries, onClose }: Props) {
   const [all, setAll] = useState<PePoint[] | null>(null);
-  const [asOf, setAsOf] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [range, setRange] = useState<RangeKey>("5Y");
   const [hover, setHover] = useState<number | null>(null);
@@ -59,10 +58,7 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
     // CI's precomputed file first (public/pe/<T>.json, ci/scrape-pe.mjs): no API call and no
     // shared rate limit. Off-universe tickers have no file, so fall back to computing it live.
     loadStatic(ticker)
-      .then((f) => {
-        if (!cancelled) setAsOf(f.asOf);
-        return f.pts;
-      })
+      .then((f) => f.pts)
       .catch(() => {
         if (pending) throw new Error("pending");
         return loadSeries().then((s) => {
@@ -83,10 +79,15 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
 
   const chart = useMemo(() => {
     if (!stats || pts.length < 2) return null;
-    const ticks = niceTicks(Math.min(stats.lo, sectorPe ?? stats.lo), Math.max(stats.hi, sectorPe ?? stats.hi));
+    const vLo = Math.min(stats.lo, sectorPe ?? stats.lo), vHi = Math.max(stats.hi, sectorPe ?? stats.hi);
+    // past LOG_FROM a linear axis flattens everything else into the floor: go logarithmic
+    const log = stats.hi > LOG_FROM;
+    const ticks = log ? logTicks(vLo, vHi) : niceTicks(vLo, vHi);
     const lo = ticks[0], hi = ticks[ticks.length - 1];
     const X = (i: number) => L + ((R - L) * i) / (pts.length - 1);
-    const Y = (v: number) => B - ((B - T) * (v - lo)) / (hi - lo);
+    const Y = log
+      ? (v: number) => B - ((B - T) * Math.log(v / lo)) / Math.log(hi / lo)
+      : (v: number) => B - ((B - T) * (v - lo)) / (hi - lo);
     // a loss stretch breaks the line rather than diving to zero
     let line = "", area = "", run: string[] = [];
     const flush = (endX: number, startX: number) => {
@@ -108,7 +109,7 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
       if (i > 0 && p.d.slice(0, 4) !== pts[i - 1].d.slice(0, 4)) years.push({ x: X(i), label: "’" + p.d.slice(2, 4) });
     });
     const lastI = pts.map((p) => p.v != null).lastIndexOf(true);
-    // runs of flagged weeks -> strips: "Unprofitable" along the bottom, "Over 200×" along the top
+    // runs of flagged weeks -> strips: "Unprofitable" along the bottom, "Over 1000×" along the top
     // (half a week of bleed each side)
     const half = (R - L) / (pts.length - 1) / 2;
     const runs = (flag: "loss" | "high") => {
@@ -157,7 +158,7 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
                 <span><i className="md" />Median</span>
                 {sectorPe != null && <span><i className="sc" />Sector</span>}
                 {chart && chart.losses.length > 0 && <span><i className="ls" />Unprofitable</span>}
-                {chart && chart.highs.length > 0 && <span><i className="hs" />Over 200×</span>}
+                {chart && chart.highs.length > 0 && <span><i className="hs" />Over {PE_MAX}×</span>}
               </div>
             </div>
 
@@ -170,7 +171,7 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
               {!all && !failed && <div className="mkm-plot-msg mkm-skel">Loading…</div>}
               {failed && pending && <div className="mkm-plot-msg">Updating — {ticker}'s P/E history is being prepared. Check back in a day or two.</div>}
               {all && !chart && pts.some((p) => p.high) && (
-                <div className="mkm-plot-msg">{ticker}'s P/E has been above 200× for this whole period.</div>
+                <div className="mkm-plot-msg">{ticker}'s P/E has been above {PE_MAX}× for this whole period.</div>
               )}
               {((failed && !pending) || (all && !chart && !pts.some((p) => p.high))) && <div className="mkm-plot-msg">No P/E history for {ticker}.</div>}
               {chart && stats && (
@@ -197,7 +198,7 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
                   {chart.highs.map((b) => (
                     <g key={"h" + b.x}>
                       <rect className="mkm-pe-high" x={b.x} y={T} width={Math.min(b.w, R - b.x)} height="18" rx="3" />
-                      {b.w > 90 && <text className="mkm-pe-hight" x={b.x + Math.min(b.w, R - b.x) / 2} y={T + 13}>Over 200×</text>}
+                      {b.w > 90 && <text className="mkm-pe-hight" x={b.x + Math.min(b.w, R - b.x) / 2} y={T + 13}>Over {PE_MAX}×</text>}
                     </g>
                   ))}
                   <path d={chart.area} fill="var(--t-gold)" fillOpacity=".08" />
@@ -241,7 +242,6 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
                 <div className="v teal">{sectorPe != null ? x1(sectorPe) : "—"}</div>
               </div>
             </div>
-            {asOf && <p className="mkm-pe-asof">Chart as of {fmtDate(asOf)}</p>}
           </div>
         </div>
         {share.burst && <ShareBurst id={share.burst} onDone={share.onBurstDone} />}

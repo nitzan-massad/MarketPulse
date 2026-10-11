@@ -22,7 +22,7 @@ export interface PePoint {
   d: string;
   v: number | null; // null = gap: no positive TTM earnings, or not meaningful (see PE_MAX)
   loss?: true; // the gap is because trailing earnings were <= 0 — the chart marks it "Unprofitable"
-  high?: true; // the gap is because the P/E was above PE_MAX — the chart marks it "Over 200×"
+  high?: true; // the gap is because the P/E was above PE_MAX — the chart marks it "Over 1000×"
 }
 
 const DAY = 864e5;
@@ -35,9 +35,14 @@ const STALE_DAYS = 200;
  *  or a half-year filer whose 6-month figure would be summed as if it were 3). */
 const MAX_QUARTER_GAP_DAYS = 120;
 /** Not meaningful: beyond these a P/E says more about a one-off than about valuation (CRIS hit
- *  0.04x from a one-off gain; near-zero earnings make 1000x+). Shown as a gap.
+ *  0.04x from a one-off gain; earnings a hair above zero make 10,000x+). Shown as a gap.
+ *  This was 200 once, which hid real, sustained valuations (a stock at 244x for two years drew
+ *  no line at all, and its median/range came from the years before). 200-1000x is now a value,
+ *  drawn on a log scale (LOG_FROM) so it doesn't flatten the rest of the line.
  *  ponytail: fixed bounds; a per-stock percentile clip if these ever hide something real. */
-export const PE_MAX = 200;
+export const PE_MAX = 1000;
+/** Above this the chart switches to a log axis: 30x and 300x then both read clearly. */
+export const LOG_FROM = 200;
 export const PE_MIN = 3; // loss-makers with a one-off gain otherwise chart a "median" of 2-3x
 /** US filers' summed-EPS P/E sits within ~5% of Finnhub's; beyond this it is a currency gap. */
 const CURRENCY_TOLERANCE = 0.07;
@@ -210,6 +215,17 @@ export function peStats(pts: PePoint[]): PeStats | null {
 /** Worth a chart: at least half a year of weeks with a P/E (counting "over 200x" weeks, so a
  *  richly valued grower like DDOG still gets one). */
 export const hasPeHistory = (pts: PePoint[]): boolean => pts.filter((p) => p.v != null || p.high).length >= 26;
+
+/** Log-axis ticks: the 1-2-5 sequence from the largest value <= lo to the smallest >= hi
+ *  (26-244x -> 20, 50, 100, 200, 500). */
+export function logTicks(lo: number, hi: number): number[] {
+  const cand: number[] = [];
+  for (let e = Math.floor(Math.log10(lo)) - 1; e <= Math.ceil(Math.log10(hi)); e++)
+    for (const m of [1, 2, 5]) cand.push(+(m * 10 ** e).toPrecision(6));
+  const first = Math.max(...cand.filter((c) => c <= lo));
+  const last = Math.min(...cand.filter((c) => c >= hi));
+  return cand.filter((c) => c >= first && c <= last);
+}
 
 /** Axis ticks: a "nice" step giving ~4-6 lines across [lo, hi] (NVDA's 25-243 got 24 before). */
 export function niceTicks(lo: number, hi: number): number[] {

@@ -790,7 +790,10 @@ the commit step's existing `src/data` glob already stages it.
 `ci/scrape-pe.mjs` writes `public/pe/<T>.json` — `{ asOf, pts: [[date, pe|null, loss?], …] }`,
 5 years of weekly trailing P/E — for the stock modal's P/E chart (`src/components/PeHistory.tsx`).
 A third element marks why a week has no value: `1` trailing earnings ≤ 0 (drawn as an
-"Unprofitable" strip along the bottom), `2` P/E above 200× (an "Over 200×" strip along the top).
+"Unprofitable" strip along the bottom), `2` P/E above 1000× (an "Over 1000×" strip along the top).
+200–1000× is a real value: the chart switches to a log axis once a stock passes 200×, so those
+weeks are drawn and counted in the median/range instead of hidden (it was a 200× cut-off once,
+which left a stock at 244× for two years with no line and a median from the years before).
 
 - **Cache, committed: `ci/cache/pe/<T>.json`** `{ cik, closes, eps, peq, reports, secAt }`.
   - `closes`: 5Y weekly closes from Twelve Data, fetched **once per ticker**. Its free 800/day
@@ -812,8 +815,8 @@ A third element marks why a week has no value: `1` trailing earnings ≤ 0 (draw
     (BAC) use the implied one too.
   - Each quarter counts from its **announcement date** (`reports`, matched within a week of the
     quarter end), else 35 days after quarter end; judged at each weekly bar's Friday close.
-  - A TTM ≤ 0 is a loss week; > 200× is an over-200× week; no quarter for 200+ days or a P/E
-    under 3× is a plain gap. A chart needs ≥ 26 weeks with a value or over 200×.
+  - A TTM ≤ 0 is a loss week; > 1000× is an over-1000× week; no quarter for 200+ days or a P/E
+    under 3× is a plain gap. A chart needs ≥ 26 weeks with a value or over 1000×.
   - A weekly close that halves or doubles with no new quarter (a spin-off: CTVA 78.52 → 11.92)
     blanks the chart until the next report, instead of a fake P/E collapse.
   - A foreign filer's implied TTM more than 1.5× off its currency-adjusted sum is one bad
