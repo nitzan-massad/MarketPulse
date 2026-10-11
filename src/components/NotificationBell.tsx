@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import type { Notification } from "../useNotifications";
 import { fmtMarkDate } from "./ThumbMark";
 
@@ -57,6 +57,24 @@ export default function NotificationBell({
   const [sessionNew, setSessionNew] = useState<Set<string>>(new Set());
   const rootRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  // phone: swipe the panel up to close it. dragY is the live offset (≤ 0) while a finger is down.
+  const drag = useRef<{ y0: number; h: number } | null>(null);
+  const [dragY, setDragY] = useState(0);
+
+  function onTouchStart(e: TouchEvent<HTMLDivElement>) {
+    const b = bodyRef.current;
+    // inside the list, a swipe up scrolls it — only drag the panel once the list is at its end
+    if (b && b.contains(e.target as Node) && b.scrollTop + b.clientHeight < b.scrollHeight - 1) return;
+    drag.current = { y0: e.touches[0].clientY, h: e.currentTarget.offsetHeight };
+  }
+  function onTouchMove(e: TouchEvent) {
+    if (drag.current) setDragY(Math.min(0, e.touches[0].clientY - drag.current.y0));
+  }
+  function onTouchEnd() {
+    if (drag.current && -dragY > drag.current.h / 3) setOpen(false);
+    drag.current = null;
+    setDragY(0);
+  }
   const savedScroll = useRef(0);
 
   // reopen without re-marking: the session's "new" dots and scroll position are kept
@@ -154,6 +172,7 @@ export default function NotificationBell({
 
   return (
     <div className="nb-root" ref={rootRef}>
+      {open && <div className="nb-scrim" aria-hidden="true" onClick={() => setOpen(false)} />}
       <button
         className="nb-bell"
         type="button"
@@ -167,10 +186,22 @@ export default function NotificationBell({
       </button>
 
       {open && (
-        <div className="nb-pop" role="menu" aria-label="Notifications">
+        <div
+          className={`nb-pop${dragY ? " nb-dragging" : ""}`}
+          role="menu"
+          aria-label="Notifications"
+          style={dragY ? { transform: `translateY(${dragY}px)`, opacity: 1 + dragY / 400 } : undefined}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={onTouchEnd}
+        >
           <div className="nb-head">
             <span className="nb-htitle">Notifications</span>
             {sessionNew.size > 0 && <span className="nb-count">{sessionNew.size} new</span>}
+            <button className="nb-x" type="button" aria-label="Close notifications" onClick={() => setOpen(false)}>
+              ×
+            </button>
           </div>
 
           {notifications.length === 0 ? (
@@ -195,6 +226,7 @@ export default function NotificationBell({
               </div>
             </>
           )}
+          <div className="nb-grab" aria-hidden="true"><i /></div>
         </div>
       )}
     </div>
