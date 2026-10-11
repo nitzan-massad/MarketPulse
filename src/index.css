@@ -1311,7 +1311,9 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
 .nb-x:hover{color:var(--ink); background:var(--panel-2)}
 .nb-x:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px}
 /* dims the page behind the open panel; a tap on it closes the panel */
-.nb-scrim{position:fixed; inset:0; z-index:44; background:rgba(19,26,36,.32)}
+.nb-scrim{position:fixed; inset:0; z-index:44; background:rgba(27,29,24,.55); backdrop-filter:blur(2px)}
+/* a stock modal over the open panel brings its own scrim (same tint): one dim layer, not two */
+body:has(.mkm-scrim) .nb-scrim{visibility:hidden}
 @media(prefers-reduced-motion:no-preference){ .nb-scrim{animation:nb-fade .16s ease-out} }
 @keyframes nb-fade{from{opacity:0}}
 /* phone-only drag handle: swipe the panel up to close it */

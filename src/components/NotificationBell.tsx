@@ -87,11 +87,15 @@ export default function NotificationBell({
 
   useEffect(() => {
     if (!open) return;
+    // A stock modal opened from a notification sits on top of the panel; clicks and Escape
+    // inside it belong to the modal, and closing it lands back here with the panel still open.
+    const modalUp = () => !!document.querySelector(".mkm-scrim");
     const onDoc = (e: MouseEvent) => {
+      if (modalUp()) return;
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape" && !modalUp()) setOpen(false);
     };
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onKey);
@@ -128,8 +132,7 @@ export default function NotificationBell({
     const isNew = sessionNew.has(n.id);
     const open = () => {
       savedScroll.current = bodyRef.current?.scrollTop ?? 0;
-      onOpen(n);
-      setOpen(false);
+      onOpen(n); // the panel stays open underneath — see modalUp() above
     };
     if (n.type === "review") {
       const count = n.keys?.length ?? 1;
