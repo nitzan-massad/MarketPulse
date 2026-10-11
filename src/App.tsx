@@ -325,7 +325,9 @@ export default function App() {
   function openFromNotification(n: Notification) {
     setNav("watch");
     const s = STOCKS.find((x) => x.t === n.ticker);
-    if (s) handleOpen(s, STOCKS.filter((x) => watchlist.includes(x.t)));
+    const watched = STOCKS.filter((x) => watchlist.includes(x.t));
+    // a ticker since removed from the watchlist still opens on itself, not on the list's first row
+    if (s) handleOpen(s, watched.includes(s) ? watched : [s]);
     else handleOpenTicker(n.ticker);
     if (n.type === "review") setFcHighlight(n.keys ?? []);
     setBellReturn(true);
@@ -520,6 +522,7 @@ export default function App() {
             onMark={requestMark}
             highlightReviews={fcHighlight}
             onReviewsClosed={bellReturn ? closeToBell : undefined}
+            bare={bellReturn && fcHighlight != null}
             openView={openView}
             onViewClosed={() => {
               setOpenView(null);

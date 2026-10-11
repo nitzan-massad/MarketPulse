@@ -466,6 +466,7 @@ interface StockModalProps {
   markOf: (t: string) => MarkEntry | undefined;
   onMark: (t: string, v: Mark) => void;
   highlightReviews?: string[] | null; // opened from a review notification: open forecasts + glow these rows
+  bare?: boolean; // only the forecasts overlay is wanted: keep the card mounted (it owns the overlay) but hidden
   openView?: TickerView | null; // a shared link's view to open over the modal (#TSM/pe)
   onViewClosed?: () => void;
   onReviewsClosed?: () => void; // the notification-opened forecasts view was closed
@@ -1470,7 +1471,7 @@ function SwipeCoach({ onDismiss }: { onDismiss: () => void }) {
 
 export default function StockModal({
   stock, list, onIndex, onClose, isTracked, onToggleTrack, isCovered, markOf, onMark, highlightReviews,
-  openView, onViewClosed, onReviewsClosed,
+  openView, onViewClosed, onReviewsClosed, bare,
 }: StockModalProps) {
   const swipeRef = useRef<HTMLDivElement>(null);
   const idx = Math.max(0, list.findIndex((s) => s.t === stock.t));
@@ -1552,7 +1553,7 @@ export default function StockModal({
   );
 
   return (
-    <div className="mkm-scrim" onMouseDown={onBackdrop}>
+    <div className={`mkm-scrim${bare ? " mkm-bare" : ""}`} onMouseDown={onBackdrop}>
       <div className="mkm-stage">
         {goPrev && (
           <button type="button" className="mkm-nav prev" aria-label="Previous stock" onClick={goPrev}>
