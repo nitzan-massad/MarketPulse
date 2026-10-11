@@ -90,15 +90,16 @@ export function makeProvider(env = process.env, fetchImpl = globalThis.fetch) {
     if (!token) throw new Error("POST_PROVIDER=cloudflare needs CF_API_TOKEN");
     const model = env.CF_MODEL || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 
-    return async ({ system, prompt, n = 1, onUsage }) =>
+    return async ({ system, prompt, n = 1, onUsage, temperature = 0.95 }) =>
       batch(n, async () => {
         const res = await fetchImpl(CF_URL(acct, model), {
           method: "POST",
           headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
           body: JSON.stringify({
             messages: [{ role: "system", content: system }, { role: "user", content: prompt }],
-            // High temperature on purpose: five near-identical candidates defeat best-of-N.
-            temperature: 0.95,
+            // High by default on purpose: five near-identical candidates defeat best-of-N.
+            // A yes/no classifier (ci/classify-themes.mjs) passes 0 instead.
+            temperature,
             max_tokens: 300,
           }),
         });
@@ -118,7 +119,7 @@ export function makeProvider(env = process.env, fetchImpl = globalThis.fetch) {
     if (!key) throw new Error("POST_PROVIDER=anthropic needs ANTHROPIC_API_KEY");
     const model = env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
 
-    return async ({ system, prompt, n = 1 }) =>
+    return async ({ system, prompt, n = 1, temperature = 1 }) =>
       batch(n, async () => {
         const res = await fetchImpl("https://api.anthropic.com/v1/messages", {
           method: "POST",
@@ -128,7 +129,7 @@ export function makeProvider(env = process.env, fetchImpl = globalThis.fetch) {
             "content-type": "application/json",
           },
           body: JSON.stringify({
-            model, max_tokens: 300, temperature: 1, system,
+            model, max_tokens: 300, temperature, system,
             messages: [{ role: "user", content: prompt }],
           }),
         });

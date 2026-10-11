@@ -160,6 +160,17 @@ jobs:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
         run: node ci/generate-posts.mjs
 
+      # Sector-filter themes (Quantum Computing): each company asked once, by the same free
+      # Cloudflare model, after the post so the post keeps first claim on the daily neurons.
+      # New arrivals cost 0-5 calls a run; a backfill is capped at 150 calls a run.
+      - name: Classify sector themes
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+        run: node ci/classify-themes.mjs
+
       # THE DATA GATE — the one that actually protects what ships. Everything above this
       # point is `continue-on-error`, and the pre-scrape `npm test` could only vet the
       # PREVIOUS snapshot, so without this step a mapping regression (the ÷10 AI-scale bug,

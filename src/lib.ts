@@ -1,5 +1,6 @@
 import type { Col, Stock, View, ViewId } from "./types";
 import seenData from "./data/seen.json";
+import themesData from "./data/themes.json";
 
 export const VIEWS: Record<ViewId, View> = {
   analyst: {
@@ -86,12 +87,21 @@ export interface FilterState {
   cap: number;
 }
 
+// Themes (ci/classify-themes.mjs): AI-classified groups that cut across sectors, offered as extra
+// Sector options. A theme with no members yet (backfill still running) is not offered at all.
+const THEMES: Record<string, Set<string>> = Object.fromEntries(
+  Object.entries(themesData as Record<string, string[]>).map(([k, v]) => [k, new Set(v)]),
+);
+export const themeNames = Object.keys(THEMES).filter((k) => THEMES[k].size > 0);
+/** A sector-filter option matches its real sector, or a theme the company was classified into. */
+export const inSector = (s: Stock, name: string): boolean => s.sec === name || !!THEMES[name]?.has(s.t);
+
 export function passes(s: Stock, state: FilterState): boolean {
   if (state.q) {
     const q = state.q.toLowerCase();
     if (!((s.t || "").toLowerCase().includes(q) || (s.n || "").toLowerCase().includes(q))) return false;
   }
-  if (state.sectors.length && state.sectors.includes(s.sec) === state.sectorNot) return false;
+  if (state.sectors.length && state.sectors.some((n) => inSector(s, n)) === state.sectorNot) return false;
   if (state.cap && (s.mc == null || s.mc < state.cap)) return false;
   // Consensus is a membership test over KNOWN ratings only: a row whose rating the feed
   // omitted (con null/"") is KEPT, not dropped, so it can't blink out of the table for a

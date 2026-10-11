@@ -854,6 +854,23 @@ modal fetches it once per page load and shows the line under the company name.
 - `ci/test-earnings.mjs` guards the merge (earliest date wins, past dates dropped), that the
   windows tile the horizon with no gap, and the committed file's shape.
 
+## Sector themes (Quantum Computing) — automated ✅
+
+`ci/classify-themes.mjs` asks the posts' AI provider (`ci/provider.mjs`, temperature 0) one
+yes/no question per company per theme — "is this its CORE business?" — from its name and
+description. Verdicts live in `ci/cache/themes.json` (`{ theme: { T: [hash, 0|1] } }`); the
+app reads the "yes" lists from `src/data/themes.json` and offers each non-empty theme as an
+extra Sector option (`lib.ts` `inSector`).
+
+- **Asked once.** A company is re-asked only when its name/description hash changes, so a
+  normal run costs 0-5 calls. A backfill is capped at `THEMES_MAX_CALLS` (150) a run and runs
+  after the post, so the post keeps first claim on the free daily neurons.
+- **No hand-kept lists.** A wrong verdict is fixed by sharpening the theme's definition in
+  `THEMES` (and clearing that theme's cache), not by exceptions.
+- **An unclear answer is not a verdict** — it is asked again next run.
+- `ci/test-classify-themes.mjs` + `src/themes.check.ts` guard the parsing, the re-ask rule,
+  and that the filter matches members sitting in other sectors.
+
 ## Recent reviews feed (New Arrivals) — automated ✅
 
 `ci/build-reviews-recent.mjs` reads the forecast files on disk and writes

@@ -14,7 +14,7 @@ import Toolbar from "./components/Toolbar";
 import Watchlist from "./components/Watchlist";
 import stocksData from "./data/stocks.json";
 import { flagOn } from "./featureFlags";
-import { passes, sortRows, VIEWS } from "./lib";
+import { passes, sortRows, themeNames, VIEWS } from "./lib";
 import { parseShareHash, type PanelId, type TickerView } from "./share";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
@@ -228,7 +228,7 @@ export default function App() {
   );
 
   const sectorOptions = useMemo(
-    () => [...new Set(STOCKS.map((s) => s.sec).filter(Boolean))].sort(),
+    () => [...new Set([...STOCKS.map((s) => s.sec).filter(Boolean), ...themeNames])].sort(),
     [],
   );
   // distinct consensus ratings present in the data, ranked buy→sell
