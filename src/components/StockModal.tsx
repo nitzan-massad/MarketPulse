@@ -851,7 +851,8 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
           {!chromeOff && <ShareButton what={stock.t} onShare={share.onShare} compact />}
         </div>
 
-        <CloseButton what={stock.t} onClose={onClose} />
+        {/* only the card in view: the neighbours' × sits outside their edge and peeked into view */}
+        {active && <CloseButton what={stock.t} onClose={onClose} />}
 
         {share.copyFailed && <ShareFail url={share.url} />}
 
