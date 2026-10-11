@@ -1087,7 +1087,9 @@ thead th:hover .col-resize::after{opacity:.6}
 /* opened from a review notification: the stock card stays mounted (it owns the forecasts
    overlay) but is hidden while that overlay is up. Keyed on the overlay existing, so if it never
    opens (no forecasts for the ticker) the normal stock modal shows instead of a blank screen. */
-body:has(.mkm-modal-fc) .mkm-bare .mkm-stage{visibility:hidden}
+/* opacity, not just visibility: the card's buttons transition every property, so visibility
+   alone left them ghosting through the overlay's fade-in for ~150ms */
+body:has(.mkm-modal-fc) .mkm-bare .mkm-stage{opacity:0; visibility:hidden; pointer-events:none}
 body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
 .mkm-modal-fc{width:min(560px, calc(100vw - 32px))}
 .mkm-fcfull-modal{border-bottom:0; padding-top:8px}
@@ -1124,7 +1126,7 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
 .mkm-kv .k{font-family:var(--t-head); font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:var(--t-muted)}
 .mkm-kv .v{font-size:13.5px; font-weight:700; margin-top:4px}
 .mkm-kv .v.up{color:var(--t-green)} .mkm-kv .v.dn{color:var(--t-red)} .mkm-kv .v.gold{color:var(--t-gold)}
-.mkm-kv .v.skel{color:var(--t-faint); animation:mkm-skel 1.2s ease-in-out infinite}
+.mkm-kv .v.skel, .mkm-fcup.skel{color:var(--t-faint); animation:mkm-skel 1.2s ease-in-out infinite}
 /* sector box: one cell, one label, two equal halves (Today | Fwd) */
 .mkm-kv .split{display:grid; grid-template-columns:1fr 1fr; margin-top:4px}
 .mkm-kv .split>div:first-child{border-right:1px solid var(--t-line); padding-right:9px}
@@ -1163,7 +1165,7 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
   .mkm-yh{align-self:stretch; text-align:center}
 }
 @media(prefers-reduced-motion:reduce){
-  .mkm-modal, .mkm-bhs span, .mkm-ladder .track i, .mkm-chartline, .mkm-plot-msg.mkm-skel, .mkm-kv .v.skel{animation:none}
+  .mkm-modal, .mkm-bhs span, .mkm-ladder .track i, .mkm-chartline, .mkm-plot-msg.mkm-skel, .mkm-kv .v.skel, .mkm-fcup.skel{animation:none}
   .mkm-chartline{stroke-dasharray:none; stroke-dashoffset:0}
   .mkm-live::before, .mkm-livering, .mkm-sess.live i{animation:none}
   .mkm-livering{opacity:0}

@@ -761,6 +761,9 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
     const [y, m, dd] = d.split("-").map(Number);
     return new Date(y, m - 1, dd).toLocaleDateString(DATE_LOCALE, { day: "2-digit", month: "2-digit", year: "2-digit" });
   };
+  // Potential is against the LIVE price: until it arrives show a placeholder, not a snapshot
+  // figure that visibly rewrites itself half a second later.
+  const livePending = qmLoading && quote == null;
   const fcUpside = (pt: number): number | null =>
     price != null && price > 0 ? ((pt - price) / price) * 100 : null;
   const starRow = (v: number | null) => {
@@ -1132,8 +1135,8 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
                             fcUsd(f.pt)
                           )}
                         </span>
-                        <span className={`mkm-fcup ${up != null && up < 0 ? "dn" : ""}`}>
-                          {up == null ? "" : pct(up)}
+                        <span className={`mkm-fcup ${livePending ? "skel" : up != null && up < 0 ? "dn" : ""}`}>
+                          {livePending ? "—" : up == null ? "" : pct(up)}
                         </span>
                         <span className="mkm-fcdate">{fmtFcDate(f.d)}</span>
                       </div>
@@ -1362,10 +1365,10 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
           <div className="mkm-titlebar">
             <div className="mkm-fctitle">
               <div className="mkm-path"><b>{stock.t}</b> · Analyst Forecasts</div>
-              {name && (
+              {(stock.n || name) && (
                 <div className="mkm-fcsub">
-                  {name}
-                  {sector ? " · " + consLabel(sector) : ""}
+                  {stock.n || name}
+                  {(stock.sec || sector) ? " · " + consLabel(stock.sec || sector) : ""}
                 </div>
               )}
             </div>
@@ -1400,8 +1403,8 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
                           fcUsd(f.pt)
                         )}
                       </span>
-                      <span className={`mkm-fcup ${up != null && up < 0 ? "dn" : ""}`}>
-                        {up == null ? "" : pct(up)}
+                      <span className={`mkm-fcup ${livePending ? "skel" : up != null && up < 0 ? "dn" : ""}`}>
+                        {livePending ? "—" : up == null ? "" : pct(up)}
                       </span>
                       <span className="mkm-fcdate">{fmtFcDate(f.d)}</span>
                     </div>
