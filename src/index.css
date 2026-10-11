@@ -1316,6 +1316,8 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
 .nb-scrim{position:fixed; inset:0; z-index:44; background:rgba(27,29,24,.55); backdrop-filter:blur(2px)}
 /* a stock modal over the open panel brings its own scrim (same tint): one dim layer, not two */
 body:has(.mkm-scrim) .nb-scrim{visibility:hidden}
+/* the page behind the dimmed panel doesn't scroll (and shows no scrollbar), same as under a modal */
+body:has(.nb-scrim){overflow:hidden}
 @media(prefers-reduced-motion:no-preference){ .nb-scrim{animation:nb-fade .16s ease-out} }
 @keyframes nb-fade{from{opacity:0}}
 /* phone-only drag handle: swipe the panel up to close it */
