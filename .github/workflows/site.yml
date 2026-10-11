@@ -129,7 +129,7 @@ jobs:
         continue-on-error: true
         run: node ci/scrape-feargreed.mjs
 
-      # Next earnings date for every listed company (Finnhub's calendar, ~18 calls a run) —
+      # Next earnings date for every listed company (Finnhub's calendar, ~70 calls a run) —
       # the stock modal's "Earnings Thu · after close" line. Same failure-tolerant pattern:
       # a bad run keeps the previous file, whose dates are still mostly right.
       - name: Refresh earnings calendar

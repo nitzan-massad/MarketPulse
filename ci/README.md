@@ -847,6 +847,10 @@ modal fetches it once per page load and shows the line under the company name.
 - **Source:** Finnhub `/calendar/earnings?from&to` (free key, no symbol → every company in the
   window). Answers are capped at **1500 rows**, so the next 120 days are asked a week at a time and
   a window that comes back full is halved and re-asked (~18 calls a run, paced at ~1/s).
+- **The bulk answer is incomplete on the free plan** (2026-10-14 listed 16 companies, not TSMC).
+  So each RANKED ticker it missed is then asked on its own (~50 calls, ~1 min). Foreign companies
+  answer under their home listing (`2330.TW` for TSM, `ARGX.BR` for ARGX) and are filed under the
+  ticker asked. ~40 ranked tickers still have no date — Finnhub has none (new listings, micro-caps).
 - **Every listed company is kept**, not just the ranked set — the modal opens for any ticker the
   search finds. ~5,000 companies, ~130KB.
 - **A thin run never overwrites:** under 500 companies (bad key, reshaped payload) throws and the

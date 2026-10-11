@@ -8,6 +8,10 @@
 // ~18 calls a run, paced under the free tier's 60/min. Every listed company is kept (not just the
 // ranked set) because the modal opens for any ticker search finds.
 //
+// The bulk answer is NOT complete on the free plan: it listed 16 companies for 2026-10-14 and
+// left out TSMC, which the per-symbol call dates that same day. So every RANKED ticker the bulk
+// pass missed is asked on its own (~50 calls, ~1 min); the rest of the market keeps bulk coverage.
+//
 // ponytail: the file is lazy-fetched once per page load (~150KB raw, ~40KB gzipped). If it grows,
 // split it per first letter rather than trimming companies the search can reach.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -52,6 +56,16 @@ export function halve(from, to) {
   return [[from, iso(mid)], [iso(mid + DAY), to]];
 }
 
+async function getSymbol(t, from, to) {
+  await sleep(1100);
+  const r = await fetch(`https://finnhub.io/api/v1/calendar/earnings?symbol=${encodeURIComponent(t)}&from=${from}&to=${to}&token=${KEY}`);
+  if (!r.ok) throw new Error(`Finnhub ${t}: HTTP ${r.status}`);
+  const rows = (await r.json())?.earningsCalendar;
+  // a foreign company comes back under its HOME listing ("2330.TW" for TSM, "ARGX.BR" for ARGX);
+  // it is the same report, so file it under the ticker we asked about
+  return Array.isArray(rows) ? rows.map((row) => ({ ...row, symbol: t })) : [];
+}
+
 async function getWindow(from, to) {
   await sleep(1100);
   const r = await fetch(`https://finnhub.io/api/v1/calendar/earnings?from=${from}&to=${to}&token=${KEY}`);
@@ -76,7 +90,23 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     mergeNext(await getWindow(from, to), today, e);
     calls++;
   }
+  const bulk = Object.keys(e).length;
+  // ranked tickers the bulk pass missed: ask each on its own (a failure skips that one ticker)
+  const ranked = JSON.parse(readFileSync("src/data/stocks.json", "utf8")).map((s) => s.t);
+  const until = iso(Date.now() + (HORIZON - 1) * DAY);
+  let found = 0;
+  for (const t of ranked.filter((t) => !e[t])) {
+    try {
+      const had = !!e[t];
+      mergeNext(await getSymbol(t, today, until), today, e);
+      if (!had && e[t]) found++;
+    } catch (err) {
+      console.log(`earnings: ${err.message}`);
+    }
+    calls++;
+  }
   const n = Object.keys(e).length;
+  console.log(`earnings: bulk ${bulk} companies; per-symbol pass added ${found} ranked ones`);
   // Never replace a good file with a near-empty one; yesterday's dates are still mostly right.
   if (n < MIN_COMPANIES) throw new Error(`earnings: only ${n} companies — keeping ${OUT} as it is`);
   const sorted = Object.fromEntries(Object.keys(e).sort().map((t) => [t, e[t]]));
