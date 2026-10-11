@@ -1,5 +1,29 @@
 [
   {
+    "id": "IRD-2026-10-11T19:42:04.744Z",
+    "ts": "2026-10-11T19:42:04.744Z",
+    "kind": "list",
+    "ticker": "IRD",
+    "name": "Opus Genetics",
+    "sector": "Healthcare",
+    "text": "193% leads, 5 names on the board.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "IRD appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Opus Genetics (192.5% to $13.6), Praxis Precision Medicines (188.6% to $750), Fervo Energy Company Class A (179.6% to $38.44), Terawulf (168.7% to $37), Vera Therapeutics (157.2% to $76.86)",
+      "count": 5,
+      "leader": "Opus Genetics",
+      "leaderUpside": 192.5
+    },
+    "descriptor": "Eye Therapy Developer",
+    "image": "IRD-2026-10-11T19-42-04-744Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "ORLY-2026-10-11T02:57:29.896Z",
     "ts": "2026-10-11T02:57:29.896Z",
     "kind": "contrarian",
