@@ -866,7 +866,11 @@ extra Sector option (`lib.ts` `inSector`).
   normal run costs 0-5 calls. A backfill is capped at `THEMES_MAX_CALLS` (150) a run and runs
   after the post, so the post keeps first claim on the free daily neurons.
 - **No hand-kept lists.** A wrong verdict is fixed by sharpening the theme's definition in
-  `THEMES` (and clearing that theme's cache), not by exceptions.
+  `THEMES`, not by exceptions. Verdicts are cached per description, not per definition, so a
+  definition change needs a one-time re-judge of the cached companies (or a cleared cache).
+- **Quantum Computing** = core quantum businesses, plus companies that build and run their own
+  quantum computers (Alphabet, IBM). Cloud resellers of others' hardware (Amazon, Microsoft) and
+  software-only players (NVIDIA) are out.
 - **An unclear answer is not a verdict** — it is asked again next run.
 - `ci/test-classify-themes.mjs` + `src/themes.check.ts` guard the parsing, the re-ask rule,
   and that the filter matches members sitting in other sectors.

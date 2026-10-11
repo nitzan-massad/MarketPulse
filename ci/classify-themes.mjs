@@ -10,9 +10,11 @@
 // spreads over a few runs instead of eating the posts' share of the free daily neurons.
 // Adding a theme = one line in THEMES; its backfill then runs the same way.
 //
-// ponytail: verdicts come from the description alone. A company whose quantum work is a side
-// project (IBM, Alphabet) is a "no" by design — the question says CORE business. If a verdict is
-// wrong, the fix is a sharper definition below, not a hand-kept exception list.
+// ponytail: verdicts come from the name + description and the model's own knowledge (Alphabet's
+// description never says "quantum"). A wrong verdict is fixed by a sharper definition below, not a
+// hand-kept exception list. The cache is keyed on the description, NOT the definition: after
+// changing a definition, re-judge the cached companies once by hand (or delete that theme's
+// cache to let CI re-ask everyone, capped per run) — otherwise old verdicts stand.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { makeProvider } from "./provider.mjs";
@@ -20,7 +22,7 @@ import { isExhausted } from "./cf-budget.mjs";
 
 export const THEMES = {
   "Quantum Computing":
-    "its core business is quantum computing: building quantum computers or quantum processors, or selling quantum computing software, cloud access or services. Companies whose main business is something else (even with a quantum research program), and companies that only have 'quantum' in their name, are NOT included.",
+    "EITHER its core business is quantum computing (building quantum computers or quantum processors, or selling quantum computing software, cloud access or services), OR it runs a major in-house program that builds and operates its OWN quantum computers, as Alphabet (Google Quantum AI) and IBM (IBM Quantum) do. Offering other companies' quantum hardware through a cloud (as Amazon Braket or Azure Quantum do), quantum software tools alone, or only having 'quantum' in the name does NOT count.",
 };
 
 const STOCKS = "src/data/stocks.json";
