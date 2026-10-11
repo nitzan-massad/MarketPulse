@@ -838,6 +838,22 @@ A third element marks why a week has no value: `1` trailing earnings ≤ 0 (draw
   data commit); a ticker that loses its history has its chart file deleted; `ci/test-pe-files.mjs` checks every shipped file and that the index never claims a
   missing file; `ci/test-sec-reports.mjs` covers the date picking.
 
+## Next earnings dates — automated ✅
+
+`ci/scrape-earnings.mjs` writes `public/earnings.json` — `{ asOf, e: { T: [date, hour] } }`, each
+company's NEXT report (`hour`: `bmo` before open, `amc` after close, `""` not announced). The stock
+modal fetches it once per page load and shows the line under the company name.
+
+- **Source:** Finnhub `/calendar/earnings?from&to` (free key, no symbol → every company in the
+  window). Answers are capped at **1500 rows**, so the next 120 days are asked a week at a time and
+  a window that comes back full is halved and re-asked (~18 calls a run, paced at ~1/s).
+- **Every listed company is kept**, not just the ranked set — the modal opens for any ticker the
+  search finds. ~5,000 companies, ~130KB.
+- **A thin run never overwrites:** under 500 companies (bad key, reshaped payload) throws and the
+  previous file stays. The app drops dates already past, so a day-old file is still right.
+- `ci/test-earnings.mjs` guards the merge (earliest date wins, past dates dropped), that the
+  windows tile the horizon with no gap, and the committed file's shape.
+
 ## Recent reviews feed (New Arrivals) — automated ✅
 
 `ci/build-reviews-recent.mjs` reads the forecast files on disk and writes

@@ -129,6 +129,16 @@ jobs:
         continue-on-error: true
         run: node ci/scrape-feargreed.mjs
 
+      # Next earnings date for every listed company (Finnhub's calendar, ~18 calls a run) —
+      # the stock modal's "Earnings Thu · after close" line. Same failure-tolerant pattern:
+      # a bad run keeps the previous file, whose dates are still mostly right.
+      - name: Refresh earnings calendar
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+        run: node ci/scrape-earnings.mjs
+
       # Generate one social post from the snapshot just refreshed. Scrape-class step:
       # `continue-on-error` like every other one above the data gate, because a rate-limited
       # model or a field of unpublishable candidates must never block the data deploy.
@@ -171,10 +181,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet -- src/data public/forecasts public/bullbear public/pe ci/cache public/reviews-recent.json public/post-images; then
+          if git diff --quiet -- src/data public/forecasts public/bullbear public/pe ci/cache public/reviews-recent.json public/post-images public/earnings.json; then
             echo "No data change."
           else
-            git add src/data public/forecasts public/bullbear public/pe ci/cache public/reviews-recent.json public/post-images
+            git add src/data public/forecasts public/bullbear public/pe ci/cache public/reviews-recent.json public/post-images public/earnings.json
             git commit -m "chore: refresh TipRanks snapshot [skip ci]"
             git push
           fi

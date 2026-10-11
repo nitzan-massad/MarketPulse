@@ -15,6 +15,7 @@ import ShareButton, { ShareFail } from "./ShareButton";
 import ThumbMark from "./ThumbMark";
 import PeHistory from "./PeHistory";
 import { parseEps, type EpsPoint } from "../peHistory";
+import { earningsParts, fromEntry, todayYmd, type Earnings } from "../earnings";
 
 // Keys come from build-time env (same pattern App uses for Finnhub). Never hardcoded.
 const FINNHUB_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
@@ -104,6 +105,16 @@ const loadPeIndex = (): Promise<PeIndex> =>
   (peIndexP ??= fetch(`${import.meta.env.BASE_URL}pe/_asOf.json`)
     .then((r): Promise<PeIndex> | PeIndex => (r.ok ? r.json() : {}))
     .catch((): PeIndex => ({})));
+
+// Next earnings dates for every listed company (public/earnings.json, ci/scrape-earnings.mjs).
+// Fetched once per page load; a failed fetch only hides the earnings line.
+type EarningsIndex = Record<string, unknown>;
+let earningsP: Promise<EarningsIndex> | null = null;
+const loadEarnings = (): Promise<EarningsIndex> =>
+  (earningsP ??= fetch(`${import.meta.env.BASE_URL}earnings.json`)
+    .then((r): Promise<{ e?: EarningsIndex }> | { e?: EarningsIndex } => (r.ok ? r.json() : {}))
+    .then((j) => (j?.e && typeof j.e === "object" ? j.e : {}))
+    .catch((): EarningsIndex => ({})));
 
 const NO_EPS: EpsPoint[] = []; // stable empty list, so PeHistory's effect doesn't refire every render
 const quoteMetricCache = new Map<string, { quote: Quote; metric: Metric; profile: Profile }>();
@@ -484,6 +495,17 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [nextReport, setNextReport] = useState<Earnings | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setNextReport(null);
+    loadEarnings().then((idx) => {
+      if (!cancelled) setNextReport(fromEntry(idx[stock.t], todayYmd()));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [stock.t]);
   const [qmLoading, setQmLoading] = useState(true);
   const [series, setSeries] = useState<Series | null>(null);
   const [seriesLoading, setSeriesLoading] = useState(true);
@@ -706,6 +728,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
   // prefer live profile (Finnhub) over the scraped DB row for these fields
   const name = profile?.name ?? stock.n;
   const sector = profile?.sector ?? stock.sec;
+  const earnings = nextReport ? earningsParts(nextReport, todayYmd()) : null;
   const mktCap = profile?.mktCap ?? stock.mc;
   const desc = stock.desc || liveDesc; // scraped DB desc wins; live FMP fallback
   // the % beside the price tracks the selected chart range: 1D uses the true
@@ -848,9 +871,20 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
           {!covered && <div className="mkm-lim">Limited data — not in the ranked set</div>}
           {/* head line — ticker now lives in the title bar; company + price here */}
           <div className="mkm-head">
-            <div className="mkm-co">
-              {name}
-              {sector ? " · " + consLabel(sector) : ""}
+            <div className="mkm-cocol">
+              <div className="mkm-co">
+                {name}
+                {sector ? " · " + consLabel(sector) : ""}
+              </div>
+              {earnings && (
+                <div className="mkm-earn" title={`Next earnings report: ${nextReport?.date}`}>
+                  <span className="mkm-earn-cal" aria-hidden="true">
+                    <span>{earnings.mon}</span>
+                    {earnings.day}
+                  </span>
+                  <b>Earnings</b> {earnings.text}
+                </div>
+              )}
             </div>
             <div className="mkm-px">{usd(price)}</div>
             <div className={`mkm-chg ${dir}`}>
