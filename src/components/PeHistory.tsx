@@ -202,11 +202,11 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
                     </g>
                   ))}
                   <path d={chart.area} fill="var(--t-gold)" fillOpacity=".08" />
-                  <line x1={L} x2={R} y1={chart.Y(stats.med)} y2={chart.Y(stats.med)} stroke="var(--t-amber)" strokeWidth="1.8" strokeDasharray="6 4" />
+                  <line x1={L} x2={R} y1={chart.Y(stats.med)} y2={chart.Y(stats.med)} stroke="var(--t-amber)" strokeWidth="2.6" strokeDasharray="8 5" />
                   {sectorPe != null && (
-                    <line x1={L} x2={R} y1={chart.Y(sectorPe)} y2={chart.Y(sectorPe)} stroke="var(--t-teal)" strokeWidth="2" strokeDasharray="1 4" strokeLinecap="round" />
+                    <line x1={L} x2={R} y1={chart.Y(sectorPe)} y2={chart.Y(sectorPe)} stroke="var(--t-teal)" strokeWidth="3" strokeDasharray="0.5 6" strokeLinecap="round" />
                   )}
-                  <path d={chart.line} fill="none" stroke="var(--t-gold)" strokeWidth="2" strokeLinejoin="round" />
+                  <path d={chart.line} fill="none" stroke="var(--t-gold)" strokeWidth="2.8" strokeLinejoin="round" strokeLinecap="round" />
                   {/* the "now" dot only on the newest week; a gap at the end means no current P/E */}
                   {chart.lastI === pts.length - 1 && (
                     <circle cx={chart.X(chart.lastI)} cy={chart.Y(pts[chart.lastI].v!)} r="4" fill="var(--t-red)" />
@@ -234,8 +234,8 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
                 <div className="v amber">{stats ? x1(stats.med) : "—"}</div>
               </div>
               <div className="row">
-                <div className="k">{range} range</div>
-                <div className="v">{stats ? `${stats.lo.toFixed(0)}–${stats.hi.toFixed(0)}×` : "—"}</div>
+                <div className="k">{range} average</div>
+                <div className="v">{stats ? x1(stats.avg) : "—"}</div>
               </div>
               <div className="row">
                 <div className="k">Sector avg</div>

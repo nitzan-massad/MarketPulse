@@ -1951,7 +1951,7 @@ body:has(.nb-scrim){overflow:hidden}
 .mkm-modal-fc .mkm-titlebar .mp-share{margin-left:auto; margin-right:28px; flex:none}
 .mkm-pe-cmd{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px}
 .mkm-pe-legend{margin-left:auto; display:flex; gap:12px; font-size:10.5px; color:var(--t-faint)}
-.mkm-pe-legend i{display:inline-block; width:13px; vertical-align:middle; margin-right:5px; border-top:2px solid}
+.mkm-pe-legend i{display:inline-block; width:16px; vertical-align:middle; margin-right:5px; border-top:3px solid}
 .mkm-pe-legend .ln{border-color:var(--t-gold)} .mkm-pe-legend .md{border-color:var(--t-amber); border-top-style:dashed}
 .mkm-pe-legend .sc{border-color:var(--t-teal); border-top-style:dotted}
 .mkm-pe-legend .ls{height:8px; border:0; border-radius:2px; background:color-mix(in srgb,var(--t-red) 16%,transparent); vertical-align:-1px}

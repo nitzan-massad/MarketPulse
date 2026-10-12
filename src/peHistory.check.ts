@@ -88,7 +88,7 @@ eq(closeAt(["2025-03-24", "2025-03-31"], [10, 7], "2025-04-04"), 7, "on the Frid
 eq(closeAt(["2025-01-06"], [10], "2025-03-31"), null, "no bar near the date, no close");
 
 eq(lastYears([{ d: "2020-01-01", v: 1 }, { d: "2025-06-01", v: 2 }, { d: "2026-01-01", v: 3 }], 1).length, 2, "1Y keeps the last year");
-eq(peStats([{ d: "a", v: 3 }, { d: "b", v: null }, { d: "c", v: 1 }, { d: "d", v: 2 }, { d: "e", v: 10 }]), { lo: 1, hi: 10, med: 2.5 }, "stats skip gaps");
+eq(peStats([{ d: "a", v: 3 }, { d: "b", v: null }, { d: "c", v: 1 }, { d: "d", v: 2 }, { d: "e", v: 10 }]), { lo: 1, hi: 10, med: 2.5, avg: 4 }, "stats skip gaps (avg = mean of the values)");
 eq(peStats([{ d: "a", v: null }]), null, "no data, no stats");
 const filled = wk.map((d) => ({ d, v: 10 }));
 eq(hasPeHistory(filled), true, "a year of real weeks is a history");

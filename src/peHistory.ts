@@ -205,11 +205,11 @@ export function lastYears(pts: PePoint[], years: number): PePoint[] {
   return pts.filter((p) => end - Date.parse(p.d) <= years * 365.25 * DAY);
 }
 
-export interface PeStats { lo: number; hi: number; med: number }
+export interface PeStats { lo: number; hi: number; med: number; avg: number }
 export function peStats(pts: PePoint[]): PeStats | null {
   const v = pts.map((p) => p.v).filter((x): x is number => x != null);
   if (v.length < 2) return null;
-  return { lo: Math.min(...v), hi: Math.max(...v), med: median(v) };
+  return { lo: Math.min(...v), hi: Math.max(...v), med: median(v), avg: v.reduce((a, b) => a + b, 0) / v.length };
 }
 
 /** Worth a chart: at least half a year of weeks with a P/E (counting "over 200x" weeks, so a
