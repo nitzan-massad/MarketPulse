@@ -2968,5 +2968,44 @@
         "published": 0
       }
     }
+  },
+  {
+    "ts": "2026-10-12T12:48:40.085Z",
+    "date": "2026-10-12",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "calls": {
+      "writer": 10,
+      "descriptor": 0,
+      "image": 1
+    },
+    "measuredNeurons": 433.29,
+    "estimatedNeurons": 57.6,
+    "totalNeurons": 490.89,
+    "publishedCount": 1,
+    "stageMs": {
+      "writer": 5404,
+      "descriptor": 0,
+      "image": 1617,
+      "wikimedia": 0
+    },
+    "candidates": {
+      "generated": 10,
+      "used": 4,
+      "outscored": 0,
+      "rejected": 6
+    },
+    "rejectionReasons": {
+      "duplicate of a recent post": 6
+    },
+    "hookOutcomes": {
+      "record": {
+        "attempted": 1,
+        "published": 0
+      },
+      "movement": {
+        "attempted": 1,
+        "published": 1
+      }
+    }
   }
 ]
