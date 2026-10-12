@@ -123,17 +123,16 @@ for (const bad of ["Nonexistent Sector", "", undefined, null]) {
   assert.ok(/extreme close-up/i.test(prompt), "prompt asks for an extreme close-up (task 11)");
   assert.ok(/face and hands/i.test(prompt), "prompt asks for face AND hands in frame (task 11)");
   assert.ok(/shallow depth of field/i.test(prompt), "prompt asks for shallow depth of field (task 11)");
-  // Commercial-casting language ("strikingly attractive", "cast and styled", "magazine or
-  // advertising campaign") was added in a prior pass per the user's own direction, then
-  // EXPLICITLY RETRACTED by the user ("revert this") — it must be gone, not softened, while
-  // every other clause from that same pass (tight crops, the screen/bokeh redirect, the
-  // no-text/no-logos rules) stays exactly as asserted elsewhere in this file.
-  for (const banned of [
-    "attractive", "well-groomed", "grooms its models", "magazine", "advertising campaign",
-    "cast and styled", "production value", "commercial stock-photography shoot",
+  // Commercial-casting language. Added on the user's direction, then retracted by them, then
+  // RE-REQUESTED ("i would like that all the people on the memes will be super attractive").
+  // This assertion has now been inverted twice, so it is written to pin the CURRENT state
+  // rather than deleted: whichever way the direction goes, the prompt and this check move
+  // together, and a silent drift in the prompt fails here instead of shipping unnoticed.
+  for (const required of [
+    "attractive", "well-groomed", "cast and styled", "magazine or advertising campaign",
   ]) {
-    assert.equal(prompt.toLowerCase().includes(banned), false,
-      `prompt no longer directs "${banned}" — the attractiveness/casting direction was retracted`);
+    assert.ok(prompt.toLowerCase().includes(required),
+      `prompt directs "${required}" — commercial casting is currently requested`);
   }
   // The load-bearing assertion: nothing that could be a fabricated figure ever reaches Flux,
   // which renders text well and has no negative_prompt field to fall back on.
