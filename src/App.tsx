@@ -538,6 +538,7 @@ export default function App() {
             onMark={requestMark}
             highlightReviews={fcHighlight}
             onReviewsClosed={bellReturn ? closeToBell : undefined}
+            onReviewsUnavailable={() => setFcHighlight(null)}
             bare={bellReturn && fcHighlight != null}
             openView={openView}
             onViewClosed={() => {

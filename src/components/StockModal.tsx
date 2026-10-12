@@ -470,6 +470,7 @@ interface StockModalProps {
   openView?: TickerView | null; // a shared link's view to open over the modal (#TSM/pe)
   onViewClosed?: () => void;
   onReviewsClosed?: () => void; // the notification-opened forecasts view was closed
+  onReviewsUnavailable?: () => void; // …or can't open: this ticker has no forecasts file
 }
 
 interface StockCardProps {
@@ -486,12 +487,13 @@ interface StockCardProps {
   openView?: TickerView | null;
   onViewClosed?: () => void;
   onReviewsClosed?: () => void;
+  onReviewsUnavailable?: () => void;
   /** The card the user is actually looking at. The off-screen two still fetch — that is the
    *  whole point of mounting them — but they take no keyboard and open no overlay. */
   active: boolean;
 }
 
-function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext, highlightReviews, openView, onViewClosed, onReviewsClosed, active }: StockCardProps) {
+function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext, highlightReviews, openView, onViewClosed, onReviewsClosed, onReviewsUnavailable, active }: StockCardProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
@@ -621,7 +623,10 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
       if (!cancelled) setBb(r);
     });
     fetchForecasts(stock.t).then((r) => {
-      if (!cancelled) setForecasts(r);
+      if (cancelled) return;
+      setForecasts(r);
+      // opened for its reviews but there are none: hand back, so the stock card shows instead
+      if (!r && highlightReviews?.length) onReviewsUnavailable?.();
     });
     // hybrid description: DB desc wins; fetch live only when it's missing
     if (!stock.desc) {
@@ -1475,7 +1480,7 @@ function SwipeCoach({ onDismiss }: { onDismiss: () => void }) {
 
 export default function StockModal({
   stock, list, onIndex, onClose, isTracked, onToggleTrack, isCovered, markOf, onMark, highlightReviews,
-  openView, onViewClosed, onReviewsClosed, bare,
+  openView, onViewClosed, onReviewsClosed, onReviewsUnavailable, bare,
 }: StockModalProps) {
   const swipeRef = useRef<HTMLDivElement>(null);
   const idx = Math.max(0, list.findIndex((s) => s.t === stock.t));
@@ -1583,6 +1588,7 @@ export default function StockModal({
                   openView={i === idx ? openView : null}
                   onViewClosed={onViewClosed}
                   onReviewsClosed={i === idx ? onReviewsClosed : undefined}
+                  onReviewsUnavailable={i === idx ? onReviewsUnavailable : undefined}
                 />
               )}
               {coach && i === idx && <SwipeCoach onDismiss={dismissCoach} />}
