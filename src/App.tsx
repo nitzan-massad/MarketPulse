@@ -48,7 +48,23 @@ function bucketToList(b: string | undefined): string[] {
 }
 
 export default function App() {
-  const [nav, setNav] = useState<NavId>("table");
+  // The section survives a refresh (per tab, like the browser's own scroll restore); a new tab
+  // or a shared link still starts on the table.
+  const [nav, setNav] = useState<NavId>(() => {
+    try {
+      const v = sessionStorage.getItem("mp_nav");
+      return v === "best" || v === "new" || v === "watch" || v === "feed" ? v : "table";
+    } catch {
+      return "table";
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("mp_nav", nav);
+    } catch {
+      /* ignore */
+    }
+  }, [nav]);
   const [view, setView] = useState<ViewId>("analyst");
   const [sort, setSort] = useState<keyof Stock>("up");
   const [dir, setDir] = useState<number>(-1);
