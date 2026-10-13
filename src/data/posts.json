@@ -1,5 +1,29 @@
 [
   {
+    "id": "FRVO-2026-10-13T20:53:20.038Z",
+    "ts": "2026-10-13T20:53:20.038Z",
+    "kind": "list",
+    "ticker": "FRVO",
+    "name": "Fervo Energy Company Class A",
+    "sector": "General",
+    "text": "199% upside leads the board.",
+    "score": 54,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "FRVO appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Fervo Energy Company Class A (198.7% to $38.44), Praxis Precision Medicines (198.4% to $750), Opus Genetics (193.1% to $13.6), Vera Therapeutics (177.3% to $76.86), Terawulf (166.8% to $35.67)",
+      "count": 5,
+      "leader": "Fervo Energy Company Class A",
+      "leaderUpside": 198.7
+    },
+    "descriptor": "Geothermal Energy Developer",
+    "image": "FRVO-2026-10-13T20-53-20-038Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "FRVO-2026-10-13T12:36:35.315Z",
     "ts": "2026-10-13T12:36:35.315Z",
     "kind": "list",
