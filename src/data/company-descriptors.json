@@ -153,5 +153,10 @@
     "name": "Amazon.Com",
     "descriptor": "Global Online Retailer",
     "scene": "scanning inventory shelves with a handheld barcode scanner in a vast warehouse"
+  },
+  "PNC": {
+    "name": "PNC Financial",
+    "descriptor": "Community Banker",
+    "scene": "examining loan documents with a customer at a branch office desk"
   }
 }

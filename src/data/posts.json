@@ -1,5 +1,32 @@
 [
   {
+    "id": "PNC-2026-10-13T04:52:29.070Z",
+    "ts": "2026-10-13T04:52:29.070Z",
+    "kind": "contrarian",
+    "ticker": "PNC",
+    "name": "PNC Financial",
+    "sector": "Financial",
+    "text": "21 analysts say 24% upside, AI says much more.",
+    "score": 68,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "smartScore": 2,
+      "aiScore": 76,
+      "aiRating": "Outperform",
+      "consensus": "Buy",
+      "upside": 24.2,
+      "price": 219.21,
+      "analysts": 21,
+      "bullish": "ai"
+    },
+    "descriptor": "Community Banker",
+    "image": "PNC-2026-10-13T04-52-29-070Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "FRVO-2026-10-12T22:30:33.638Z",
     "ts": "2026-10-12T22:30:33.638Z",
     "kind": "surprise",
