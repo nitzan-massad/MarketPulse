@@ -1,5 +1,36 @@
 [
   {
+    "id": "DELL-2026-10-14T10:04:52.818Z",
+    "ts": "2026-10-14T10:04:52.818Z",
+    "kind": "movement",
+    "ticker": "DELL",
+    "name": "Dell Technologies",
+    "sector": "Technology",
+    "text": "4.9% upside, down from 4.4% today, 21 analysts.",
+    "score": 32,
+    "reasons": [
+      "6 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "duplicate of a recent post (57% word overlap)"
+    ],
+    "facts": {
+      "upsideFrom": 4.4,
+      "upsideTo": 4.9,
+      "consensusFrom": "StrongBuy",
+      "consensusTo": "Buy",
+      "price": 572.47,
+      "priceTarget": 600.79,
+      "analysts": 21,
+      "sector": "Technology",
+      "smartScoreFrom": 5,
+      "smartScoreTo": 4
+    },
+    "descriptor": "Computer Hardware Manufacturer",
+    "image": "DELL-2026-10-14T10-04-52-818Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "FRVO-2026-10-13T20:53:20.038Z",
     "ts": "2026-10-13T20:53:20.038Z",
     "kind": "list",

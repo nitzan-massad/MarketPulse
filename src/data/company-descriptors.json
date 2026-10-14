@@ -158,5 +158,10 @@
     "name": "PNC Financial",
     "descriptor": "Community Banker",
     "scene": "examining loan documents with a customer at a branch office desk"
+  },
+  "DELL": {
+    "name": "Dell Technologies",
+    "descriptor": "Computer Hardware Manufacturer",
+    "scene": "assembling server racks in a crowded data centre workshop"
   }
 }
