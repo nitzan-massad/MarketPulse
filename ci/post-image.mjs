@@ -218,12 +218,18 @@ export function buildImagePrompt(sector, seed, customScene) {
   const roleAction = typeof customScene === "string" && customScene.trim()
     ? customScene.trim()
     : sectorScenePhrase(sector);
-  const scene = `${personPhrase(seed)} ${roleAction}`;
+  const person = personPhrase(seed);
+  const scene = `${person} ${roleAction}`;
+  // Women only, decided here because Flux can't follow an "if it's a woman" instruction.
+  const wardrobe = person === "a woman"
+    ? ` She is attractive and wears a low-cut fitted dress with a deep V-neckline that ` +
+      `accentuates her full figure and ample bust.`
+    : "";
   return (
     `Editorial commercial stock photograph, extreme close-up shot, of ${scene}. The person is ` +
     `strikingly attractive, cast and styled the way a commercial stock-photography shoot casts ` +
     `and grooms its models — well-groomed, polished, professionally lit for a magazine or ` +
-    `advertising campaign. Face and hands are both ` +
+    `advertising campaign.${wardrobe} Face and hands are both ` +
     `in frame, the person and their work filling most of the frame, caught candidly mid-action, ` +
     `not posed for the camera, shallow depth of field. Bright, evenly lit and clearly visible, ` +
     `with soft daylight and gentle, natural shadows — light and open, but never washed out or ` +
