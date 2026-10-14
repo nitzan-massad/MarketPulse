@@ -1,5 +1,29 @@
 [
   {
+    "id": "VERA-2026-10-14T23:11:58.001Z",
+    "ts": "2026-10-14T23:11:58.001Z",
+    "kind": "list",
+    "ticker": "VERA",
+    "name": "Vera Therapeutics",
+    "sector": "Healthcare",
+    "text": "187% upside, leads the top 5 names.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "VERA appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Vera Therapeutics (186.9% to $76.86), Terawulf (170% to $35.67), D-Wave Quantum (163.3% to $35.23), COMPASS Pathways (155.2% to $28.43), Cullinan Management (152.7% to $35.63)",
+      "count": 5,
+      "leader": "Vera Therapeutics",
+      "leaderUpside": 186.9
+    },
+    "descriptor": "Immunology Treatments",
+    "image": "VERA-2026-10-14T23-11-58-001Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "BA-2026-10-14T19:37:56.708Z",
     "ts": "2026-10-14T19:37:56.708Z",
     "kind": "contrarian",
