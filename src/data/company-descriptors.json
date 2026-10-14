@@ -163,5 +163,10 @@
     "name": "Dell Technologies",
     "descriptor": "Computer Hardware Manufacturer",
     "scene": "assembling server racks in a crowded data centre workshop"
+  },
+  "VERA": {
+    "name": "Vera Therapeutics",
+    "descriptor": "Immunology Treatments",
+    "scene": "researcher filling vials with subcutaneous injection medication in a laboratory"
   }
 }

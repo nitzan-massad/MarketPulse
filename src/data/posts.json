@@ -1,5 +1,32 @@
 [
   {
+    "id": "VERA-2026-10-14T15:38:15.229Z",
+    "ts": "2026-10-14T15:38:15.229Z",
+    "kind": "surprise",
+    "ticker": "VERA",
+    "name": "Vera Therapeutics",
+    "sector": "Healthcare",
+    "text": "~187% upside, quadruples its sector's median.",
+    "score": 36,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (38% word overlap)"
+    ],
+    "facts": {
+      "upside": 186.9,
+      "price": 26.79,
+      "priceTarget": 76.86,
+      "consensus": "StrongBuy",
+      "analysts": 12,
+      "sector": "Healthcare",
+      "sectorMedianUpside": 45.4
+    },
+    "descriptor": "Immunology Treatments",
+    "image": "VERA-2026-10-14T15-38-15-229Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "DELL-2026-10-14T10:04:52.818Z",
     "ts": "2026-10-14T10:04:52.818Z",
     "kind": "movement",
