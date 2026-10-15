@@ -1,5 +1,30 @@
 [
   {
+    "id": "QBTS-2026-10-15T19:36:37.892Z",
+    "ts": "2026-10-15T19:36:37.892Z",
+    "kind": "surprise",
+    "ticker": "QBTS",
+    "name": "D-Wave Quantum Inc.",
+    "sector": "Technology",
+    "text": "~193% upside, blows sector's 29% away.",
+    "score": 58,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band",
+      "QBTS appeared in a recent post"
+    ],
+    "facts": {
+      "upside": 192.9,
+      "price": 12.03,
+      "priceTarget": 35.23,
+      "consensus": "StrongBuy",
+      "analysts": 14,
+      "sector": "Technology",
+      "sectorMedianUpside": 28.8
+    },
+    "descriptor": "Quantum Computer Systems"
+  },
+  {
     "id": "QBTS-2026-10-15T15:13:54.503Z",
     "ts": "2026-10-15T15:13:54.503Z",
     "kind": "list",
