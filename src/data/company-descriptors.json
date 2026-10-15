@@ -168,5 +168,10 @@
     "name": "Vera Therapeutics",
     "descriptor": "Immunology Treatments",
     "scene": "researcher filling vials with subcutaneous injection medication in a laboratory"
+  },
+  "WULF": {
+    "name": "Terawulf",
+    "descriptor": "Bitcoin Mining Operator",
+    "scene": "inspecting rows of humming bitcoin servers in a large data centre"
   }
 }

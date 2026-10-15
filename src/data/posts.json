@@ -1,5 +1,32 @@
 [
   {
+    "id": "WULF-2026-10-15T09:43:37.261Z",
+    "ts": "2026-10-15T09:43:37.261Z",
+    "kind": "surprise",
+    "ticker": "WULF",
+    "name": "Terawulf Inc.",
+    "sector": "Financial",
+    "text": "~170% upside, 14 analysts, dwarfs sector's 27.",
+    "score": 40,
+    "reasons": [
+      "7 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (43% word overlap)"
+    ],
+    "facts": {
+      "upside": 170,
+      "price": 11.54,
+      "priceTarget": 35.67,
+      "consensus": "StrongBuy",
+      "analysts": 14,
+      "sector": "Financial",
+      "sectorMedianUpside": 27
+    },
+    "descriptor": "Bitcoin Mining Operator",
+    "image": "WULF-2026-10-15T09-43-37-261Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "GOOGL-2026-10-15T02:28:11.380Z",
     "ts": "2026-10-15T02:28:11.380Z",
     "kind": "steady",
