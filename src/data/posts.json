@@ -1,5 +1,26 @@
 [
   {
+    "id": "QBTS-2026-10-15T15:13:54.503Z",
+    "ts": "2026-10-15T15:13:54.503Z",
+    "kind": "list",
+    "ticker": "QBTS",
+    "name": "D-Wave Quantum Inc.",
+    "sector": "Technology",
+    "text": "193% upside leads the board of 5.",
+    "score": 68,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "members": "D-Wave Quantum (192.9% to $35.23), Vera Therapeutics (187.4% to $76.86), Real Brokerage (175.7% to $37.5), Quantinuum (164% to $87.2), Celldex (155.8% to $71.22)",
+      "count": 5,
+      "leader": "D-Wave Quantum",
+      "leaderUpside": 192.9
+    },
+    "descriptor": "Quantum Computer Systems"
+  },
+  {
     "id": "WULF-2026-10-15T09:43:37.261Z",
     "ts": "2026-10-15T09:43:37.261Z",
     "kind": "surprise",

@@ -173,5 +173,10 @@
     "name": "Terawulf",
     "descriptor": "Bitcoin Mining Operator",
     "scene": "inspecting rows of humming bitcoin servers in a large data centre"
+  },
+  "QBTS": {
+    "name": "D-Wave Quantum",
+    "descriptor": "Quantum Computer Systems",
+    "scene": "tuning a superconducting quantum processor in a laboratory cleanroom"
   }
 }
