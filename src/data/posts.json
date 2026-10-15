@@ -1,5 +1,28 @@
 [
   {
+    "id": "GOOGL-2026-10-15T02:28:11.380Z",
+    "ts": "2026-10-15T02:28:11.380Z",
+    "kind": "steady",
+    "ticker": "GOOGL",
+    "name": "Alphabet Inc. Class A",
+    "sector": "CommunicationServices",
+    "text": "9 Smart Score for 30 days straight.",
+    "score": 66,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "smartScore": 9,
+      "snapshots": 145,
+      "days": 30.2,
+      "upside": 21.1,
+      "consensus": "StrongBuy",
+      "analysts": 25
+    },
+    "descriptor": "Digital Platform Provider"
+  },
+  {
     "id": "VERA-2026-10-14T23:11:58.001Z",
     "ts": "2026-10-14T23:11:58.001Z",
     "kind": "list",
