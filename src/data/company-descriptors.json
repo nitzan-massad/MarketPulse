@@ -183,5 +183,10 @@
     "name": "Real Brokerage",
     "descriptor": "Real Estate Brokerage",
     "scene": "inspecting a residential property with a tablet and clipboard in hand"
+  },
+  "WTW": {
+    "name": "Willis Towers Watson Public",
+    "descriptor": "Insurance Consultant",
+    "scene": "reviewing pension plan documents with a client at a conference table"
   }
 }

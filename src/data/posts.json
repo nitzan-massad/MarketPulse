@@ -1,5 +1,33 @@
 [
   {
+    "id": "WTW-2026-10-16T22:43:00.479Z",
+    "ts": "2026-10-16T22:43:00.479Z",
+    "kind": "movement",
+    "ticker": "WTW",
+    "name": "Willis Towers Watson Public Limited Company",
+    "sector": "Financial",
+    "text": "14 analysts upgrade to Strong Buy today.",
+    "score": 70,
+    "reasons": [
+      "2 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band"
+    ],
+    "facts": {
+      "upsideFrom": 21.2,
+      "upsideTo": 21.2,
+      "consensusFrom": "Buy",
+      "consensusTo": "StrongBuy",
+      "price": 310.36,
+      "priceTarget": 376.08,
+      "analysts": 14,
+      "sector": "Financial"
+    },
+    "descriptor": "Insurance Consultant",
+    "image": "WTW-2026-10-16T22-43-00-479Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "REAX-2026-10-16T15:01:04.687Z",
     "ts": "2026-10-16T15:01:04.687Z",
     "kind": "movement",
