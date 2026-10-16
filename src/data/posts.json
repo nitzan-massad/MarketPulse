@@ -1,5 +1,32 @@
 [
   {
+    "id": "TSM-2026-10-16T09:36:30.934Z",
+    "ts": "2026-10-16T09:36:30.934Z",
+    "kind": "newcomer",
+    "ticker": "TSM",
+    "name": "TSMC",
+    "sector": "Technology",
+    "text": "9 analysts, new here 8 days ago.",
+    "score": 52,
+    "reasons": [
+      "2 digits of concrete detail",
+      "length in band",
+      "TSM appeared in a recent post"
+    ],
+    "facts": {
+      "seenIn": 42,
+      "windowSnapshots": 145,
+      "days": 8.8,
+      "upside": 31.2,
+      "consensus": "StrongBuy",
+      "analysts": 9,
+      "smartScore": 10
+    },
+    "descriptor": "Semiconductor Manufacturer",
+    "image": "TSM-2026-10-16T09-36-30-934Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "VERA-2026-10-15T23:11:22.577Z",
     "ts": "2026-10-15T23:11:22.577Z",
     "kind": "surprise",
