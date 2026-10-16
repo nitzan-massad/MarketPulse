@@ -1,5 +1,36 @@
 [
   {
+    "id": "REAX-2026-10-16T15:01:04.687Z",
+    "ts": "2026-10-16T15:01:04.687Z",
+    "kind": "movement",
+    "ticker": "REAX",
+    "name": "Real Brokerage",
+    "sector": "RealEstate",
+    "text": "~134% upside, down from 176% today.",
+    "score": 44,
+    "reasons": [
+      "6 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "duplicate of a recent post (43% word overlap)"
+    ],
+    "facts": {
+      "upsideFrom": 175.7,
+      "upsideTo": 134.5,
+      "consensusFrom": "StrongBuy",
+      "consensusTo": "StrongBuy",
+      "price": 15.99,
+      "priceTarget": 37.5,
+      "analysts": 4,
+      "sector": "RealEstate",
+      "smartScoreFrom": 4,
+      "smartScoreTo": 6
+    },
+    "descriptor": "Real Estate Brokerage",
+    "image": "REAX-2026-10-16T15-01-04-687Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "TSM-2026-10-16T09:36:30.934Z",
     "ts": "2026-10-16T09:36:30.934Z",
     "kind": "newcomer",

@@ -178,5 +178,10 @@
     "name": "D-Wave Quantum",
     "descriptor": "Quantum Computer Systems",
     "scene": "tuning a superconducting quantum processor in a laboratory cleanroom"
+  },
+  "REAX": {
+    "name": "Real Brokerage",
+    "descriptor": "Real Estate Brokerage",
+    "scene": "inspecting a residential property with a tablet and clipboard in hand"
   }
 }
