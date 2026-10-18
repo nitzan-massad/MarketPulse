@@ -1,5 +1,33 @@
 [
   {
+    "id": "MSFT-2026-10-18T22:13:22.310Z",
+    "ts": "2026-10-18T22:13:22.310Z",
+    "kind": "steady",
+    "ticker": "MSFT",
+    "name": "Microsoft",
+    "sector": "General",
+    "text": "15% upside, 28 analysts, 30 days unchanged.",
+    "score": 40,
+    "reasons": [
+      "6 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (40% word overlap)"
+    ],
+    "facts": {
+      "smartScore": 9,
+      "snapshots": 145,
+      "days": 30.2,
+      "upside": 15.2,
+      "consensus": "StrongBuy",
+      "analysts": 28
+    },
+    "descriptor": "Software Developer",
+    "image": "MSFT-2026-10-18T22-13-22-310Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "CC BY-SA 4.0",
+    "imageAttribution": "Ank Kumar — Wikimedia Commons (CC BY-SA 4.0)"
+  },
+  {
     "id": "TSM-2026-10-18T18:03:52.407Z",
     "ts": "2026-10-18T18:03:52.407Z",
     "kind": "newcomer",
