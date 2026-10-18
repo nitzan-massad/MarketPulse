@@ -302,6 +302,7 @@ export async function generateImage({ sector, ticker, scene, env = process.env, 
       } catch {
         // Body wasn't JSON, or already consumed — no code to extract.
       }
+      console.error(`  flux HTTP ${res.status}, cf code ${cfCode}`);
       if (cfCode === CF_DAILY_ALLOCATION_EXHAUSTED_CODE) markExhausted(); // idempotent, see ci/cf-budget.mjs
       return null;
     }
