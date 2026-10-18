@@ -1,5 +1,31 @@
 [
   {
+    "id": "DELL-2026-10-18T09:51:50.895Z",
+    "ts": "2026-10-18T09:51:50.895Z",
+    "kind": "contrarian",
+    "ticker": "DELL",
+    "name": "Dell Technologies",
+    "sector": "Technology",
+    "text": "1 vs 73, AI outshines Smart Score.",
+    "score": 54,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "DELL appeared in a recent post"
+    ],
+    "facts": {
+      "smartScore": 1,
+      "aiScore": 73,
+      "aiRating": "Outperform",
+      "consensus": "Buy",
+      "upside": 33,
+      "price": 451.71,
+      "analysts": 21,
+      "bullish": "ai"
+    },
+    "descriptor": "Computer Hardware Manufacturer"
+  },
+  {
     "id": "IBM-2026-10-17T22:22:33.587Z",
     "ts": "2026-10-17T22:22:33.587Z",
     "kind": "newcomer",
