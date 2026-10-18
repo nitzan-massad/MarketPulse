@@ -411,6 +411,15 @@ export async function generate({
         }
       }
 
+      // Flux failed and Wikimedia wasn't tried yet: a real HQ photo beats the canvas fallback.
+      if (!fluxPhoto && !wikiPhoto && photoSource === "flux" && typeof getCompanyPhotoFor === "function") {
+        try {
+          wikiPhoto = await getCompanyPhotoFor(displayName);
+        } catch (err) {
+          console.error(`  ${hook.ticker}: Wikimedia photo lookup threw — ${err.message}`);
+        }
+      }
+
       const primaryPhoto = wikiPhoto ? wikiPhoto.bytes : fluxPhoto;
       // CC BY and CC BY-SA both legally require attribution — this credit line is where it
       // lives on the card itself (ci/post-compose.mjs's `credit` param). Never set for a Flux
