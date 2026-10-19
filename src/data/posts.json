@@ -1,5 +1,29 @@
 [
   {
+    "id": "QBTS-2026-10-19T11:06:22.406Z",
+    "ts": "2026-10-19T11:06:22.406Z",
+    "kind": "list",
+    "ticker": "QBTS",
+    "name": "D-Wave Quantum Inc.",
+    "sector": "Technology",
+    "text": "196% upside, tops a 5-name list.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "QBTS appeared in a recent post"
+    ],
+    "facts": {
+      "members": "D-Wave Quantum (195.7% to $34.83), Terawulf (192.7% to $34.18), Vera Therapeutics (175.7% to $76.86), COMPASS Pathways (164.5% to $28.43), Celldex (158.7% to $71.22)",
+      "count": 5,
+      "leader": "D-Wave Quantum",
+      "leaderUpside": 195.7
+    },
+    "descriptor": "Quantum Computer Systems",
+    "image": "QBTS-2026-10-19T11-06-22-406Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "MSFT-2026-10-18T22:13:22.310Z",
     "ts": "2026-10-18T22:13:22.310Z",
     "kind": "steady",
