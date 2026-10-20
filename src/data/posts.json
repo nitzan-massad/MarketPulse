@@ -1,5 +1,36 @@
 [
   {
+    "id": "RGTI-2026-10-20T10:25:17.853Z",
+    "ts": "2026-10-20T10:25:17.853Z",
+    "kind": "record",
+    "ticker": "RGTI",
+    "name": "Rigetti Computing",
+    "sector": "Technology",
+    "text": "~151% upside, two-week high, 9 analysts.",
+    "score": 38,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (38% word overlap)"
+    ],
+    "facts": {
+      "upside": 151.4,
+      "windowLow": 83.6,
+      "windowHigh": 151.4,
+      "snapshots": 61,
+      "days": 12.7,
+      "price": 11.8,
+      "priceTarget": 29.67,
+      "analysts": 9,
+      "sectorMedianUpside": 32
+    },
+    "descriptor": "Quantum Computer Maker",
+    "image": "RGTI-2026-10-20T10-25-17-853Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "CC BY 2.0",
+    "imageAttribution": "TechCrunch — Wikimedia Commons (CC BY 2.0)"
+  },
+  {
     "id": "QBTS-2026-10-19T11:06:22.406Z",
     "ts": "2026-10-19T11:06:22.406Z",
     "kind": "list",

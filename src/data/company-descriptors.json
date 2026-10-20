@@ -188,5 +188,10 @@
     "name": "Willis Towers Watson Public",
     "descriptor": "Insurance Consultant",
     "scene": "reviewing pension plan documents with a client at a conference table"
+  },
+  "RGTI": {
+    "name": "Rigetti Computing",
+    "descriptor": "Quantum Computer Maker",
+    "scene": "tuning superconducting quantum processor components with precision instruments"
   }
 }
