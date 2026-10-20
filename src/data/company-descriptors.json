@@ -193,5 +193,10 @@
     "name": "Rigetti Computing",
     "descriptor": "Quantum Computer Maker",
     "scene": "tuning superconducting quantum processor components with precision instruments"
+  },
+  "MCHP": {
+    "name": "Microchip",
+    "descriptor": "Embedded Control Solutions",
+    "scene": "calibrating a circuit board with tiny electronics and precision tools"
   }
 }

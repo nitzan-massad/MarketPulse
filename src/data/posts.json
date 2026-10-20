@@ -1,5 +1,35 @@
 [
   {
+    "id": "MCHP-2026-10-20T14:47:15.039Z",
+    "ts": "2026-10-20T14:47:15.039Z",
+    "kind": "movement",
+    "ticker": "MCHP",
+    "name": "Microchip",
+    "sector": "Technology",
+    "text": "Downgraded today, 18 analysts covering.",
+    "score": 70,
+    "reasons": [
+      "2 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band"
+    ],
+    "facts": {
+      "upsideFrom": 44.1,
+      "upsideTo": 44.1,
+      "consensusFrom": "StrongBuy",
+      "consensusTo": "Buy",
+      "price": 74.43,
+      "priceTarget": 107.28,
+      "analysts": 18,
+      "sector": "Technology"
+    },
+    "descriptor": "Embedded Control Solutions",
+    "image": "MCHP-2026-10-20T14-47-15-039Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "CC BY 4.0",
+    "imageAttribution": "DigitalIceAge — Wikimedia Commons (CC BY 4.0)"
+  },
+  {
     "id": "RGTI-2026-10-20T10:25:17.853Z",
     "ts": "2026-10-20T10:25:17.853Z",
     "kind": "record",
