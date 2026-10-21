@@ -36,8 +36,6 @@ const BAKED_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
 // Belt-and-braces: the NavMenu item is already gated behind the same flag, but this keeps
 // the feed unreachable even if something else ever sets `nav` to "feed" directly.
 const FEED_ON = flagOn("feed");
-// "Track this stock" on off-universe tickers — `?ff=track` to turn it on (see featureFlags.ts)
-const TRACK_ON = flagOn("track");
 
 // map a legacy single-select consensus bucket to the new discrete-rating list
 function bucketToList(b: string | undefined): string[] {
@@ -568,7 +566,7 @@ export default function App() {
             onToggleTrack={requestToggle}
             isCovered={(t) => STOCKS.some((s) => s.t === t)}
             user={user}
-            onRequestTrack={syncReady && TRACK_ON ? requestTrackStock : undefined}
+            onRequestTrack={syncReady ? requestTrackStock : undefined}
             confirmTicker={confirmTicker}
             onConfirmDone={() => setConfirmTicker(null)}
             markOf={(t) => marks[t]}

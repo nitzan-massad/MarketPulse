@@ -905,8 +905,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
             </div>
           ) : (
           <>
-          {!covered && !onRequestTrack && <div className="mkm-lim-old">Limited data — not in the ranked set</div>}
-          {!covered && onRequestTrack && (
+          {!covered && (
             <div className="mkm-lim" role="status">
               {trackReq === "none" ? (
                 <svg className="mkm-lim-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden="true">
@@ -927,7 +926,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                   {trackReq === "none" ? "Analyst data isn’t tracked yet" : trackReq === "pending" ? "Full analyst data in a few minutes" : "Refresh to see the full data"}
                 </div>
               </div>
-              {trackReq === "none" && (
+              {onRequestTrack && trackReq === "none" && (
                 <button type="button" className="mkm-trackreq" onClick={onRequestTrack}>
                   Track this stock
                 </button>
