@@ -20,7 +20,7 @@ import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
 import { useNotifications, type Notification } from "./useNotifications";
 import { useReviewAlerts } from "./useReviewAlerts";
-import { requestTracking, useWatchlist, type Mark } from "./watchlist";
+import { noteView, requestTracking, useWatchlist, type Mark } from "./watchlist";
 import { useSavedFilters, type SavedFilters } from "./savedFilters";
 import { initAnalytics, track, trackUser } from "./analytics";
 
@@ -99,8 +99,13 @@ export default function App() {
     trackUser(user?.uid ?? null);
   }, [user]);
 
+  // every stock view: GA4 event + the RTDB "last viewed" stamp that keeps the stock from expiring
+  function logOpen(ticker: string, extra?: Record<string, unknown>) {
+    track("open_stock", { ticker, section: nav, ...extra });
+    noteView(ticker);
+  }
   function handleOpen(s: Stock, list: Stock[] = []) {
-    track("open_stock", { ticker: s.t, section: nav });
+    logOpen(s.t);
     setOpenStock(s);
     setOpenList(list);
     setFcHighlight(null);
@@ -126,7 +131,7 @@ export default function App() {
   // off-universe ticker from search -> synthetic stock; the modal shows live
   // price/chart and marks the TipRanks metrics as unavailable
   function handleOpenTicker(ticker: string) {
-    track("open_stock", { ticker, section: nav, off_universe: true });
+    logOpen(ticker, { off_universe: true });
     const s: Stock = {
       t: ticker, n: "", sec: "", px: null, chg: null, pt: null, up: null, con: "",
       b: 0, h: 0, s: 0, ss: null, ai: null, air: null, aipt: null, mc: null, desc: null,
@@ -584,7 +589,7 @@ export default function App() {
             }}
             list={openList}
             onIndex={(n) => {
-              track("open_stock", { ticker: openList[n].t, section: nav, via: "swipe" });
+              logOpen(openList[n].t, { via: "swipe" });
               setOpenStock(openList[n]);
             }}
           />

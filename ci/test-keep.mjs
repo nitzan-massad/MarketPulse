@@ -24,7 +24,7 @@ import assert from "node:assert/strict";
 const MODULE = process.env.KEEP_MODULE || new URL("./keep.mjs", import.meta.url).href;
 const K = await import(MODULE);
 const {
-  KEEP_MAX_AGE_DAYS, AI_SCALE_FLOOR, lastSeenMs, computeKeep, nextLastSeen,
+  KEEP_MAX_AGE_DAYS, VIEW_KEEP_DAYS, AI_SCALE_FLOOR, lastSeenMs, computeKeep, nextLastSeen,
   sectorName, airName, rowFromGetData, forecastFields, fillNulls, aiScaleError, rndPx,
 } = K;
 
@@ -45,7 +45,7 @@ const truthy = (msg, fn) => check(msg, () => assert.ok(fn()));
 // A. module surface — the export list this file is written against
 // =====================================================================================
 const EXPECTED_EXPORTS = {
-  KEEP_MAX_AGE_DAYS: "number", AI_SCALE_FLOOR: "number", lastSeenMs: "function",
+  KEEP_MAX_AGE_DAYS: "number", VIEW_KEEP_DAYS: "number", AI_SCALE_FLOOR: "number", lastSeenMs: "function",
   computeKeep: "function", nextLastSeen: "function", sectorName: "function",
   airName: "function", rowFromGetData: "function", forecastFields: "function",
   fillNulls: "function", aiScaleError: "function", rndPx: "function",
@@ -109,6 +109,23 @@ eq("computeKeep tolerates a null prevSeen", () => [...computeKeep(["P"], null, N
 eq("computeKeep on empty input yields an empty keep set", () => [...computeKeep([], {}, NOW).keep], []);
 truthy("computeKeep does not mutate the pinned array it was given",
   () => { const pins = ["P"]; computeKeep(pins, { A: { ls: ago(DAY) } }, NOW); return pins.length === 1; });
+
+// alive: watchlists + recent views stop a drop; track requests add a ticker that then ages
+const STALE = { A: { ls: ago((KEEP_MAX_AGE_DAYS + 1) * DAY) } };
+eq("a stale ticker on ANY user's watchlist is kept",
+  () => computeKeep([], STALE, NOW, undefined, { watched: ["A"] }).dropped, []);
+eq(`a stale ticker viewed ${VIEW_KEEP_DAYS}d ago is kept`,
+  () => computeKeep([], STALE, NOW, undefined, { viewed: { A: NOW - VIEW_KEEP_DAYS * DAY } }).dropped, []);
+eq(`a stale ticker viewed ${VIEW_KEEP_DAYS}d + 1ms ago is dropped`,
+  () => computeKeep([], STALE, NOW, undefined, { viewed: { A: NOW - VIEW_KEEP_DAYS * DAY - 1 } }).dropped, ["A"]);
+eq("watch/view never ADD a ticker that is not already in seen",
+  () => [...computeKeep([], {}, NOW, undefined, { watched: ["W"], viewed: { V: NOW } }).keep], []);
+eq("a fresh track request adds a never-seen ticker",
+  () => [...computeKeep([], {}, NOW, undefined, { tracked: { T: ago(DAY) } }).keep], ["T"]);
+eq("a track request expires like any other ticker (NOT a pin)",
+  () => computeKeep([], {}, NOW, undefined, { tracked: { T: ago((KEEP_MAX_AGE_DAYS + 1) * DAY) } }).dropped, ["T"]);
+eq("a recent track request restarts a stale ticker's clock",
+  () => computeKeep([], STALE, NOW, undefined, { tracked: { A: ago(DAY) } }).dropped, []);
 
 // =====================================================================================
 // D. nextLastSeen — the OFF-PULL FREEZE. Two separate rotation schemes broke on this:

@@ -544,13 +544,20 @@ FlareSolverr) — a dev tool, not part of CI.
 ## Pinned & sticky tickers ✅
 
 The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **kept**
-(refreshed every run even when it falls out of those sorts) if it is either:
+(refreshed every run even when it falls out of those sorts) if it is any of:
 
 - **Pinned** — listed in `src/data/pinned.json` (a hand-edited array, e.g. `["AAPL","RIVN"]`).
   Pins never expire. Edit + commit + push this file; the next scheduled/manual run picks it up.
 - **Sticky** — seen in the dynamic list within the last **365 days** (`KEEP_MAX_AGE_DAYS`
   in `ci/keep.mjs`). A ticker absent from the dynamic list for longer than that is dropped
   (unless pinned). `seen.json` now carries an `ls` (last-seen) timestamp per ticker to drive this.
+- **Watched** — on any user's watchlist, or opened by anyone (signed in or not) within the last
+  **180 days** (`VIEW_KEEP_DAYS`). `ci/track-requests.mjs pin` snapshots RTDB `watchlist/*` and
+  `views/*` into `src/data/keepalive.json` (tickers + timestamps, no uids). Watch/view only stop a
+  drop — they never add a ticker.
+- **Tracked** — a "Track this stock" request, in `src/data/tracked.json` (`{ticker: request date}`).
+  NOT a pin: it ages under the sticky rule, from whichever is later, its last-seen or its request
+  date. When one expires, the `pin` step deletes its `trackRequests` node so it can be re-requested.
 
 Kept tickers missing from a run's screener pull are backfilled from the per-ticker
 `getData` feed (`ci/keep.mjs` → `rowFromGetData`), **merging fresh fields over the ticker's

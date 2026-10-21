@@ -1,8 +1,11 @@
 // Shared "keep set" logic for the data refresh (used by ci/refresh-data-ci.mjs
 // and scripts/refresh-data.mjs). A ticker is KEPT — refreshed every run even when
-// it falls out of the top-120 screener sorts — if it is either:
-//   1. pinned  (listed in src/data/pinned.json — never expires), or
-//   2. seen in the dynamic list within the last KEEP_MAX_AGE_DAYS.
+// it falls out of the top-120 screener sorts — if it is any of:
+//   1. pinned  (listed in src/data/pinned.json — never expires),
+//   2. on any user's watchlist, or opened by anyone within VIEW_KEEP_DAYS
+//      (src/data/keepalive.json, written from RTDB by ci/track-requests.mjs), or
+//   3. seen in the dynamic list, or requested via "Track this stock" (src/data/tracked.json),
+//      within the last KEEP_MAX_AGE_DAYS.
 // Kept-but-missing tickers are backfilled from the per-ticker getData feed
 // (the same endpoint scrape-forecasts uses); rowFromGetData maps that feed to a
 // stocks.json row, merging fresh fields over the ticker's last-known row so the
@@ -11,6 +14,7 @@
 import assert from "node:assert";
 
 export const KEEP_MAX_AGE_DAYS = 365;
+export const VIEW_KEEP_DAYS = 180;
 
 const MS_PER_DAY = 86_400_000;
 
@@ -22,14 +26,26 @@ export function lastSeenMs(entry) {
   return Number.isFinite(ms) ? ms : null;
 }
 
-// keep = pinned ∪ { previously-seen tickers not expired }. Pins never expire.
-export function computeKeep(pinned, prevSeen, nowMs, maxAgeDays = KEEP_MAX_AGE_DAYS) {
+// keep = pinned ∪ watched ∪ viewed-recently ∪ { seen/tracked tickers not expired }.
+// alive = { tracked: {T: iso request date}, watched: [T], viewed: {T: ms} }. Watch/view only
+// stop a drop — they never ADD a ticker (an off-universe search view must not grow the set);
+// a track request does add one, and then ages like any other row.
+export function computeKeep(pinned, prevSeen, nowMs, maxAgeDays = KEEP_MAX_AGE_DAYS, alive = {}) {
+  const { tracked = {}, watched = [], viewed = {} } = alive || {};
   const keep = new Set(pinned);
+  const watch = new Set(watched);
   const dropped = [];
-  for (const [t, e] of Object.entries(prevSeen || {})) {
+  for (const t of new Set([...Object.keys(prevSeen || {}), ...Object.keys(tracked)])) {
     if (keep.has(t)) continue; // pinned — always kept
-    const ls = lastSeenMs(e);
-    if (ls != null && nowMs - ls > maxAgeDays * MS_PER_DAY) dropped.push(t);
+    const e = prevSeen?.[t];
+    if (e && (watch.has(t) || nowMs - (viewed[t] || -Infinity) <= VIEW_KEEP_DAYS * MS_PER_DAY)) {
+      keep.add(t);
+      continue;
+    }
+    const ls = e ? lastSeenMs(e) : -Infinity;
+    if (ls === null) { keep.add(t); continue; } // unparseable/"baseline" — never expires
+    const last = Math.max(ls, Date.parse(tracked[t] || "") || -Infinity);
+    if (nowMs - last > maxAgeDays * MS_PER_DAY) dropped.push(t);
     else keep.add(t);
   }
   return { keep, dropped };

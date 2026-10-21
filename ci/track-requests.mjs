@@ -1,15 +1,18 @@
-// User "Track this stock" requests — RTDB `trackRequests/<KEY>` → src/data/pinned.json.
+// User "Track this stock" requests — RTDB `trackRequests/<KEY>` → src/data/tracked.json.
+// Tracked is NOT pinned: a tracked ticker expires by the same rules as any other (ci/keep.mjs).
 //
-//   node ci/track-requests.mjs pin    before the refresh: pending requests join pinned.json,
-//                                     so this run's keep-set backfill fetches them (ci/keep.mjs)
-//   node ci/track-requests.mjs fetch  lite run only (track-requests.yml): pinned requests with
+//   node ci/track-requests.mjs pin    before the refresh: pending requests join tracked.json,
+//                                     so this run's keep-set backfill fetches them (ci/keep.mjs).
+//                                     Also snapshots every watchlist + `views` into keepalive.json,
+//                                     and clears requests whose stock has since been dropped so
+//                                     the ticker can be requested again
+//   node ci/track-requests.mjs fetch  lite run only (track-requests.yml): tracked requests with
 //                                     no stocks.json row get one now (getData + forecast payload)
 //                                     and their tickers go to $GITHUB_OUTPUT for the scrapers' ONLY
 //   node ci/track-requests.mjs mark   after the deploy: requests whose ticker now has a
 //                                     row in stocks.json flip to tracked=true
 //
-// Only `tracked == false` is ever read (`.indexOn: tracked` in database.rules.json). Marking
-// waits for a real row, not for the pin: a run whose scrape got blocked leaves the request
+// Marking waits for a real row, not for the pin: a run whose scrape got blocked leaves the request
 // pending and the next run marks it.
 //
 // Auth: FIREBASE_SERVICE_ACCOUNT (the service-account JSON) is exchanged for an OAuth token
@@ -21,6 +24,8 @@ import { fillNulls, forecastFields, rowFromGetData } from "./keep.mjs";
 
 const DB = "https://marketpulse-df5d9-default-rtdb.europe-west1.firebasedatabase.app";
 const PINNED = "src/data/pinned.json";
+const TRACKED = "src/data/tracked.json";
+const KEEPALIVE = "src/data/keepalive.json";
 const STOCKS = "src/data/stocks.json";
 const SEEN = "src/data/seen.json";
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
@@ -31,15 +36,36 @@ const MAX_NEW_PER_RUN = 20;
 /** RTDB keys can't hold "." — the client stores BRK.B as BRK_B. */
 export const keyToTicker = (k) => k.replace(/_/g, ".");
 
-/** Pending request keys → the tickers to add to pinned (new ones only, oldest first, capped). */
-export function planPins(requests, pinned, cap = MAX_NEW_PER_RUN) {
-  const have = new Set(pinned);
+/** Pending requests → [ticker, request ISO date] to write to tracked.json (not pinned, oldest
+ *  first, capped). A re-request of a dropped ticker carries a newer date, which restarts its clock. */
+export function planTracks(requests, pinned, tracked = {}, cap = MAX_NEW_PER_RUN) {
+  const pins = new Set(pinned);
   return Object.entries(requests || {})
     .filter(([, r]) => r && r.tracked === false)
     .sort(([, a], [, b]) => (a.ts || 0) - (b.ts || 0))
-    .map(([k]) => keyToTicker(k))
-    .filter((t) => /^[A-Z0-9.-]{1,12}$/.test(t) && !have.has(t))
+    .map(([k, r]) => [keyToTicker(k), new Date(r.ts || Date.now()).toISOString()])
+    .filter(([t, iso]) => /^[A-Z0-9.-]{1,12}$/.test(t) && !pins.has(t) && !((tracked[t] || "") >= iso))
     .slice(0, cap);
+}
+
+/** Done requests whose ticker has no row any more (it expired) → RTDB patch deleting them,
+ *  so the ticker can be requested again (the rules only allow creating a request). */
+export function planUnrequest(requests, rowTickers) {
+  const rows = new Set(rowTickers);
+  return Object.fromEntries(Object.entries(requests || {})
+    .filter(([k, r]) => r?.tracked === true && !rows.has(keyToTicker(k)))
+    .map(([k]) => [k, null]));
+}
+
+/** RTDB `watchlist` (per-uid object, or a legacy array) + `views` → keepalive.json. No uids. */
+export function planKeepalive(watchlists, views) {
+  const watched = new Set();
+  for (const l of Object.values(watchlists || {})) {
+    for (const t of Array.isArray(l) ? l : Object.keys(l || {})) if (typeof t === "string") watched.add(keyToTicker(t));
+  }
+  const viewed = {};
+  for (const [k, ms] of Object.entries(views || {})) if (typeof ms === "number") viewed[keyToTicker(k)] = ms;
+  return { watched: [...watched].sort(), viewed };
 }
 
 /** Pending request keys whose ticker now has a stocks.json row → the RTDB patch that marks them. */
@@ -55,14 +81,18 @@ export function planMarks(requests, rowTickers, now = Date.now()) {
   return patch;
 }
 
-/** Pending requests that are pinned but have no row yet → the tickers the lite run fetches. */
-export function planFetch(requests, pinned, rowTickers, cap = MAX_NEW_PER_RUN) {
+/** Pending requests that are tracked but have no row yet → the tickers the lite run fetches. */
+export function planFetch(requests, tracked, rowTickers, cap = MAX_NEW_PER_RUN) {
   const rows = new Set(rowTickers);
   return Object.entries(requests || {})
     .filter(([, r]) => r?.tracked === false)
     .map(([k]) => keyToTicker(k))
-    .filter((t) => pinned.includes(t) && !rows.has(t))
+    .filter((t) => tracked.includes(t) && !rows.has(t))
     .slice(0, cap);
+}
+
+function readJson(path, fallback) {
+  try { return JSON.parse(readFileSync(path, "utf8")); } catch { return fallback; }
 }
 
 // ponytail: same FlareSolverr transport as refresh-data-ci / scrape-forecasts / scrape-bullbear,
@@ -128,21 +158,31 @@ async function main(mode) {
     return;
   }
   const token = await accessToken(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT));
-  const pending = await rtdb(token, "GET", `trackRequests.json?orderBy=%22tracked%22&equalTo=false`);
-  console.log(`track requests: ${Object.keys(pending || {}).length} pending`);
+  // ponytail: whole-tree GETs (all requests, all watchlists, all views) — fine at hobby scale;
+  // shallow/indexed queries if any of them ever reaches MBs.
+  const all = await rtdb(token, "GET", "trackRequests.json");
+  const pending = Object.fromEntries(Object.entries(all || {}).filter(([, r]) => r?.tracked === false));
+  console.log(`track requests: ${Object.keys(pending).length} pending`);
+  const tracked = readJson(TRACKED, {});
 
   if (mode === "pin") {
-    const pinned = JSON.parse(readFileSync(PINNED, "utf8"));
-    const add = planPins(pending, pinned);
-    if (add.length) writeFileSync(PINNED, JSON.stringify([...pinned, ...add]) + "\n");
-    console.log(`  pinned +${add.length}${add.length ? `: ${add.join(", ")}` : ""}`);
+    const add = planTracks(pending, readJson(PINNED, []), tracked);
+    if (add.length) writeFileSync(TRACKED, JSON.stringify({ ...tracked, ...Object.fromEntries(add) }) + "\n");
+    console.log(`  tracked +${add.length}${add.length ? `: ${add.map(([t]) => t).join(", ")}` : ""}`);
+    // Requests only — never touch tracked.json here: its date is what lets a dropped ticker stay dropped.
+    const gone = planUnrequest(all, readJson(STOCKS, []).map((r) => r.t));
+    if (Object.keys(gone).length) await rtdb(token, "PATCH", "trackRequests.json", gone);
+    console.log(`  cleared dropped requests: ${Object.keys(gone).length}`);
+    const [wl, views] = await Promise.all([rtdb(token, "GET", "watchlist.json"), rtdb(token, "GET", "views.json")]);
+    const ka = planKeepalive(wl, views);
+    writeFileSync(KEEPALIVE, JSON.stringify(ka) + "\n");
+    console.log(`  keepalive: ${ka.watched.length} watched, ${Object.keys(ka.viewed).length} viewed`);
   } else if (mode === "fetch") {
-    const pinned = JSON.parse(readFileSync(PINNED, "utf8"));
     const stocks = JSON.parse(readFileSync(STOCKS, "utf8"));
     const seen = JSON.parse(readFileSync(SEEN, "utf8"));
     const now = new Date().toISOString();
     const got = [];
-    for (const t of planFetch(pending, pinned, stocks.map((r) => r.t))) {
+    for (const t of planFetch(pending, Object.keys(tracked), stocks.map((r) => r.t))) {
       try {
         const row = rowFromGetData(await flareJson(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`));
         if (!row.t) throw new Error("no ticker in getData");

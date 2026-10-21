@@ -7,6 +7,9 @@
     "watchmeta":     { "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": "auth != null && auth.uid === $uid" } },
     "reviewseen":    { "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": "auth != null && auth.uid === $uid" } },
     "trackreq":      { "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": "auth != null && auth.uid === $uid" } },
+    "views": {
+      "$t": { ".write": "$t.matches(/^[A-Z0-9_-]{1,12}$/) && newData.val() === now" }
+    },
     "trackRequests": {
       ".indexOn": ["tracked"],
       "$t": {

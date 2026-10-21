@@ -61,8 +61,9 @@ jobs:
         with:
           enablement: true
 
-      # User "Track this stock" requests (RTDB trackRequests) join src/data/pinned.json, so the
-      # refresh below backfills them via the keep set. See ci/track-requests.mjs.
+      # User "Track this stock" requests (RTDB trackRequests) join src/data/tracked.json, and
+      # watchlists + views go to keepalive.json, so the refresh below keeps/backfills them via the
+      # keep set. See ci/track-requests.mjs.
       - name: Pin requested tickers
         if: github.event_name != 'push'
         continue-on-error: true

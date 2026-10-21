@@ -11,7 +11,7 @@ import {
   type AuthProvider,
   type User,
 } from "firebase/auth";
-import { get, getDatabase, onValue, ref, set, update, type Database } from "firebase/database";
+import { get, getDatabase, onValue, ref, serverTimestamp, set, update, type Database } from "firebase/database";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   keyForAppend,
@@ -404,6 +404,16 @@ export const trackKey = (t: string) => t.replace(/\./g, "_");
 const DEV_REQ_LS = "mp_dev_trackreq";
 const devRequests = new Set<string>(DEV_AUTH ? (() => { try { return JSON.parse(localStorage.getItem(DEV_REQ_LS) || "[]"); } catch { return []; } })() : []);
 const DEV_REQ_EVENT = "mp-trackreq";
+
+// "Last viewed" per ticker, by ANY visitor (signed in or not): `views/<KEY>` = server time.
+// ci/track-requests.mjs snapshots it into keepalive.json, and computeKeep won't drop a stock
+// opened within VIEW_KEEP_DAYS. Prod only, like analytics.
+// ponytail: unauthenticated writes, so anyone can keep a ticker alive by spamming opens — the
+// rule pins the value to `now`, so that is the whole blast radius.
+export function noteView(ticker: string): void {
+  if (DEV_AUTH || !db || !import.meta.env.PROD) return;
+  set(ref(db, `views/${trackKey(ticker)}`), serverTimestamp()).catch(() => { /* rules not deployed yet / offline */ });
+}
 
 export function requestTracking(ticker: string, user: User): void {
   const key = trackKey(ticker);

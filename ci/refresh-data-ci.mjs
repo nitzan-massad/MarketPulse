@@ -91,13 +91,17 @@ const inPull = new Set(seen.keys()); // tickers the dynamic screener returned TH
 // (capped, most-stale-first); the rest carry their last-known row. See ci/keep.mjs.
 let pinned = [];
 try { pinned = JSON.parse(readFileSync("src/data/pinned.json", "utf8")); } catch { /* none */ }
+// watchlists + recent views (keepalive) and "Track this stock" requests (tracked) — see computeKeep
+const alive = { tracked: {} };
+try { alive.tracked = JSON.parse(readFileSync("src/data/tracked.json", "utf8")); } catch { /* none */ }
+try { Object.assign(alive, JSON.parse(readFileSync("src/data/keepalive.json", "utf8"))); } catch { /* none */ }
 let prevSeen = {};
 try { prevSeen = JSON.parse(readFileSync("src/data/seen.json", "utf8")); } catch { /* first run */ }
 const prevRows = new Map();
 try { for (const r of JSON.parse(readFileSync("src/data/stocks.json", "utf8"))) prevRows.set(r.t, r); } catch { /* first run */ }
 
 const BACKFILL_LIMIT = Number(process.env.BACKFILL_LIMIT || 300);
-const { keep, dropped } = computeKeep(pinned, prevSeen, Date.now(), KEEP_MAX_AGE_DAYS);
+const { keep, dropped } = computeKeep(pinned, prevSeen, Date.now(), KEEP_MAX_AGE_DAYS, alive);
 const lsMs = (t) => Date.parse(prevSeen[t]?.ls || prevSeen[t]?.d || "") || 0;
 // #6 — DO NOT sort this queue on lsMs. `ls` is frozen while a ticker is off-pull (that is
 // what nextLastSeen does), and every ticker in `missing` is BY DEFINITION off-pull — so the
