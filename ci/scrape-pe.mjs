@@ -25,6 +25,7 @@ const TD = process.env.TWELVEDATA_CI_KEY || process.env.TWELVEDATA_KEY || proces
 const LIMIT = Number(process.env.LIMIT || 60);
 const STALE_DAYS = Number(process.env.STALE_DAYS || 3);
 const ALL = process.env.ALL === "1";
+const ONLY = process.env.ONLY ? process.env.ONLY.split(",") : null; // just these tickers (ci/track-requests)
 const TD_GAP_MS = 8000; // 8/min
 const FH_GAP_MS = 1100; // 60/min
 const OUT = "public/pe";
@@ -78,7 +79,7 @@ const backoff = (e) => (e?.err ? Math.min(7, 2 ** (e.n || 0)) * DAY / 7 : 0); //
 const dueAt = (t) => { const e = index[t]; return e ? Date.parse(e.a) + (e.err ? backoff(e) : STALE_DAYS * DAY) : 0; };
 const now = Date.now();
 const queue = tickers
-  .filter((t) => ALL || dueAt(t) <= now)
+  .filter((t) => (ONLY ? ONLY.includes(t) : ALL || dueAt(t) <= now))
   .sort((a, b) => (index[a]?.err ? 0 : 1) - (index[b]?.err ? 0 : 1) || dueAt(a) - dueAt(b))
   .slice(0, ALL ? Infinity : LIMIT);
 console.log(`scrape-pe: refreshing ${queue.length} of ${tickers.length} (LIMIT=${LIMIT}, ALL=${ALL})`);

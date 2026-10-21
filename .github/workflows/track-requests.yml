@@ -48,7 +48,15 @@ jobs:
           node ci/track-requests.mjs pin
           node ci/track-requests.mjs fetch
 
-      - if: steps.fetch.outputs.tickers != ''
+      # node_modules cached on the lockfile: a hit skips the ~19s `npm ci`.
+      - id: nm
+        if: steps.fetch.outputs.tickers != ''
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: nm-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}
+
+      - if: steps.fetch.outputs.tickers != '' && steps.nm.outputs.cache-hit != 'true'
         run: npm ci
 
       - name: Forecasts + Bulls/Bears for just these
@@ -60,6 +68,17 @@ jobs:
           node ci/scrape-forecasts.mjs
           node ci/scrape-bullbear.mjs
 
+      # Same keys as site.yml. Twelve Data's 5Y closes are fetched once per new ticker.
+      - name: P/E history for just these
+        if: steps.fetch.outputs.tickers != ''
+        continue-on-error: true
+        env:
+          ONLY: ${{ steps.fetch.outputs.tickers }}
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+          TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }}
+          TWELVEDATA_CI_KEY: ${{ secrets.TWELVEDATA_CI_KEY }}
+        run: node ci/scrape-pe.mjs
+
       - name: Data gate
         if: steps.fetch.outputs.tickers != ''
         run: npm test
@@ -69,7 +88,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/data public/forecasts public/bullbear
+          git add src/data public/forecasts public/bullbear public/pe ci/cache
           git commit -m "chore: track requested ${{ steps.fetch.outputs.tickers }} [skip ci]"
           git push
 
