@@ -18,6 +18,7 @@ const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
 const STALE_DAYS = Number(process.env.STALE_DAYS || 3);
 const ALL = process.env.ALL === "1";
+const ONLY = process.env.ONLY ? process.env.ONLY.split(",") : null; // just these tickers (ci/track-requests)
 // Union the SSR page into the JSON path instead of only falling back to it when JSON gave
 // nothing. Default ON; SSR_MERGE=0 is an exact rollback to the old fallback behaviour without
 // a revert. Costs one page fetch per ticker in the rotation (~+8 min, ~+34 MB per run,
@@ -95,7 +96,7 @@ const asOf = existsSync(ASOF) ? JSON.parse(readFileSync(ASOF, "utf8")) : {};
 const age = (t) => Date.parse(asOf[t]) || 0; // never fetched -> 0 -> front of the queue
 const targets = stocks
   .map((s) => s.t)
-  .filter((t) => ALL || age(t) < staleBefore)
+  .filter((t) => (ONLY ? ONLY.includes(t) : ALL || age(t) < staleBefore))
   .sort((a, b) => age(a) - age(b)) // stalest (incl. never-fetched = 0) first
   .slice(0, LIMIT);
 

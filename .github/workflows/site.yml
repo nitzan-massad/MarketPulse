@@ -61,6 +61,15 @@ jobs:
         with:
           enablement: true
 
+      # User "Track this stock" requests (RTDB trackRequests) join src/data/pinned.json, so the
+      # refresh below backfills them via the keep set. See ci/track-requests.mjs.
+      - name: Pin requested tickers
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node ci/track-requests.mjs pin
+
       # Pull a fresh TipRanks snapshot via FlareSolverr (solves Cloudflare from
       # the runner's datacenter IP). Skipped on plain code pushes. A blocked
       # fetch fails this step but NOT the run — the site still deploys last data.
@@ -205,6 +214,14 @@ jobs:
             git commit -m "chore: refresh TipRanks snapshot [skip ci]"
             git push
           fi
+
+      # After the commit, so a request only flips to tracked=true once its row has shipped.
+      - name: Mark requests tracked
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node ci/track-requests.mjs mark
 
       - name: Build
         env:

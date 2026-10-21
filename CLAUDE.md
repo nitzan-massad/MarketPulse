@@ -77,7 +77,8 @@ and localStorage — no real auth, no Firebase writes.
   external CI system. Never edit the workflow through the GitHub web UI. See `AGENTS.md`.
 - **Never hand-edit** `src/data/*.json`, `public/forecasts/`, `public/bullbear/`,
   `public/reviews-recent.json` — CI overwrites them. `src/data/pinned.json` is the one exception
-  (hand-maintained list of always-refreshed tickers).
+  (hand-maintained list of always-refreshed tickers; CI also appends users' "Track this stock"
+  requests from RTDB `trackRequests` — see `ci/track-requests.mjs`).
 - **Never key staleness off file mtime.** `actions/checkout` restamps every file, which froze all
   forecasts for 9 days while CI ran ~40 times. Age comes from the committed
   `public/forecasts/_asOf.json` sidecar, or the `asOf` field inside each bullbear file.

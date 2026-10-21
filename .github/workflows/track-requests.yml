@@ -1,0 +1,98 @@
+name: Track requested stocks
+
+# The lite run behind "Track this stock". The Cloudflare Worker (worker/) dispatches this the
+# moment a user presses the button; it handles EVERY pending request, so a dispatch that gets
+# collapsed into another is lost harmlessly. Nothing pending => it stops after ~30s.
+# The 5h site.yml run pins and marks the same requests, so it is the fallback if this fails.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# Shared with site.yml: one writer to main and to Pages at a time.
+# ponytail: GitHub keeps one PENDING run per group, so a dispatch landing while a run is
+# active and another is queued replaces the queued one — even a queued site.yml cron run.
+# Rare (needs a 15-48 min site run plus two queued). Give this its own group with a
+# pull --rebase before push if it ever bites.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    services:
+      flaresolverr:
+        image: ghcr.io/flaresolverr/flaresolverr:latest
+        ports:
+          - 8191:8191
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      FLARESOLVERR_URL: http://localhost:8191/v1
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 24 — see site.yml. ci/track-requests.mjs needs no npm deps, so pin+fetch run
+      # before `npm ci`, and an empty dispatch stops here.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Pin + fetch requested tickers
+        id: fetch
+        run: |
+          node ci/track-requests.mjs pin
+          node ci/track-requests.mjs fetch
+
+      - if: steps.fetch.outputs.tickers != ''
+        run: npm ci
+
+      - name: Forecasts + Bulls/Bears for just these
+        if: steps.fetch.outputs.tickers != ''
+        continue-on-error: true
+        env:
+          ONLY: ${{ steps.fetch.outputs.tickers }}
+        run: |
+          node ci/scrape-forecasts.mjs
+          node ci/scrape-bullbear.mjs
+
+      - name: Data gate
+        if: steps.fetch.outputs.tickers != ''
+        run: npm test
+
+      - name: Commit
+        if: steps.fetch.outputs.tickers != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/data public/forecasts public/bullbear
+          git commit -m "chore: track requested ${{ steps.fetch.outputs.tickers }} [skip ci]"
+          git push
+
+      - name: Mark requests tracked
+        if: steps.fetch.outputs.tickers != ''
+        continue-on-error: true
+        run: node ci/track-requests.mjs mark
+
+      - name: Build
+        if: steps.fetch.outputs.tickers != ''
+        env:
+          VITE_FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+          VITE_TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }}
+          VITE_FMP_KEY: ${{ secrets.FMP_KEY }}
+        run: npm run build
+
+      - if: steps.fetch.outputs.tickers != ''
+        uses: actions/configure-pages@v5
+
+      - if: steps.fetch.outputs.tickers != ''
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - if: steps.fetch.outputs.tickers != ''
+        uses: actions/deploy-pages@v4

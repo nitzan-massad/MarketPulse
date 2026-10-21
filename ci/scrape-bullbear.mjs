@@ -12,6 +12,7 @@ const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
 const STALE_DAYS = Number(process.env.STALE_DAYS || 3);
 const ALL = process.env.ALL === "1";
+const ONLY = process.env.ONLY ? process.env.ONLY.split(",") : null; // just these tickers (ci/track-requests)
 const OUT = "public/bullbear";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -74,7 +75,7 @@ const ages = new Map(stocks.map((s) => {
 const age = (t) => ages.get(t) ?? 0;
 const targets = stocks
   .map((s) => s.t)
-  .filter((t) => ALL || age(t) < staleBefore)
+  .filter((t) => (ONLY ? ONLY.includes(t) : ALL || age(t) < staleBefore))
   .sort((a, b) => age(a) - age(b)) // stalest (incl. never-fetched = 0) first
   .slice(0, LIMIT);
 

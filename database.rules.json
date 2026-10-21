@@ -5,6 +5,18 @@
     "filters":       { "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": "auth != null && auth.uid === $uid" } },
     "notifications": { "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": "auth != null && auth.uid === $uid" } },
     "watchmeta":     { "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": "auth != null && auth.uid === $uid" } },
-    "reviewseen":    { "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": "auth != null && auth.uid === $uid" } }
+    "reviewseen":    { "$uid": { ".read": "auth != null && auth.uid === $uid", ".write": "auth != null && auth.uid === $uid" } },
+    "trackRequests": {
+      ".indexOn": ["tracked"],
+      "$t": {
+        ".read": "auth != null",
+        ".write": "auth != null && !data.exists()",
+        ".validate": "$t.matches(/^[A-Z0-9_-]{1,12}$/) && newData.hasChildren(['uid', 'ts', 'tracked'])",
+        "uid": { ".validate": "newData.val() === auth.uid" },
+        "ts": { ".validate": "newData.isNumber()" },
+        "tracked": { ".validate": "newData.val() === false" },
+        "$other": { ".validate": false }
+      }
+    }
   }
 }
