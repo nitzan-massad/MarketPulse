@@ -215,14 +215,6 @@ jobs:
             git push
           fi
 
-      # After the commit, so a request only flips to tracked=true once its row has shipped.
-      - name: Mark requests tracked
-        if: github.event_name != 'push'
-        continue-on-error: true
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: node ci/track-requests.mjs mark
-
       - name: Build
         env:
           VITE_FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
@@ -236,3 +228,12 @@ jobs:
 
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      # After the deploy: tracked=true fires the requester's "now tracked" notification, so it
+      # must mean the row is live. See ci/track-requests.mjs.
+      - name: Mark requests tracked
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node ci/track-requests.mjs mark

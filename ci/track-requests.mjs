@@ -5,7 +5,7 @@
 //   node ci/track-requests.mjs fetch  lite run only (track-requests.yml): pinned requests with
 //                                     no stocks.json row get one now (getData + forecast payload)
 //                                     and their tickers go to $GITHUB_OUTPUT for the scrapers' ONLY
-//   node ci/track-requests.mjs mark   after the data commit: requests whose ticker now has a
+//   node ci/track-requests.mjs mark   after the deploy: requests whose ticker now has a
 //                                     row in stocks.json flip to tracked=true
 //
 // Only `tracked == false` is ever read (`.indexOn: tracked` in database.rules.json). Marking

@@ -20,7 +20,7 @@ import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
 import { useNotifications, type Notification } from "./useNotifications";
 import { useReviewAlerts } from "./useReviewAlerts";
-import { useWatchlist, type Mark } from "./watchlist";
+import { requestTracking, useWatchlist, type Mark } from "./watchlist";
 import { useSavedFilters, type SavedFilters } from "./savedFilters";
 import { initAnalytics, track, trackUser } from "./analytics";
 
@@ -36,6 +36,8 @@ const BAKED_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
 // Belt-and-braces: the NavMenu item is already gated behind the same flag, but this keeps
 // the feed unreachable even if something else ever sets `nav` to "feed" directly.
 const FEED_ON = flagOn("feed");
+// "Track this stock" on off-universe tickers — `?ff=track` to turn it on (see featureFlags.ts)
+const TRACK_ON = flagOn("track");
 
 // map a legacy single-select consensus bucket to the new discrete-rating list
 function bucketToList(b: string | undefined): string[] {
@@ -86,6 +88,8 @@ export default function App() {
   const [signInOpen, setSignInOpen] = useState(false);
   const [pendingTrack, setPendingTrack] = useState<string | null>(null);
   const [pendingMark, setPendingMark] = useState<{ ticker: string; v: Mark } | null>(null);
+  const [pendingRequest, setPendingRequest] = useState<string | null>(null);
+  const [confirmTicker, setConfirmTicker] = useState<string | null>(null); // "We're on it" sheet
   const [markFilter, setMarkFilter] = useState<MarkFilter>("all");
 
   // usage analytics (Firebase/GA4): init once, then attribute events to the
@@ -149,6 +153,29 @@ export default function App() {
     }
     toggleTrack(ticker);
   }
+
+  // "Track this stock": request + star. Signed out => sign in first, then both happen on
+  // their own (the star via signIn's pending list, the request in the effect below).
+  function requestTrackStock(ticker: string) {
+    if (!user) {
+      setPendingTrack(ticker);
+      setPendingRequest(ticker);
+      setSignInOpen(true);
+      return;
+    }
+    track("request_track", { ticker });
+    requestTracking(ticker, user);
+    setConfirmTicker(ticker);
+    // star after the sheet has slid in: the watchlist re-render is what made it stutter
+    if (!watchlist.includes(ticker)) setTimeout(() => toggleTrack(ticker), 550);
+  }
+  useEffect(() => {
+    if (!user || !pendingRequest) return;
+    track("request_track", { ticker: pendingRequest });
+    requestTracking(pendingRequest, user);
+    setConfirmTicker(pendingRequest);
+    setPendingRequest(null);
+  }, [user, pendingRequest]);
 
   // Thumbs also require an account: a signed-out press opens sign-in and
   // remembers the mark to apply once authenticated.
@@ -339,8 +366,14 @@ export default function App() {
   // clicking a notification: jump to the watchlist view and open that stock's modal.
   // A review notification also opens the forecast view with its new rows highlighted.
   function openFromNotification(n: Notification) {
-    setNav("watch");
     const s = STOCKS.find((x) => x.t === n.ticker);
+    // the data landed after this tab loaded its bundle: reload onto the stock to get it
+    if (n.type === "tracked" && !s) {
+      location.hash = n.ticker;
+      location.reload();
+      return;
+    }
+    setNav("watch");
     const watched = STOCKS.filter((x) => watchlist.includes(x.t));
     // a ticker since removed from the watchlist still opens on itself, not on the list's first row
     if (s) handleOpen(s, watched.includes(s) ? watched : [s]);
@@ -534,6 +567,10 @@ export default function App() {
             isTracked={(t) => watchlist.includes(t)}
             onToggleTrack={requestToggle}
             isCovered={(t) => STOCKS.some((s) => s.t === t)}
+            user={user}
+            onRequestTrack={syncReady && TRACK_ON ? requestTrackStock : undefined}
+            confirmTicker={confirmTicker}
+            onConfirmDone={() => setConfirmTicker(null)}
             markOf={(t) => marks[t]}
             onMark={requestMark}
             highlightReviews={fcHighlight}
@@ -565,6 +602,7 @@ export default function App() {
             setSignInOpen(false);
             setPendingTrack(null);
             setPendingMark(null);
+            // pendingRequest deliberately survives a close: the effect fires it once a user exists
           }}
         />
       )}

@@ -11,7 +11,7 @@ const db: Database | null = app ? getDatabase(app) : null;
 
 export interface Notification {
   id: string;
-  type: "price" | "review";
+  type: "price" | "review" | "tracked"; // tracked: a "Track this stock" request landed
   ticker: string;
   dir?: Dir; // price
   pct?: number; // price: cumulative % vs add price at fire time
@@ -207,6 +207,34 @@ export function useNotifications(
     },
     [user, addNotif],
   );
+
+  // "Track this stock" landed: each of this user's own requests (trackreq/<uid>, written by
+  // requestTracking) is watched until the shared request flips tracked=true, then notifies
+  // ONCE and deletes the user's copy — so a reload or second device never re-notifies.
+  // Dev has no backend, so nothing ever lands there.
+  const trackedFiredRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (DEV_AUTH || !db || !user) return;
+    const d = db;
+    const subs = new Map<string, () => void>();
+    const unList = onValue(ref(d, `trackreq/${user.uid}`), (snap) => {
+      const keys = new Set(Object.keys(snap.val() || {}));
+      for (const [k, un] of subs) if (!keys.has(k)) { un(); subs.delete(k); }
+      for (const k of keys) {
+        if (subs.has(k)) continue;
+        subs.set(k, onValue(ref(d, `trackRequests/${k}/tracked`), (s) => {
+          if (s.val() !== true || trackedFiredRef.current.has(k)) return;
+          trackedFiredRef.current.add(k); // StrictMode / echo guard until the remove lands
+          addNotif({ type: "tracked", ticker: k.replace(/_/g, "."), at: Date.now(), read: false });
+          void remove(ref(d, `trackreq/${user.uid}/${k}`));
+        }));
+      }
+    });
+    return () => {
+      unList();
+      for (const un of subs.values()) un();
+    };
+  }, [user, addNotif]);
 
   // reconcile meta: create for newly-watched tickers (reqs 11 + 12), prune the rest
   useEffect(() => {

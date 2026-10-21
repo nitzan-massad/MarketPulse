@@ -73,11 +73,6 @@ jobs:
           git commit -m "chore: track requested ${{ steps.fetch.outputs.tickers }} [skip ci]"
           git push
 
-      - name: Mark requests tracked
-        if: steps.fetch.outputs.tickers != ''
-        continue-on-error: true
-        run: node ci/track-requests.mjs mark
-
       - name: Build
         if: steps.fetch.outputs.tickers != ''
         env:
@@ -96,3 +91,10 @@ jobs:
 
       - if: steps.fetch.outputs.tickers != ''
         uses: actions/deploy-pages@v4
+
+      # After the deploy: tracked=true is what fires the user's "now tracked" notification,
+      # so it must mean the data is live.
+      - name: Mark requests tracked
+        if: steps.fetch.outputs.tickers != ''
+        continue-on-error: true
+        run: node ci/track-requests.mjs mark

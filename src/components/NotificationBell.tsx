@@ -38,6 +38,12 @@ const DocIcon = (
   </svg>
 );
 
+const CheckIcon = (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 12l5 5L19 7" />
+  </svg>
+);
+
 function sameDay(ms: number, now: Date): boolean {
   const d = new Date(ms);
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
@@ -134,6 +140,20 @@ export default function NotificationBell({
       savedScroll.current = bodyRef.current?.scrollTop ?? 0;
       onOpen(n); // the panel stays open underneath — see modalUp() above
     };
+    if (n.type === "tracked") {
+      return (
+        <button key={n.id} className={`nb-row${isNew ? "" : " read"}`} role="menuitem" onClick={open}>
+          <span className="nb-ico review">{CheckIcon}</span>
+          <span className="nb-mid">
+            <span className="nb-msg">
+              <span className="nb-tk">{n.ticker}</span> is now tracked
+            </span>
+            <span className="nb-rev">full analyst data is in</span>
+            <span className="nb-date">{fmtMarkDate(n.at)}</span>
+          </span>
+        </button>
+      );
+    }
     if (n.type === "review") {
       const count = n.keys?.length ?? 1;
       return (

@@ -8,7 +8,8 @@ import { reviewKey } from "../reviewAlerts";
 import type { Stock } from "../types";
 import { tickerTarget, type TickerView } from "../share";
 import { useShare } from "../useShare";
-import type { Mark, MarkEntry } from "../watchlist";
+import { useTrackRequest, type Mark, type MarkEntry } from "../watchlist";
+import type { User } from "firebase/auth";
 import ShareBurst from "./ShareBurst";
 import CloseButton from "./CloseButton";
 import ShareButton, { ShareFail } from "./ShareButton";
@@ -452,6 +453,19 @@ function buildChart(
   };
 }
 
+// Confetti rain over the "We're on it" sheet: 40 pieces, fixed once so a re-render doesn't
+// reshuffle them mid-fall. Position, size, colour, delay, sway and spin per piece.
+const CONFETTI_COLORS = ["#1b3f73", "#4a78b8", "#9fb8dc", "#e0a43a", "#2e9e6e", "#e56b6f", "#7c5cbf"];
+const CONFETTI = Array.from({ length: 40 }, (_, i) => ({
+  left: `${Math.random() * 96}%`,
+  width: `${5 + (i % 3)}px`,
+  height: `${8 + (i % 3) * 2}px`,
+  background: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  animationDelay: `${(Math.random() * 0.9).toFixed(2)}s`,
+  "--sw": `${Math.round(Math.random() * 60 - 30)}px`,
+  "--rot": `${180 + Math.round(Math.random() * 540)}deg`,
+})) as React.CSSProperties[];
+
 interface StockModalProps {
   stock: Stock;
   /** The whole open list. Every row is a slide, so the track is continuous and the scroll
@@ -463,6 +477,13 @@ interface StockModalProps {
   isTracked: (t: string) => boolean;
   onToggleTrack: (t: string) => void;
   isCovered: (t: string) => boolean; // in the TipRanks ranked set? false => live data only
+  /** Signed-in user (null when signed out) — drives the "Track this stock" state. */
+  user: User | null;
+  /** "Track this stock" pressed. Absent => sync off, button hidden. */
+  onRequestTrack?: (t: string) => void;
+  /** Ticker whose request was just made — its card shows the "We're on it" sheet. */
+  confirmTicker?: string | null;
+  onConfirmDone?: () => void;
   markOf: (t: string) => MarkEntry | undefined;
   onMark: (t: string, v: Mark) => void;
   highlightReviews?: string[] | null; // opened from a review notification: open forecasts + glow these rows
@@ -479,6 +500,10 @@ interface StockCardProps {
   tracked: boolean;
   onToggleTrack: () => void;
   covered?: boolean;
+  user: User | null;
+  onRequestTrack?: () => void;
+  confirming?: boolean;
+  onConfirmDone?: () => void;
   mark?: MarkEntry;
   onMark: (v: Mark) => void;
   onPrev?: () => void;
@@ -493,7 +518,7 @@ interface StockCardProps {
   active: boolean;
 }
 
-function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mark, onMark, onPrev, onNext, highlightReviews, openView, onViewClosed, onReviewsClosed, onReviewsUnavailable, active }: StockCardProps) {
+function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, user, onRequestTrack, confirming, onConfirmDone, mark, onMark, onPrev, onNext, highlightReviews, openView, onViewClosed, onReviewsClosed, onReviewsUnavailable, active }: StockCardProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
@@ -825,6 +850,8 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
   const noData =
     !covered && !qmLoading && !seriesLoading && (price == null || price === 0) && !chartAvailable;
   const chromeOff = noData || loadingUncovered; // hide star/LIVE until we know
+  // covered cards pass no user, so they attach no RTDB listener
+  const trackReq = useTrackRequest(stock.t, covered ? null : user);
 
   return (
     <>
@@ -878,7 +905,35 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
             </div>
           ) : (
           <>
-          {!covered && <div className="mkm-lim">Limited data — not in the ranked set</div>}
+          {!covered && !onRequestTrack && <div className="mkm-lim-old">Limited data — not in the ranked set</div>}
+          {!covered && onRequestTrack && (
+            <div className="mkm-lim" role="status">
+              {trackReq === "none" ? (
+                <svg className="mkm-lim-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" />
+                </svg>
+              ) : trackReq === "pending" ? (
+                <span className="mkm-lim-spin" aria-hidden="true" />
+              ) : (
+                <svg className="mkm-lim-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" aria-hidden="true">
+                  <path d="M5 12l5 5L19 7" />
+                </svg>
+              )}
+              <div className="mkm-lim-txt">
+                <div className="mkm-lim-t">
+                  {trackReq === "none" ? "Live price only" : trackReq === "pending" ? `Tracking ${stock.t}` : `${stock.t} is tracked`}
+                </div>
+                <div className="mkm-lim-s">
+                  {trackReq === "none" ? "Analyst data isn’t tracked yet" : trackReq === "pending" ? "Full analyst data in a few minutes" : "Refresh to see the full data"}
+                </div>
+              </div>
+              {trackReq === "none" && (
+                <button type="button" className="mkm-trackreq" onClick={onRequestTrack}>
+                  Track this stock
+                </button>
+              )}
+            </div>
+          )}
           {/* head line — ticker now lives in the title bar; company + price here */}
           <div className="mkm-head">
             <div className="mkm-cocol">
@@ -1339,6 +1394,34 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, mar
         </div>
 
         {share.burst && <ShareBurst id={share.burst} onDone={share.onBurstDone} />}
+
+        {confirming && (
+          <div className="mkm-sheet-bg" onClick={onConfirmDone}>
+            <div className="mkm-confetti" aria-hidden="true">
+              {CONFETTI.map((c, i) => <span key={i} style={c} />)}
+            </div>
+            <div
+              className="mkm-sheet"
+              role="alertdialog"
+              aria-labelledby="mkm-sheet-t"
+              aria-describedby="mkm-sheet-s"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className="mkm-sheet-ok" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+              </span>
+              <div className="mkm-sheet-t" id="mkm-sheet-t">We’re on it</div>
+              <div className="mkm-sheet-s" id="mkm-sheet-s">
+                Full analyst data for {stock.t} usually arrives in 3–5 minutes. It’s on your watchlist, and we’ll notify you.
+              </div>
+              <button type="button" className="mkm-sheet-btn" autoFocus onClick={onConfirmDone}>
+                Got it
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
     {/* Full analyst forecast list. Portalled to the body because the card now lives inside
@@ -1479,7 +1562,7 @@ function SwipeCoach({ onDismiss }: { onDismiss: () => void }) {
 }
 
 export default function StockModal({
-  stock, list, onIndex, onClose, isTracked, onToggleTrack, isCovered, markOf, onMark, highlightReviews,
+  stock, list, onIndex, onClose, isTracked, onToggleTrack, isCovered, user, onRequestTrack, confirmTicker, onConfirmDone, markOf, onMark, highlightReviews,
   openView, onViewClosed, onReviewsClosed, onReviewsUnavailable, bare,
 }: StockModalProps) {
   const swipeRef = useRef<HTMLDivElement>(null);
@@ -1580,6 +1663,10 @@ export default function StockModal({
                   tracked={isTracked(s.t)}
                   onToggleTrack={() => onToggleTrack(s.t)}
                   covered={isCovered(s.t)}
+                  user={user}
+                  onRequestTrack={onRequestTrack && (() => onRequestTrack(s.t))}
+                  confirming={i === idx && confirmTicker === s.t}
+                  onConfirmDone={onConfirmDone}
                   mark={markOf(s.t)}
                   onMark={(v) => onMark(s.t, v)}
                   onPrev={goPrev}

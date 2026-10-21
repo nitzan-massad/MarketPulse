@@ -387,3 +387,55 @@ export function useWatchlist(): WatchlistApi {
 
   return { list, toggle, reorder, marks, toggleMark, user, authReady, signIn, signOut, ready: firebaseReady };
 }
+
+// ---------------------------------------------------------------------------
+// "Track this stock" — a signed-in user asks CI to add an off-universe ticker.
+// RTDB `trackRequests/<KEY>` = { uid, ts, tracked:false }; ci/track-requests.mjs pins it
+// and flips tracked=true once its row ships. Keys can't hold ".", so BRK.B is BRK_B.
+// `trackreq/<uid>/<KEY>` is the requester's own copy: useNotifications watches it and
+// posts the one-time "now tracked" notification, then deletes it.
+// ---------------------------------------------------------------------------
+export type TrackRequestState = "none" | "pending" | "tracked";
+// worker/ — starts the lite track-requests.yml run at once. Empty => the 5h run picks it up.
+// Never called from a dev build (`npm run dev`), even one signed in against real Firebase.
+const TRACK_WORKER_URL = "https://marketpulse-track.nitzanmassad.workers.dev";
+export const trackKey = (t: string) => t.replace(/\./g, "_");
+// Dev: no backend, so requests live in localStorage and the card listens for this event.
+const DEV_REQ_LS = "mp_dev_trackreq";
+const devRequests = new Set<string>(DEV_AUTH ? (() => { try { return JSON.parse(localStorage.getItem(DEV_REQ_LS) || "[]"); } catch { return []; } })() : []);
+const DEV_REQ_EVENT = "mp-trackreq";
+
+export function requestTracking(ticker: string, user: User): void {
+  const key = trackKey(ticker);
+  if (DEV_AUTH || !db) {
+    devRequests.add(key);
+    try { localStorage.setItem(DEV_REQ_LS, JSON.stringify([...devRequests])); } catch { /* ignore */ }
+    window.dispatchEvent(new Event(DEV_REQ_EVENT));
+    return;
+  }
+  void set(ref(db, `trackreq/${user.uid}/${key}`), Date.now());
+  set(ref(db, `trackRequests/${key}`), { uid: user.uid, ts: Date.now(), tracked: false })
+    .then(() => { if (TRACK_WORKER_URL && import.meta.env.PROD) void fetch(TRACK_WORKER_URL, { method: "POST" }).catch(() => {}); })
+    .catch(() => { /* someone already requested it — the listener shows its state */ });
+}
+
+export function useTrackRequest(ticker: string, user: User | null): TrackRequestState {
+  const [state, setState] = useState<TrackRequestState>("none");
+  const key = trackKey(ticker);
+  useEffect(() => {
+    setState("none");
+    if (!user) return;
+    if (DEV_AUTH || !db) {
+      const sync = () => setState(devRequests.has(key) ? "pending" : "none");
+      sync();
+      window.addEventListener(DEV_REQ_EVENT, sync);
+      return () => window.removeEventListener(DEV_REQ_EVENT, sync);
+    }
+    return onValue(
+      ref(db, `trackRequests/${key}`),
+      (s) => setState(!s.exists() ? "none" : s.val().tracked ? "tracked" : "pending"),
+      () => setState("none"),
+    );
+  }, [key, user]);
+  return state;
+}
