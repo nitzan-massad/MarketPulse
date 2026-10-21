@@ -118,8 +118,8 @@ eq(`a stale ticker viewed ${VIEW_KEEP_DAYS}d ago is kept`,
   () => computeKeep([], STALE, NOW, undefined, { viewed: { A: NOW - VIEW_KEEP_DAYS * DAY } }).dropped, []);
 eq(`a stale ticker viewed ${VIEW_KEEP_DAYS}d + 1ms ago is dropped`,
   () => computeKeep([], STALE, NOW, undefined, { viewed: { A: NOW - VIEW_KEEP_DAYS * DAY - 1 } }).dropped, ["A"]);
-eq("watch/view never ADD a ticker that is not already in seen",
-  () => [...computeKeep([], {}, NOW, undefined, { watched: ["W"], viewed: { V: NOW } }).keep], []);
+eq("a watched never-seen ticker is ADDED (gets a real row); a view alone never adds one",
+  () => [...computeKeep([], {}, NOW, undefined, { watched: ["W"], viewed: { V: NOW } }).keep], ["W"]);
 eq("a fresh track request adds a never-seen ticker",
   () => [...computeKeep([], {}, NOW, undefined, { tracked: { T: ago(DAY) } }).keep], ["T"]);
 eq("a track request expires like any other ticker (NOT a pin)",

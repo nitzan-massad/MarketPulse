@@ -14,7 +14,7 @@ import Toolbar from "./components/Toolbar";
 import Watchlist from "./components/Watchlist";
 import stocksData from "./data/stocks.json";
 import { flagOn } from "./featureFlags";
-import { passes, sortRows, themeNames, VIEWS } from "./lib";
+import { passes, sortRows, stubStock, themeNames, VIEWS } from "./lib";
 import { parseShareHash, type PanelId, type TickerView } from "./share";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
@@ -132,10 +132,7 @@ export default function App() {
   // price/chart and marks the TipRanks metrics as unavailable
   function handleOpenTicker(ticker: string) {
     logOpen(ticker, { off_universe: true });
-    const s: Stock = {
-      t: ticker, n: "", sec: "", px: null, chg: null, pt: null, up: null, con: "",
-      b: 0, h: 0, s: 0, ss: null, ai: null, air: null, aipt: null, mc: null, desc: null,
-    };
+    const s = stubStock(ticker);
     // ONE-ITEM list, not [] — StockModal draws one slide per list entry, so [] opened it blank
     // (same trap as openPostTicker above). [s] gives it its slide and nowhere to page to.
     setOpenList([s]);

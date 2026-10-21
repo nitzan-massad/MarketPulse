@@ -32,7 +32,7 @@ assert.deepEqual(planUnrequest({ GONE: req(1, true), LIVE: req(1, true), WAIT: r
 
 // watchlists (object or legacy array) are merged, de-duplicated, sorted, uid-free
 assert.deepEqual(
-  planKeepalive({ u1: { NVDA: "a", BRK_B: "b" }, u2: ["NVDA", "AMD"], u3: null }, { TSM: 5, BAD: "x" }),
+  planKeepalive({ u1: { NVDA: "a", BRK_B: "b" }, u2: ["NVDA", "AMD", "bad key"], u3: null }, { TSM: 5, BAD: "x" }),
   { watched: ["AMD", "BRK.B", "NVDA"], viewed: { TSM: 5 } },
 );
 assert.deepEqual(planKeepalive(null, null), { watched: [], viewed: {} });

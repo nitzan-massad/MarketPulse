@@ -193,3 +193,10 @@ export function sortRows(rows: Stock[], sort: keyof Stock, dir: number): Stock[]
     return dir * ((x as number) - (y as number));
   });
 }
+
+// A ticker with no snapshot row (off-universe search, or a watched stock CI hasn't backfilled
+// yet): the UI shows live price/chart and "—" for the TipRanks metrics.
+export const stubStock = (t: string): Stock => ({
+  t, n: "", sec: "", px: null, chg: null, pt: null, up: null, con: "",
+  b: 0, h: 0, s: 0, ss: null, ai: null, air: null, aipt: null, mc: null, desc: null,
+});

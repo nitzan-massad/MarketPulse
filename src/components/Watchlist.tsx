@@ -2,7 +2,7 @@ import type { User } from "firebase/auth";
 import { useRef, useState } from "react";
 import stocksData from "../data/stocks.json";
 import type { Stock } from "../types";
-import { fmtMc, fmtPx, scoreColor } from "../lib";
+import { fmtMc, fmtPx, scoreColor, stubStock } from "../lib";
 import { Chip, ConsPill, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
@@ -121,9 +121,10 @@ export default function Watchlist({
   // order — upside rank, then smart-score rank, then market-cap rank — so the list silently
   // reshuffled every 5h when CI rewrote stocks.json. Order now means: oldest star first,
   // newest last, and whatever dragging says. See watchlistOrder.ts.
-  const rows = watchlist.map((t) => BY_SYMBOL.get(t)).filter((s): s is Stock => s != null);
-  // tracked tickers that have dropped out of the ranked universe
-  const missing = watchlist.filter((t) => !BY_SYMBOL.has(t));
+  // A watched ticker with no snapshot row yet is a stub row, not a side chip — CI adds watched
+  // tickers to the keep set (ci/keep.mjs), so the next refresh backfills it. One row per
+  // watchlist entry also keeps the drag indexes in step with the watchlist's.
+  const rows = watchlist.map((t) => BY_SYMBOL.get(t) ?? stubStock(t));
   const { rows: rowEls, drag, onPointerDown, onPointerMove, onPointerUp, onKeyDown } =
     useRowDrag(rows.length, onReorder);
 
@@ -262,22 +263,6 @@ export default function Watchlist({
               ))}
             </tbody>
           </table>
-          {missing.length > 0 && (
-            <div className="wl-missing">
-              <span>Also tracking (not in the current ranked list):</span>
-              {missing.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className="wl-misschip"
-                  title={`Untrack ${t}`}
-                  onClick={() => onToggle(t)}
-                >
-                  {t} ✕
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>

@@ -61,7 +61,10 @@ export function planUnrequest(requests, rowTickers) {
 export function planKeepalive(watchlists, views) {
   const watched = new Set();
   for (const l of Object.values(watchlists || {})) {
-    for (const t of Array.isArray(l) ? l : Object.keys(l || {})) if (typeof t === "string") watched.add(keyToTicker(t));
+    for (const t of Array.isArray(l) ? l : Object.keys(l || {})) {
+      // watched tickers are ADDED to the keep set, so junk must not reach a getData call
+      if (typeof t === "string" && /^[A-Z0-9._-]{1,12}$/.test(t)) watched.add(keyToTicker(t));
+    }
   }
   const viewed = {};
   for (const [k, ms] of Object.entries(views || {})) if (typeof ms === "number") viewed[keyToTicker(k)] = ms;

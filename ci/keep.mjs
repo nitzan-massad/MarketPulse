@@ -2,7 +2,7 @@
 // and scripts/refresh-data.mjs). A ticker is KEPT — refreshed every run even when
 // it falls out of the top-120 screener sorts — if it is any of:
 //   1. pinned  (listed in src/data/pinned.json — never expires),
-//   2. on any user's watchlist, or opened by anyone within VIEW_KEEP_DAYS
+//   2. on any user's watchlist (added even if never seen), or opened by anyone within VIEW_KEEP_DAYS
 //      (src/data/keepalive.json, written from RTDB by ci/track-requests.mjs), or
 //   3. seen in the dynamic list, or requested via "Track this stock" (src/data/tracked.json),
 //      within the last KEEP_MAX_AGE_DAYS.
@@ -27,18 +27,18 @@ export function lastSeenMs(entry) {
 }
 
 // keep = pinned ∪ watched ∪ viewed-recently ∪ { seen/tracked tickers not expired }.
-// alive = { tracked: {T: iso request date}, watched: [T], viewed: {T: ms} }. Watch/view only
-// stop a drop — they never ADD a ticker (an off-universe search view must not grow the set);
-// a track request does add one, and then ages like any other row.
+// alive = { tracked: {T: iso request date}, watched: [T], viewed: {T: ms} }. A watched ticker is
+// ADDED (so a starred off-universe stock gets a real row, not a side chip); a view only stops a
+// drop (a passing search view must not grow the set); a track request adds one that then ages.
 export function computeKeep(pinned, prevSeen, nowMs, maxAgeDays = KEEP_MAX_AGE_DAYS, alive = {}) {
   const { tracked = {}, watched = [], viewed = {} } = alive || {};
   const keep = new Set(pinned);
   const watch = new Set(watched);
   const dropped = [];
-  for (const t of new Set([...Object.keys(prevSeen || {}), ...Object.keys(tracked)])) {
+  for (const t of new Set([...Object.keys(prevSeen || {}), ...Object.keys(tracked), ...watch])) {
     if (keep.has(t)) continue; // pinned — always kept
     const e = prevSeen?.[t];
-    if (e && (watch.has(t) || nowMs - (viewed[t] || -Infinity) <= VIEW_KEEP_DAYS * MS_PER_DAY)) {
+    if (watch.has(t) || (e && nowMs - (viewed[t] || -Infinity) <= VIEW_KEEP_DAYS * MS_PER_DAY)) {
       keep.add(t);
       continue;
     }

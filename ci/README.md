@@ -553,8 +553,9 @@ The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **ke
   (unless pinned). `seen.json` now carries an `ls` (last-seen) timestamp per ticker to drive this.
 - **Watched** — on any user's watchlist, or opened by anyone (signed in or not) within the last
   **180 days** (`VIEW_KEEP_DAYS`). `ci/track-requests.mjs pin` snapshots RTDB `watchlist/*` and
-  `views/*` into `src/data/keepalive.json` (tickers + timestamps, no uids). Watch/view only stop a
-  drop — they never add a ticker.
+  `views/*` into `src/data/keepalive.json` (tickers + timestamps, no uids). Both stop a
+  drop; a watched ticker is also *added* if it has no row (so a starred off-universe stock gets
+  backfilled into a full row). A view never adds one.
 - **Tracked** — a "Track this stock" request, in `src/data/tracked.json` (`{ticker: request date}`).
   NOT a pin: it ages under the sticky rule, from whichever is later, its last-seen or its request
   date. When one expires, the `pin` step deletes its `trackRequests` node so it can be re-requested.
