@@ -1,7 +1,7 @@
 {
- "score": 31,
+ "score": 31.4,
  "rating": "fear",
- "asOf": "2026-10-21T19:34:40",
+ "asOf": "2026-10-21T22:55:37",
  "previous": {
   "close": 27.2,
   "week": 26.7,
@@ -12,8 +12,8 @@
   {
    "key": "market_momentum_sp500",
    "label": "Market momentum",
-   "score": 44.4,
-   "rating": "fear"
+   "score": 47,
+   "rating": "neutral"
   },
   {
    "key": "stock_price_strength",
@@ -42,7 +42,7 @@
   {
    "key": "junk_bond_demand",
    "label": "Junk bond demand",
-   "score": 50.4,
+   "score": 49.8,
    "rating": "neutral"
   },
   {
@@ -1055,7 +1055,7 @@
   },
   {
    "d": "2026-10-21",
-   "v": 31
+   "v": 31.4
   }
  ]
 }
