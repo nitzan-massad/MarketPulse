@@ -126,7 +126,7 @@ export default function App() {
   // off-universe ticker from search -> synthetic stock; the modal shows live
   // price/chart and marks the TipRanks metrics as unavailable
   function handleOpenTicker(ticker: string) {
-    track("search_open_ticker", { ticker });
+    track("open_stock", { ticker, section: nav, off_universe: true });
     const s: Stock = {
       t: ticker, n: "", sec: "", px: null, chg: null, pt: null, up: null, con: "",
       b: 0, h: 0, s: 0, ss: null, ai: null, air: null, aipt: null, mc: null, desc: null,
@@ -583,7 +583,10 @@ export default function App() {
               if (t?.kind === "ticker" && t.view) history.replaceState(null, "", location.pathname + location.search + "#" + t.id);
             }}
             list={openList}
-            onIndex={(n) => setOpenStock(openList[n])}
+            onIndex={(n) => {
+              track("open_stock", { ticker: openList[n].t, section: nav, via: "swipe" });
+              setOpenStock(openList[n]);
+            }}
           />
       )}
 
