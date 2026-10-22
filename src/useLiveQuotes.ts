@@ -32,6 +32,9 @@ const BACKOFF_MS = 2_000;
 const MAX_BACKOFF_MS = 15_000; // clamp so a hostile/huge Retry-After can't freeze the loop
 const MAX_429_STRIKES = 3;
 const MARKET_CHECK_MS = 30_000; // re-check market hours to open/close the socket
+// Finnhub allows ONE socket per key, so browsers share the Worker's relay (worker/index.js),
+// which speaks Finnhub's subscribe/trade protocol. REST seeds below still go direct.
+const RELAY_URL = "wss://marketpulse-track.nitzanmassad.workers.dev/live";
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
@@ -92,7 +95,7 @@ export function diffSubs(
 
 // ---- hook --------------------------------------------------------------------
 
-// Streams live quotes over ONE Finnhub WebSocket. Subscribes to `watchlist`
+// Streams live quotes over the shared relay WebSocket. Subscribes to `watchlist`
 // always (alerts depend on it) plus whatever rows report themselves visible via
 // the returned `observe` ref-callback. prevClose is seeded once per symbol via a
 // single REST /quote (also our key-validity probe); Day% is computed client-side
@@ -270,7 +273,7 @@ export function useLiveQuotes(watchlist: string[], apiKey: string | null, enable
     function openSocket() {
       if (stoppedRef.current || wsRef.current) return; // no-op if already open/opening
       applyStatus("connecting");
-      const ws = new WebSocket(`wss://ws.finnhub.io?token=${apiKey}`);
+      const ws = new WebSocket(RELAY_URL);
       wsRef.current = ws;
       ws.onopen = () => {
         if (stoppedRef.current) {

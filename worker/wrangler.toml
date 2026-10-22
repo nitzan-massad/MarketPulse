@@ -4,3 +4,12 @@ compatibility_date = "2026-10-01"
 
 [vars]
 ORIGIN = "https://nitzan-massad.github.io"
+
+# Live-quote relay: one shared Finnhub socket (a key allows only one). FINNHUB_KEY is a secret.
+[[durable_objects.bindings]]
+name = "LIVE"
+class_name = "LiveRelay"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["LiveRelay"]
