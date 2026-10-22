@@ -21,7 +21,8 @@
 //
 // No network access, no writes outside node_modules/.tmp/.
 
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
+import { availableParallelism } from "node:os";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,9 +42,15 @@ const rel = (p) => path.relative(ROOT, p) || p;
 const list = (dir, re) =>
   (existsSync(dir) ? readdirSync(dir) : []).filter((f) => re.test(f)).sort().map((f) => path.join(dir, f));
 
-const mjsChecks = list(CI_DIR, /^test-.+\.mjs$/);
-const tsChecks = list(SRC_DIR, /\.check\.ts$/);
-const selfChecks = [path.join(CI_DIR, "keep.mjs")].filter(existsSync);
+// SKIP_CHECKS=<regex on the path> leaves checks out. Only for a run that provably cannot affect
+// them — the lite track run skips post-compose (8s rasterising post images it never touches).
+// site.yml never sets it, so the full gate still runs there.
+const SKIP = process.env.SKIP_CHECKS ? new RegExp(process.env.SKIP_CHECKS) : null;
+const skipped = [];
+const keep = (f) => (SKIP?.test(rel(f)) ? (skipped.push(rel(f)), false) : true);
+const mjsChecks = list(CI_DIR, /^test-.+\.mjs$/).filter(keep);
+const tsChecks = list(SRC_DIR, /\.check\.ts$/).filter(keep);
+const selfChecks = [path.join(CI_DIR, "keep.mjs")].filter(existsSync).filter(keep);
 
 // -------------------------------------------------------- vacuity heuristics --
 
@@ -96,7 +103,7 @@ const CAN_STRIP_TYPES = Boolean(process.features.typescript);
 // ------------------------------------------------------------------ running --
 
 /** @returns {{name:string, ok:boolean, ms:number, notes:string[], out:string}} */
-function runCheck(name, argv, { source, needsTypeStripping = false }) {
+async function runCheck(name, argv, { source, needsTypeStripping = false }) {
   const notes = [];
   const assertions = countAssertions(source);
   if (assertions === 0) {
@@ -116,12 +123,14 @@ function runCheck(name, argv, { source, needsTypeStripping = false }) {
   }
 
   const t0 = Date.now();
-  const r = spawnSync(process.execPath, argv, {
-    cwd: ROOT,
-    encoding: "utf8",
-    timeout: TIMEOUT_MS,
-    maxBuffer: 16 * 1024 * 1024,
-  });
+  const r = await new Promise((resolve) =>
+    execFile(process.execPath, argv, { cwd: ROOT, encoding: "utf8", timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+      (err, stdout, stderr) => resolve({
+        stdout, stderr,
+        status: err ? (typeof err.code === "number" ? err.code : null) : 0,
+        signal: err?.signal ?? null,
+        error: err && typeof err.code !== "number" ? err : null,
+      })));
   const ms = Date.now() - t0;
   const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
 
@@ -162,6 +171,7 @@ console.log(
 if (!CAN_STRIP_TYPES) {
   console.log(`  note: ${process.version} cannot import .ts (native type stripping needs >= 22.18)`);
 }
+if (skipped.length) console.log(`  skipped (SKIP_CHECKS): ${skipped.join(", ")}`);
 console.log("");
 
 // src/*.check.ts import their subjects without a file extension ("./lib") and one pulls in
@@ -219,21 +229,23 @@ if (tsChecks.length) {
   }
 }
 
-for (const f of selfChecks) {
-  results.push(runCheck(rel(f), [f], { source: f }));
-}
-for (const f of mjsChecks) {
-  const needsTypeStripping = TS_IMPORT_RE.test(readFileSync(f, "utf8"));
-  results.push(runCheck(rel(f), [f], { source: f, needsTypeStripping }));
-}
-for (const f of tsChecks) {
-  const js = path.join(TS_OUT, path.basename(f).replace(/\.ts$/, ".js"));
-  if (!existsSync(js)) {
-    results.push({ name: rel(f), ok: false, ms: 0, out: "", notes: ["tsc emitted no JavaScript for this file"] });
-    continue;
-  }
-  results.push(runCheck(rel(f), [js], { source: f }));
-}
+// Every check is its own process and none writes outside node_modules/.tmp, so they run
+// side by side; results keep discovery order for the report.
+const jobs = [
+  ...selfChecks.map((f) => () => runCheck(rel(f), [f], { source: f })),
+  ...mjsChecks.map((f) => () => runCheck(rel(f), [f], { source: f, needsTypeStripping: TS_IMPORT_RE.test(readFileSync(f, "utf8")) })),
+  ...tsChecks.map((f) => () => {
+    const js = path.join(TS_OUT, path.basename(f).replace(/\.ts$/, ".js"));
+    if (!existsSync(js)) return { name: rel(f), ok: false, ms: 0, out: "", notes: ["tsc emitted no JavaScript for this file"] };
+    return runCheck(rel(f), [js], { source: f });
+  }),
+];
+const done = new Array(jobs.length);
+let next = 0;
+await Promise.all(Array.from({ length: Math.min(availableParallelism(), jobs.length) }, async () => {
+  while (next < jobs.length) { const i = next++; done[i] = await jobs[i](); }
+}));
+results.push(...done);
 
 const width = Math.max(0, ...results.map((r) => r.name.length));
 for (const r of results) {

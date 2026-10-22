@@ -61,6 +61,18 @@ jobs:
         with:
           enablement: true
 
+      # Lite-run tickers (track-requests.yml) live in RTDB trackedRows until this folds them into
+      # stocks/tracked/seen.json + public/forecasts|bullbear|pe. MUST come before the pin and the
+      # refresh: their requests are already tracked=true, so pin won't re-add them, and with no
+      # row planUnrequest would delete the request. A failed fold leaves them in trackedRows (still
+      # live in the app; pin counts them as rows) for the next run.
+      - name: Fold lite-run tracked rows
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node ci/track-requests.mjs fold
+
       # User "Track this stock" requests (RTDB trackRequests) join src/data/tracked.json, and
       # watchlists + views go to keepalive.json, so the refresh below keeps/backfills them via the
       # keep set. See ci/track-requests.mjs.
@@ -238,3 +250,13 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node ci/track-requests.mjs mark
+
+      # The folded rows are committed and deployed now, so their trackedRows entries go — each
+      # only if its asOf is still the one folded (a lite run may have rewritten it meanwhile).
+      # trackedRevs is kept. See ci/track-requests.mjs.
+      - name: Clear folded tracked rows
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node ci/track-requests.mjs clear

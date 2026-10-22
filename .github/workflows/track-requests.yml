@@ -3,22 +3,23 @@ name: Track requested stocks
 # The lite run behind "Track this stock". The Cloudflare Worker (worker/) dispatches this the
 # moment a user presses the button; it handles EVERY pending request, so a dispatch that gets
 # collapsed into another is lost harmlessly. Nothing pending => it stops after ~30s.
-# The 5h site.yml run pins and marks the same requests, so it is the fallback if this fails.
+#
+# It never commits or deploys: the fetched row + forecast/bullbear/pe payloads go to RTDB
+# `trackedRows/<KEY>`, which the app merges over its bundle at load, so the stock is live within
+# minutes. The next site.yml run folds trackedRows into the repo (before its pin) and clears them
+# after its deploy. See ci/track-requests.mjs. The 5h site.yml run also pins and marks the same
+# requests, so it is the fallback if this fails.
 on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write
-  pages: write
-  id-token: write
+  contents: read
 
-# Shared with site.yml: one writer to main and to Pages at a time.
-# ponytail: GitHub keeps one PENDING run per group, so a dispatch landing while a run is
-# active and another is queued replaces the queued one — even a queued site.yml cron run.
-# Rare (needs a 15-48 min site run plus two queued). Give this its own group with a
-# pull --rebase before push if it ever bites.
+# Its own group, NOT site.yml's `pages`: nothing here touches main or Pages, so it no longer waits
+# behind a 15-48 min site run. A dispatch during a lite run queues (a newer one replaces a queued
+# one, harmlessly: every run handles every pending request).
 concurrency:
-  group: pages
+  group: track
   cancel-in-progress: false
 
 jobs:
@@ -36,14 +37,16 @@ jobs:
       - uses: actions/checkout@v4
 
       # Node 24 — see site.yml. ci/track-requests.mjs needs no npm deps, so pin+fetch run
-      # before `npm ci`, and an empty dispatch stops here.
+      # before `npm ci`, and an empty dispatch stops here. No `cache: npm`: node_modules is
+      # cached below, so the ~/.npm cache would be a second download of the same thing.
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
 
       - name: Pin + fetch requested tickers
         id: fetch
+        env:
+          LITE: "1"
         run: |
           node ci/track-requests.mjs pin
           node ci/track-requests.mjs fetch
@@ -56,20 +59,11 @@ jobs:
           path: node_modules
           key: nm-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}
 
-      - if: steps.fetch.outputs.tickers != '' && steps.nm.outputs.cache-hit != 'true'
-        run: npm ci
-
-      - name: Forecasts + Bulls/Bears for just these
-        if: steps.fetch.outputs.tickers != ''
-        continue-on-error: true
-        env:
-          ONLY: ${{ steps.fetch.outputs.tickers }}
-        run: |
-          node ci/scrape-forecasts.mjs
-          node ci/scrape-bullbear.mjs
-
-      # Same keys as site.yml. Twelve Data's 5Y closes are fetched once per new ticker.
-      - name: P/E history for just these
+      # In parallel: each writes only its own public/<dir>, all read stocks.json. P/E uses the
+      # same keys as site.yml; Twelve Data's 5Y closes are fetched once per new ticker.
+      # The scrapers need no node_modules, so a cache-miss `npm ci` runs alongside them; only the
+      # gate needs it. A failed npm ci can't slip past continue-on-error: the gate can't run without it.
+      - name: Forecasts + Bulls/Bears + P/E for just these
         if: steps.fetch.outputs.tickers != ''
         continue-on-error: true
         env:
@@ -77,42 +71,37 @@ jobs:
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
           TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }}
           TWELVEDATA_CI_KEY: ${{ secrets.TWELVEDATA_CI_KEY }}
-        run: node ci/scrape-pe.mjs
+        run: |
+          if [ "${{ steps.nm.outputs.cache-hit }}" != "true" ]; then npm ci & n=$!; fi
+          node ci/scrape-forecasts.mjs & a=$!
+          node ci/scrape-bullbear.mjs & b=$!
+          node ci/scrape-pe.mjs & c=$!
+          # `|| r=$?`, not `; r=$?`: Actions runs bash -e, which would quit at the first failed wait
+          # and leave the others still writing while the gate runs
+          ra=0; rb=0; rc=0
+          wait $a || ra=$?; wait $b || rb=$?; wait $c || rc=$?
+          if [ -n "${n:-}" ]; then wait $n || echo "npm ci failed"; fi
+          echo "exit: forecasts=$ra bullbear=$rb pe=$rc"
+          [ $((ra+rb+rc)) -eq 0 ]
 
+      # THE DATA GATE for what this run uploads: the scrapers above are continue-on-error, so
+      # this vets the files they left on disk. Deliberately NOT continue-on-error — red here
+      # means nothing is uploaded and nothing is marked.
+      # SKIP_CHECKS: post-compose rasterises post images (8s) and a tracked stock never touches them.
       - name: Data gate
         if: steps.fetch.outputs.tickers != ''
+        env:
+          SKIP_CHECKS: post-compose
         run: npm test
 
-      - name: Commit
-        if: steps.fetch.outputs.tickers != ''
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/data public/forecasts public/bullbear public/pe ci/cache
-          git commit -m "chore: track requested ${{ steps.fetch.outputs.tickers }} [skip ci]"
-          git push
-
-      - name: Build
+      - name: Upload to RTDB trackedRows
         if: steps.fetch.outputs.tickers != ''
         env:
-          VITE_FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
-          VITE_TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }}
-          VITE_FMP_KEY: ${{ secrets.FMP_KEY }}
-        run: npm run build
+          TICKERS: ${{ steps.fetch.outputs.tickers }}
+        run: node ci/track-requests.mjs upload
 
-      - if: steps.fetch.outputs.tickers != ''
-        uses: actions/configure-pages@v5
-
-      - if: steps.fetch.outputs.tickers != ''
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-      - if: steps.fetch.outputs.tickers != ''
-        uses: actions/deploy-pages@v4
-
-      # After the deploy: tracked=true is what fires the user's "now tracked" notification,
-      # so it must mean the data is live.
+      # After the upload: tracked=true is what fires the user's "now tracked" notification,
+      # so it must mean the data is live (the app reads trackedRows at load).
       - name: Mark requests tracked
         if: steps.fetch.outputs.tickers != ''
         continue-on-error: true

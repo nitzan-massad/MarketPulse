@@ -560,6 +560,16 @@ The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **ke
   NOT a pin: it ages under the sticky rule, from whichever is later, its last-seen or its request
   date. When one expires, the `pin` step deletes its `trackRequests` node so it can be re-requested.
 
+  **The lite run never commits.** `track-requests.yml` (its own `track` concurrency group, so it
+  never waits behind a site run) fetches the row + forecast/bullbear/pe for just the requested
+  tickers, runs the data gate on them, then `upload`s each to RTDB `trackedRows/<KEY>` (the files'
+  JSON *text* — RTDB drops nulls, and `ss: null` is data) plus `trackedRevs/<KEY>/<ms>` (history,
+  never deleted), and only then marks the request tracked. The app merges `trackedRows` over its
+  bundle at load (`src/stocks.ts`; the bundle wins). `site.yml` `fold`s them into the repo
+  **before `pin`** — the request is already `tracked=true`, so pin wouldn't re-add it and
+  `planUnrequest` would delete it — and `clear`s each entry after the deploy, only if its `asOf` is
+  still the folded one. Rules: `trackedRows` public read, `trackedRevs` private; writes admin-only.
+
 Kept tickers missing from a run's screener pull are backfilled from the per-ticker
 `getData` feed (`ci/keep.mjs` → `rowFromGetData`), **merging fresh fields over the ticker's
 last-known row**. `getData` supplies price, targets, consensus, buy/hold/sell, smart score,

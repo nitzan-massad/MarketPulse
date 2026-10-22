@@ -10,6 +10,9 @@
     "views": {
       "$t": { ".write": "$t.matches(/^[A-Z0-9_-]{1,12}$/) && newData.val() === now" }
     },
+    "trackedRows": { ".read": true, ".write": false },
+    "trackedRevs": { ".read": false, ".write": false },
+    "trackedPeCache": { ".read": false, ".write": false },
     "trackRequests": {
       ".indexOn": ["tracked"],
       "$t": {
