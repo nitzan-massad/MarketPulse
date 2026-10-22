@@ -316,7 +316,7 @@ async function main(mode) {
       if (cache) patch[`trackedPeCache/${tickerToKey(t)}`] = cache;
     }
     if (Object.keys(patch).length) await rtdb(token, "PATCH", ".json", patch);
-    console.log(`  uploaded trackedRows: ${Object.keys(patch).length / 2}`);
+    console.log(`  uploaded trackedRows: ${Object.keys(patch).filter((k) => k.startsWith("trackedRows/")).length}`);
     return;
   }
 
