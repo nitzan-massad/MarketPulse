@@ -5,7 +5,8 @@
 const DISPATCH =
   "https://api.github.com/repos/nitzan-massad/MarketPulse/actions/workflows/track-requests.yml/dispatches";
 
-import { BROWSER_UA, CHUNK, CNBC_QUOTE, parseQuote, parseSymbols, rowsBySymbol } from "./cnbc.js";
+import { BROWSER_UA, CHUNK, CNBC_QUOTE, normSym, parseQuote, parseSymbols, rowsBySymbol } from "./cnbc.js";
+import { barsUrl, NoData, parseBars, RANGES, splitOnlyCloses } from "./bars.js";
 
 // Finnhub free tier: 50 symbols on the one connection a key may hold.
 const SYMBOL_CAP = 50;
@@ -91,6 +92,100 @@ async function quotes(url, cors) {
   return json({ asOf: now, quotes: Object.fromEntries(syms.map((s) => [s, out[s] ?? null])) });
 }
 
+// ---- /bars: the stock modal's chart (and P/E closes) from CNBC ------------------------------
+// The cache holds finished response bodies, bounded by BYTES (entries run 0.3 KB .. 25 KB) and
+// evicted oldest-first — not cleared wholesale like /quotes, because a busy 1D (60 s) would
+// otherwise throw out hours-long ALL entries. The failure memory is its own (another host).
+// ponytail: per-isolate; caches.default keyed by SYM|RANGE (with a custom-domain route) is the
+// upgrade if traffic ever spreads across colos.
+const BARS_CACHE_MAX_BYTES = 8 * 1024 * 1024;
+const BARS_FAIL_MS = 30_000;
+const BARS_NODATA_TTL_MS = 60 * 60_000; // unknown symbol: ask CNBC again at most hourly
+const barsCache = new Map(); // "SYM|RANGE" -> { status, body, at, ttl }
+let barsBytes = 0;
+const barsInflight = new Map(); // "SYM|RANGE" -> Promise<{ status, body, ttl }>
+let barsFailedUntil = 0;
+
+function barsPut(key, e) {
+  const old = barsCache.get(key);
+  if (old) {
+    barsBytes -= old.body.length;
+    barsCache.delete(key); // re-insert at the end: the Map's order is the eviction order
+  }
+  barsCache.set(key, e);
+  barsBytes += e.body.length;
+  for (const [k, v] of barsCache) {
+    if (barsBytes <= BARS_CACHE_MAX_BYTES) break;
+    barsBytes -= v.body.length;
+    barsCache.delete(k);
+  }
+}
+
+async function cnbcBars(sym, range, now, adj, wide = false) {
+  const r = await fetch(barsUrl(sym, range, now, adj, wide), {
+    headers: { "user-agent": BROWSER_UA, accept: "application/json" },
+    signal: AbortSignal.timeout(CNBC_TIMEOUT_MS),
+  });
+  if (!r.ok) throw new Error(`cnbc bars ${r.status}`);
+  return parseBars(await r.json(), range, now);
+}
+
+// One CNBC answer -> a finished { status, body, ttl }. NoData is an answer (404, cached an
+// hour, never trips the failure memory: one bad ticker must not black out everyone's charts);
+// anything else throws.
+async function loadBars(sym, range, now) {
+  const ttl = RANGES[range].ttl;
+  try {
+    let b;
+    if (range === "PE") {
+      const [adj, unadj] = await Promise.all([cnbcBars(sym, range, now, "adjusted"), cnbcBars(sym, range, now, "unadjusted")]);
+      b = { ...adj, c: splitOnlyCloses(adj, unadj) };
+    } else {
+      // 1D's today-only window is empty on a weekday holiday: one retry with 5 days
+      b = await cnbcBars(sym, range, now).catch((e) => (range === "1D" && e instanceof NoData ? cnbcBars(sym, range, now, "adjusted", true) : Promise.reject(e)));
+    }
+    return { status: 200, ttl, body: JSON.stringify({ s: sym, r: range, i: RANGES[range].int, asOf: now, ...b }) };
+  } catch (e) {
+    if (e instanceof NoData) return { status: 404, ttl: BARS_NODATA_TTL_MS, body: JSON.stringify({ error: "no data" }) };
+    throw e;
+  }
+}
+
+// GET /bars?symbol=AAPL&range=1D -> { s, r, i, asOf, t[], c[] }, oldest first.
+// 400 bad input · 404 CNBC has nothing · 502 CNBC failing (the client falls back to Twelve Data).
+async function bars(url, cors) {
+  const json = (body, status, extra = {}) =>
+    new Response(body, { status, headers: { ...cors, "content-type": "application/json", ...extra } });
+  const raw = url.searchParams.get("symbol");
+  const sym = raw && !raw.includes(",") ? normSym(raw) : null;
+  if (!sym) return json('{"error":"bad symbol"}', 400);
+  const range = url.searchParams.get("range");
+  if (!Object.hasOwn(RANGES, range ?? "")) return json('{"error":"bad range"}', 400);
+  const key = `${sym}|${range}`;
+  const now = Date.now();
+  const hit = barsCache.get(key);
+  // a hit tells the browser only what is LEFT of its life, or the two caches stack (a "live" 1D twice its age)
+  if (hit && now - hit.at < hit.ttl)
+    return json(hit.body, hit.status, { "cache-control": `max-age=${Math.max(0, Math.floor((hit.ttl - (now - hit.at)) / 1000))}` });
+  if (now < barsFailedUntil) return json('{"error":"upstream"}', 502);
+  let p = barsInflight.get(key);
+  if (!p) {
+    p = loadBars(sym, range, now).finally(() => {
+      if (barsInflight.get(key) === p) barsInflight.delete(key);
+    });
+    barsInflight.set(key, p);
+  }
+  try {
+    const res = await p;
+    barsPut(key, { ...res, at: now });
+    // Built from this request's own result, never re-read from the cache after the await.
+    return json(res.body, res.status, { "cache-control": `max-age=${Math.round(res.ttl / 1000)}` });
+  } catch {
+    barsFailedUntil = Date.now() + BARS_FAIL_MS;
+    return json('{"error":"upstream"}', 502);
+  }
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
@@ -100,14 +195,14 @@ export default {
       if (!allowedOrigin(origin, env)) return new Response("forbidden", { status: 403 });
       return env.LIVE.get(env.LIVE.idFromName("main")).fetch(req);
     }
-    if (url.pathname === "/quotes") {
+    if (url.pathname === "/quotes" || url.pathname === "/bars") {
       // Keeps other sites' pages from using this as their CNBC proxy. Not an auth boundary — a
       // non-browser client can forge Origin; add a per-IP rate limit if that ever shows up.
       if (!allowedOrigin(origin, env)) return new Response("forbidden", { status: 403 });
       const cors = { "access-control-allow-origin": origin, vary: "origin" };
       if (req.method === "OPTIONS") return new Response(null, { headers: { ...cors, "access-control-allow-methods": "GET" } });
       if (req.method !== "GET") return new Response("GET only", { status: 405, headers: cors });
-      return quotes(url, cors);
+      return url.pathname === "/quotes" ? quotes(url, cors) : bars(url, cors);
     }
 
     const cors = {

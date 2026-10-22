@@ -389,6 +389,15 @@ t("in-session batch is NOT stale at 10:00 ET (would hand the session to Finnhub)
   assert.equal(batchStale(quotes, { ymd: "2026-10-22", mins: 600, weekend: false }), false);
 });
 
+// ---- day volume -------------------------------------------------------------------------------
+t("parseQuote vol: the session's total volume (comma string), 0/missing -> null", () => {
+  assert.equal(parseQuote(R.AAPL).vol, 31018583);
+  assert.equal(parseQuote(SESSION.AAPL).vol, 1717420); // in session: today's running total
+  assert.equal(parseQuote({ ...R.AAPL, volume: "0" }).vol, null);
+  const { volume, ...noVol } = R.AAPL; // eslint-disable-line no-unused-vars
+  assert.equal(parseQuote(noVol).vol, null);
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) throw new Error(`${failed} cnbc.js check(s) failed`);
 console.log("cnbc.js parser OK");

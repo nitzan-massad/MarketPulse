@@ -74,6 +74,7 @@ export function parseSymbols(param) {
 //         NOT `previous_day_closing`: outside the session CNBC sets that equal to `last`.
 //   day   YYYY-MM-DD (ET) of `last` — the staleness probe
 //   o/h/l null outside the session (CNBC sends "0.00")
+//   vol   the session's total volume (off-hours: the last session's); null when 0/missing
 //   ext   pre/after-hours trade, display only (CNBC rounds it to cents); `t` lets the client
 //         drop a stale one (yesterday's after-hours is still attached next morning)
 export function parseQuote(row) {
@@ -116,6 +117,7 @@ export function parseQuote(row) {
     eps: toNum(row.eps),
     beta: toNum(row.beta),
     vol10: toScaled(row.tendayavgvol),
+    vol: pos(row.volume),
   };
 }
 
