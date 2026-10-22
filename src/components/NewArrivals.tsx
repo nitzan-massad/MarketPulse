@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import stocksData from "../data/stocks.json";
 import { reviewKey } from "../reviewAlerts";
+import { useStocks } from "../stocks";
 import type { Stock } from "../types";
 import { addedInfo, agoLabel, consLabel, DATE_LOCALE, metricChange, firstSeen, fmtMc, fmtPx, LIST_LABEL, NEW_WINDOW_DAYS, scoreColor } from "../lib";
 import { consDir, type ConsDir } from "../consensus";
@@ -12,7 +12,6 @@ function symMark(v?: Mark): string {
   return v === "up" ? "mk-up" : v === "down" ? "mk-down" : "";
 }
 
-const STOCKS = stocksData as Stock[];
 
 const fmtDate = (iso: string): string => {
   const [y, m, d] = iso.split("-").map(Number);
@@ -68,6 +67,7 @@ interface NewArrivalsProps {
 }
 
 export default function NewArrivals({ onOpen, onOpenReview, marks, onMark }: NewArrivalsProps) {
+  const STOCKS = useStocks();
   // recent analyst reviews across the screener, from the CI-built feed
   const [reviews, setReviews] = useState<Record<string, ReviewItem>>({});
   useEffect(() => {
@@ -108,7 +108,7 @@ export default function NewArrivals({ onOpen, onOpenReview, marks, onMark }: New
       }
     }
     return [...byT.values()].sort((a, b) => b.when - a.when || (b.s.up ?? -Infinity) - (a.s.up ?? -Infinity));
-  }, [reviews]);
+  }, [reviews, STOCKS]);
   const listStocks = useMemo(() => items.map((x) => x.s), [items]);
 
   return (

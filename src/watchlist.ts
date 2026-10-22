@@ -1,17 +1,4 @@
-import { initializeApp, type FirebaseApp } from "firebase/app";
-import {
-  FacebookAuthProvider,
-  getAuth,
-  GoogleAuthProvider,
-  OAuthProvider,
-  onAuthStateChanged,
-  signInWithPopup,
-  signOut as fbSignOut,
-  type Auth,
-  type AuthProvider,
-  type User,
-} from "firebase/auth";
-import { get, getDatabase, onValue, ref, serverTimestamp, set, update, type Database } from "firebase/database";
+import type { AuthProvider, User } from "firebase/auth";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   keyForAppend,
@@ -33,7 +20,7 @@ import {
 // private list that syncs in realtime. Signed out => this-device localStorage.
 // Fill the config from Firebase console → Project settings → your web app.
 // ---------------------------------------------------------------------------
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyBt4Dzr9WEbWBZ4ANxuGQhc5gPErmTv2lQ",
   authDomain: "marketpulse-df5d9.firebaseapp.com",
   databaseURL: "https://marketpulse-df5d9-default-rtdb.europe-west1.firebasedatabase.app",
@@ -44,15 +31,41 @@ const firebaseConfig = {
 export const firebaseReady: boolean =
   firebaseConfig.apiKey.length > 0 && firebaseConfig.databaseURL.length > 0;
 
-export const app: FirebaseApp | null = firebaseReady ? initializeApp(firebaseConfig) : null;
-const auth: Auth | null = app ? getAuth(app) : null;
-const db: Database | null = app ? getDatabase(app) : null;
+
+// The SDK itself (./firebase.ts) is a separate chunk, loaded only after the first render: App's
+// first effect calls loadFirebase(). Everything below reads it through `fbP` (outside React) or
+// `useFb()` (null until it lands, then a re-render). null for good if the config is empty or the
+// chunk fails to load (offline) — same as "Firebase not configured".
+export type Fb = typeof import("./firebase");
+let startFb!: () => void;
+const rendered = new Promise<void>((r) => (startFb = r));
+export const loadFirebase = (): void => startFb();
+export const fbP: Promise<Fb | null> = firebaseReady
+  ? rendered.then(() => import("./firebase")).catch(() => null)
+  : Promise.resolve(null);
+let fbNow: Fb | null = null;
+void fbP.then((f) => (fbNow = f));
+export function useFb(): Fb | null {
+  const [f, setF] = useState(fbNow);
+  useEffect(() => {
+    if (!f) void fbP.then(setF);
+  }, [f]);
+  return f;
+}
 
 // Local dev convenience: on localhost, sign in / out as a throwaway user with no
 // real auth and no Firebase writes — watchlist / marks / filters live in
 // localStorage instead. Never active on the deployed site.
 export const DEV_AUTH =
   typeof location !== "undefined" && /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+// "Track this stock" rows the lite run published but no deploy has bundled yet (stocks.ts merges
+// them). One get on this same db, so it rides the websocket auth already opens; publicly readable,
+// so no sign-in needed. Fired as soon as Firebase loads, while stocks.json renders. Skipped on
+// localhost (DEV_AUTH: no Firebase traffic in dev). Any failure → null → stocks.json only.
+export const trackedRowsRaw: Promise<unknown> = DEV_AUTH
+  ? Promise.resolve(null)
+  : fbP.then((f) => (f ? f.get(f.ref(f.db, "trackedRows")).then((s) => s.val(), () => null) : null));
+
 const DEV_USER = {
   uid: "dev-local", email: "dev@localhost", displayName: "Dev User", photoURL: null,
 } as unknown as User;
@@ -66,12 +79,12 @@ const DEV_FLAG = "mp_dev_signedin";
 export interface AuthProviderDef {
   id: string; // stable key (also used to pick an icon)
   label: string; // display name
-  make: () => AuthProvider; // how to build the Firebase provider
+  make: (f: Fb) => AuthProvider; // how to build the Firebase provider (SDK passed in, it's lazy)
 }
 export const AUTH_PROVIDERS: AuthProviderDef[] = [
-  { id: "google", label: "Google", make: () => new GoogleAuthProvider() },
-  { id: "apple", label: "Apple", make: () => new OAuthProvider("apple.com") },
-  { id: "facebook", label: "Facebook", make: () => new FacebookAuthProvider() },
+  { id: "google", label: "Google", make: (f) => new f.GoogleAuthProvider() },
+  { id: "apple", label: "Apple", make: (f) => new f.OAuthProvider("apple.com") },
+  { id: "facebook", label: "Facebook", make: (f) => new f.FacebookAuthProvider() },
 ];
 
 const LS_KEY = "mp_watchlist";
@@ -151,6 +164,7 @@ export interface WatchlistApi {
 }
 
 export function useWatchlist(): WatchlistApi {
+  const f = useFb();
   // With Firebase configured the list belongs to the account: empty until
   // signed in, and cleared on sign-out (nothing left behind).
   // Seed from localStorage so the last-known list paints on boot instead of
@@ -160,31 +174,34 @@ export function useWatchlist(): WatchlistApi {
   // and re-rendering on a key change would repaint the table for a value nothing displays.
   // Empty in local mode — there the array's own order IS the order (see `reorder`).
   const keysRef = useRef<KeyMap>({});
+  // Stars clicked before the SDK lands: ticker -> starred?, replayed onto the first remote
+  // snapshot (net state, so a star + unstar cancels out).
+  const pendingRef = useRef<Map<string, boolean>>(new Map());
   // Seeded from the last session's account. The RTDB listeners below can attach with its uid
   // right away: the database SDK waits for Auth to finish restoring before it sends a token,
   // so the fresh data lands as soon as the session is back and simply replaces the cached copy.
-  const [fbUser, setFbUser] = useState<User | null>(() => (DEV_AUTH || !auth ? null : readAuthHint()));
+  const [fbUser, setFbUser] = useState<User | null>(() => (DEV_AUTH || !firebaseReady ? null : readAuthHint()));
   const [devUser, setDevUser] = useState<User | null>(
     () => (DEV_AUTH && localStorage.getItem(DEV_FLAG) === "1" ? DEV_USER : null),
   );
   const user = DEV_AUTH ? devUser : fbUser;
   // false until Firebase reports the first auth state — lets the UI avoid the
   // "Sign in" flash before a persisted session is restored (dev resolves at once)
-  const [authReady, setAuthReady] = useState<boolean>(() => DEV_AUTH || !auth || readAuthHint() != null);
+  const [authReady, setAuthReady] = useState<boolean>(() => DEV_AUTH || !firebaseReady || readAuthHint() != null);
   const [marks, setMarks] = useState<Record<string, MarkEntry>>(() => readMarks());
   const marksRef = useRef(marks);
   marksRef.current = marks;
 
   // track auth state (real auth only; dev uses the localStorage flag above)
   useEffect(() => {
-    if (DEV_AUTH || !auth) return;
-    return onAuthStateChanged(auth, (u) => {
+    if (DEV_AUTH || !f) return;
+    return f.onAuthStateChanged(f.auth, (u) => {
       writeAuthHint(u);
       // same account as the hint: keep the object, so nothing re-subscribes or repaints
       setFbUser((prev) => (u && prev && prev.uid === u.uid && prev.photoURL === u.photoURL && prev.email === u.email ? prev : u));
       setAuthReady(true);
     });
-  }, []);
+  }, [f]);
 
   // read/liked marks: live remote when signed in, empty when signed out
   useEffect(() => {
@@ -192,18 +209,18 @@ export function useWatchlist(): WatchlistApi {
       setMarks(user ? readMarks() : {});
       return;
     }
-    if (!db) return;
+    if (!f) return;
     if (!user) {
       if (authReady) setMarks({}); // only clear once auth is confirmed signed-out
       return;
     }
-    const r = ref(db, `marks/${user.uid}`);
-    return onValue(r, (snap) => {
+    const r = f.ref(f.db, `marks/${user.uid}`);
+    return f.onValue(r, (snap) => {
       const m = (snap.val() as Record<string, MarkEntry>) || {};
       setMarks(m);
       writeMarks(m); // refresh the boot cache
     });
-  }, [user, authReady]);
+  }, [f, user, authReady]);
 
   // pressing a thumb: same value again clears it, otherwise set it with today's date
   const toggleMark = useCallback(
@@ -218,10 +235,10 @@ export function useWatchlist(): WatchlistApi {
         setMarks(next);
         return;
       }
-      if (!db) return;
-      void set(ref(db, `marks/${user.uid}/${ticker}`), cur?.v === v ? null : { v, d: Date.now() });
+      if (!f) return;
+      void f.set(f.ref(f.db, `marks/${user.uid}/${ticker}`), cur?.v === v ? null : { v, d: Date.now() });
     },
-    [user],
+    [f, user],
   );
 
   // drive the list from auth: signed in -> realtime remote; signed out -> empty
@@ -230,15 +247,18 @@ export function useWatchlist(): WatchlistApi {
       setList(user ? readLocal() : []);
       return;
     }
-    if (!db) return;
+    if (!f) return;
     if (!user) {
       // signed out: clear so a previous account's list isn't left behind — but
       // only once auth is confirmed, else we'd wipe the optimistic boot paint.
-      if (authReady) setList([]);
+      if (authReady) {
+        setList([]);
+        pendingRef.current.clear(); // nobody to save them for
+      }
       return;
     }
-    const r = ref(db, `watchlist/${user.uid}`);
-    const unsub = onValue(r, (snap) => {
+    const r = f.ref(f.db, `watchlist/${user.uid}`);
+    const unsub = f.onValue(r, (snap) => {
       const v = snap.val();
       if (Array.isArray(v)) {
         // migrate legacy array -> { ticker: sortKey }. Keys are SPREAD, not all stamped with
@@ -249,11 +269,19 @@ export function useWatchlist(): WatchlistApi {
         v.forEach((t, i) => {
           if (t) obj[t] = now + i * NEW_GAP;
         });
-        void set(r, obj); // re-fires onValue with the object form
+        void f.set(r, obj); // re-fires onValue with the object form
         return;
       }
       const map: KeyMap = {};
       if (v && typeof v === "object") for (const [t, k] of Object.entries(v)) map[t] = typeof k === "number" ? k : 0;
+      for (const [t, want] of pendingRef.current) {
+        if (want === t in map) continue;
+        const key = want ? keyForAppend(map, Date.now()) : null;
+        if (key != null) map[t] = key;
+        else delete map[t];
+        void f.set(f.ref(f.db, `watchlist/${user.uid}/${t}`), key); // re-fires onValue, agreeing
+      }
+      pendingRef.current.clear();
       keysRef.current = map;
       // Object.keys() order is RTDB's (lexicographic for string keys), which is why the
       // watchlist used to be alphabetical-ish rather than in the order it was built.
@@ -262,7 +290,7 @@ export function useWatchlist(): WatchlistApi {
       writeLocal(next); // refresh the boot cache, in display order
     });
     return () => unsub();
-  }, [user, authReady]);
+  }, [f, user, authReady]);
 
   const toggle = useCallback(
     (ticker: string) => {
@@ -271,7 +299,7 @@ export function useWatchlist(): WatchlistApi {
         const next = has ? prev.filter((t) => t !== ticker) : [...prev, ticker];
         if (DEV_AUTH) {
           if (user) writeLocal(next);
-        } else if (db) {
+        } else if (f) {
           // Per-ticker write (null removes it) so a concurrent star from another device
           // can't be clobbered. The number is the SORT KEY — seeded from the add time, which
           // is what puts a newly starred stock at the BOTTOM of the list, and rewritten by
@@ -280,15 +308,18 @@ export function useWatchlist(): WatchlistApi {
             const key = has ? null : keyForAppend(keysRef.current, Date.now());
             if (key != null) keysRef.current = { ...keysRef.current, [ticker]: key };
             else { const k = { ...keysRef.current }; delete k[ticker]; keysRef.current = k; }
-            void set(ref(db, `watchlist/${user.uid}/${ticker}`), key);
+            void f.set(f.ref(f.db, `watchlist/${user.uid}/${ticker}`), key);
           }
         } else {
-          writeLocal(next); // local-only when Firebase isn't configured
+          // local-only when Firebase isn't configured — or not loaded yet, in which case the
+          // click is queued and written once the signed-in user's list arrives
+          pendingRef.current.set(ticker, !has);
+          writeLocal(next);
         }
         return next;
       });
     },
-    [user],
+    [f, user],
   );
 
   // Drag-to-reorder. One write in the common case: the dragged row's key becomes the
@@ -299,26 +330,26 @@ export function useWatchlist(): WatchlistApi {
       setList((prev) => {
         if (from === to || from < 0 || from >= prev.length) return prev;
         const next = moveItem(prev, from, to);
-        if (DEV_AUTH || !db || !user) {
+        if (DEV_AUTH || !f || !user) {
           // Local mode: the stored array's own order is the order, so a splice IS the write.
-          if (!db || DEV_AUTH) writeLocal(next);
+          if (!f || DEV_AUTH) writeLocal(next);
           return next;
         }
         const plan = planMove(prev, keysRef.current, from, to);
         if (plan.kind === "key") {
           keysRef.current = { ...keysRef.current, [plan.ticker]: plan.key };
-          void set(ref(db, `watchlist/${user.uid}/${plan.ticker}`), plan.key);
+          void f.set(f.ref(f.db, `watchlist/${user.uid}/${plan.ticker}`), plan.key);
         } else if (plan.kind === "renumber") {
           keysRef.current = plan.keys;
           // update(), not set(): a star added on another device between our read and this
           // write is a key we don't have, and set() would delete it.
-          void update(ref(db, `watchlist/${user.uid}`), plan.keys);
+          void f.update(f.ref(f.db, `watchlist/${user.uid}`), plan.keys);
         }
         writeLocal(next);
         return next; // optimistic — onValue confirms, and agrees because keysRef matched
       });
     },
-    [user],
+    [f, user],
   );
 
   const signIn = useCallback(
@@ -340,17 +371,18 @@ export function useWatchlist(): WatchlistApi {
         setDevUser(DEV_USER);
         return;
       }
-      if (!auth || !db) return;
+      const fb = f ?? (await fbP); // clicked before the SDK landed: wait for it
+      if (!fb) return;
       const def = AUTH_PROVIDERS.find((p) => p.id === providerId);
       if (!def) return;
-      const res = await signInWithPopup(auth, def.make());
+      const res = await fb.signInWithPopup(fb.auth, def.make(fb));
       // apply a thumb pressed while signed out (write against the resolved uid so
       // it doesn't race the auth-state / marks subscription)
-      if (mark) await set(ref(db, `marks/${res.user.uid}/${mark.ticker}`), { v: mark.v, d: Date.now() });
+      if (mark) await fb.set(fb.ref(fb.db, `marks/${res.user.uid}/${mark.ticker}`), { v: mark.v, d: Date.now() });
       // merge a pending star (clicked while signed out); also normalise a legacy
       // array to the { ticker: addedAt } map
-      const r = ref(db, `watchlist/${res.user.uid}`);
-      const v = (await get(r)).val();
+      const r = fb.ref(fb.db, `watchlist/${res.user.uid}`);
+      const v = (await fb.get(r)).val();
       const now = Date.now();
       const map: KeyMap = {};
       if (Array.isArray(v)) {
@@ -368,9 +400,9 @@ export function useWatchlist(): WatchlistApi {
           changed = true;
         }
       }
-      if (changed) await set(r, map);
+      if (changed) await fb.set(r, map);
     },
-    [],
+    [f],
   );
 
   const signOut = useCallback(() => {
@@ -382,7 +414,7 @@ export function useWatchlist(): WatchlistApi {
     writeLocal([]); // drop the boot cache so a signed-out reload paints empty
     writeMarks({});
     writeAuthHint(null);
-    if (auth) void fbSignOut(auth);
+    void fbP.then((fb) => fb && fb.signOut(fb.auth));
   }, []);
 
   return { list, toggle, reorder, marks, toggleMark, user, authReady, signIn, signOut, ready: firebaseReady };
@@ -411,41 +443,43 @@ const DEV_REQ_EVENT = "mp-trackreq";
 // ponytail: unauthenticated writes, so anyone can keep a ticker alive by spamming opens — the
 // rule pins the value to `now`, so that is the whole blast radius.
 export function noteView(ticker: string): void {
-  if (DEV_AUTH || !db || !import.meta.env.PROD) return;
-  set(ref(db, `views/${trackKey(ticker)}`), serverTimestamp()).catch(() => { /* rules not deployed yet / offline */ });
+  if (DEV_AUTH || !import.meta.env.PROD) return;
+  void fbP.then((f) => f?.set(f.ref(f.db, `views/${trackKey(ticker)}`), f.serverTimestamp()).catch(() => { /* rules not deployed yet / offline */ }));
 }
 
-export function requestTracking(ticker: string, user: User): void {
+export async function requestTracking(ticker: string, user: User): Promise<void> {
   const key = trackKey(ticker);
-  if (DEV_AUTH || !db) {
+  const f = DEV_AUTH ? null : await fbP;
+  if (!f) {
     devRequests.add(key);
     try { localStorage.setItem(DEV_REQ_LS, JSON.stringify([...devRequests])); } catch { /* ignore */ }
     window.dispatchEvent(new Event(DEV_REQ_EVENT));
     return;
   }
-  void set(ref(db, `trackreq/${user.uid}/${key}`), Date.now());
-  set(ref(db, `trackRequests/${key}`), { uid: user.uid, ts: Date.now(), tracked: false })
+  void f.set(f.ref(f.db, `trackreq/${user.uid}/${key}`), Date.now());
+  f.set(f.ref(f.db, `trackRequests/${key}`), { uid: user.uid, ts: Date.now(), tracked: false })
     .then(() => { if (TRACK_WORKER_URL && import.meta.env.PROD) void fetch(TRACK_WORKER_URL, { method: "POST" }).catch(() => {}); })
     .catch(() => { /* someone already requested it — the listener shows its state */ });
 }
 
 export function useTrackRequest(ticker: string, user: User | null): TrackRequestState {
   const [state, setState] = useState<TrackRequestState>("none");
+  const f = useFb();
   const key = trackKey(ticker);
   useEffect(() => {
     setState("none");
     if (!user) return;
-    if (DEV_AUTH || !db) {
+    if (DEV_AUTH || !f) {
       const sync = () => setState(devRequests.has(key) ? "pending" : "none");
       sync();
       window.addEventListener(DEV_REQ_EVENT, sync);
       return () => window.removeEventListener(DEV_REQ_EVENT, sync);
     }
-    return onValue(
-      ref(db, `trackRequests/${key}`),
+    return f.onValue(
+      f.ref(f.db, `trackRequests/${key}`),
       (s) => setState(!s.exists() ? "none" : s.val().tracked ? "tracked" : "pending"),
       () => setState("none"),
     );
-  }, [key, user]);
+  }, [f, key, user]);
   return state;
 }

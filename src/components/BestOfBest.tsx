@@ -1,12 +1,11 @@
 import { useMemo, type ReactNode } from "react";
 import { consLabel, fmtMc, fmtPx, scoreColor } from "../lib";
-import stocksData from "../data/stocks.json";
+import { useStocks } from "../stocks";
 import type { Stock } from "../types";
 import type { Mark, MarkEntry } from "../watchlist";
 import { ConsPill } from "./StockTable";
 import ThumbMark from "./ThumbMark";
 
-const STOCKS = stocksData as Stock[];
 
 const isStrongBuy = (r: Stock): boolean => (r.con || "").toLowerCase() === "strongbuy";
 
@@ -130,6 +129,7 @@ export function Card({
 }
 
 export default function BestOfBest({ onOpen, marks, onMark }: BestOfBestProps) {
+  const STOCKS = useStocks();
   const { crown, alsoSs10, aiThreshold } = useMemo(() => {
     const ai = STOCKS.map((r) => r.ai)
       .filter((x): x is number => x != null)
@@ -146,7 +146,7 @@ export default function BestOfBest({ onOpen, marks, onMark }: BestOfBestProps) {
     );
 
     return { crown, alsoSs10, aiThreshold };
-  }, []);
+  }, [STOCKS]);
   // order the modal's ‹ › arrows page through: crown first, then the also-10 grid
   const navList = [...crown, ...alsoSs10];
 

@@ -1,21 +1,17 @@
 import type { User } from "firebase/auth";
-import { getDatabase, onValue, ref, set, type Database } from "firebase/database";
 import { useCallback, useEffect, useRef } from "react";
-import stocksData from "./data/stocks.json";
 import { fetchForecasts } from "./forecasts";
 import { allReviewKeys, newReviewKeys } from "./reviewAlerts";
-import type { Stock } from "./types";
-import { app, DEV_AUTH } from "./watchlist";
+import { currentStocks } from "./stocks";
+import { DEV_AUTH, useFb } from "./watchlist";
 
 // Detects new analyst reviews on watchlist stocks and pushes grouped notifications
 // (via the shared store's `pushReview`). Per-ticker "seen" review keys persist the same
 // way the watchlist does: Firebase RTDB when signed in, localStorage on localhost dev.
-const db: Database | null = app ? getDatabase(app) : null;
 const SEEN_LS = "mp_review_seen";
 const POLL_MS = 30 * 60 * 1000; // reviews land ~every 5h via CI; a light poll catches them
 
 type SeenMap = Record<string, string[]>;
-const nameByTicker = new Map((stocksData as Stock[]).map((s) => [s.t, s.n]));
 
 function readSeenLocal(): SeenMap {
   try {
@@ -38,6 +34,7 @@ export function useReviewAlerts(
   pushRef.current = pushReview;
   const watchRef = useRef(watchlist);
   watchRef.current = watchlist;
+  const f = useFb();
 
   // load / subscribe to the per-ticker seen sets
   useEffect(() => {
@@ -49,14 +46,14 @@ export function useReviewAlerts(
       loadedRef.current = true;
       return;
     }
-    if (!db) return;
-    const sref = ref(db, `reviewseen/${user.uid}`);
-    const un = onValue(sref, (snap) => {
+    if (!f) return;
+    const sref = f.ref(f.db, `reviewseen/${user.uid}`);
+    const un = f.onValue(sref, (snap) => {
       seenRef.current = (snap.val() as SeenMap) || {};
       loadedRef.current = true;
     });
     return un;
-  }, [user]);
+  }, [f, user]);
 
   const persist = useCallback(
     (ticker: string, keys: string[] | null) => {
@@ -69,11 +66,11 @@ export function useReviewAlerts(
         } catch {
           /* ignore */
         }
-      } else if (db) {
-        void set(ref(db, `reviewseen/${user.uid}/${ticker}`), keys); // null removes
+      } else if (f) {
+        void f.set(f.ref(f.db, `reviewseen/${user.uid}/${ticker}`), keys); // null removes
       }
     },
-    [user],
+    [f, user],
   );
 
   const run = useCallback(async () => {
@@ -91,7 +88,7 @@ export function useReviewAlerts(
           continue;
         }
         const fresh = newReviewKeys(fc, prev);
-        if (fresh.length) pushRef.current(t, nameByTicker.get(t) || t, fresh);
+        if (fresh.length) pushRef.current(t, currentStocks().find((s) => s.t === t)?.n || t, fresh);
         if (fresh.length || prev.length !== cur.length) persist(t, cur); // advance the watermark
       }
       // prune seen sets for stocks no longer watched (re-adds will re-baseline)

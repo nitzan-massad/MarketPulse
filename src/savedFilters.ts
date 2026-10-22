@@ -1,7 +1,6 @@
 import type { User } from "firebase/auth";
-import { getDatabase, onValue, ref, set } from "firebase/database";
 import { useEffect, useRef } from "react";
-import { app, DEV_AUTH } from "./watchlist";
+import { DEV_AUTH, useFb } from "./watchlist";
 
 // The toolbar filter state that follows a user around. Signed in -> Realtime
 // DB at /filters/<uid> (syncs across devices, same as the watchlist); signed
@@ -24,8 +23,6 @@ export interface SavedFilters {
   consensus?: string; // legacy
 }
 
-// Firebase only when signed in for real; dev/localhost stays on localStorage.
-const db = app && !DEV_AUTH ? getDatabase(app) : null;
 const LS_KEY = "mp_filters";
 
 function readLocal(): SavedFilters | null {
@@ -60,16 +57,19 @@ export function useSavedFilters(
   const loaded = useRef(false);
   const onLoadRef = useRef(onLoad);
   onLoadRef.current = onLoad;
+  // Firebase only when signed in for real; dev/localhost stays on localStorage.
+  const fb = useFb();
+  const f = DEV_AUTH ? null : fb;
 
   // hydrate: signed in -> live remote; otherwise localStorage (once)
   useEffect(() => {
     loaded.current = false;
     const local = readLocal();
-    if (user && db) {
+    if (user && f) {
       // paint this device's last copy at once; the remote record replaces it when it lands
       if (local) onLoadRef.current(local);
-      const r = ref(db, `filters/${user.uid}`);
-      return onValue(r, (snap) => {
+      const r = f.ref(f.db, `filters/${user.uid}`);
+      return f.onValue(r, (snap) => {
         const v = snap.val() as SavedFilters | null;
         if (v && typeof v === "object") {
           lastSynced.current = JSON.stringify(v);
@@ -87,7 +87,7 @@ export function useSavedFilters(
       onLoadRef.current(local);
     }
     skipNextSave.current = true; // nothing stored is still a completed load
-  }, [user]);
+  }, [f, user]);
 
   // persist on change (skip the value we just loaded)
   useEffect(() => {
@@ -104,6 +104,6 @@ export function useSavedFilters(
     } catch {
       /* ignore */
     }
-    if (user && db) void set(ref(db, `filters/${user.uid}`), filters).catch(() => {});
-  }, [filters, user]);
+    if (user && f) void f.set(f.ref(f.db, `filters/${user.uid}`), filters).catch(() => {});
+  }, [f, filters, user]);
 }

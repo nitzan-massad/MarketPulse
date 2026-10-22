@@ -1,14 +1,12 @@
 import type { User } from "firebase/auth";
-import { useRef, useState } from "react";
-import stocksData from "../data/stocks.json";
+import { useMemo, useRef, useState } from "react";
+import { useStocks } from "../stocks";
 import type { Stock } from "../types";
 import { fmtMc, fmtPx, scoreColor, stubStock } from "../lib";
 import { Chip, ConsPill, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
 
-const STOCKS = stocksData as Stock[];
-const BY_SYMBOL = new Map(STOCKS.map((s) => [s.t, s]));
 
 interface WatchlistProps {
   watchlist: string[];
@@ -124,7 +122,9 @@ export default function Watchlist({
   // A watched ticker with no snapshot row yet is a stub row, not a side chip — CI adds watched
   // tickers to the keep set (ci/keep.mjs), so the next refresh backfills it. One row per
   // watchlist entry also keeps the drag indexes in step with the watchlist's.
-  const rows = watchlist.map((t) => BY_SYMBOL.get(t) ?? stubStock(t));
+  const STOCKS = useStocks();
+  const bySymbol = useMemo(() => new Map(STOCKS.map((s) => [s.t, s])), [STOCKS]);
+  const rows = watchlist.map((t) => bySymbol.get(t) ?? stubStock(t));
   const { rows: rowEls, drag, onPointerDown, onPointerMove, onPointerUp, onKeyDown } =
     useRowDrag(rows.length, onReorder);
 

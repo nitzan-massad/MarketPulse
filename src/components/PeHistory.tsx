@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { DATE_LOCALE } from "../lib";
 import { hasPeHistory, lastYears, LOG_FROM, logTicks, niceTicks, PE_MAX, peSeries, peStats, type EpsPoint, type PePoint } from "../peHistory";
 import { tickerTarget } from "../share";
+import { trackedPayload } from "../stocks";
 import { useShare } from "../useShare";
 import CloseButton from "./CloseButton";
 import ShareBurst from "./ShareBurst";
@@ -38,9 +39,15 @@ const x1 = (v: number) => v.toFixed(1) + "×";
 /** `{ asOf, pts: [[date, pe|null, flag?], ...] }` written by ci/scrape-pe.mjs; flag 1 = loss
  *  (trailing earnings <= 0), 2 = P/E above PE_MAX (1000x). */
 async function loadStatic(t: string): Promise<{ asOf: string | null; pts: PePoint[] }> {
-  const r = await fetch(`${import.meta.env.BASE_URL}pe/${encodeURIComponent(t)}.json`);
-  if (!r.ok) throw new Error("no file");
-  const j = (await r.json()) as { asOf?: string; pts?: [string, number | null, (1 | 2)?][] };
+  type PeFile = { asOf?: string; pts?: [string, number | null, (1 | 2)?][] };
+  // tracked-only ticker (not bundled yet): the file's contents came with RTDB trackedRows
+  let j = (await trackedPayload(t, "pe")) as PeFile | null | undefined;
+  if (j === undefined) {
+    const r = await fetch(`${import.meta.env.BASE_URL}pe/${encodeURIComponent(t)}.json`);
+    if (!r.ok) throw new Error("no file");
+    j = (await r.json()) as PeFile;
+  }
+  if (!j) throw new Error("no file");
   if (!Array.isArray(j.pts) || j.pts.length < 2) throw new Error("empty");
   return { asOf: j.asOf ?? null, pts: j.pts.map(([d, v, f]) => (f === 1 ? { d, v, loss: true as const } : f === 2 ? { d, v, high: true as const } : { d, v })) };
 }

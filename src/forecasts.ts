@@ -1,6 +1,8 @@
 // Analyst forecasts — per-ticker snapshot pulled from TipRanks' free getData feed
 // (name, firm, star rating, price target, prior target, position, date), baked into
 // public/forecasts/. Lazy-fetched by the modal; also polled fresh by the review detector.
+// A tracked-only ticker (not bundled yet) reads its payload from RTDB trackedRows instead.
+import { trackedPayload } from "./stocks";
 export interface Forecast {
   n: string | null; // analyst name
   f: string | null; // firm
@@ -18,6 +20,12 @@ const fcCache = new Map<string, Forecast[] | null>();
 export async function fetchForecasts(ticker: string, fresh = false): Promise<Forecast[] | null> {
   if (!fresh && fcCache.has(ticker)) return fcCache.get(ticker)!;
   let val: Forecast[] | null = null;
+  const tracked = await trackedPayload(ticker, "forecast");
+  if (tracked !== undefined) {
+    val = Array.isArray(tracked) && tracked.length ? (tracked as Forecast[]) : null;
+    fcCache.set(ticker, val);
+    return val;
+  }
   try {
     const r = await fetch(
       `${import.meta.env.BASE_URL}forecasts/${encodeURIComponent(ticker)}.json`,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import { easternNow, type EasternNow, fmtMin, marketOpen, nearestIndex, sessionSlice } from "../chartSession";
 import { fetchForecasts, type Forecast } from "../forecasts";
+import { trackedPayload } from "../stocks";
 import sectorPe from "../data/sectors.json";
 import { consClass, consLabel, DATE_LOCALE, fmtMc, pxDp } from "../lib";
 import { reviewKey } from "../reviewAlerts";
@@ -138,12 +139,15 @@ async function fetchBullBear(ticker: string): Promise<BullBear | null> {
   if (bbCache.has(ticker)) return bbCache.get(ticker)!;
   let val: BullBear | null = null;
   try {
-    const r = await fetch(`${import.meta.env.BASE_URL}bullbear/${encodeURIComponent(ticker)}.json`);
-    if (r.ok) {
-      const j = await r.json();
-      if (j && ((j.bull && j.bull.length) || (j.bear && j.bear.length)))
-        val = { bull: j.bull || [], bear: j.bear || [], asOf: j.asOf };
+    // tracked-only ticker (not bundled yet): its payload came with RTDB trackedRows
+    const tracked = (await trackedPayload(ticker, "bullbear")) as Partial<BullBear> | null | undefined;
+    let j = tracked;
+    if (j === undefined) {
+      const r = await fetch(`${import.meta.env.BASE_URL}bullbear/${encodeURIComponent(ticker)}.json`);
+      j = r.ok ? await r.json() : null;
     }
+    if (j && ((j.bull && j.bull.length) || (j.bear && j.bear.length)))
+      val = { bull: j.bull || [], bear: j.bear || [], asOf: j.asOf };
   } catch {
     /* missing / offline -> not available */
   }
@@ -549,8 +553,9 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   const [peState, setPeState] = useState<"ok" | "pending" | "none" | null>(null);
   useEffect(() => {
     let live = true;
-    loadPeIndex().then((idx) => {
-      const e = idx[stock.t];
+    // a tracked-only ticker has no index entry yet: its chart is there iff trackedRows carried one
+    Promise.all([loadPeIndex(), trackedPayload(stock.t, "pe")]).then(([idx, pe]) => {
+      const e = pe === undefined ? idx[stock.t] : { ok: pe != null };
       if (live) setPeState(e?.ok ? "ok" : !e || e.err || e.wait ? "pending" : "none");
     });
     return () => {

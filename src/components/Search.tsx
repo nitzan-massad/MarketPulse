@@ -1,10 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import stocksData from "../data/stocks.json";
+import { useStocks } from "../stocks";
 import type { Stock } from "../types";
 import { consClass, consLabel, fmtPx } from "../lib";
 import { buildOptions, nextIndex, type SearchOption } from "../searchNav";
 
-const STOCKS = stocksData as Stock[];
 
 interface SearchProps {
   onOpen: (s: Stock, list?: Stock[]) => void;
@@ -15,6 +14,7 @@ interface SearchProps {
 }
 
 export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) {
+  const STOCKS = useStocks();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [remote, setRemote] = useState<{ t: string; n: string }[]>([]); // Finnhub name/ticker lookups off the ranked set
@@ -72,7 +72,7 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
         return ap - bp;
       })
       .slice(0, 7);
-  }, [query]);
+  }, [query, STOCKS]);
 
   const upper = query.toUpperCase();
   const exact = STOCKS.some((s) => s.t === upper);

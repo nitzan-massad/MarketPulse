@@ -1,26 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import BestOfBest from "./components/BestOfBest";
 import NewArrivals from "./components/NewArrivals";
 import Masthead from "./components/Masthead";
 import NavMenu, { type NavId } from "./components/NavMenu";
 import FearGreedGauge from "./components/FearGreedGauge";
 import NotificationBell from "./components/NotificationBell";
-import { PostFeed } from "./components/PostFeed";
 import Search from "./components/Search";
-import SignInModal from "./components/SignInModal";
-import StockModal from "./components/StockModal";
 import StockTable from "./components/StockTable";
 import Toolbar from "./components/Toolbar";
 import Watchlist from "./components/Watchlist";
-import stocksData from "./data/stocks.json";
 import { flagOn } from "./featureFlags";
 import { passes, sortRows, stubStock, themeNames, VIEWS } from "./lib";
+import { currentStocks, stocksLoaded, stocksReady, useStocks } from "./stocks";
 import { parseShareHash, type PanelId, type TickerView } from "./share";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
 import { useNotifications, type Notification } from "./useNotifications";
 import { useReviewAlerts } from "./useReviewAlerts";
-import { noteView, requestTracking, useWatchlist, type Mark } from "./watchlist";
+import { loadFirebase, noteView, requestTracking, useWatchlist, type Mark } from "./watchlist";
 import { useSavedFilters, type SavedFilters } from "./savedFilters";
 import { initAnalytics, track, trackUser } from "./analytics";
 
@@ -29,13 +26,19 @@ export type MarkFilter = "all" | "up" | "down" | "reviewed" | "unseen";
  *  filter the toolbar has no button for, which would hide rows with no way to clear it. */
 const MARK_FILTERS: MarkFilter[] = ["all", "up", "down", "reviewed", "unseen"];
 
-const STOCKS = stocksData as Stock[];
 // Baked-in Finnhub key (injected at build from the FINNHUB_KEY Actions secret),
 // so live Day% works for everyone with no key entry. localStorage can override.
 const BAKED_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
 // Belt-and-braces: the NavMenu item is already gated behind the same flag, but this keeps
 // the feed unreachable even if something else ever sets `nav` to "feed" directly.
 const FEED_ON = flagOn("feed");
+
+// Opened on demand, so kept out of the main chunk: the modal (chart, forecasts, P/E), the feed
+// (posts.json) and sign-in. Each fetches its chunk on first open; fallback={null} because the
+// overlay simply appears a beat later — nothing is underneath to hold a spinner.
+const StockModal = lazy(() => import("./components/StockModal"));
+const PostFeed = lazy(() => import("./components/PostFeed").then((m) => ({ default: m.PostFeed })));
+const SignInModal = lazy(() => import("./components/SignInModal"));
 
 // map a legacy single-select consensus bucket to the new discrete-rating list
 function bucketToList(b: string | undefined): string[] {
@@ -48,6 +51,8 @@ function bucketToList(b: string | undefined): string[] {
 }
 
 export default function App() {
+  // bundled stocks.json + not-yet-bundled tracked rows (pop in after the RTDB read, see stocks.ts)
+  const STOCKS = useStocks();
   // The section survives a refresh (per tab, like the browser's own scroll restore); a new tab
   // or a shared link still starts on the table.
   const [nav, setNav] = useState<NavId>(() => {
@@ -93,6 +98,7 @@ export default function App() {
   // usage analytics (Firebase/GA4): init once, then attribute events to the
   // signed-in user when available
   useEffect(() => {
+    loadFirebase(); // first effect = after the first render: only now fetch the Firebase SDK
     if (import.meta.env.PROD) void initAnalytics(); // don't pollute GA with local dev
   }, []);
   useEffect(() => {
@@ -232,9 +238,20 @@ export default function App() {
       return;
     }
     setOpenView(target.view ?? null);
-    const hit = STOCKS.find((s) => s.t === target.id);
-    if (hit) handleOpen(hit, STOCKS);
-    else handleOpenTicker(target.id); // off-universe symbol: live price + chart, metrics N/A
+    // stocks.json is fetched, so a link opened on load waits for it (instant after that)
+    void stocksLoaded.then(() => {
+      if (parseShareHash(location.hash)?.id !== target.id) return; // the hash moved on meanwhile
+      const all = currentStocks(); // not STOCKS: this callback is created once
+      const hit = all.find((s) => s.t === target.id);
+      if (hit) handleOpen(hit, all);
+      // not bundled: maybe a tracked row still in flight (the "now tracked" reload lands here)
+      else void stocksReady.then((list) => {
+        const h = list.find((s) => s.t === target.id);
+        if (parseShareHash(location.hash)?.id !== target.id) return; // the hash moved on meanwhile
+        if (h) handleOpen(h, list);
+        else handleOpenTicker(target.id); // off-universe symbol: live price + chart, metrics N/A
+      });
+    });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     syncFromHash();
@@ -272,14 +289,14 @@ export default function App() {
 
   const sectorOptions = useMemo(
     () => [...new Set([...STOCKS.map((s) => s.sec).filter(Boolean), ...themeNames])].sort(),
-    [],
+    [STOCKS],
   );
   // distinct consensus ratings present in the data, ranked buy→sell
   const consensusOptions = useMemo(() => {
     const order = ["StrongBuy", "Buy", "ModerateBuy", "Neutral", "Hold", "ModerateSell", "Sell", "StrongSell"];
     const rank = (c: string) => (order.indexOf(c) < 0 ? 99 : order.indexOf(c));
     return [...new Set(STOCKS.map((s) => s.con).filter(Boolean) as string[])].sort((a, b) => rank(a) - rank(b));
-  }, []);
+  }, [STOCKS]);
 
   const rows = useMemo(() => {
     let filtered = STOCKS.filter((s) => passes(s, { q, sectors, sectorNot, consensuses, cap }));
@@ -296,7 +313,7 @@ export default function App() {
       });
     }
     return sortRows(filtered, sort, dir);
-  }, [q, sectors, sectorNot, consensuses, cap, sort, dir, markFilter, marks, user]);
+  }, [STOCKS, q, sectors, sectorNot, consensuses, cap, sort, dir, markFilter, marks, user]);
 
   // "clean" filter state = the view's own default (analyst view starts on Strong Buy)
   const consensusDefault = useMemo(() => (view === "analyst" ? ["StrongBuy"] : []), [view]);
@@ -351,7 +368,7 @@ export default function App() {
     const m: Record<string, number> = {};
     for (const s of STOCKS) if (typeof s.px === "number") m[s.t] = s.px;
     return m;
-  }, []);
+  }, [STOCKS]);
   const watchPrices = useMemo(() => {
     const m: Record<string, number> = {};
     for (const t of watchlist) {
@@ -477,7 +494,9 @@ export default function App() {
         </div>
       </header>
 
-      {nav === "table" ? (
+      {!STOCKS.length ? (
+        <p className="empty" role="status">Loading stocks…</p>
+      ) : nav === "table" ? (
         <>
           <Masthead
             poolN={STOCKS.length}
@@ -542,7 +561,11 @@ export default function App() {
       ) : nav === "new" ? (
         <NewArrivals onOpen={handleOpen} onOpenReview={openReview} marks={marks} onMark={requestMark} />
       ) : nav === "feed" ? (
-        FEED_ON ? <PostFeed base={import.meta.env.BASE_URL} onOpenTicker={openPostTicker} /> : null
+        FEED_ON ? (
+          <Suspense fallback={null}>
+            <PostFeed base={import.meta.env.BASE_URL} onOpenTicker={openPostTicker} />
+          </Suspense>
+        ) : null
       ) : (
         <Watchlist
           watchlist={watchlist}
@@ -560,6 +583,7 @@ export default function App() {
         />
       )}
 
+      <Suspense fallback={null}>
       {openStock && (
           <StockModal
             stock={openStock}
@@ -591,7 +615,9 @@ export default function App() {
             }}
           />
       )}
+      </Suspense>
 
+      <Suspense fallback={null}>
       {signInOpen && syncReady && (
         <SignInModal
           user={user}
@@ -609,6 +635,7 @@ export default function App() {
           }}
         />
       )}
+      </Suspense>
 
       <NavMenu nav={nav} onNav={handleNav} />
     </div>

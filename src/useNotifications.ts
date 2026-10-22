@@ -1,13 +1,11 @@
 import type { User } from "firebase/auth";
-import { getDatabase, onValue, push, ref, remove, set, update, type Database } from "firebase/database";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { evalAlert, reFireSuppressed, type Dir, type Meta } from "./alertEngine";
-import { app, DEV_AUTH } from "./watchlist";
+import { DEV_AUTH, useFb } from "./watchlist";
 
 // Notifications reuse the exact persistence shape of useWatchlist: Firebase RTDB
 // when signed in with Firebase configured, localStorage on localhost dev.
-// getDatabase(app) returns the same instance the watchlist hook uses.
-const db: Database | null = app ? getDatabase(app) : null;
+// useFb() hands back the same lazily loaded SDK + db instance the watchlist hook uses.
 
 export interface Notification {
   id: string;
@@ -104,6 +102,7 @@ export function useNotifications(
   // synchronously so it never depends on the async `meta.ref` round-trip (see the
   // fire effect); also covers React StrictMode's double-invoke in dev.
   const lastFiredPxRef = useRef<Record<string, number>>({});
+  const f = useFb();
 
   // load / subscribe — mirrors useWatchlist's auth-driven data flow
   useEffect(() => {
@@ -114,16 +113,16 @@ export function useNotifications(
       return;
     }
     setMetaLoaded(false);
-    if (!db) return;
+    if (!f) return;
     if (!user) {
       setNotifs([]);
       setMeta({});
       writeNotifsCache(null, []);
       return;
     }
-    const nref = ref(db, `notifications/${user.uid}`);
-    const mref = ref(db, `watchmeta/${user.uid}`);
-    const unNotif = onValue(nref, (snap) => {
+    const nref = f.ref(f.db, `notifications/${user.uid}`);
+    const mref = f.ref(f.db, `watchmeta/${user.uid}`);
+    const unNotif = f.onValue(nref, (snap) => {
       const v =
         (snap.val() as Record<string, Omit<Notification, "id" | "type"> & { type?: Notification["type"] }>) || {};
       const arr = Object.entries(v).map(([id, n]) => ({ id, ...n, type: n.type ?? "price" }));
@@ -131,7 +130,7 @@ export function useNotifications(
       setNotifs(arr);
       writeNotifsCache(user.uid, arr);
     });
-    const unMeta = onValue(mref, (snap) => {
+    const unMeta = f.onValue(mref, (snap) => {
       setMeta((snap.val() as MetaMap) || {});
       setMetaLoaded(true);
     });
@@ -139,7 +138,7 @@ export function useNotifications(
       unNotif();
       unMeta();
     };
-  }, [user]);
+  }, [f, user]);
 
   const persistMeta = useCallback(
     (ticker: string, m: Meta | null) => {
@@ -161,9 +160,9 @@ export function useNotifications(
       // different ticker could momentarily wipe this optimistic entry and let it
       // re-seed. Rare (needs a live tick inside that window); add a seededRef
       // guard in the reconcile effect if it ever bites.
-      if (!DEV_AUTH && db) void set(ref(db, `watchmeta/${user.uid}/${ticker}`), m); // null removes
+      if (!DEV_AUTH && f) void f.set(f.ref(f.db, `watchmeta/${user.uid}/${ticker}`), m); // null removes
     },
-    [user],
+    [f, user],
   );
 
   const addNotif = useCallback(
@@ -176,11 +175,11 @@ export function useNotifications(
           writeNotifsLocal(next);
           return next;
         });
-      } else if (db) {
-        void push(ref(db, `notifications/${user.uid}`), n);
+      } else if (f) {
+        void f.push(f.ref(f.db, `notifications/${user.uid}`), n);
       }
     },
-    [user],
+    [f, user],
   );
 
   // Review alerts share this store. Bump the single unread review notification for a
@@ -201,11 +200,11 @@ export function useNotifications(
           writeNotifsLocal(next);
           return next;
         });
-      } else if (db) {
-        void update(ref(db, `notifications/${user.uid}/${existing.id}`), { keys, at });
+      } else if (f) {
+        void f.update(f.ref(f.db, `notifications/${user.uid}/${existing.id}`), { keys, at });
       }
     },
-    [user, addNotif],
+    [f, user, addNotif],
   );
 
   // "Track this stock" landed: each of this user's own requests (trackreq/<uid>, written by
@@ -214,19 +213,19 @@ export function useNotifications(
   // Dev has no backend, so nothing ever lands there.
   const trackedFiredRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (DEV_AUTH || !db || !user) return;
-    const d = db;
+    if (DEV_AUTH || !f || !user) return;
+    const d = f.db;
     const subs = new Map<string, () => void>();
-    const unList = onValue(ref(d, `trackreq/${user.uid}`), (snap) => {
+    const unList = f.onValue(f.ref(d, `trackreq/${user.uid}`), (snap) => {
       const keys = new Set(Object.keys(snap.val() || {}));
       for (const [k, un] of subs) if (!keys.has(k)) { un(); subs.delete(k); }
       for (const k of keys) {
         if (subs.has(k)) continue;
-        subs.set(k, onValue(ref(d, `trackRequests/${k}/tracked`), (s) => {
+        subs.set(k, f.onValue(f.ref(d, `trackRequests/${k}/tracked`), (s) => {
           if (s.val() !== true || trackedFiredRef.current.has(k)) return;
           trackedFiredRef.current.add(k); // StrictMode / echo guard until the remove lands
           addNotif({ type: "tracked", ticker: k.replace(/_/g, "."), at: Date.now(), read: false });
-          void remove(ref(d, `trackreq/${user.uid}/${k}`));
+          void f.remove(f.ref(d, `trackreq/${user.uid}/${k}`));
         }));
       }
     });
@@ -234,7 +233,7 @@ export function useNotifications(
       unList();
       for (const un of subs.values()) un();
     };
-  }, [user, addNotif]);
+  }, [f, user, addNotif]);
 
   // reconcile meta: create for newly-watched tickers (reqs 11 + 12), prune the rest
   useEffect(() => {
@@ -282,11 +281,11 @@ export function useNotifications(
       });
       return;
     }
-    if (!db) return;
+    if (!f) return;
     const upd: Record<string, boolean> = {};
     for (const n of notifsRef.current) if (!n.read) upd[`${n.id}/read`] = true;
-    if (Object.keys(upd).length) void update(ref(db, `notifications/${user.uid}`), upd);
-  }, [user]);
+    if (Object.keys(upd).length) void f.update(f.ref(f.db, `notifications/${user.uid}`), upd);
+  }, [f, user]);
 
   const clearAll = useCallback(() => {
     if (!user) return;
@@ -295,9 +294,9 @@ export function useNotifications(
       setNotifs([]);
       return;
     }
-    if (!db) return;
-    void remove(ref(db, `notifications/${user.uid}`));
-  }, [user]);
+    if (!f) return;
+    void f.remove(f.ref(f.db, `notifications/${user.uid}`));
+  }, [f, user]);
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
 
