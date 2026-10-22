@@ -1,5 +1,29 @@
 [
   {
+    "id": "PRAX-2026-10-22T10:31:15.585Z",
+    "ts": "2026-10-22T10:31:15.585Z",
+    "kind": "list",
+    "ticker": "PRAX",
+    "name": "Praxis Precision Medicines, Inc.",
+    "sector": "Healthcare",
+    "text": "~189% leads the board of 5 names.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "PRAX appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Praxis Precision Medicines (189.4% to $742.17), D-Wave Quantum (187.9% to $34.83), Terawulf (167.9% to $34.18), Vera Therapeutics (146.3% to $76.86), Rigetti Computing (146.2% to $29.67)",
+      "count": 5,
+      "leader": "Praxis Precision Medicines",
+      "leaderUpside": 189.4
+    },
+    "descriptor": "Brain Disorder Therapies",
+    "image": "PRAX-2026-10-22T10-31-15-585Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "DELL-2026-10-22T02:46:30.232Z",
     "ts": "2026-10-22T02:46:30.232Z",
     "kind": "contrarian",
