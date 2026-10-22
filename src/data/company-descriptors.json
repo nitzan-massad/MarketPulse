@@ -198,5 +198,10 @@
     "name": "Microchip",
     "descriptor": "Embedded Control Solutions",
     "scene": "calibrating a circuit board with tiny electronics and precision tools"
+  },
+  "AVAV": {
+    "name": "AeroVironment",
+    "descriptor": "Robotic System Developer",
+    "scene": "assembling drone components on a workbench with specialized tools nearby"
   }
 }

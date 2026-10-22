@@ -1,5 +1,35 @@
 [
   {
+    "id": "AVAV-2026-10-22T15:28:39.950Z",
+    "ts": "2026-10-22T15:28:39.950Z",
+    "kind": "record",
+    "ticker": "AVAV",
+    "name": "AeroVironment",
+    "sector": "Industrials",
+    "text": "~73% upside, this month's high, 19 analysts.",
+    "score": 40,
+    "reasons": [
+      "4 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "duplicate of a recent post (43% word overlap)"
+    ],
+    "facts": {
+      "upside": 72.9,
+      "windowLow": 25.3,
+      "windowHigh": 72.9,
+      "snapshots": 145,
+      "days": 30.2,
+      "price": 117.51,
+      "priceTarget": 203.22,
+      "analysts": 19,
+      "sectorMedianUpside": 37.6
+    },
+    "descriptor": "Robotic System Developer",
+    "image": "AVAV-2026-10-22T15-28-39-950Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "PRAX-2026-10-22T10:31:15.585Z",
     "ts": "2026-10-22T10:31:15.585Z",
     "kind": "list",
