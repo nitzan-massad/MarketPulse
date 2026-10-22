@@ -1,10 +1,9 @@
 // Pure helper for the 1-day intraday chart's session state. Dependency-free (no React)
 // so it can be unit-checked — see chartSession.check.ts.
 //
-// TwelveData's 1D feed returns the last 78 five-minute bars; mid-session that spills into
-// the previous day, which is what made the old time axis look out of order. Keeping only
-// the latest session both fixes that AND lets the chart draw a fixed 9:30–16:00 axis with
-// the untraded remainder shaded.
+// The 1D feed (CNBC 5-minute bars, regular hours) can span more than one session (Twelve
+// Data's fallback feed always does mid-session). Keeping only the latest session lets the
+// chart draw a fixed 9:30–16:00 axis with the untraded remainder shaded.
 export const SESSION_OPEN = 9 * 60 + 30; // 9:30 -> 570
 export const SESSION_CLOSE = 16 * 60; // 16:00 -> 960
 
@@ -15,9 +14,10 @@ export interface SessionSlice {
   dEnd: number; // x-domain end (minutes)
   lastMin: number; // minute of the latest bar ("now")
   live: boolean; // market is open RIGHT NOW -> partial session, shade the remainder
+  date: string; // the kept session's "YYYY-MM-DD"
 }
 
-// Wall-clock "now" in US-Eastern (where TwelveData's US bars are stamped).
+// Wall-clock "now" in US-Eastern (where the US bars are stamped).
 export interface EasternNow {
   date: string; // "YYYY-MM-DD"
   min: number; // minute-of-day
@@ -28,7 +28,8 @@ export interface EasternNow {
 // Returns null when the stamps aren't intraday-parseable or there are too few bars,
 // so the caller can fall back to the plain index-based chart.
 export function sessionSlice(closes: number[], stamps: string[], now: EasternNow | null): SessionSlice | null {
-  if (closes.length !== stamps.length || closes.length < 2) return null;
+  // One bar is enough: at 9:30-9:35 today's session has exactly one (a dot, then the line grows).
+  if (closes.length !== stamps.length || closes.length < 1) return null;
   const parsed = stamps.map((s) => {
     const [d, t] = (s || "").split(" ");
     if (!t) return null;
@@ -41,7 +42,7 @@ export function sessionSlice(closes: number[], stamps: string[], now: EasternNow
   const lastDate = p[p.length - 1].d;
   const keep: number[] = [];
   for (let i = 0; i < p.length; i++) if (p[i].d === lastDate) keep.push(i);
-  if (keep.length < 2) return null;
+  if (!keep.length) return null;
   const mins = keep.map((i) => p[i].min);
   const lastMin = mins[mins.length - 1];
   // Live ONLY if the latest bar is today's session AND the Eastern clock is inside
@@ -55,6 +56,7 @@ export function sessionSlice(closes: number[], stamps: string[], now: EasternNow
     dEnd: Math.max(SESSION_CLOSE, lastMin),
     lastMin,
     live,
+    date: lastDate,
   };
 }
 

@@ -231,7 +231,7 @@ const FM: FhMetric = { hi52: 130, lo52: 70, pe: 25, fwdPe: 22, epsTtm: 4, beta: 
 const FP: FhProfile = { name: "Finnhub Co", sector: "Technology", mktCap: 2000 };
 
 const mm1 = mergeModal(Q(), FQ, FM, FP);
-eq("modal in-session: quote all CNBC", mm1.quote, { c: 100, dp: 1.01, pc: 99, o: 99.5, h: 101, l: 99 });
+eq("modal in-session: quote all CNBC", mm1.quote, { c: 100, dp: 1.01, pc: 99, o: 99.5, h: 101, l: 99, v: null });
 eq("modal: metric CNBC-first, avgVol3M Finnhub", mm1.metric, {
   hi52: 120, lo52: 80, pe: 20, fwdPe: 18, epsTtm: 5, beta: 1.1, avgVol3M: 3e6, avgVol10D: 2e6,
 });
@@ -239,19 +239,19 @@ eq("modal: profile name/mktCap CNBC, sector Finnhub", mm1.profile, { name: "Co",
 
 const off = Q({ o: null, h: null, l: null });
 const mm2 = mergeModal(off, FQ, FM, FP);
-eq("modal off-hours: headline (c/dp/pc) CNBC, O/H/L Finnhub", mm2.quote, { c: 100, dp: 1.01, pc: 99, o: 98, h: 103, l: 97 });
+eq("modal off-hours: headline (c/dp/pc) CNBC, O/H/L Finnhub", mm2.quote, { c: 100, dp: 1.01, pc: 99, o: 98, h: 103, l: 97, v: null });
 eq(
   "modal: CNBC prior close missing stays null — never Finnhub's pc under CNBC's price",
   mergeModal(Q({ pc: null }), FQ, FM, FP).quote.pc,
   null,
 );
 eq("modal: CNBC pct missing stays null under CNBC's price", mergeModal(Q({ pct: null }), FQ, FM, FP).quote.dp, null);
-eq("modal no CNBC: everything Finnhub", mergeModal(null, FQ, FM, FP).quote, { c: 101, dp: 2, pc: 99.02, o: 98, h: 103, l: 97 });
+eq("modal no CNBC: everything Finnhub", mergeModal(null, FQ, FM, FP).quote, { c: 101, dp: 2, pc: 99.02, o: 98, h: 103, l: 97, v: null });
 eq("modal no CNBC: metric = Finnhub's", mergeModal(null, FQ, FM, FP).metric, FM);
 eq("modal no CNBC: profile = Finnhub's", mergeModal(null, FQ, FM, FP).profile, FP);
-eq("modal no CNBC, no Finnhub quote: nulls", mergeModal(null, null, FM, FP).quote, { c: null, dp: null, pc: null, o: null, h: null, l: null });
+eq("modal no CNBC, no Finnhub quote: nulls", mergeModal(null, null, FM, FP).quote, { c: null, dp: null, pc: null, o: null, h: null, l: null, v: null });
 eq("modal nothing at all: all nulls", mergeModal(null, null, null, null), {
-  quote: { c: null, dp: null, pc: null, o: null, h: null, l: null },
+  quote: { c: null, dp: null, pc: null, o: null, h: null, l: null, v: null },
   metric: { hi52: null, lo52: null, pe: null, fwdPe: null, epsTtm: null, beta: null, avgVol3M: null, avgVol10D: null },
   profile: { name: null, sector: null, mktCap: null },
 });
@@ -425,11 +425,16 @@ eq("quoteStale: inside the grace / off-hours / today's -> not stale",
   [quoteStale(yq, clk(OPEN + 5)), quoteStale(yq, clk(17 * 60)), quoteStale(Q(), clk(720)), quoteStale(null, clk(720))], [false, false, false, false]);
 const fqLive: FhQuote = { c: 101, dp: 2, o: 99, h: 102, l: 98, pc: 99 };
 const ms1 = mergeModal(yq, fqLive, null, null, true);
-eq("mergeModal stale: price/%/prior close/O-H-L from Finnhub", ms1.quote, { c: 101, dp: 2, pc: 99, o: 99, h: 102, l: 98 });
+eq("mergeModal stale: price/%/prior close/O-H-L from Finnhub", ms1.quote, { c: 101, dp: 2, pc: 99, o: 99, h: 102, l: 98, v: null });
 eq("mergeModal stale: CNBC fundamentals still stand", [ms1.metric.pe, ms1.profile.name], [22, "Yday"]);
 eq("mergeModal stale, Finnhub down: nothing live rather than yesterday's as current",
-  mergeModal(yq, null, null, null, true).quote, { c: null, dp: null, pc: null, o: null, h: null, l: null });
+  mergeModal(yq, null, null, null, true).quote, { c: null, dp: null, pc: null, o: null, h: null, l: null, v: null });
 eq("mergeModal not stale: CNBC head as before", mergeModal(yq, fqLive, null, null).quote.c, 90);
+
+// ---- day volume (CNBC quote) --------------------------------------------------------------------
+eq("modal volume: CNBC's session volume", mergeModal(Q({ vol: 2.5e6 }), null, null, null).quote.v, 2.5e6);
+eq("modal volume: stale CNBC quote -> null (never yesterday's as today's)", mergeModal(Q({ vol: 2.5e6, day: "2026-10-21" }), FQ, null, null, true).quote.v, null);
+eq("modal volume: no CNBC -> null (Finnhub's /quote has none)", mergeModal(null, FQ, null, null).quote.v, null);
 
 if (failed) throw new Error(`${failed} quotes check(s) failed`);
 console.log("\nall quotes checks passed");

@@ -1,8 +1,10 @@
 // Historic trailing P/E for the stock modal's "P/E history" overlay.
 //
-// Inputs, all already fetched elsewhere: the 5Y weekly closes the price chart uses (Twelve
-// Data), and two Finnhub series from the same /stock/metric?metric=all response the modal
-// already makes: `series.quarterly.eps` and `series.quarterly.peTTM`.
+// Inputs, all already fetched elsewhere: 5Y weekly closes, split-adjusted only — CNBC's, via the
+// Worker's /bars?range=PE live or ci/cache/pe in CI (worker/bars.js splitOnlyCloses; Twelve
+// Data's 5Y series only as the fallback) — and two Finnhub series from the same
+// /stock/metric?metric=all response the modal already makes: `series.quarterly.eps` and
+// `series.quarterly.peTTM`.
 //
 // Per quarter we settle ONE trailing-12-month EPS in the price's currency, then every week's
 // P/E is that week's close / the newest quarter's TTM that had been REPORTED by then:

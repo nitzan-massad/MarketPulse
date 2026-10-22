@@ -14,6 +14,7 @@ export interface CnbcQuote {
   o: number | null;
   h: number | null;
   l: number | null;
+  vol?: number | null; // the session's total volume (optional: a Worker deployed before it had none)
   ext: { type: "pre" | "post"; px: number; chg: number | null; pct: number | null; t: number | null } | null;
   name: string | null;
   mc: number | null; // $ millions
@@ -212,6 +213,7 @@ export function extNow(ext: CnbcQuote["ext"], c: EtClock): CnbcQuote["ext"] {
 // ---- stock modal: CNBC fields first, Finnhub per field ---------------------------
 
 export interface FhQuote {
+  v?: number | null; // day volume — CNBC's only (Finnhub's /quote has none)
   c: number | null;
   dp: number | null;
   o: number | null;
@@ -260,7 +262,8 @@ export function mergeModal(
   const lq = stale ? null : q;
   const head = lq ? { c: lq.px, dp: lq.pct, pc: lq.pc } : { c: fq?.c ?? null, dp: fq?.dp ?? null, pc: fq?.pc ?? null };
   return {
-    quote: { ...head, o: pick(lq?.o, fq?.o), h: pick(lq?.h, fq?.h), l: pick(lq?.l, fq?.l) },
+    // Volume rides the live half on purpose: a stale quote gives "—", not yesterday's number.
+    quote: { ...head, o: pick(lq?.o, fq?.o), h: pick(lq?.h, fq?.h), l: pick(lq?.l, fq?.l), v: lq?.vol ?? null },
     metric: {
       hi52: pick(q?.hi52, fm?.hi52),
       lo52: pick(q?.lo52, fm?.lo52),

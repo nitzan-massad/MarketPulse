@@ -8,6 +8,7 @@ import { Chip, ConsPill, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
 import { LivePx } from "../LivePx";
+import { warmChart } from "../warmChart";
 
 function symMark(v?: Mark): string {
   return v === "up" ? "mk-up" : v === "down" ? "mk-down" : "";
@@ -157,6 +158,7 @@ export default function NewArrivals({ onOpen, onOpenReview, marks, onMark }: New
                   <tr
                     key={s.t}
                     className="row-open"
+                    {...warmChart(s.t)}
                     onClick={() => (review ? onOpenReview(s, listStocks, reviewKey(review)) : onOpen(s, listStocks))}
                   >
                     <td className="na-added">

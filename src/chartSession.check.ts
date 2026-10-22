@@ -27,6 +27,7 @@ eq("domain starts at open", s.dStart, 570);
 eq("domain end fixed to 16:00 while partial", s.dEnd, 960);
 eq("last bar 9:45", s.lastMin, 585);
 eq("mid-session with market open is live", s.live, true);
+eq("slice carries its session date", s.date, "2026-07-25");
 
 // completed session (now after close) -> not live
 const afterHours = { date: "2026-07-25", min: 18 * 60 };
@@ -45,7 +46,12 @@ eq("no now -> not live", sessionSlice([1, 2], ["2026-07-25 09:30", "2026-07-25 0
 
 // guards
 eq("daily stamps -> null (fall back)", sessionSlice([1, 2], ["2026-07-24", "2026-07-25"], NOON), null);
-eq("too few bars -> null", sessionSlice([1], ["2026-07-25 09:30"], NOON), null);
+eq("no bars -> null", sessionSlice([], [], NOON), null);
+eq("mismatched arrays -> null", sessionSlice([1, 2], ["2026-07-25 09:30"], NOON), null);
+// 9:30-9:35: today has ONE regular bar — it must be today's live session, not a fallback to
+// the multi-day index chart.
+const one = sessionSlice([9, 5], ["2026-07-24 15:55", "2026-07-25 09:30"], { date: "2026-07-25", min: 571 })!;
+eq("single opening bar today is live, alone", [one.closes, one.live, one.lastMin, one.date], [[5], true, 570, "2026-07-25"]);
 eq("fmtMin", fmtMin(585), "9:45");
 eq("fmtMin pads", fmtMin(600), "10:00");
 

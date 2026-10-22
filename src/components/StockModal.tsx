@@ -19,6 +19,7 @@ import PeHistory from "./PeHistory";
 import { parseEps, type EpsPoint } from "../peHistory";
 import { earningsParts, fromEntry, todayYmd, type Earnings } from "../earnings";
 import { etClock, extNow, mergeModal, needsFhQuote, normSym, quoteStale, type CnbcQuote } from "../quotes";
+import { readBars, sessionBase, withLive, type BarKind } from "../chartBars";
 import { WORKER_URL } from "../workerUrl";
 
 // Keys come from build-time env (same pattern App uses for Finnhub). Never hardcoded.
@@ -38,18 +39,20 @@ type RangeId = "1D" | "1W" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "2Y" | "5Y" | "
 const RANGES: RangeId[] = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "2Y", "5Y", "ALL"];
 const DEFAULT_RANGE: RangeId = "1D";
 
-// range -> Twelve Data interval + outputsize
-const RANGE_CFG: Record<RangeId, { interval: string; outputsize: number }> = {
-  "1D": { interval: "5min", outputsize: 78 },
-  "1W": { interval: "30min", outputsize: 66 },
-  "1M": { interval: "1day", outputsize: 22 },
-  "3M": { interval: "1day", outputsize: 66 },
-  "6M": { interval: "1day", outputsize: 130 },
-  YTD: { interval: "1day", outputsize: 200 },
-  "1Y": { interval: "1day", outputsize: 252 },
-  "2Y": { interval: "1day", outputsize: 520 },
-  "5Y": { interval: "1week", outputsize: 260 },
-  ALL: { interval: "1month", outputsize: 600 },
+// range -> bar kind + how long a fetched series is reused (the window itself lives in the
+// Worker, worker/bars.js); `td` = the Twelve Data fallback's interval + outputsize.
+const MIN = 60_000;
+const RANGE_CFG: Record<RangeId, { kind: BarKind; ttl: number; td: { interval: string; outputsize: number } }> = {
+  "1D": { kind: "intraday", ttl: MIN, td: { interval: "5min", outputsize: 78 } },
+  "1W": { kind: "intraday", ttl: 5 * MIN, td: { interval: "30min", outputsize: 66 } },
+  "1M": { kind: "day", ttl: 60 * MIN, td: { interval: "1day", outputsize: 22 } },
+  "3M": { kind: "day", ttl: 60 * MIN, td: { interval: "1day", outputsize: 66 } },
+  "6M": { kind: "day", ttl: 60 * MIN, td: { interval: "1day", outputsize: 130 } },
+  YTD: { kind: "day", ttl: 60 * MIN, td: { interval: "1day", outputsize: 200 } },
+  "1Y": { kind: "day", ttl: 60 * MIN, td: { interval: "1day", outputsize: 252 } },
+  "2Y": { kind: "day", ttl: 60 * MIN, td: { interval: "1day", outputsize: 520 } },
+  "5Y": { kind: "week", ttl: 60 * MIN, td: { interval: "1week", outputsize: 260 } },
+  ALL: { kind: "month", ttl: 360 * MIN, td: { interval: "1month", outputsize: 600 } },
 };
 
 interface Quote {
@@ -59,6 +62,7 @@ interface Quote {
   h: number | null; // high
   l: number | null; // low
   pc: number | null; // prev close
+  v?: number | null; // the session's volume (CNBC only)
 }
 
 interface Metric {
@@ -82,22 +86,9 @@ interface Profile {
   mktCap: number | null; // $ millions (same unit as the DB `mc`)
 }
 
-interface Bar {
-  t: string; // datetime
-  o: number;
-  h: number;
-  l: number;
-  c: number;
-  v: number;
-}
-
 interface Series {
   closes: number[];
   stamps: string[]; // bar datetimes, parallel to closes (oldest-first)
-  hi: number;
-  lo: number;
-  last: number;
-  volume: number | null; // most-recent bar volume ("today")
 }
 
 // module-level caches so reopening / re-selecting ranges never refetches
@@ -121,14 +112,19 @@ const loadEarnings = (): Promise<EarningsIndex> =>
     .catch((): EarningsIndex => ({})));
 
 const NO_EPS: EpsPoint[] = []; // stable empty list, so PeHistory's effect doesn't refire every render
-type QuoteMetric = { quote: Quote; metric: Metric; profile: Profile; ext: CnbcQuote["ext"] };
+// live: CNBC's fresh quote day + price — today's point on the daily/weekly/monthly charts and
+// the 1D baseline's session. null when CNBC is missing or stale (Finnhub-priced).
+type QuoteMetric = { quote: Quote; metric: Metric; profile: Profile; ext: CnbcQuote["ext"]; live: { day: string; px: number } | null };
 // The live half (CNBC quote, and Finnhub's /quote when needed) expires after a minute so a
 // reopened modal shows a current price; Finnhub's metric + profile2 barely move and share the
 // one key's 60/min with every visitor, so they are kept for the page's life.
 const QUOTE_TTL_MS = 60_000;
 const liveQuoteCache = new Map<string, { cq: CnbcQuote | null; fqRaw: Record<string, unknown> | null; at: number }>();
 const fundamentalsCache = new Map<string, { mRes: Record<string, unknown> | null; pRes: Record<string, unknown> | null }>();
-const seriesCache = new Map<string, Series>();
+const seriesCache = new Map<string, { s: Series; at: number }>();
+const PE_TTL_MS = 6 * 60 * MIN;
+const warmed = new Set<string>(); // stocks whose other ranges were prefetched this page
+let warmGen = 0; // bumped by each new warm-up: an older one (a stock paged away from) stops
 
 // Bulls Say / Bears Say — a static per-ticker snapshot scraped from TipRanks'
 // free preview (the full list is paywalled). Lazy-fetched from public/bullbear/,
@@ -302,55 +298,60 @@ async function fetchQuoteMetric(ticker: string): Promise<QuoteMetric> {
     metric: { ...merged.metric, epsQ: parseEps(series?.quarterly?.eps), peQ: parseEps(series?.quarterly?.peTTM) },
     profile: merged.profile,
     ext: cq?.ext ?? null,
+    live: !stale && cq?.day ? { day: cq.day, px: cq.px } : null,
   };
   return result;
 }
 
-async function fetchSeries(ticker: string, range: RangeId): Promise<Series> {
-  const key = `${ticker}|${range}`;
-  const cached = seriesCache.get(key);
-  if (cached) return cached;
-  if (!TWELVEDATA_KEY) throw new Error("no twelvedata key");
+// Chart bars from the Worker's /bars (CNBC, no key, cached server-side); Twelve Data only as the
+// fallback when /bars fails (404/502/timeout). A 400 is our bug, so no fallback. "PE" = the
+// P/E overlay's 5 years of weekly closes, split-adjusted only (worker/bars.js splitOnlyCloses).
+// ponytail: the Twelve Data fallback stays while CNBC bars is new; delete fetchSeriesTD and
+// VITE_TWELVEDATA_KEY after a few weeks without fallback hits.
+// `warm`: a background prefetch — /bars only, never the metered Twelve Data fallback.
+async function fetchSeries(ticker: string, range: RangeId | "PE", warm = false): Promise<Series> {
+  const sym = normSym(ticker);
+  const key = `${sym ?? ticker}|${range}`;
+  const ttl = range === "PE" ? PE_TTL_MS : RANGE_CFG[range].ttl;
+  const hit = seriesCache.get(key);
+  if (hit && Date.now() - hit.at < ttl) return hit.s;
+  let s: Series | null = null;
+  let fallback = true;
+  if (sym) {
+    try {
+      const r = await fetch(`${WORKER_URL}/bars?symbol=${encodeURIComponent(sym)}&range=${range}`, {
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (r.ok) s = readBars(await r.json());
+      else if (r.status === 400) fallback = false;
+    } catch {
+      /* network / timeout -> fallback */
+    }
+  }
+  if (!s && fallback && !warm) s = await fetchSeriesTD(ticker, range === "PE" ? "5Y" : range);
+  if (!s) throw new Error("no series");
+  seriesCache.set(key, { s, at: Date.now() }); // failures are never cached: the next open retries
+  return s;
+}
 
-  const { interval, outputsize } = RANGE_CFG[range];
+async function fetchSeriesTD(ticker: string, range: RangeId): Promise<Series> {
+  if (!TWELVEDATA_KEY) throw new Error("no twelvedata key");
+  const { interval, outputsize } = RANGE_CFG[range].td;
   const res = await fetch(
     `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(ticker)}&interval=${interval}&outputsize=${outputsize}&apikey=${TWELVEDATA_KEY}`,
   ).then((r) => r.json());
-
   // TD returns newest-first values[]; error responses have status:"error"
   const raw: unknown[] = Array.isArray(res?.values) ? res.values : [];
   if (res?.status === "error" || raw.length === 0) throw new Error("no series");
-
-  const bars: Bar[] = raw
+  const clean = raw
     .map((v) => {
       const b = v as Record<string, string>;
-      return {
-        t: b.datetime,
-        o: parseFloat(b.open),
-        h: parseFloat(b.high),
-        l: parseFloat(b.low),
-        c: parseFloat(b.close),
-        v: parseFloat(b.volume),
-      };
+      return { t: b.datetime, c: parseFloat(b.close) };
     })
-    .reverse(); // -> oldest-first for plotting
-
-  const clean = bars.filter((b) => isFinite(b.c));
+    .reverse() // -> oldest-first for plotting
+    .filter((b) => isFinite(b.c));
   if (clean.length === 0) throw new Error("no closes");
-  const closes = clean.map((b) => b.c);
-  const stamps = clean.map((b) => b.t);
-
-  const last = clean[clean.length - 1];
-  const series: Series = {
-    closes,
-    stamps,
-    hi: Math.max(...closes),
-    lo: Math.min(...closes),
-    last: closes[closes.length - 1],
-    volume: isFinite(last.v) ? last.v : null,
-  };
-  seriesCache.set(key, series);
-  return series;
+  return { closes: clean.map((b) => b.c), stamps: clean.map((b) => b.t) };
 }
 
 // Apple-Stocks-style chart geometry, in a fixed 600x140 SVG box (scales uniformly
@@ -419,7 +420,7 @@ function buildChart(
   closes: number[],
   stamps: string[],
   intraday: boolean,
-  opts: { is1D?: boolean; prevClose?: number | null; now?: EasternNow | null } = {},
+  opts: { is1D?: boolean; quote?: { day: string | null; px: number | null; pc: number | null } | null; now?: EasternNow | null } = {},
 ): ChartModel {
   const plotR0 = CW - C_R;
   const plotB0 = CH - C_B;
@@ -428,7 +429,7 @@ function buildChart(
   const slice = intraday && opts.is1D ? sessionSlice(closes, stamps, opts.now ?? null) : null;
   if (slice) {
     const c = slice.closes;
-    const base = opts.prevClose && opts.prevClose > 0 ? opts.prevClose : c[0];
+    const base = sessionBase(slice.date, c[0], opts.quote ?? null);
     const lo = Math.min(...c, base), hi = Math.max(...c, base), span = hi - lo || 1;
     const x = (min: number) => 6 + ((min - slice.dStart) / (slice.dEnd - slice.dStart)) * (plotR0 - 6);
     const y = (v: number) => C_PAD + (1 - (v - lo) / span) * (plotB0 - C_PAD);
@@ -575,6 +576,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   const [metric, setMetric] = useState<Metric | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [ext, setExt] = useState<CnbcQuote["ext"]>(null); // pre/after-hours trade, display only
+  const [live, setLive] = useState<QuoteMetric["live"]>(null);
   const [nextReport, setNextReport] = useState<Earnings | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -674,6 +676,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
         setMetric(r.metric);
         setProfile(r.profile);
         setExt(r.ext);
+        setLive(r.live);
       })
       .catch(() => {
         /* keep snapshot values */
@@ -744,7 +747,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     onReviewsClosed?.();
   }, [fcOpen, onReviewsClosed]);
 
-  // fetch series for the active range (default 1M on open; others on tab click)
+  // fetch series for the active range (default 1D on open; others on tab click)
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
@@ -768,6 +771,34 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     };
   }, [stock.t, range, active]);
 
+  // Once the first chart AND the quote are in, warm this stock's other ranges in the background:
+  // /bars costs no quota (Twelve Data's did), and a range click then answers from cache instead of
+  // a cold CNBC call (~0.3-1 s). One request at a time, so the warm-up never queues ahead of the
+  // modal's own requests. Once per stock per page; a failure just leaves that range to the click.
+  const settled = active && !seriesLoading && !seriesError && !qmLoading;
+  const warmGenRef = useRef(0);
+  // Closing the modal or paging away stops this stock's warm-up (not on a range change: that
+  // effect re-runs then, and `warmed` would block a restart).
+  useEffect(() => {
+    if (!active) return;
+    return () => {
+      if (warmGenRef.current === warmGen) warmGen++;
+    };
+  }, [active]);
+  useEffect(() => {
+    if (!settled || warmed.has(stock.t)) return;
+    warmed.add(stock.t);
+    const rest = RANGES.filter((r) => r !== range);
+    const gen = ++warmGen;
+    warmGenRef.current = gen;
+    void (async () => {
+      for (const r of rest) {
+        if (gen !== warmGen) return; // the user moved on: only the current stock is worth warming
+        await fetchSeries(stock.t, r, true).catch(() => {});
+      }
+    })();
+  }, [settled, stock.t, range]);
+
   // The copy flow (clipboard, burst pick, failure state) is shared with every other
   // share button in the app — see useShare. `stock.t` is the reset key, so a burst still
   // running when the user pages ‹ › to another stock is cleared rather than finishing
@@ -777,13 +808,13 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   // `button` only when there are forecasts to show — an empty card must not be focusable
   // or announce itself as something you can activate.
   const CardTag = (forecasts ? "button" : "div") as "button";
-  // In the ranked set, CI owns this: a file, or "updating" while it is being prepared — never a
-  // live computation, which would spend the Twelve Data quota every visitor shares. Off-universe
+  // In the ranked set, CI owns this: a file (it carries SEC report dates), or "updating" while it
+  // is being prepared — never a live computation in every visitor's browser. Off-universe
   // tickers have no CI file, so they still compute live from Finnhub's series.
   const peLiveOk = (metric?.epsQ.length ?? 0) >= 4 || (metric?.peQ.length ?? 0) >= 4;
   const canPe = covered ? peState === "ok" || peState === "pending" : peLiveOk;
   const PeTag = (canPe ? "button" : "div") as "button";
-  const loadPeSeries = useCallback(() => fetchSeries(stock.t, "5Y"), [stock.t]);
+  const loadPeSeries = useCallback(() => fetchSeries(stock.t, "PE"), [stock.t]);
 
   // ---- derived display values (live extras layered over the snapshot row) ----
   const price = quote?.c ?? stock.px;
@@ -821,11 +852,13 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   const desc = stock.desc || liveDesc; // scraped DB desc wins; live FMP fallback
   // the % beside the price tracks the selected chart range: 1D uses the true
   // day move (vs prev close); other ranges use the series' first→last change
+  // CNBC's daily/weekly/monthly bars stop at yesterday: today's live price joins the series here.
+  const view = useMemo(() => (series ? withLive(series, live, RANGE_CFG[range].kind) : null), [series, live, range]);
   const rangePct =
     range === "1D"
       ? dayPct
-      : series && series.closes.length > 1 && series.closes[0]
-        ? ((series.last - series.closes[0]) / series.closes[0]) * 100
+      : view && view.closes.length > 1 && view.closes[0]
+        ? ((view.closes[view.closes.length - 1] - view.closes[0]) / view.closes[0]) * 100
         : null;
   const pctLoading = range === "1D" ? qmLoading && quote == null : seriesLoading;
   const dir = rangePct == null ? "flat" : rangePct > 0 ? "up" : rangePct < 0 ? "dn" : "flat";
@@ -866,18 +899,20 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
 
   const chart = useMemo(
     () =>
-      series && series.closes.length
-        ? buildChart(series.closes, series.stamps, RANGE_CFG[range].interval.includes("min"), {
+      view && view.closes.length
+        ? buildChart(view.closes, view.stamps, RANGE_CFG[range].kind === "intraday", {
             is1D: range === "1D",
-            prevClose: quote?.pc ?? null,
+            quote: quote ? { day: live?.day ?? null, px: quote.c, pc: quote.pc } : null,
             now: easternNow(),
           })
         : null,
-    [series, range, quote],
+    [view, range, quote, live],
   );
 
   const chartAvailable = !seriesLoading && !seriesError && chart != null;
-  const todayVol = series?.volume ?? null;
+  // The session's total from the CNBC quote — never a bar's volume (5-minute bars don't sum to
+  // the day, and the 16:00 closing-auction bar alone can be 3x it).
+  const todayVol = quote?.v ?? null;
 
   // pointer x -> nearest plotted point. The SVG is a fixed 600-wide viewBox scaled to the
   // box width, so convert the client x into viewBox units before matching.
@@ -1315,7 +1350,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
               </div>
               <div className="row">
                 <div className="k">Volume</div>
-                <div className={`v ${seriesLoading ? "skel" : ""}`}>{fmtVol(todayVol)}</div>
+                <div className={`v ${qmLoading && !quote ? "skel" : ""}`}>{fmtVol(todayVol)}</div>
               </div>
               {/* row 1 ends on Avg Vol 3M so it sits beside Volume, the number it's read against */}
               <div className="row">

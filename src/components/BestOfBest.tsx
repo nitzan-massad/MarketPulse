@@ -6,6 +6,7 @@ import type { Mark, MarkEntry } from "../watchlist";
 import { ConsPill } from "./StockTable";
 import ThumbMark from "./ThumbMark";
 import { LivePx } from "../LivePx";
+import { warmChart } from "../warmChart";
 
 
 const isStrongBuy = (r: Stock): boolean => (r.con || "").toLowerCase() === "strongbuy";
@@ -63,6 +64,7 @@ export function Card({
       role="button"
       tabIndex={0}
       className={`bob-card ${crown ? "crown" : ""}`}
+      {...warmChart(s.t)}
       onClick={() => onOpen(s)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {

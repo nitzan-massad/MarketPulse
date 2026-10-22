@@ -7,6 +7,7 @@ import { Chip, ConsPill, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
 import { LivePx } from "../LivePx";
+import { warmChart } from "../warmChart";
 
 
 interface WatchlistProps {
@@ -197,6 +198,7 @@ export default function Watchlist({
                     (drag && drag.from !== i && drag.to === i ? (drag.to < drag.from ? " wl-dropabove" : " wl-dropbelow") : "")
                   }
                   style={drag?.from === i ? { transform: `translateY(${drag.dy}px)` } : undefined}
+                  {...warmChart(s.t)}
                   onClick={() => onOpen(s, rows)}
                 >
                   <td className="wl-gripcell">

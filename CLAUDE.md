@@ -57,7 +57,7 @@ live quotes and per-user state. No backend of our own.
 3. **App (`src/`)** — `App.tsx` holds all filter/sort/nav state and feeds four sections
    (`StockTable`, `BestOfBest`, `NewArrivals`, `Watchlist`) plus `StockModal`. Pure logic sits in
    dependency-free modules with a paired `*.check.ts` (`alertEngine`, `chartSession`,
-   `consensusNull`, `fmtPx`, `metricChange`, `quotes`, `reviewAlerts`, `share`, `watchlistOrder`, and the
+   `chartBars`, `consensusNull`, `fmtPx`, `metricChange`, `quotes`, `reviewAlerts`, `share`, `watchlistOrder`, and the
    pure exports of `useLiveQuotes`) — keep it that way, that pairing is what makes it testable
    without React or Firebase. `consensus.ts` is covered from both sides: `consensusNull.check.ts`
    plus `ci/test-consensus-direction.mjs`.
@@ -70,9 +70,12 @@ seeds — carries only symbols CNBC lacks, or everything after 2 failed CNBC pol
 holds the pure rules (session clock, staleness, source switch, one-source-per-symbol merge).
 Traps: CNBC's `previous_day_closing` equals `last` off-hours (prior close = `last - change`),
 and open/high/low read `0.00` off-hours. `StockModal` takes quote + fundamentals from CNBC with
-Finnhub per missing field (P/E history, sector, 3-month volume stay Finnhub), chart bars from
-Twelve Data, and FMP only for descriptions of off-universe tickers. The Worker deploys by hand:
-`cd worker && npx wrangler deploy`.
+Finnhub per missing field (sector, 3-month volume, quarterly EPS stay Finnhub), chart bars from
+the Worker's `/bars` (`worker/bars.js`: CNBC, server-owned windows, regular hours only, weekly
+stamps shifted Sunday→Monday; Twelve Data only as a fallback), and FMP only for descriptions of
+off-universe tickers. Daily+ bars stop at yesterday — `chartBars.ts` `withLive` adds today from
+the quote. P/E history needs **split-only** closes (`splitOnlyCloses`: CNBC's `adjusted` also
+removes spin-offs). The Worker deploys by hand: `cd worker && npx wrangler deploy`.
 Watchlist, thumb marks, saved filters, notifications and review-seen sets persist to Firebase
 RTDB under `<path>/<uid>` — every path is enumerated in `database.rules.json`, so **adding a new
 RTDB path means adding a rule** (deployed by its own approval-gated workflow). The Firebase web

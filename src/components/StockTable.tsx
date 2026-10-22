@@ -4,6 +4,7 @@ import type { Stock } from "../types";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
 import { LivePx } from "../LivePx";
+import { warmChart } from "../warmChart";
 
 // default column widths (px) — table-layout:fixed makes these authoritative so
 // resizing can both grow AND shrink a column. User overrides live in `widths`.
@@ -141,6 +142,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, tic
                   ref={observe?.(s.t)}
                   className={`row-open ${isHl ? "hl" : ""}`}
                   style={{ animationDelay: `${Math.min(i, 40) * 14}ms` }}
+                  {...warmChart(s.t)}
                   onClick={() => onOpen(s)}
                 >
                   <td className="rank" data-label="Rank">{i + 1}</td>
