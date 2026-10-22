@@ -203,5 +203,10 @@
     "name": "AeroVironment",
     "descriptor": "Robotic System Developer",
     "scene": "assembling drone components on a workbench with specialized tools nearby"
+  },
+  "TMO": {
+    "name": "Thermo Fisher Scientific",
+    "descriptor": "Laboratory Equipment Maker",
+    "scene": "carefully calibrating a mass spectrometer in a bustling laboratory setting"
   }
 }
