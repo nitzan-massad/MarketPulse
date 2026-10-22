@@ -2,7 +2,7 @@ name: Track requested stocks
 
 # The lite run behind "Track this stock". The Cloudflare Worker (worker/) dispatches this the
 # moment a user presses the button; it handles EVERY pending request, so a dispatch that gets
-# collapsed into another is lost harmlessly. Nothing pending => it stops after ~30s.
+# collapsed into another is lost harmlessly. Nothing pending => it stops after ~15s.
 #
 # It never commits or deploys: the fetched row + forecast/bullbear/pe payloads go to RTDB
 # `trackedRows/<KEY>`, which the app merges over its bundle at load, so the stock is live within
@@ -25,15 +25,17 @@ concurrency:
 jobs:
   track:
     runs-on: ubuntu-latest
-    services:
-      flaresolverr:
-        image: ghcr.io/flaresolverr/flaresolverr:latest
-        ports:
-          - 8191:8191
+    # a hung FlareSolverr would otherwise hold the runner for GitHub's 6h default
+    timeout-minutes: 10
     env:
-      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       FLARESOLVERR_URL: http://localhost:8191/v1
     steps:
+      # Not a `services:` container: those start before the first step, so every run (even an
+      # empty one) waited ~13-25s for the pull. Backgrounded, the pull overlaps checkout, setup-node
+      # and pin; `fetch` waits for it only when there is a ticker (waitForFlare).
+      - name: Start FlareSolverr (background)
+        run: (docker run -d --name flaresolverr -p 8191:8191 ghcr.io/flaresolverr/flaresolverr:latest > /dev/null 2>&1 &)
+
       - uses: actions/checkout@v4
 
       # Node 24 — see site.yml. ci/track-requests.mjs needs no npm deps, so pin+fetch run
@@ -47,6 +49,7 @@ jobs:
         id: fetch
         env:
           LITE: "1"
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           node ci/track-requests.mjs pin
           node ci/track-requests.mjs fetch
@@ -87,17 +90,21 @@ jobs:
       # THE DATA GATE for what this run uploads: the scrapers above are continue-on-error, so
       # this vets the files they left on disk. Deliberately NOT continue-on-error — red here
       # means nothing is uploaded and nothing is marked.
-      # SKIP_CHECKS: post-compose rasterises post images (8s) and a tracked stock never touches them.
+      # Only the checks that read what this run writes: stocks.json (ai-scale), the payload files +
+      # tracked.json (payload-files), public/pe (pe-files), and fmtPx — it imports lib.ts, so the
+      # --strict tsc pass type-checks seen.json. Everything else is a code/posts test this run can't
+      # affect; site.yml still runs the full suite.
       - name: Data gate
         if: steps.fetch.outputs.tickers != ''
         env:
-          SKIP_CHECKS: post-compose
+          SKIP_CHECKS: '^(?!ci/test-(ai-scale|payload-files|pe-files)\.mjs$|src/fmtPx\.check\.ts$)'
         run: npm test
 
       - name: Upload to RTDB trackedRows
         if: steps.fetch.outputs.tickers != ''
         env:
           TICKERS: ${{ steps.fetch.outputs.tickers }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node ci/track-requests.mjs upload
 
       # After the upload: tracked=true is what fires the user's "now tracked" notification,
@@ -105,4 +112,6 @@ jobs:
       - name: Mark requests tracked
         if: steps.fetch.outputs.tickers != ''
         continue-on-error: true
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node ci/track-requests.mjs mark

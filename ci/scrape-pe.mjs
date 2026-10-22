@@ -137,8 +137,9 @@ for (const t of queue) {
 }
 
 // ---- 2. recompute EVERY ticker from its cache, with this week's close from our snapshot ------
+// (ONLY: just those — the lite run uploads nothing else, so the rest would be thrown away)
 let wrote = 0;
-for (const t of tickers) {
+for (const t of ONLY ?? tickers) {
   const path = `${CACHE}/${t}.json`;
   if (!existsSync(path)) continue;
   const c = readJson(path, {});

@@ -32,7 +32,8 @@ const ASOF = `${OUT}/_asOf.json`; // { ticker: ISO } — build-reviews-recent sk
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const RATING = { 1: "Buy", 2: "Hold", 3: "Sell" };
 
-async function flareGet(url, tries = 6) {
+// the lite run (ONLY) has a user waiting: 3 tries, not 6 x (up to 60s + 6s) per URL
+async function flareGet(url, tries = ONLY ? 3 : 6) {
   let lastErr;
   for (let i = 1; i <= tries; i++) {
     try {

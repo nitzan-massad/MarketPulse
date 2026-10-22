@@ -199,6 +199,16 @@ async function flareJson(url, tries = 6) {
   throw lastErr;
 }
 
+/** The lite run starts FlareSolverr in the background (track-requests.yml) so an empty run never
+ *  waits for it: block here, only once there is something to fetch. Its root answers 200 when ready. */
+async function waitForFlare(ms = 180_000) {
+  const root = new URL(FS_URL).origin;
+  for (const end = Date.now() + ms; Date.now() < end; await new Promise((r) => setTimeout(r, 2000))) {
+    try { if ((await fetch(root)).ok) return; } catch { /* not up yet */ }
+  }
+  console.log(`  FlareSolverr not up after ${ms / 1000}s — fetching anyway, flareJson retries`);
+}
+
 async function accessToken(sa) {
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
   const iat = Math.floor(Date.now() / 1000);
@@ -337,12 +347,14 @@ async function main(mode) {
     const seen = JSON.parse(readFileSync(SEEN, "utf8"));
     const now = new Date().toISOString();
     const got = [];
-    for (const t of planFetch(pending, Object.keys(tracked), stocks.map((r) => r.t))) {
+    const want = planFetch(pending, Object.keys(tracked), stocks.map((r) => r.t));
+    if (want.length) await waitForFlare();
+    for (const t of want) {
       try {
         const row = rowFromGetData(await flareJson(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`));
         if (!row.t) throw new Error("no ticker in getData");
         try {
-          fillNulls(row, forecastFields(await flareJson(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`), t));
+          fillNulls(row, forecastFields(await flareJson(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`, 2), t)); // optional: don't burn 36s+ retrying it
         } catch (e) { console.log(`  ${t}: forecast payload skip (${e.message}) — the 5h run's enrich fills it`); }
         stocks.push(row);
         seen[t] = seenFor(row, now);
