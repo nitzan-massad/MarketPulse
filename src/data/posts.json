@@ -1,5 +1,35 @@
 [
   {
+    "id": "DELL-2026-10-22T02:46:30.232Z",
+    "ts": "2026-10-22T02:46:30.232Z",
+    "kind": "contrarian",
+    "ticker": "DELL",
+    "name": "Dell Technologies",
+    "sector": "Technology",
+    "text": "1 vs 73: Smart and AI scores sharply diverge.",
+    "score": 54,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "DELL appeared in a recent post"
+    ],
+    "facts": {
+      "smartScore": 1,
+      "aiScore": 73,
+      "aiRating": "Outperform",
+      "consensus": "Buy",
+      "upside": 30.2,
+      "price": 461.56,
+      "analysts": 21,
+      "bullish": "ai"
+    },
+    "descriptor": "Computer Hardware Manufacturer",
+    "image": "DELL-2026-10-22T02-46-30-232Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "CC BY-SA 4.0",
+    "imageAttribution": "Dell Technologies — Wikimedia Commons (CC BY-SA 4.0)"
+  },
+  {
     "id": "QBTS-2026-10-21T23:16:30.043Z",
     "ts": "2026-10-21T23:16:30.043Z",
     "kind": "surprise",
