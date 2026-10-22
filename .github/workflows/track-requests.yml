@@ -29,6 +29,9 @@ jobs:
     timeout-minutes: 10
     env:
       FLARESOLVERR_URL: http://localhost:8191/v1
+      # Node gives IPv4 only 250ms before falling back to IPv6, which the runner lacks — with the
+      # FlareSolverr pull running alongside, the RTDB connect missed that window (run 39747701923)
+      NODE_OPTIONS: --network-family-autoselection-attempt-timeout=2000
     steps:
       # Not a `services:` container: those start before the first step, so every run (even an
       # empty one) waited ~13-25s for the pull. Backgrounded, the pull overlaps checkout, setup-node
