@@ -59,12 +59,23 @@ export function useFb(): Fb | null {
 export const DEV_AUTH =
   typeof location !== "undefined" && /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 // "Track this stock" rows the lite run published but no deploy has bundled yet (stocks.ts merges
-// them). One get on this same db, so it rides the websocket auth already opens; publicly readable,
-// so no sign-in needed. Fired as soon as Firebase loads, while stocks.json renders. Skipped on
-// localhost (DEV_AUTH: no Firebase traffic in dev). Any failure → null → stocks.json only.
-export const trackedRowsRaw: Promise<unknown> = DEV_AUTH
-  ? Promise.resolve(null)
-  : fbP.then((f) => (f ? f.get(f.ref(f.db, "trackedRows")).then((s) => s.val(), () => null) : null));
+// them). A LIVE listener on this same db, so it rides the websocket auth already opens: a stock the
+// lite run publishes while the page is open (or its window is) fills in without a reload. Publicly
+// readable, so no sign-in needed. `cb(raw)` fires once Firebase loads and on every change; a failure
+// (or no Firebase) fires cb(null) once → stocks.json only.
+// Localhost (DEV_AUTH: no Firebase traffic in dev): cb(null) now, then whatever
+// `window.__mpTrackedRows(raw)` is handed in the console — the way to try the flow locally.
+export function onTrackedRows(cb: (raw: unknown) => void): void {
+  if (DEV_AUTH) {
+    cb(null);
+    (window as unknown as { __mpTrackedRows: (raw: unknown) => void }).__mpTrackedRows = cb;
+    return;
+  }
+  void fbP.then((f) => {
+    if (!f) return cb(null);
+    f.onValue(f.ref(f.db, "trackedRows"), (s) => cb(s.val()), () => cb(null));
+  });
+}
 
 const DEV_USER = {
   uid: "dev-local", email: "dev@localhost", displayName: "Dev User", photoURL: null,

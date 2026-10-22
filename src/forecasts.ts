@@ -18,14 +18,11 @@ const fcCache = new Map<string, Forecast[] | null>();
 // fresh=true bypasses the in-memory cache and revalidates with the server (so the review
 // detector sees CI updates); the modal uses the cached path for instant re-opens.
 export async function fetchForecasts(ticker: string, fresh = false): Promise<Forecast[] | null> {
+  // tracked first, ahead of the cache: a ticker opened before CI published it cached a 404's null
+  const tracked = await trackedPayload(ticker, "forecast");
+  if (tracked !== undefined) return Array.isArray(tracked) && tracked.length ? (tracked as Forecast[]) : null;
   if (!fresh && fcCache.has(ticker)) return fcCache.get(ticker)!;
   let val: Forecast[] | null = null;
-  const tracked = await trackedPayload(ticker, "forecast");
-  if (tracked !== undefined) {
-    val = Array.isArray(tracked) && tracked.length ? (tracked as Forecast[]) : null;
-    fcCache.set(ticker, val);
-    return val;
-  }
   try {
     const r = await fetch(
       `${import.meta.env.BASE_URL}forecasts/${encodeURIComponent(ticker)}.json`,

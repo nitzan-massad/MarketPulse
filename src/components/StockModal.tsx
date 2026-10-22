@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 import { easternNow, type EasternNow, fmtMin, marketOpen, nearestIndex, sessionSlice } from "../chartSession";
 import { fetchForecasts, type Forecast } from "../forecasts";
-import { trackedPayload } from "../stocks";
+import { trackedPayload, useTrackedRev } from "../stocks";
 import sectorPe from "../data/sectors.json";
 import { consClass, consLabel, DATE_LOCALE, fmtMc, pxDp } from "../lib";
 import { reviewKey } from "../reviewAlerts";
@@ -136,11 +136,12 @@ interface BullBear {
 }
 const bbCache = new Map<string, BullBear | null>();
 async function fetchBullBear(ticker: string): Promise<BullBear | null> {
-  if (bbCache.has(ticker)) return bbCache.get(ticker)!;
+  // tracked-only ticker (not bundled yet): its payload came with RTDB trackedRows. Checked ahead of
+  // the cache — a ticker opened before CI published it cached a 404's null.
+  const tracked = (await trackedPayload(ticker, "bullbear")) as Partial<BullBear> | null | undefined;
+  if (tracked === undefined && bbCache.has(ticker)) return bbCache.get(ticker)!;
   let val: BullBear | null = null;
   try {
-    // tracked-only ticker (not bundled yet): its payload came with RTDB trackedRows
-    const tracked = (await trackedPayload(ticker, "bullbear")) as Partial<BullBear> | null | undefined;
     let j = tracked;
     if (j === undefined) {
       const r = await fetch(`${import.meta.env.BASE_URL}bullbear/${encodeURIComponent(ticker)}.json`);
@@ -151,7 +152,7 @@ async function fetchBullBear(ticker: string): Promise<BullBear | null> {
   } catch {
     /* missing / offline -> not available */
   }
-  bbCache.set(ticker, val);
+  if (tracked === undefined) bbCache.set(ticker, val);
   return val;
 }
 
@@ -524,6 +525,8 @@ interface StockCardProps {
 
 function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, user, onRequestTrack, confirming, onConfirmDone, mark, onMark, onPrev, onNext, highlightReviews, openView, onViewClosed, onReviewsClosed, onReviewsUnavailable, active }: StockCardProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
+  // this ticker's "Track this stock" entry: changes when CI publishes it, re-running the loads below
+  const trackedRev = useTrackedRev(stock.t);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -561,7 +564,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     return () => {
       live = false;
     };
-  }, [stock.t]);
+  }, [stock.t, trackedRev]);
   const closePe = useCallback(() => {
     setPeOpen(false);
     onViewClosed?.();
@@ -667,7 +670,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     return () => {
       cancelled = true;
     };
-  }, [stock.t, stock.desc, active]);
+  }, [stock.t, stock.desc, active, trackedRev]);
   // a shared `#TSM/pe` link opens the chart straight over this card. Declared AFTER the
   // reset above, which closes every overlay on a ticker change and would otherwise win.
   useEffect(() => {

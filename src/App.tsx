@@ -110,6 +110,16 @@ export default function App() {
     track("open_stock", { ticker, section: nav, ...extra });
     noteView(ticker);
   }
+  // An off-universe ticker opened as a stub (handleOpenTicker) becomes its real row the moment
+  // "Track this stock" publishes it, so the open window fills in without a reload.
+  useEffect(() => {
+    if (!openStock || openStock.n !== "") return; // stubs only: stubStock's n is ""
+    const real = STOCKS.find((s) => s.t === openStock.t);
+    if (!real) return;
+    setOpenStock(real);
+    setOpenList((l) => l.map((s) => (s.t === real.t ? real : s)));
+  }, [STOCKS, openStock]);
+
   function handleOpen(s: Stock, list: Stock[] = []) {
     logOpen(s.t);
     setOpenStock(s);

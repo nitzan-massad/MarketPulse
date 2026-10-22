@@ -2,13 +2,15 @@
 // RTDB `trackedRows` but not bundled yet (see trackedRows.ts). stocks.json is NOT in the JS bundle:
 // `?url` emits it as a hashed asset (cacheable across deploys; index.html preloads it, see
 // vite.config.ts), fetched here at import. The list is [] until it lands (App shows a loading
-// state); tracked rows pop in when the one-time read lands. Per-ticker payloads for those rows
-// come from the same read (`trackedPayload`) instead of a public/ fetch that would 404.
+// state); tracked rows pop in when the live trackedRows listener fires, and again whenever the lite
+// run publishes one. Per-ticker payloads for those rows come from the same listener
+// (`trackedPayload`) instead of a public/ fetch that would 404; `useTrackedRev` re-runs a
+// consumer's load when its ticker's entry changes.
 import { useSyncExternalStore } from "react";
 import stocksUrl from "./data/stocks.json?url";
 import { mergeTracked, parseTracked, type TrackedKind, type TrackedStock } from "./trackedRows";
 import type { Stock } from "./types";
-import { trackedRowsRaw } from "./watchlist";
+import { onTrackedRows } from "./watchlist";
 
 let rows: Stock[] = [];
 const subs = new Set<() => void>();
@@ -30,11 +32,16 @@ const bundleP: Promise<{ list: Stock[]; t: ReadonlySet<string> }> = fetch(stocks
 /** Resolves once stocks.json has landed (tracked rows may still be in flight). */
 export const stocksLoaded: Promise<Stock[]> = bundleP.then(() => rows);
 
-const trackedP: Promise<Map<string, TrackedStock>> = Promise.all([bundleP, trackedRowsRaw]).then(([b, raw]) => {
-  const m = parseTracked(raw, b.t);
-  const next = mergeTracked(b.list, m);
-  if (next !== b.list) publish(next);
-  return m;
+let tracked = new Map<string, TrackedStock>();
+let settle: (m: Map<string, TrackedStock>) => void;
+/** Resolves on the first listener value: until then a non-bundled ticker can't know whether it's tracked. */
+const trackedP = new Promise<Map<string, TrackedStock>>((r) => (settle = r));
+onTrackedRows((raw) => {
+  void bundleP.then((b) => {
+    tracked = parseTracked(raw, b.t);
+    settle(tracked);
+    publish(mergeTracked(b.list, tracked)); // also wakes useTrackedRev subscribers
+  });
 });
 
 const subscribe = (f: () => void) => {
@@ -56,9 +63,14 @@ export const stocksReady: Promise<Stock[]> = trackedP.then(() => rows);
 
 /** `undefined`: not a tracked-only ticker, fetch public/ as usual — resolves as soon as stocks.json
  *  is in for every bundled ticker, so they never wait on RTDB. Otherwise the payload, or null if
- *  CI had none. */
+ *  CI had none. Always the LATEST listener value, so callers check it before their own cache. */
 export function trackedPayload(ticker: string, kind: TrackedKind): Promise<unknown> {
   return bundleP.then((b) =>
-    b.t.has(ticker) ? undefined : trackedP.then((m) => (m.has(ticker) ? m.get(ticker)![kind] : undefined)),
+    b.t.has(ticker) ? undefined : trackedP.then(() => (tracked.has(ticker) ? tracked.get(ticker)![kind] : undefined)),
   );
 }
+
+/** Changes whenever this ticker's tracked entry appears or is rewritten — put it in an effect's
+ *  deps so the open stock window re-loads forecasts / Bulls-Bears / P/E the moment CI publishes. */
+export const useTrackedRev = (ticker: string): TrackedStock | undefined =>
+  useSyncExternalStore(subscribe, () => tracked.get(ticker));
