@@ -813,10 +813,16 @@ A third element marks why a week has no value: `1` trailing earnings ≤ 0 (draw
 weeks are drawn and counted in the median/range instead of hidden (it was a 200× cut-off once,
 which left a stock at 244× for two years with no line and a median from the years before).
 
-- **Cache, committed: `ci/cache/pe/<T>.json`** `{ cik, closes, eps, peq, reports, secAt }`.
-  - `closes`: 5Y weekly closes from Twelve Data, fetched **once per ticker**. Its free 800/day
-    quota is the same key visitors' price charts use, so it is never polled. Every run then
-    writes this week's close from `src/data/stocks.json` (`px`) into the Monday-stamped bar.
+- **Cache, committed: `ci/cache/pe/<T>.json`** `{ cik, closes, ca, eps, peq, reports, secAt }`.
+  - `closes`: 5Y weekly closes from CNBC's bars (`worker/bars.js`, shared with the Worker's
+    `/bars`), refetched every 7 days (`ca` = when; at most `CLOSES_PER_RUN`=60 tickers a run) so a
+    split after the first fetch can't leave stale pre-split closes (it did: LGVN 10×, TRNR 7×).
+    **Split-adjusted only**: CNBC's `adjusted` also back-adjusts spin-offs and special dividends
+    (CTVA 6.665×) while Finnhub's EPS isn't, so `splitOnlyCloses` combines `adjusted` +
+    `unadjusted`. CNBC stamps weeks on Sunday; they are shifted to Monday, the stamp every
+    TD-era cache already uses. CNBC needs a browser User-Agent (403 otherwise). Twelve Data is
+    only the fallback for a ticker with no closes at all. Every run then writes this week's
+    close from `src/data/stocks.json` (`px`) into the Monday-stamped bar.
   - `eps` / `peq`: Finnhub `series.quarterly.eps` / `series.quarterly.peTTM`, on rotation.
   - `reports`: quarter end → announcement date from SEC EDGAR (`ci/sec-reports.mjs`). Fetched
     when a quarter has none; never re-fetched once known. A quarter still undated 120+ days

@@ -103,7 +103,7 @@ export function planFold(rows, { stocks, tracked, seen, fcAsOf, peIndex, has, pe
       if (kind === "pe") out.peIndex[t] = { a: e.asOf, ok: true };
     }
     // scrape-pe's inputs (5Y closes, EPS), so the folded chart keeps moving with the price
-    // without re-spending its one Twelve Data call
+    // without re-fetching its CNBC closes
     if (typeof peCache[k] === "string" && (fresh || !hasCache(t))) out.files.push([`ci/cache/pe/${t}.json`, peCache[k]]);
     out.folded[k] = e.asOf;
   }

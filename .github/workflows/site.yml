@@ -117,8 +117,8 @@ jobs:
         run: node ci/scrape-bullbear.mjs
 
       # 5-year weekly P/E history per ticker (public/pe/<T>.json) for the stock modal's P/E
-      # chart. Inputs cached per ticker in ci/cache/pe/ (committed): weekly closes from Twelve
-      # Data ONCE per ticker (that quota is shared with visitors' price charts), then this
+      # chart. Inputs cached per ticker in ci/cache/pe/ (committed): split-only weekly closes from
+      # CNBC, refreshed weekly (Twelve Data only as the fallback for a ticker with none), then this
       # week's close from our own stocks.json; Finnhub quarterly EPS/peTTM and SEC EDGAR report
       # dates on a rotating LIMIT. Every ticker's chart is recomputed from cache each run.
       # Same additive + failure-tolerant pattern; never blocks the deploy.
@@ -127,9 +127,9 @@ jobs:
         continue-on-error: true
         env:
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
-          TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }}
+          TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }} # fallback only (CNBC first)
           TWELVEDATA_CI_KEY: ${{ secrets.TWELVEDATA_CI_KEY }} # optional; used first when set
-          LIMIT: "200" # was 60 (~8 runs to rotate); Finnhub-paced at 60/min, Twelve Data only for new tickers
+          LIMIT: "200" # was 60 (~8 runs to rotate); Finnhub-paced at 60/min; CNBC closes capped at 60/run
         run: node ci/scrape-pe.mjs
 
       # Rebuild the compact "recent reviews" feed New Arrivals reads (from the forecasts on disk).

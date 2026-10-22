@@ -3,9 +3,12 @@
 // for off-universe tickers, imported directly (Node >= 22.18 strips the types) so they can't drift.
 //
 // Inputs, cached per ticker in ci/cache/pe/<T>.json (committed, so history is fetched ONCE):
-//   closes   5Y weekly closes. Twelve Data, ONCE per ticker (its free 800/day quota is shared
-//            with every visitor's price chart). After that, every run just writes this week's
-//            close from our own snapshot (src/data/stocks.json `px`) — no API call.
+//   closes   5Y weekly closes, split-adjusted only (P/E's basis: Finnhub's EPS is not
+//            spin-adjusted). CNBC's bars (worker/bars.js — the same parser + splitOnlyCloses the
+//            Worker's /bars uses), re-fetched every REFRESH_CLOSES_DAYS so a split after the first
+//            fetch can't leave stale pre-split closes (it did: LGVN 10x, TRNR 7x). Twelve Data only
+//            as the fallback for a ticker with no closes at all. Between fetches, every run just
+//            writes this week's close from our own snapshot (src/data/stocks.json `px`).
 //   eps/peq  Finnhub quarterly EPS + quarterly peTTM (60/min) — refreshed on rotation.
 //   reports  quarter end -> announcement date, SEC EDGAR (ci/sec-reports.mjs) — fetched when a
 //            quarter we have EPS for has no date yet; dates never change once known.
@@ -18,6 +21,8 @@
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { hasPeHistory, lastYears, parseEps, peSeries } from "../src/peHistory.ts";
 import { cikOf, filingsSince, isResultsFiling, pickReports } from "./sec-reports.mjs";
+import { BROWSER_UA, normSym } from "../worker/cnbc.js";
+import { barsUrl, parseBars, splitOnlyCloses } from "../worker/bars.js";
 
 const FH = process.env.FINNHUB_KEY || process.env.VITE_FINNHUB_KEY || "";
 // a CI-only key keeps backfills off the quota visitors' price charts use; falls back to the shared one
@@ -27,6 +32,9 @@ const STALE_DAYS = Number(process.env.STALE_DAYS || 3);
 const ALL = process.env.ALL === "1";
 const ONLY = process.env.ONLY ? process.env.ONLY.split(",") : null; // just these tickers (ci/track-requests)
 const TD_GAP_MS = 8000; // 8/min
+const CNBC_GAP_MS = 500; // free and unmetered, but undocumented: stay polite
+const REFRESH_CLOSES_DAYS = 7;
+const CLOSES_PER_RUN = Number(process.env.CLOSES_PER_RUN || 60); // 2 CNBC calls each
 const FH_GAP_MS = 1100; // 60/min
 const OUT = "public/pe";
 const CACHE = "ci/cache/pe";
@@ -34,7 +42,8 @@ const INDEX = `${OUT}/_asOf.json`;
 const DAY = 864e5;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const today = new Date().toISOString().slice(0, 10);
-/** Monday of this week — Twelve Data's weekly bar stamp, so our own closes slot in beside its. */
+/** Monday of this week — the weekly bar stamp (CNBC's Sunday is shifted to it in worker/bars.js),
+ *  so our own snapshot close slots in beside the fetched ones. */
 const thisMonday = (() => {
   const d = new Date(today + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
@@ -51,7 +60,7 @@ async function getJson(url) {
   }
   return r.json();
 }
-let tdLast = 0, fhLast = 0;
+let tdLast = 0, fhLast = 0, cnLast = 0;
 const pace = async (lastAt, gap) => { const w = lastAt + gap - Date.now(); if (w > 0) await sleep(w); return Date.now(); };
 
 async function weekly(t) {
@@ -64,6 +73,26 @@ async function weekly(t) {
     return [...j.values].reverse().map((x) => [x.datetime.slice(0, 10), +parseFloat(x.close).toFixed(4)]);
   }
   throw new Error("rate limited twice");
+}
+
+// CNBC weekly closes (adjusted + unadjusted -> split-only), Monday-stamped, oldest first,
+// without this week's bar (step 2 writes this week from our own snapshot).
+async function weeklyCnbc(t) {
+  const sym = normSym(t);
+  if (!sym) throw new Error("not a CNBC symbol");
+  const get = async (adj) => {
+    cnLast = await pace(cnLast, CNBC_GAP_MS);
+    const r = await fetch(barsUrl(sym, "PE", Date.now(), adj), {
+      headers: { "user-agent": BROWSER_UA, accept: "application/json" }, // CNBC 403s non-browser UAs
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!r.ok) throw new Error(`CNBC HTTP ${r.status}`);
+    return parseBars(await r.json(), "PE");
+  };
+  const adj = await get("adjusted");
+  const unadj = await get("unadjusted");
+  const closes = splitOnlyCloses(adj, unadj);
+  return adj.t.map((d, i) => [d, closes[i]]).filter(([d]) => d < thisMonday).slice(-261);
 }
 
 const readJson = (p, fallback) => { try { return JSON.parse(readFileSync(p, "utf8")); } catch { return fallback; } };
@@ -84,7 +113,7 @@ const queue = tickers
   .slice(0, ALL ? Infinity : LIMIT);
 console.log(`scrape-pe: refreshing ${queue.length} of ${tickers.length} (LIMIT=${LIMIT}, ALL=${ALL})`);
 
-let refreshed = 0, failed = 0, tdCalls = 0, stopTd = false;
+let refreshed = 0, failed = 0, tdCalls = 0, cnCalls = 0, stopTd = false, closesBudget = CLOSES_PER_RUN;
 for (const t of queue) {
   if (!FH) break;
   const path = `${CACHE}/${t}.json`;
@@ -96,10 +125,23 @@ for (const t of queue) {
     c.peq = parseEps(m?.series?.quarterly?.peTTM).map((p) => [p.d, p.v]);
     const hasEarnings = c.eps.length >= 4 || c.peq.length >= 4;
 
-    // prices: once per ticker, and only for a company that has earnings data to divide by
-    if (hasEarnings && !c.closes?.length && TD && !stopTd) {
-      try { c.closes = await weekly(t); tdCalls++; }
-      catch (e) { if (e instanceof DailyLimit) { stopTd = true; console.log(`  ${e.message} — no more price backfills this run`); } else throw e; }
+    // prices: only for a company that has earnings data to divide by. CNBC every
+    // REFRESH_CLOSES_DAYS (capped per run); Twelve Data only when there are no closes at all.
+    const closesDue = !c.closes?.length || !c.ca || now - Date.parse(c.ca) > REFRESH_CLOSES_DAYS * DAY;
+    if (hasEarnings && closesDue && closesBudget > 0) {
+      closesBudget--;
+      try {
+        c.closes = await weeklyCnbc(t);
+        c.ca = new Date().toISOString();
+        cnCalls++;
+      } catch (e) {
+        if (c.closes?.length) console.log(`  ${t}: CNBC closes refresh failed (${e.message}) — keeping the cached ones`);
+        else if (TD && !stopTd) {
+          console.log(`  ${t}: CNBC closes failed (${e.message}) — Twelve Data fallback`);
+          try { c.closes = await weekly(t); tdCalls++; }
+          catch (e2) { if (e2 instanceof DailyLimit) { stopTd = true; console.log(`  ${e2.message} — no more price backfills this run`); } else throw e2; }
+        } else console.log(`  ${t}: CNBC closes failed (${e.message}) — none this run`); // eps/peq/reports still saved, `wait` set
+      }
     }
 
     // report dates: when a quarter in the last 5 years has none yet (they never change)
@@ -175,4 +217,4 @@ for (const t of ONLY ?? tickers) {
   wrote++;
 }
 writeFileSync(INDEX, JSON.stringify(Object.fromEntries(Object.entries(index).sort())) + "\n");
-console.log(`done: ${refreshed} refreshed (${tdCalls} price backfills), ${failed} failed, ${wrote} charts written`);
+console.log(`done: ${refreshed} refreshed (${cnCalls} CNBC closes, ${tdCalls} Twelve Data fallbacks), ${failed} failed, ${wrote} charts written`);
