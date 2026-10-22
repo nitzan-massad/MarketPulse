@@ -93,7 +93,7 @@ export default function SignInModal({ user, signIn, signOut, onClose }: SignInMo
         ) : (
           <>
             <h3>Sync your watchlist</h3>
-            <p>Sign in to track stocks and see them on every device — iPhone, iPad and PC.</p>
+            <p>Sign in to track stocks and see them on every device: iPhone, iPad and PC.</p>
             <div className="si-provs">
               {AUTH_PROVIDERS.map((p) => (
                 <button
@@ -111,7 +111,7 @@ export default function SignInModal({ user, signIn, signOut, onClose }: SignInMo
               ))}
             </div>
             {err && <p className="si-err">{err}</p>}
-            <p className="si-fine">Private to you — we only store your ticker list.</p>
+            <p className="si-fine">Private to you. We only store your ticker list.</p>
           </>
         )}
       </div>
