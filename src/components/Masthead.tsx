@@ -18,21 +18,31 @@ export default function Masthead({ poolN, liveStatus, hasKey, onLive }: Masthead
   const liveLabel =
     liveStatus === "live"
       ? "● Live"
-      : liveStatus === "closed"
-        ? "● Market closed"
-        : liveStatus === "connecting"
-          ? "◐ Connecting…"
-          : liveStatus === "error"
-            ? "⚠ Live — check key"
-            : hasKey
-              ? "○ Live off"
-              : "⚡ Go live";
+      : liveStatus === "backup"
+        ? "● Live (backup)"
+        : liveStatus === "pre"
+          ? "◐ Pre-market"
+          : liveStatus === "post"
+            ? "◐ After hours"
+            : liveStatus === "closed"
+              ? "● Market closed"
+              : liveStatus === "connecting"
+                ? "◐ Connecting…"
+                : liveStatus === "error"
+                  ? "⚠ Live — add key"
+                  : hasKey
+                    ? "○ Live off"
+                    : "⚡ Go live";
+  const liveTitle =
+    liveStatus === "error"
+      ? "CNBC quotes are unavailable and the Finnhub backup needs a free API key (stored only in this browser)"
+      : "Live prices via CNBC, with Finnhub as the backup — click to turn off/on";
   return (
     <div className="metaline">
       <span>Universe <b>{meta.universe.toLocaleString()}</b> US stocks</span>
       <span>Showing <b id="poolN">{poolN}</b> ranked names</span>
       <span className="live">Snapshot · {SNAPSHOT}</span>
-      <button type="button" className={`livebadge ${liveStatus}`} onClick={onLive} title="Live Day % via Finnhub (your key, stored only in this browser)">
+      <button type="button" className={`livebadge ${liveStatus}`} onClick={onLive} title={liveTitle}>
         {liveLabel}
       </button>
     </div>

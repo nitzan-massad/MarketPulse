@@ -1,10 +1,11 @@
 import { useMemo, type ReactNode } from "react";
-import { consLabel, fmtMc, fmtPx, scoreColor } from "../lib";
+import { consLabel, fmtMc, scoreColor } from "../lib";
 import { useStocks } from "../stocks";
 import type { Stock } from "../types";
 import type { Mark, MarkEntry } from "../watchlist";
 import { ConsPill } from "./StockTable";
 import ThumbMark from "./ThumbMark";
+import { LivePx } from "../LivePx";
 
 
 const isStrongBuy = (r: Stock): boolean => (r.con || "").toLowerCase() === "strongbuy";
@@ -85,7 +86,7 @@ export function Card({
       <div className="bob-metrics">
         <div className="bob-m">
           <span className="bob-k">Price</span>
-          <span className="bob-v mono">{fmtPx(s.px)}</span>
+          <span className="bob-v mono"><LivePx t={s.t} px={s.px} track /></span>
         </div>
         <div className="bob-m">
           <span className="bob-k">Upside</span>

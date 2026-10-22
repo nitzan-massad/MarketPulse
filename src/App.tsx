@@ -15,6 +15,8 @@ import { currentStocks, stocksLoaded, stocksReady, useStocks } from "./stocks";
 import { parseShareHash, type PanelId, type TickerView } from "./share";
 import type { Stock, ViewId } from "./types";
 import { useLiveQuotes } from "./useLiveQuotes";
+import { WORKER_URL } from "./workerUrl";
+import { LiveCtx } from "./LivePx";
 import { useNotifications, type Notification } from "./useNotifications";
 import { useReviewAlerts } from "./useReviewAlerts";
 import { loadFirebase, noteView, requestTracking, useWatchlist, type Mark } from "./watchlist";
@@ -26,8 +28,8 @@ export type MarkFilter = "all" | "up" | "down" | "reviewed" | "unseen";
  *  filter the toolbar has no button for, which would hide rows with no way to clear it. */
 const MARK_FILTERS: MarkFilter[] = ["all", "up", "down", "reviewed", "unseen"];
 
-// Baked-in Finnhub key (injected at build from the FINNHUB_KEY Actions secret),
-// so live Day% works for everyone with no key entry. localStorage can override.
+// Baked-in Finnhub key (injected at build from the FINNHUB_KEY Actions secret) — only the
+// FALLBACK live source now (CNBC is primary and keyless). localStorage can override.
 const BAKED_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
 // Belt-and-braces: the NavMenu item is already gated behind the same flag, but this keeps
 // the feed unreachable even if something else ever sets `nav` to "feed" directly.
@@ -216,7 +218,7 @@ export default function App() {
     () => localStorage.getItem("mp_finnhub") || BAKED_KEY || null,
   );
   const [liveOn, setLiveOn] = useState<boolean>(
-    () => Boolean(localStorage.getItem("mp_finnhub") || BAKED_KEY) && localStorage.getItem("mp_live") !== "0",
+    () => localStorage.getItem("mp_live") !== "0", // CNBC needs no key, so live is on by default
   );
 
   // ---- deep link: /#AAPL opens that stock's modal ------------------------
@@ -363,17 +365,19 @@ export default function App() {
   }, []);
   useSavedFilters(user, filters, applyFilters);
 
-  // Watchlist is subscribed ALWAYS (even off-screen / other views) so watched
-  // tickers always get a live price and their alerts can fire; visible table rows
-  // are subscribed on demand via `observe` (an IntersectionObserver ref-callback).
-  const { live, price: livePrice, status: liveStatus, observe } = useLiveQuotes(
+  // Watchlist is quoted ALWAYS (even off-screen / other views) so watched
+  // tickers always get a live price and their alerts can fire; visible rows
+  // are quoted on demand via `observe` (an IntersectionObserver ref-callback).
+  const { live, price: livePrice, status: liveStatus, ticking, observe } = useLiveQuotes(
     watchlist,
     liveKey,
     liveOn,
+    WORKER_URL,
   );
 
-  // best-known price per watched ticker: live Finnhub when polled, else the
-  // bundled snapshot — feeds the notification alert engine.
+  // best-known price per watched ticker: live (CNBC, else Finnhub) when quoted, else the
+  // bundled snapshot — feeds the notification alert engine. Regular-session prices only:
+  // the pre/after-hours trade is display-only (see quotes.ts).
   const pxByTicker = useMemo(() => {
     const m: Record<string, number> = {};
     for (const s of STOCKS) if (typeof s.px === "number") m[s.t] = s.px;
@@ -388,6 +392,7 @@ export default function App() {
     return m;
   }, [watchlist, livePrice, pxByTicker]);
   const notif = useNotifications(user, watchlist, watchPrices);
+  const liveCtx = useMemo(() => ({ price: livePrice, observe }), [livePrice, observe]);
   useReviewAlerts(user, watchlist, notif.pushReview);
 
   // clicking a notification: jump to the watchlist view and open that stock's modal.
@@ -438,8 +443,10 @@ export default function App() {
     }
   }
 
+  // On/off. The key prompt only appears when the Finnhub FALLBACK is carrying the session and
+  // has no working key — CNBC itself needs none.
   function toggleLive() {
-    if (!liveKey || liveStatus === "error") {
+    if (liveStatus === "error") {
       const k = window.prompt("Paste your free Finnhub API key (get one free at finnhub.io):", liveKey ?? "");
       if (k && k.trim()) {
         const key = k.trim();
@@ -447,6 +454,10 @@ export default function App() {
         localStorage.setItem("mp_live", "1");
         setLiveKey(key);
         setLiveOn(true);
+      } else if (k === null) {
+        // Cancelled: no key, no backup — let the badge turn live off rather than trap the user.
+        localStorage.setItem("mp_live", "0");
+        setLiveOn(false);
       }
       return;
     }
@@ -504,6 +515,7 @@ export default function App() {
         </div>
       </header>
 
+      <LiveCtx.Provider value={liveCtx}>
       {!STOCKS.length ? (
         <p className="empty" role="status">Loading stocks…</p>
       ) : nav === "table" ? (
@@ -558,6 +570,7 @@ export default function App() {
             hl={VIEWS[view].hl}
             onSort={handleSort}
             live={live}
+            ticking={ticking}
             observe={observe}
             onOpen={(s) => handleOpen(s, rows)}
             watchlist={watchlist}
@@ -592,6 +605,7 @@ export default function App() {
           }}
         />
       )}
+      </LiveCtx.Provider>
 
       <Suspense fallback={null}>
       {openStock && (

@@ -82,7 +82,7 @@ function writeMetaLocal(v: MetaMap): void {
   }
 }
 
-// prices: watched ticker -> best-known current price (live Finnhub, else snapshot)
+// prices: watched ticker -> best-known current price (live CNBC/Finnhub, else snapshot)
 export function useNotifications(
   user: User | null,
   watchlist: string[],

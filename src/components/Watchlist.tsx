@@ -2,10 +2,11 @@ import type { User } from "firebase/auth";
 import { useMemo, useRef, useState } from "react";
 import { useStocks } from "../stocks";
 import type { Stock } from "../types";
-import { fmtMc, fmtPx, scoreColor, stubStock } from "../lib";
+import { fmtMc, scoreColor, stubStock } from "../lib";
 import { Chip, ConsPill, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
+import { LivePx } from "../LivePx";
 
 
 interface WatchlistProps {
@@ -238,7 +239,7 @@ export default function Watchlist({
                       <ThumbMark mark={marks[s.t]} onMark={(v) => onMark(s.t, v)} />
                     </div>
                   </td>
-                  <td className="num">{fmtPx(s.px)}</td>
+                  <td className="num"><LivePx t={s.t} px={s.px} /></td>
                   <td className="num">
                     <UpBar up={s.up} />
                   </td>

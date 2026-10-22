@@ -720,6 +720,8 @@ thead th:hover .col-resize::after{opacity:.6}
 .livebadge.closed{color:#9a7212; border-color:rgba(184,134,11,.4); background:rgba(184,134,11,.09)}
 .livebadge.error{color:var(--red); border-color:rgba(207,75,48,.4); background:rgba(207,75,48,.09)}
 .livebadge.connecting{color:#9a7212; border-color:rgba(184,134,11,.4); background:rgba(184,134,11,.09)}
+.livebadge.backup{color:var(--green); border-color:rgba(31,145,82,.4); background:rgba(31,145,82,.09)}
+.livebadge.pre,.livebadge.post{color:var(--gold); border-color:rgba(27,63,115,.35); background:rgba(27,63,115,.07)}
 .chg.is-live::after{
   content:""; display:inline-block; width:5px; height:5px; border-radius:50%;
   background:currentColor; margin-left:6px; vertical-align:middle; animation:pulse 1.6s infinite;
@@ -889,9 +891,18 @@ thead th:hover .col-resize::after{opacity:.6}
   border-radius:4px; overflow:hidden; background:var(--t-bg); font-size:9.5px; font-weight:800; line-height:1.15; color:var(--t-ink)}
 .mkm-earn-cal span{align-self:stretch; text-align:center; background:var(--t-gold); color:#fff; font-size:5.5px;
   letter-spacing:.04em; padding:1px 0}
-.mkm-px{margin-left:auto; font-size:24px; font-weight:700; line-height:1}
+.mkm-pxgrp{margin-left:auto; display:flex; align-items:center; gap:14px; flex:none}
+.mkm-px{font-size:24px; font-weight:700; line-height:1}
 .mkm-chg{font-size:13px; font-weight:700; align-self:center}
 .mkm-chg.up{color:var(--t-green)} .mkm-chg.dn{color:var(--t-red)} .mkm-chg.flat{color:var(--t-faint)}
+/* extended-hours pill: its own line under the price, right-aligned */
+.mkm-ext{flex-basis:100%; display:flex; justify-content:flex-end}
+.mkm-pill{display:inline-flex; align-items:center; gap:8px; background:var(--t-panel); border:1px solid var(--t-line);
+  border-radius:999px; padding:5px 12px 5px 9px; font-size:12px; color:var(--t-ink)}
+.mkm-pill svg{color:var(--t-gold); flex:none}
+.mkm-ext-k{font-size:10.5px; font-weight:700; letter-spacing:.1em; color:var(--t-gold)}
+.mkm-pill b{font-size:13px}
+.mkm-pill .up{color:var(--t-green); font-weight:700} .mkm-pill .dn{color:var(--t-red); font-weight:700} .mkm-pill .flat{color:var(--t-faint); font-weight:700}
 
 /* chart pane */
 .mkm-chartpane{padding:14px 18px 16px; border-bottom:1px solid var(--t-line-2)}
@@ -944,7 +955,9 @@ thead th:hover .col-resize::after{opacity:.6}
   stroke-dasharray:1600; stroke-dashoffset:1600; animation:mkm-draw 1.5s .3s forwards cubic-bezier(.3,.7,.2,1)}
 .mkm-chartline.up{stroke:#32d74b}
 .mkm-chartline.dn{stroke:#ff453a}
-.mkm-plot-msg{display:flex; align-items:center; justify-content:center; min-height:112px; font-size:11px; color:var(--t-faint); letter-spacing:.06em}
+/* Same box as the chart svg (viewBox 600x140, width 100%): loading / unavailable / chart are
+   one height, so switching ranges never shrinks the card and grows it back. */
+.mkm-plot-msg{display:flex; align-items:center; justify-content:center; aspect-ratio:600/140; font-size:11px; color:var(--t-faint); letter-spacing:.06em}
 .mkm-plot-msg.mkm-skel{animation:mkm-skel 1.2s ease-in-out infinite}
 .mkm-chart-log{display:flex; justify-content:space-between; margin-top:8px; font-size:10px; color:var(--t-faint); letter-spacing:.02em; gap:8px; flex-wrap:wrap}
 .mkm-chart-log b{color:var(--t-muted); font-weight:700} .mkm-chart-log .g{color:var(--t-gold)}
@@ -1160,6 +1173,7 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
 .mkm-kv .v{font-size:13.5px; font-weight:700; margin-top:4px}
 .mkm-kv .v.up{color:var(--t-green)} .mkm-kv .v.dn{color:var(--t-red)} .mkm-kv .v.gold{color:var(--t-gold)}
 .mkm-kv .v.skel, .mkm-fcup.skel{color:var(--t-faint); animation:mkm-skel 1.2s ease-in-out infinite}
+.mkm-chg.skel{animation:mkm-skel 1.2s ease-in-out infinite}
 /* sector box: one cell, one label, two equal halves (Today | Fwd) */
 .mkm-kv .split{display:grid; grid-template-columns:1fr 1fr; margin-top:4px}
 .mkm-kv .split>div:first-child{border-right:1px solid var(--t-line); padding-right:9px}
@@ -1179,7 +1193,8 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
   .mkm-kv{grid-template-columns:repeat(2,1fr)}
   .mkm-swipe{--mw:calc(100vw - 48px)} /* prod declares -16px; the stage clamps it to -48px */
   .mkm-modal{max-height:calc(100dvh - 24px)}
-  .mkm-px{margin-left:0}
+  .mkm-pxgrp{margin-left:0}
+  .mkm-ext{justify-content:flex-start} /* phone: price, % and pill share one left edge */
 }
 @media(max-width:430px){
   .mkm-scrim{padding:10px}
@@ -1188,7 +1203,7 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
   .mkm-head{padding:14px 16px 12px; gap:10px}
   .mkm-tbtk{font-size:20px}
   .mkm-headsym{font-size:22px}
-  .mkm-px{margin-left:0; font-size:20px}
+  .mkm-px{font-size:20px}
   .mkm-chartpane, .mkm-statblock, .mkm-about, .mkm-bb{padding-left:14px; padding-right:14px}
   .mkm-rp{padding:14px 16px}
   .mkm-matrix{grid-template-columns:repeat(2,1fr)}
@@ -1198,7 +1213,7 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
   .mkm-yh{align-self:stretch; text-align:center}
 }
 @media(prefers-reduced-motion:reduce){
-  .mkm-modal, .mkm-bhs span, .mkm-ladder .track i, .mkm-chartline, .mkm-plot-msg.mkm-skel, .mkm-kv .v.skel, .mkm-fcup.skel{animation:none}
+  .mkm-modal, .mkm-bhs span, .mkm-ladder .track i, .mkm-chartline, .mkm-plot-msg.mkm-skel, .mkm-kv .v.skel, .mkm-fcup.skel, .mkm-chg.skel{animation:none}
   .mkm-chartline{stroke-dasharray:none; stroke-dashoffset:0}
   .mkm-live::before, .mkm-livering, .mkm-sess.live i{animation:none}
   .mkm-livering{opacity:0}
