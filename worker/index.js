@@ -5,20 +5,109 @@
 const DISPATCH =
   "https://api.github.com/repos/nitzan-massad/MarketPulse/actions/workflows/track-requests.yml/dispatches";
 
+import { BROWSER_UA, CHUNK, CNBC_QUOTE, parseQuote, parseSymbols, rowsBySymbol } from "./cnbc.js";
+
 // Finnhub free tier: 50 symbols on the one connection a key may hold.
 const SYMBOL_CAP = 50;
 const BACKOFF_MS = 2_000;
 const MAX_BACKOFF_MS = 15_000;
 
+// Each symbol is fetched from CNBC at most once per TTL per isolate, however many browsers
+// that isolate serves, and concurrent misses share one CNBC call (`inflight`).
+// ponytail: per-isolate, not global — busy traffic spread over many colos multiplies CNBC
+// calls by the isolate count. caches.default keyed per symbol is the upgrade if CNBC ever
+// pushes back; at this app's traffic one or two isolates serve everyone.
+const QUOTE_TTL_MS = 20_000; // = the client's regular-session poll (src/quotes.ts pollMs)
+const QUOTE_CACHE_MAX = 5_000; // bound memory against junk symbol lists
+const quoteCache = new Map(); // SYMBOL -> { q: quote | null, at: ms }
+const inflight = new Map(); // SYMBOL -> Promise of the CNBC call currently fetching it
+// While CNBC is failing, answer 502 from memory for a TTL instead of retrying per request —
+// hammering a CNBC that is blocking us would only deepen the block.
+let failedUntil = 0;
+const CNBC_TIMEOUT_MS = 5_000;
+
+// Resolves to this chunk's { SYMBOL: quote | null }, also written to the cache.
+async function fetchChunk(chunk, now) {
+  const r = await fetch(CNBC_QUOTE + chunk.map(encodeURIComponent).join("|"), {
+    headers: { "user-agent": BROWSER_UA, accept: "application/json" },
+    // A stalled CNBC must fail, not hang: a hung call would pin its symbols in `inflight`
+    // and never set failedUntil.
+    signal: AbortSignal.timeout(CNBC_TIMEOUT_MS),
+  });
+  if (!r.ok) throw new Error(`cnbc ${r.status}`);
+  const rows = rowsBySymbol(await r.json());
+  const got = {};
+  for (const s of chunk) {
+    got[s] = parseQuote(rows[s]);
+    quoteCache.set(s, { q: got[s], at: now });
+  }
+  return got;
+}
+
+// The site, or a local `npm run dev` (localhost or 127.0.0.1 — the same hosts DEV_AUTH accepts).
+const allowedOrigin = (origin, env) => origin === env.ORIGIN || /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+
+// GET /quotes?symbols=AAPL,MSFT -> { asOf, quotes: { AAPL: {...} | null } }.
+// 502 when CNBC itself fails: the client counts that toward switching to Finnhub.
+async function quotes(url, cors) {
+  const json = (body, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { ...cors, "content-type": "application/json" } });
+  const syms = parseSymbols(url.searchParams.get("symbols"));
+  if (!syms) return json({ error: "bad symbols" }, 400);
+  const now = Date.now();
+  // Bound memory against junk symbol lists. The response is built from `out` (this request's
+  // own hits + fetch results), never re-read from the cache, so a clear by a concurrent
+  // request can't blank it.
+  if (quoteCache.size > QUOTE_CACHE_MAX) quoteCache.clear();
+  const out = {};
+  const stale = [];
+  for (const s of syms) {
+    const c = quoteCache.get(s);
+    if (c && c.at > now - QUOTE_TTL_MS) out[s] = c.q;
+    else stale.push(s);
+  }
+  if (stale.length && now < failedUntil) return json({ error: "upstream" }, 502);
+  const waits = new Set();
+  const mine = [];
+  for (const s of stale) {
+    const p = inflight.get(s);
+    if (p) waits.add(p);
+    else mine.push(s);
+  }
+  for (let i = 0; i < mine.length; i += CHUNK) {
+    const chunk = mine.slice(i, i + CHUNK);
+    const p = fetchChunk(chunk, now).finally(() => {
+      for (const s of chunk) if (inflight.get(s) === p) inflight.delete(s);
+    });
+    for (const s of chunk) inflight.set(s, p);
+    waits.add(p);
+  }
+  try {
+    for (const got of await Promise.all(waits)) Object.assign(out, got);
+  } catch {
+    failedUntil = Date.now() + QUOTE_TTL_MS; // from the failure, not the request start
+    return json({ error: "upstream" }, 502);
+  }
+  return json({ asOf: now, quotes: Object.fromEntries(syms.map((s) => [s, out[s] ?? null])) });
+}
+
 export default {
   async fetch(req, env) {
-    if (new URL(req.url).pathname === "/live") {
+    const url = new URL(req.url);
+    const origin = req.headers.get("origin") ?? "";
+    if (url.pathname === "/live") {
       if (req.headers.get("upgrade") !== "websocket") return new Response("websocket only", { status: 426 });
-      const origin = req.headers.get("origin") ?? "";
-      if (origin !== env.ORIGIN && !origin.startsWith("http://localhost:")) {
-        return new Response("forbidden", { status: 403 });
-      }
+      if (!allowedOrigin(origin, env)) return new Response("forbidden", { status: 403 });
       return env.LIVE.get(env.LIVE.idFromName("main")).fetch(req);
+    }
+    if (url.pathname === "/quotes") {
+      // Keeps other sites' pages from using this as their CNBC proxy. Not an auth boundary — a
+      // non-browser client can forge Origin; add a per-IP rate limit if that ever shows up.
+      if (!allowedOrigin(origin, env)) return new Response("forbidden", { status: 403 });
+      const cors = { "access-control-allow-origin": origin, vary: "origin" };
+      if (req.method === "OPTIONS") return new Response(null, { headers: { ...cors, "access-control-allow-methods": "GET" } });
+      if (req.method !== "GET") return new Response("GET only", { status: 405, headers: cors });
+      return quotes(url, cors);
     }
 
     const cors = {
@@ -54,7 +143,8 @@ export class LiveRelay {
     this.up = null; // upstream Finnhub socket
     this.upSubs = new Set(); // what upstream currently holds
     this.backoff = BACKOFF_MS;
-    this.retry = null;
+    this.retry = null; // pending reconnect timer
+    this.connecting = false; // upstream handshake in flight
   }
 
   async fetch() {
@@ -101,7 +191,7 @@ export class LiveRelay {
   // Reconcile upstream with what browsers want; drop upstream when nobody is listening.
   sync() {
     if (!this.clients.size) {
-      clearTimeout(this.retry);
+      clearTimeout(this.retry); // an in-flight connect() sees no clients and closes itself
       this.retry = null;
       const up = this.up;
       this.up = null;
@@ -121,8 +211,8 @@ export class LiveRelay {
   }
 
   async connect() {
-    if (this.up || this.retry || !this.clients.size) return;
-    this.retry = true; // in-flight guard
+    if (this.up || this.retry || this.connecting || !this.clients.size) return;
+    this.connecting = true;
     let ws;
     try {
       const r = await fetch(`https://ws.finnhub.io?token=${this.env.FINNHUB_KEY}`, {
@@ -132,11 +222,11 @@ export class LiveRelay {
       if (!ws) throw new Error(`upstream ${r.status}`);
       ws.accept();
     } catch {
-      this.retry = null;
+      this.connecting = false;
       this.scheduleReconnect();
       return;
     }
-    this.retry = null;
+    this.connecting = false;
     if (!this.clients.size) {
       ws.close();
       return;
