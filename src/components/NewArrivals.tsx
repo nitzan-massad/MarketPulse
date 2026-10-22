@@ -7,6 +7,7 @@ import { consDir, type ConsDir } from "../consensus";
 import { Chip, ConsPill, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
+import { LivePx } from "../LivePx";
 
 function symMark(v?: Mark): string {
   return v === "up" ? "mk-up" : v === "down" ? "mk-down" : "";
@@ -236,7 +237,7 @@ export default function NewArrivals({ onOpen, onOpenReview, marks, onMark }: New
                     <td className="na-up">
                       <UpBar up={s.up} />
                     </td>
-                    <td className="num">{fmtPx(s.px)}</td>
+                    <td className="num"><LivePx t={s.t} px={s.px} track /></td>
                     <td className="con-cell">
                       <ConsPill con={s.con} />
                       <div className="dist">{s.b}·{s.h}·{s.s}</div>

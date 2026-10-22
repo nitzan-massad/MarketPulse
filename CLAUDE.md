@@ -57,14 +57,22 @@ live quotes and per-user state. No backend of our own.
 3. **App (`src/`)** — `App.tsx` holds all filter/sort/nav state and feeds four sections
    (`StockTable`, `BestOfBest`, `NewArrivals`, `Watchlist`) plus `StockModal`. Pure logic sits in
    dependency-free modules with a paired `*.check.ts` (`alertEngine`, `chartSession`,
-   `consensusNull`, `fmtPx`, `metricChange`, `reviewAlerts`, `share`, `watchlistOrder`, and the
+   `consensusNull`, `fmtPx`, `metricChange`, `quotes`, `reviewAlerts`, `share`, `watchlistOrder`, and the
    pure exports of `useLiveQuotes`) — keep it that way, that pairing is what makes it testable
    without React or Firebase. `consensus.ts` is covered from both sides: `consensusNull.check.ts`
    plus `ci/test-consensus-direction.mjs`.
 
-**Live data & per-user state.** `useLiveQuotes` holds one Finnhub WS (hard cap **50** symbols:
-watchlist first, then on-screen rows) and only during US market hours. `StockModal` pulls chart
-bars + fundamentals from Twelve Data, and FMP only for descriptions of off-universe tickers.
+**Live data & per-user state.** Prices are **CNBC-first, Finnhub fallback**. `useLiveQuotes`
+polls the Worker's `/quotes` (`worker/cnbc.js` parses CNBC's display strings; 20s per-isolate
+cache, app origin only) for the watchlist + on-screen rows; Finnhub — the Worker's `/live` relay WS (a
+key allows ONE socket, so browsers must never connect to Finnhub directly) plus REST prevClose
+seeds — carries only symbols CNBC lacks, or everything after 2 failed CNBC polls. `quotes.ts`
+holds the pure rules (session clock, staleness, source switch, one-source-per-symbol merge).
+Traps: CNBC's `previous_day_closing` equals `last` off-hours (prior close = `last - change`),
+and open/high/low read `0.00` off-hours. `StockModal` takes quote + fundamentals from CNBC with
+Finnhub per missing field (P/E history, sector, 3-month volume stay Finnhub), chart bars from
+Twelve Data, and FMP only for descriptions of off-universe tickers. The Worker deploys by hand:
+`cd worker && npx wrangler deploy`.
 Watchlist, thumb marks, saved filters, notifications and review-seen sets persist to Firebase
 RTDB under `<path>/<uid>` — every path is enumerated in `database.rules.json`, so **adding a new
 RTDB path means adding a rule** (deployed by its own approval-gated workflow). The Firebase web

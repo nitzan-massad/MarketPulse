@@ -1,4 +1,5 @@
 import type { AuthProvider, User } from "firebase/auth";
+import { WORKER_URL } from "./workerUrl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   keyForAppend,
@@ -439,9 +440,6 @@ export function useWatchlist(): WatchlistApi {
 // posts the one-time "now tracked" notification, then deletes it.
 // ---------------------------------------------------------------------------
 export type TrackRequestState = "none" | "pending" | "tracked";
-// worker/ — starts the lite track-requests.yml run at once. Empty => the 5h run picks it up.
-// Never called from a dev build (`npm run dev`), even one signed in against real Firebase.
-const TRACK_WORKER_URL = "https://marketpulse-track.nitzanmassad.workers.dev";
 export const trackKey = (t: string) => t.replace(/\./g, "_");
 // Dev: no backend, so requests live in localStorage and the card listens for this event.
 const DEV_REQ_LS = "mp_dev_trackreq";
@@ -469,7 +467,9 @@ export async function requestTracking(ticker: string, user: User): Promise<void>
   }
   void f.set(f.ref(f.db, `trackreq/${user.uid}/${key}`), Date.now());
   f.set(f.ref(f.db, `trackRequests/${key}`), { uid: user.uid, ts: Date.now(), tracked: false })
-    .then(() => { if (TRACK_WORKER_URL && import.meta.env.PROD) void fetch(TRACK_WORKER_URL, { method: "POST" }).catch(() => {}); })
+    // worker/ starts the lite track-requests.yml run at once (else the 5h run picks it up).
+    // Never from a dev build (`npm run dev`), even one signed in against real Firebase.
+    .then(() => { if (import.meta.env.PROD) void fetch(WORKER_URL, { method: "POST" }).catch(() => {}); })
     .catch(() => { /* someone already requested it — the listener shows its state */ });
 }
 

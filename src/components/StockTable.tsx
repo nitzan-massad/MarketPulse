@@ -3,6 +3,7 @@ import { COLS, consClass, consLabel, fmtMc, fmtPx, isNew, scoreColor } from "../
 import type { Stock } from "../types";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
+import { LivePx } from "../LivePx";
 
 // default column widths (px) — table-layout:fixed makes these authoritative so
 // resizing can both grow AND shrink a column. User overrides live in `widths`.
@@ -18,8 +19,11 @@ interface StockTableProps {
   hl: string;
   onSort: (k: string) => void;
   live?: Record<string, number>;
+  // true while Day% is actually moving (regular session); off-hours `live` still carries
+  // the fresher last-session Day%, just without the live styling.
+  ticking?: boolean;
   // ref-callback from useLiveQuotes: rows report visibility so they get
-  // subscribed to the live WS feed only while on-screen.
+  // live-quoted only while on-screen.
   observe?: (ticker: string) => (el: HTMLElement | null) => void;
   onOpen: (s: Stock) => void;
   watchlist: string[];
@@ -53,7 +57,7 @@ export function UpBar({ up }: { up: number | null }) {
   return <span className={`up-val ${neg ? "neg" : "pos"}`}>{val}</span>;
 }
 
-export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, observe, onOpen, watchlist, onToggleTrack, marks, onMark }: StockTableProps) {
+export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, ticking = false, observe, onOpen, watchlist, onToggleTrack, marks, onMark }: StockTableProps) {
   const [widths, setWidths] = useState<Record<string, number>>(() => {
     try {
       return JSON.parse(localStorage.getItem("mp_colw") || "{}");
@@ -172,12 +176,12 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, obs
                     </div>
                   </td>
                   <td className="num" data-label="Price">
-                    {fmtPx(s.px)}
+                    <LivePx t={s.t} px={s.px} />
                   </td>
                   <td data-label="Day %">
                     {(() => {
-                      const isLive = live[s.t] != null;
-                      const chg = isLive ? live[s.t] : s.chg;
+                      const chg = live[s.t] ?? s.chg;
+                      const isLive = ticking && live[s.t] != null;
                       if (chg == null) return <span className="dash">—</span>;
                       return (
                         <span

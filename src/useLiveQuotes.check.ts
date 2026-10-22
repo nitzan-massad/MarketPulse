@@ -79,5 +79,19 @@ eq("clear all → all remove", diffSubs(["AAPL", "MSFT"], []), {
   remove: ["AAPL", "MSFT"],
 });
 
+// --- liveSymbols as the CNBC request (max 300) vs the Finnhub socket (default 50) ---
+// The same helper sizes both: the CNBC poll asks for up to 300 (the Worker's cap — one more
+// is a 400 and a failed poll), the Finnhub fallback socket holds 50.
+const W = Array.from({ length: 30 }, (_, i) => `W${i}`);
+const V = Array.from({ length: 400 }, (_, i) => `V${i}`);
+eq("default cap is the Finnhub socket's 50", liveSymbols(W, V).length, 50);
+eq("CNBC request capped at exactly 300, never 301", liveSymbols(W, V, 300).length, 300);
+eq("CNBC request: whole watchlist first, then visible", liveSymbols(W, V, 300).slice(0, 31), [...W, "V0"]);
+eq("CNBC request: overlap counted once", liveSymbols(["A"], ["A", "B"], 300), ["A", "B"]);
+eq("max 0 -> nothing", liveSymbols(["A"], ["B"], 0), []);
+
+// --- dayPct on a CNBC-scale price: Finnhub's fallback Day% for a >$1,000 stock ---
+eq("dayPct LLY 1270.75 vs prior close 1283.66", Math.round((dayPct(1270.75, 1283.66) ?? NaN) * 100) / 100, -1.01);
+
 if (failed) throw new Error(`${failed} useLiveQuotes check(s) failed`);
 console.log("\nall useLiveQuotes checks passed");

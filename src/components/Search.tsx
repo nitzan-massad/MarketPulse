@@ -3,6 +3,7 @@ import { useStocks } from "../stocks";
 import type { Stock } from "../types";
 import { consClass, consLabel, fmtPx } from "../lib";
 import { buildOptions, nextIndex, type SearchOption } from "../searchNav";
+import { cnbcSearchHits, cnbcSearchMatched } from "../quotes";
 
 
 interface SearchProps {
@@ -78,18 +79,40 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
   const exact = STOCKS.some((s) => s.t === upper);
   const offUniverse = query.length > 0 && /^[A-Za-z.]{1,6}$/.test(query) && !exact;
 
-  // Resolve company names / off-set tickers via Finnhub symbol lookup (same key +
-  // CORS-enabled host we already use for quotes). Lets "apple" -> AAPL even when the
-  // stock isn't in the ranked set. Debounced; skipped without a key (offline falls
-  // back to the raw-ticker guess below).
+  // Resolve company names / off-set tickers: CNBC's symbol lookup first (keyless, CORS-open),
+  // Finnhub's only when CNBC fails or matches no US stock/ETF/REIT/fund at all. Lets "apple" -> AAPL even when the stock
+  // isn't in the ranked set. Debounced; offline falls back to the raw-ticker guess below.
   useEffect(() => {
-    const key = localStorage.getItem("mp_finnhub") || import.meta.env.VITE_FINNHUB_KEY || "";
-    if (!open || query.length < 2 || !key) {
+    if (!open || query.length < 2) {
       setRemote([]);
       return;
     }
     const ctrl = new AbortController();
     const id = window.setTimeout(async () => {
+      const inSet = new Set(STOCKS.map((s) => s.t));
+      try {
+        const r = await fetch(
+          `https://symlookup.cnbc.com/symservice/symlookup.do?prefix=${encodeURIComponent(query)}&partnerid=20064&pgok=1&pgsize=15`,
+          { signal: ctrl.signal },
+        );
+        if (r.ok) {
+          const body = await r.json();
+          // CNBC matched something US: its answer stands, even when every match is already
+          // ranked (no hits) — Finnhub would only spend the shared key to say the same.
+          if (cnbcSearchMatched(body) > 0) {
+            setRemote(cnbcSearchHits(body, inSet));
+            return;
+          }
+        }
+      } catch {
+        if (ctrl.signal.aborted) return;
+        /* blocked / reshaped -> Finnhub below */
+      }
+      const key = localStorage.getItem("mp_finnhub") || import.meta.env.VITE_FINNHUB_KEY || "";
+      if (!key) {
+        setRemote([]);
+        return;
+      }
       try {
         const r = await fetch(
           `https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${key}`,
@@ -97,7 +120,6 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
         );
         if (!r.ok) return;
         const j = await r.json();
-        const inSet = new Set(STOCKS.map((s) => s.t));
         const rows = (j.result || [])
           .filter((x: { symbol?: string }) => x.symbol && !x.symbol.includes(".") && !inSet.has(x.symbol))
           .slice(0, 5)
@@ -201,7 +223,6 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
                 const on = i === active;
                 const cls = `search-res${o.kind === "ticker" ? " off" : ""}${on ? " on" : ""}`;
                 const common = {
-                  key: o.key,
                   id: optionId(i),
                   type: "button" as const,
                   className: cls,
@@ -214,7 +235,7 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
                 if (o.kind === "stock") {
                   const s2 = o.stock;
                   return (
-                    <button {...common}>
+                    <button key={o.key} {...common}>
                       <span className="search-tk">{s2.t}</span>
                       <span className="search-co">{s2.n}</span>
                       <span className={`search-con ${consClass(s2.con)}`}>{consLabel(s2.con)}</span>
@@ -224,7 +245,7 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
                 }
                 const hit = remote.find((r) => r.t === o.ticker);
                 return (
-                  <button {...common}>
+                  <button key={o.key} {...common}>
                     <span className="search-tk">{o.ticker}</span>
                     <span className="search-co">
                       {hit

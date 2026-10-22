@@ -18,6 +18,8 @@ import ThumbMark from "./ThumbMark";
 import PeHistory from "./PeHistory";
 import { parseEps, type EpsPoint } from "../peHistory";
 import { earningsParts, fromEntry, todayYmd, type Earnings } from "../earnings";
+import { etClock, extNow, mergeModal, needsFhQuote, normSym, quoteStale, type CnbcQuote } from "../quotes";
+import { WORKER_URL } from "../workerUrl";
 
 // Keys come from build-time env (same pattern App uses for Finnhub). Never hardcoded.
 const FINNHUB_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
@@ -119,7 +121,13 @@ const loadEarnings = (): Promise<EarningsIndex> =>
     .catch((): EarningsIndex => ({})));
 
 const NO_EPS: EpsPoint[] = []; // stable empty list, so PeHistory's effect doesn't refire every render
-const quoteMetricCache = new Map<string, { quote: Quote; metric: Metric; profile: Profile }>();
+type QuoteMetric = { quote: Quote; metric: Metric; profile: Profile; ext: CnbcQuote["ext"] };
+// The live half (CNBC quote, and Finnhub's /quote when needed) expires after a minute so a
+// reopened modal shows a current price; Finnhub's metric + profile2 barely move and share the
+// one key's 60/min with every visitor, so they are kept for the page's life.
+const QUOTE_TTL_MS = 60_000;
+const liveQuoteCache = new Map<string, { cq: CnbcQuote | null; fqRaw: Record<string, unknown> | null; at: number }>();
+const fundamentalsCache = new Map<string, { mRes: Record<string, unknown> | null; pRes: Record<string, unknown> | null }>();
 const seriesCache = new Map<string, Series>();
 
 // Bulls Say / Bears Say — a static per-ticker snapshot scraped from TipRanks'
@@ -218,47 +226,83 @@ function fmtVol(v: number | null | undefined): string {
   return String(Math.round(v));
 }
 
-async function fetchQuoteMetric(ticker: string): Promise<{ quote: Quote; metric: Metric; profile: Profile }> {
-  const cached = quoteMetricCache.get(ticker);
-  if (cached) return cached;
+// CNBC (via the Worker) for the quote and most fundamentals; Finnhub per missing field.
+// Finnhub's metric + profile2 still run: CNBC has no P/E history, sector or 3-month volume.
+// Finnhub's /quote only runs when CNBC can't give price + open/high/low (always so outside
+// the session, when CNBC zeroes them) — one call saved per open during market hours.
+async function fetchCnbc(ticker: string): Promise<CnbcQuote | null> {
+  const k = normSym(ticker);
+  if (!k) return null;
+  try {
+    const r = await fetch(`${WORKER_URL}/quotes?symbols=${encodeURIComponent(k)}`, {
+      signal: AbortSignal.timeout(10_000), // a hung CNBC must not hold back Finnhub's half
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j?.quotes?.[k] ?? null;
+  } catch {
+    return null;
+  }
+}
+const finnhub = (path: string): Promise<Record<string, unknown> | null> =>
+  FINNHUB_KEY
+    ? fetch(`https://finnhub.io/api/v1/${path}&token=${FINNHUB_KEY}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null)
+    : Promise.resolve(null);
 
+async function fetchQuoteMetric(ticker: string): Promise<QuoteMetric> {
   const enc = encodeURIComponent(ticker);
-  const [qRes, mRes, pRes] = await Promise.all([
-    fetch(`https://finnhub.io/api/v1/quote?symbol=${enc}&token=${FINNHUB_KEY}`).then((r) => r.json()),
-    fetch(`https://finnhub.io/api/v1/stock/metric?symbol=${enc}&metric=all&token=${FINNHUB_KEY}`).then((r) => r.json()),
-    fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${enc}&token=${FINNHUB_KEY}`).then((r) => r.json()),
+  const liveHit = liveQuoteCache.get(ticker);
+  const live = liveHit && Date.now() - liveHit.at < QUOTE_TTL_MS ? liveHit : null;
+  const fund = fundamentalsCache.get(ticker);
+  const [cq, mRes, pRes] = await Promise.all([
+    live ? live.cq : fetchCnbc(ticker),
+    fund?.mRes ?? finnhub(`stock/metric?symbol=${enc}&metric=all`),
+    fund?.pRes ?? finnhub(`stock/profile2?symbol=${enc}`),
   ]);
+  // A frozen previous-day CNBC quote mid-session gives the live half to Finnhub, as the table does.
+  const stale = quoteStale(cq, etClock());
+  const qRes = live ? live.fqRaw : needsFhQuote(stale ? null : cq) ? await finnhub(`quote?symbol=${enc}`) : null;
+  if (!cq && !mRes && !pRes && !qRes) throw new Error("no quote source answered"); // keep snapshot, retry next open
+  if (!live && (cq || qRes)) liveQuoteCache.set(ticker, { cq, fqRaw: qRes, at: Date.now() }); // a miss is retried next open
+  // Only the halves that answered: a failed one (say a 429) is asked again next open.
+  if (mRes || pRes) fundamentalsCache.set(ticker, { mRes, pRes });
 
-  const m = (mRes && mRes.metric) || {};
-  const result = {
-    quote: {
-      c: num(qRes?.c),
-      dp: num(qRes?.dp),
-      o: num(qRes?.o),
-      h: num(qRes?.h),
-      l: num(qRes?.l),
-      pc: num(qRes?.pc),
-    },
-    metric: {
-      hi52: num(m["52WeekHigh"]),
-      lo52: num(m["52WeekLow"]),
-      pe: num(m.peTTM) ?? num(m.peBasicExclExtraTTM),
-      // Finnhub omits the key entirely (not null) when there's no forward estimate
-      fwdPe: num(m.forwardPE),
-      epsTtm: num(m.epsTTM) ?? num(m.epsBasicExclExtraTTM),
-      beta: num(m.beta),
-      avgVol3M: num(m["3MonthAverageTradingVolume"]),
-      avgVol10D: num(m["10DayAverageTradingVolume"]),
-      epsQ: parseEps(mRes?.series?.quarterly?.eps),
-      peQ: parseEps(mRes?.series?.quarterly?.peTTM),
-    },
-    profile: {
-      name: typeof pRes?.name === "string" && pRes.name ? pRes.name : null,
-      sector: typeof pRes?.finnhubIndustry === "string" && pRes.finnhubIndustry ? pRes.finnhubIndustry : null,
-      mktCap: num(pRes?.marketCapitalization),
-    },
+  const m = ((mRes?.metric as Record<string, unknown> | undefined) ?? {}) as Record<string, unknown>;
+  const series = mRes?.series as { quarterly?: { eps?: unknown; peTTM?: unknown } } | undefined;
+  const fq = qRes
+    ? { c: num(qRes.c), dp: num(qRes.dp), o: num(qRes.o), h: num(qRes.h), l: num(qRes.l), pc: num(qRes.pc) }
+    : null;
+  // Finnhub answers an unknown symbol with all-zero quote fields: 0 is "no price", not $0.
+  if (fq) for (const k of ["c", "o", "h", "l", "pc"] as const) if (fq[k] === 0) fq[k] = null;
+  const fm = mRes
+    ? {
+        hi52: num(m["52WeekHigh"]),
+        lo52: num(m["52WeekLow"]),
+        pe: num(m.peTTM) ?? num(m.peBasicExclExtraTTM),
+        // Finnhub omits the key entirely (not null) when there's no forward estimate
+        fwdPe: num(m.forwardPE),
+        epsTtm: num(m.epsTTM) ?? num(m.epsBasicExclExtraTTM),
+        beta: num(m.beta),
+        avgVol3M: num(m["3MonthAverageTradingVolume"]),
+        avgVol10D: num(m["10DayAverageTradingVolume"]),
+      }
+    : null;
+  const fp = pRes
+    ? {
+        name: typeof pRes.name === "string" && pRes.name ? pRes.name : null,
+        sector: typeof pRes.finnhubIndustry === "string" && pRes.finnhubIndustry ? pRes.finnhubIndustry : null,
+        mktCap: num(pRes.marketCapitalization),
+      }
+    : null;
+  const merged = mergeModal(cq, fq, fm, fp, stale);
+  const result: QuoteMetric = {
+    quote: merged.quote,
+    metric: { ...merged.metric, epsQ: parseEps(series?.quarterly?.eps), peQ: parseEps(series?.quarterly?.peTTM) },
+    profile: merged.profile,
+    ext: cq?.ext ?? null,
   };
-  quoteMetricCache.set(ticker, result);
   return result;
 }
 
@@ -530,6 +574,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   const [quote, setQuote] = useState<Quote | null>(null);
   const [metric, setMetric] = useState<Metric | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [ext, setExt] = useState<CnbcQuote["ext"]>(null); // pre/after-hours trade, display only
   const [nextReport, setNextReport] = useState<Earnings | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -628,6 +673,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
         setQuote(r.quote);
         setMetric(r.metric);
         setProfile(r.profile);
+        setExt(r.ext);
       })
       .catch(() => {
         /* keep snapshot values */
@@ -741,6 +787,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
 
   // ---- derived display values (live extras layered over the snapshot row) ----
   const price = quote?.c ?? stock.px;
+  const extShown = extNow(ext, etClock()); // only today's, and only in its own session
   const dayPct = quote?.dp ?? stock.chg;
   // Apple Stocks shows a live trailing P/E = current price / trailing EPS. Recompute
   // it that way so it tracks the shown price; fall back to Finnhub's peTTM if no EPS.
@@ -749,10 +796,12 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   // Foreign filers report EPS in their home currency per ordinary share, so price/EPS is off by
   // FX x ADR ratio (TSM ~5x, EUR/CHF filers ~15-20%). US filers sit within ~5% of Finnhub's own
   // P/E, so beyond 7% it is a currency gap and Finnhub's (listing-currency) figure wins.
-  const peLive =
+  const peRaw =
     peFromEps != null && (metric?.pe == null || Math.abs(peFromEps / metric.pe - 1) <= 0.07)
       ? peFromEps
       : metric?.pe ?? null;
+  // A P/E under 1 is a broken EPS feed (ENLV: EPS 154 on a $0.20 stock), not a bargain.
+  const peLive = peRaw != null && peRaw >= 1 ? peRaw : null;
   // Sector averages are keyed by the app's own sector vocab, so this looks up
   // stock.sec — NOT the `sector` below, which prefers Finnhub's finhubIndustry
   // (a different taxonomy). TipRanks' "General" catch-all has no entry: renders "—".
@@ -958,10 +1007,37 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                 </div>
               )}
             </div>
+            {/* price + % move as one unit: on a phone the pair wraps together, never the % alone */}
+            <div className="mkm-pxgrp">
             <div className="mkm-px">{usd(price)}</div>
-            <div className={`mkm-chg ${dir}`}>
-              {pctLoading ? "…" : rangePct == null ? "—" : `${arrow}${pct(rangePct).replace(/^[+-]/, "")}`}
+            {/* While a range loads, the previous figure stays (dimmed) rather than "…": the two
+                widths differ, and on a phone the % wraps under the price — swapping them made
+                the whole card shrink and grow back on every range click. */}
+            <div className={`mkm-chg ${dir}${pctLoading ? " skel" : ""}`}>
+              {pctLoading && rangePct == null ? "…" : rangePct == null ? "—" : `${arrow}${pct(rangePct).replace(/^[+-]/, "")}`}
             </div>
+            </div>
+            {extShown && (
+              <div className="mkm-ext">
+                <span className="mkm-pill" title="Extended-hours trade (CNBC). Thin volume; rounded to cents.">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  {extShown.type === "pre" ? (
+                    <>
+                      <circle cx="12" cy="12" r="4" />
+                      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+                    </>
+                  ) : (
+                    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+                  )}
+                </svg>
+                <span className="mkm-ext-k">{extShown.type === "pre" ? "PRE-MARKET" : "AFTER HOURS"}</span>
+                <b>{usd(extShown.px)}</b>
+                {extShown.pct != null && (
+                  <span className={extShown.pct > 0 ? "up" : extShown.pct < 0 ? "dn" : "flat"}>{pct(extShown.pct)}</span>
+                )}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* CHART pane */}
