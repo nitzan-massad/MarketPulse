@@ -165,8 +165,9 @@ export function useNotifications(
     [f, user],
   );
 
+  // `id`: a fixed key instead of push() — two tabs or devices writing the same event land on ONE entry
   const addNotif = useCallback(
-    (n: Omit<Notification, "id">) => {
+    (n: Omit<Notification, "id">, id?: string) => {
       if (!user) return;
       if (DEV_AUTH) {
         setNotifs((prev) => {
@@ -176,7 +177,8 @@ export function useNotifications(
           return next;
         });
       } else if (f) {
-        void f.push(f.ref(f.db, `notifications/${user.uid}`), n);
+        if (id) void f.set(f.ref(f.db, `notifications/${user.uid}/${id}`), n);
+        else void f.push(f.ref(f.db, `notifications/${user.uid}`), n);
       }
     },
     [f, user],
@@ -224,7 +226,9 @@ export function useNotifications(
         subs.set(k, f.onValue(f.ref(d, `trackRequests/${k}/tracked`), (s) => {
           if (s.val() !== true || trackedFiredRef.current.has(k)) return;
           trackedFiredRef.current.add(k); // StrictMode / echo guard until the remove lands
-          addNotif({ type: "tracked", ticker: k.replace(/_/g, "."), at: Date.now(), read: false });
+          // that guard is per tab: a second open tab or device also sees tracked=true before the
+          // remove lands, and used to push a duplicate. A fixed id makes them write the same entry.
+          addNotif({ type: "tracked", ticker: k.replace(/_/g, "."), at: Date.now(), read: false }, `tracked-${k}`);
           void f.remove(f.ref(d, `trackreq/${user.uid}/${k}`));
         }));
       }
