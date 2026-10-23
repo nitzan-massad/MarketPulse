@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { barsUrl, CNBC_BARS, etToday, isRth, mondayOf, NoData, parseBars, RANGES, sessionStarted, splitOnlyCloses } from "../worker/bars.js";
+import { barsUrl, CNBC_BARS, etToday, isRth, mondayOf, NoData, parseBars, RANGES, sessionOhlc, sessionStarted, splitOnlyCloses } from "../worker/bars.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const F = (n) => JSON.parse(readFileSync(path.join(HERE, "fixtures", "cnbc-bars", `${n}.json`), "utf8"));
@@ -54,6 +54,7 @@ t("barsUrl: interval + day-granular window per range (end = tomorrow 00:00 ET)",
     "5Y": ["1W", "20211022000000"],
     ALL: ["1MO", "19700101000000"],
     PE: ["1W", "20211001000000"],
+    OHLC: ["1D", "20261012000000"],
   };
   for (const [r, [int, start]] of Object.entries(want)) {
     const [sym, i, s, e, adj, tz] = path6(barsUrl("AAPL", r, NOW));
@@ -204,6 +205,26 @@ t("no bars left (empty window, or no regular-hours bar) -> NoData", () => {
   assert.throws(() => parseBars({ barData: { priceBars: [] } }, "1M", NOW), NoData);
   const pre = { barData: { priceBars: [{ close: "1", tradeTime: "20261022080000" }] } };
   assert.throws(() => parseBars(pre, "1D", NOW), NoData);
+});
+
+// ---- sessionOhlc (off-hours open/high/low from the closed session's daily bar) ----------------
+t("sessionOhlc: the named session's real O/H/L/C, as numbers", () => {
+  assert.deepEqual(sessionOhlc(F("aapl-1d"), "2026-10-20"), { day: "2026-10-20", o: 339.86, h: 343.06, l: 338.7, c: 339.5 });
+});
+t("sessionOhlc: no bar for that day yet (still trading) / bad day -> NoData", () => {
+  assert.throws(() => sessionOhlc(F("aapl-1d"), "2026-10-22"), NoData);
+  assert.throws(() => sessionOhlc(F("aapl-1d"), "2026-10-18"), NoData); // a Sunday
+});
+t("sessionOhlc: a zero / junk field -> NoData (never a $0.00 open)", () => {
+  const b = { barData: { priceBars: [{ tradeTime: "20261020000000", open: "0.0000", high: "2", low: "1", close: "1.5" }] } };
+  assert.throws(() => sessionOhlc(b, "2026-10-20"), NoData);
+});
+t("sessionOhlc: CNBC ERROR body -> NoData; reshaped -> Error", () => {
+  assert.throws(() => sessionOhlc(F("err-unknown-sym"), "2026-10-20"), NoData);
+  assert.throws(() => sessionOhlc({ x: 1 }, "2026-10-20"), (e) => e instanceof Error && !(e instanceof NoData));
+});
+t("sessionOhlc: a day outside the fetched window -> NoData", () => {
+  assert.throws(() => sessionOhlc(F("aapl-1d"), "2026-09-30"), NoData); // fixture starts 2026-10-15
 });
 
 // ---- splitOnlyCloses ---------------------------------------------------------------------------

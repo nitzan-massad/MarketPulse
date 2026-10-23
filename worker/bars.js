@@ -1,4 +1,5 @@
-// CNBC's chart bars: the stock modal's chart and the P/E-history closes (replacing Twelve Data).
+// CNBC's chart bars: the stock modal's chart, the P/E-history closes and a closed session's
+// open/high/low (replacing Twelve Data, and Finnhub for off-hours O/H/L).
 // Undocumented — the same endpoint cnbc.com's charts call. The SERVER owns every window (the
 // client only names a range): CNBC doesn't cap them, and 5-minute bars for a year are 2 MB.
 // Output keeps Twelve Data's stamp shapes, so the chart, its session logic and peHistory are
@@ -24,6 +25,9 @@ export const RANGES = Object.freeze({
   "5Y": { int: "1W", back: { y: 5 }, ttl: HOUR },
   ALL: { int: "1MO", all: true, ttl: 6 * HOUR },
   PE: { int: "1W", back: { y: 5, d: 21 }, ttl: 6 * HOUR },
+  // A finished session's open/high/low (CNBC's quote zeroes them once the market closes). Keyed by
+  // that session's date, so it never changes: cached for half a day.
+  OHLC: { int: "1D", back: { d: 10 }, ttl: 12 * HOUR },
 });
 
 // A weekday at/after 09:30 New York time. No holiday calendar: on a weekday holiday the
@@ -138,6 +142,24 @@ export function parseBars(body, range, nowMs = Date.now()) {
         ? (tt) => `${tt.slice(0, 4)}-${tt.slice(4, 6)}-01`
         : ymdOf;
   return { t: r.map((x) => stamp(x.tt)), c: r.map((x) => x.c) };
+}
+
+/** The open/high/low/close of the session dated `day` ("YYYY-MM-DD") from a daily-bar body.
+ *  CNBC adds a session's daily bar once it has closed, which is exactly when its quote stops
+ *  carrying open/high/low. No bar for that day (still trading, or a bad date) -> NoData. */
+export function sessionOhlc(body, day) {
+  if (body?.status === "ERROR") throw new NoData(String(body.statusMessage || "no data"));
+  const raw = body?.barData?.priceBars;
+  if (!Array.isArray(raw)) throw new Error("cnbc bars: unexpected envelope");
+  const want = day.replace(/-/g, "");
+  const b = raw.find((x) => String(x?.tradeTime ?? "").slice(0, 8) === want);
+  const n = (v) => {
+    const x = Number(String(v ?? "").replace(/,/g, ""));
+    return Number.isFinite(x) && x > 0 ? Math.round(x * 1e4) / 1e4 : null;
+  };
+  const o = n(b?.open), h = n(b?.high), l = n(b?.low), c = n(b?.close);
+  if (o == null || h == null || l == null || c == null) throw new NoData(`no bar for ${day}`);
+  return { day, o, h, l, c };
 }
 
 // Stock-split ratios (and their inverses, for reverse splits) recognised in the

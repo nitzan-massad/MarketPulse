@@ -152,6 +152,39 @@ await t("PE: adjusted + unadjusted fetched, closes split-only (a spin undone)", 
   assert.deepEqual(j.c, [80, 80, 12]);
 });
 
+// ---- OHLC (a closed session's open/high/low) ---------------------------------------------------
+const dayBars = { barData: { priceBars: [{ tradeTime: "20261021000000", open: "339.36", high: "345.25", low: "338.83", close: "343.99" }] } };
+await t("OHLC: a closed session's O/H/L/C, cached 12 h per day", async () => {
+  upstream = () => ok(dayBars);
+  const r = await call("?symbol=AAPL&range=OHLC&day=2026-10-21");
+  assert.equal(r.status, 200);
+  assert.deepEqual(await json(r), { s: "AAPL", r: "OHLC", day: "2026-10-21", o: 339.36, h: 345.25, l: 338.83, c: 343.99 });
+  assert.equal(r.headers.get("cache-control"), "max-age=43200");
+  await call("?symbol=AAPL&range=OHLC&day=2026-10-21");
+  assert.equal(calls.length, 1, "cached");
+  assert.equal((await call("?symbol=AAPL&range=OHLC&day=2026-10-20")).status, 404, "another day is its own key (no bar -> 404)");
+  assert.equal(calls.length, 2);
+});
+await t("OHLC: a miss (bar not published yet) is re-asked after 5 min, not an hour", async () => {
+  upstream = () => ok({ barData: { priceBars: [] } });
+  assert.equal((await call("?symbol=MSFT&range=OHLC&day=2026-10-22")).status, 404);
+  clock += 4 * 60_000;
+  await call("?symbol=MSFT&range=OHLC&day=2026-10-22");
+  assert.equal(calls.length, 1, "cached inside 5 min");
+  clock += 61_000;
+  upstream = () => ok(dayBars);
+  await call("?symbol=MSFT&range=OHLC&day=2026-10-22");
+  assert.equal(calls.length, 2, "asked again after 5 min");
+});
+await t("OHLC: day missing or malformed -> 400, no CNBC call", async () => {
+  for (const q of ["?symbol=AAPL&range=OHLC", "?symbol=AAPL&range=OHLC&day=2026-10-2", "?symbol=AAPL&range=OHLC&day=20261021", "?symbol=AAPL&range=OHLC&day=../x"]) {
+    const r = await call(q);
+    assert.equal(r.status, 400, q);
+    assert.deepEqual(await json(r), { error: "bad day" }, q);
+  }
+  assert.equal(calls.length, 0);
+});
+
 // ---- cache / TTL / coalescing -------------------------------------------------------------------
 await t("a cache hit's max-age is what is LEFT of its TTL (browser + Worker caches don't stack)", async () => {
   await call("?symbol=CSCO&range=1D");

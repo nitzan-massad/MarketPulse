@@ -6,7 +6,7 @@ const DISPATCH =
   "https://api.github.com/repos/nitzan-massad/MarketPulse/actions/workflows/track-requests.yml/dispatches";
 
 import { BROWSER_UA, CHUNK, CNBC_QUOTE, normSym, parseQuote, parseSymbols, rowsBySymbol } from "./cnbc.js";
-import { barsUrl, NoData, parseBars, RANGES, splitOnlyCloses } from "./bars.js";
+import { barsUrl, NoData, parseBars, RANGES, sessionOhlc, splitOnlyCloses } from "./bars.js";
 
 // Finnhub free tier: 50 symbols on the one connection a key may hold.
 const SYMBOL_CAP = 50;
@@ -101,6 +101,9 @@ async function quotes(url, cors) {
 const BARS_CACHE_MAX_BYTES = 8 * 1024 * 1024;
 const BARS_FAIL_MS = 30_000;
 const BARS_NODATA_TTL_MS = 60 * 60_000; // unknown symbol: ask CNBC again at most hourly
+// ...but an OHLC miss is usually "the session just closed and CNBC hasn't added its daily bar
+// yet": ask again soon, or every open falls back to Finnhub for an hour.
+const OHLC_NODATA_TTL_MS = 5 * 60_000;
 const barsCache = new Map(); // "SYM|RANGE" -> { status, body, at, ttl }
 let barsBytes = 0;
 const barsInflight = new Map(); // "SYM|RANGE" -> Promise<{ status, body, ttl }>
@@ -121,22 +124,27 @@ function barsPut(key, e) {
   }
 }
 
-async function cnbcBars(sym, range, now, adj, wide = false) {
+async function cnbcBody(sym, range, now, adj = "adjusted", wide = false) {
   const r = await fetch(barsUrl(sym, range, now, adj, wide), {
     headers: { "user-agent": BROWSER_UA, accept: "application/json" },
     signal: AbortSignal.timeout(CNBC_TIMEOUT_MS),
   });
   if (!r.ok) throw new Error(`cnbc bars ${r.status}`);
-  return parseBars(await r.json(), range, now);
+  return r.json();
 }
+const cnbcBars = async (sym, range, now, adj, wide) => parseBars(await cnbcBody(sym, range, now, adj, wide), range, now);
 
 // One CNBC answer -> a finished { status, body, ttl }. NoData is an answer (404, cached an
-// hour, never trips the failure memory: one bad ticker must not black out everyone's charts);
+// hour — 5 min for OHLC — never trips the failure memory: one bad ticker must not black out everyone's charts);
 // anything else throws.
-async function loadBars(sym, range, now) {
+async function loadBars(sym, range, now, day) {
   const ttl = RANGES[range].ttl;
   try {
     let b;
+    if (range === "OHLC") {
+      const ohlc = sessionOhlc(await cnbcBody(sym, range, now), day);
+      return { status: 200, ttl, body: JSON.stringify({ s: sym, r: range, ...ohlc }) };
+    }
     if (range === "PE") {
       const [adj, unadj] = await Promise.all([cnbcBars(sym, range, now, "adjusted"), cnbcBars(sym, range, now, "unadjusted")]);
       b = { ...adj, c: splitOnlyCloses(adj, unadj) };
@@ -146,12 +154,14 @@ async function loadBars(sym, range, now) {
     }
     return { status: 200, ttl, body: JSON.stringify({ s: sym, r: range, i: RANGES[range].int, asOf: now, ...b }) };
   } catch (e) {
-    if (e instanceof NoData) return { status: 404, ttl: BARS_NODATA_TTL_MS, body: JSON.stringify({ error: "no data" }) };
+    if (e instanceof NoData)
+      return { status: 404, ttl: range === "OHLC" ? OHLC_NODATA_TTL_MS : BARS_NODATA_TTL_MS, body: JSON.stringify({ error: "no data" }) };
     throw e;
   }
 }
 
 // GET /bars?symbol=AAPL&range=1D -> { s, r, i, asOf, t[], c[] }, oldest first.
+// GET /bars?symbol=AAPL&range=OHLC&day=2026-10-22 -> { s, r, day, o, h, l, c }: a closed session.
 // 400 bad input · 404 CNBC has nothing · 502 CNBC failing (the client falls back to Twelve Data).
 async function bars(url, cors) {
   const json = (body, status, extra = {}) =>
@@ -161,7 +171,9 @@ async function bars(url, cors) {
   if (!sym) return json('{"error":"bad symbol"}', 400);
   const range = url.searchParams.get("range");
   if (!Object.hasOwn(RANGES, range ?? "")) return json('{"error":"bad range"}', 400);
-  const key = `${sym}|${range}`;
+  const day = url.searchParams.get("day") ?? "";
+  if (range === "OHLC" && !/^\d{4}-\d{2}-\d{2}$/.test(day)) return json('{"error":"bad day"}', 400);
+  const key = range === "OHLC" ? `${sym}|OHLC|${day}` : `${sym}|${range}`;
   const now = Date.now();
   const hit = barsCache.get(key);
   // a hit tells the browser only what is LEFT of its life, or the two caches stack (a "live" 1D twice its age)
@@ -170,7 +182,7 @@ async function bars(url, cors) {
   if (now < barsFailedUntil) return json('{"error":"upstream"}', 502);
   let p = barsInflight.get(key);
   if (!p) {
-    p = loadBars(sym, range, now).finally(() => {
+    p = loadBars(sym, range, now, day).finally(() => {
       if (barsInflight.get(key) === p) barsInflight.delete(key);
     });
     barsInflight.set(key, p);
