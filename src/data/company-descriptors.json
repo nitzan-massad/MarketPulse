@@ -208,5 +208,10 @@
     "name": "Thermo Fisher Scientific",
     "descriptor": "Laboratory Equipment Maker",
     "scene": "carefully calibrating a mass spectrometer in a bustling laboratory setting"
+  },
+  "RIOT": {
+    "name": "Riot Platforms",
+    "descriptor": "Bitcoin Mining",
+    "scene": "adjusting fans on a row of humming bitcoin servers in a large data hall"
   }
 }

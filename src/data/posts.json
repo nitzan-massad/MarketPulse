@@ -1,5 +1,34 @@
 [
   {
+    "id": "RIOT-2026-10-23T15:28:34.286Z",
+    "ts": "2026-10-23T15:28:34.286Z",
+    "kind": "movement",
+    "ticker": "RIOT",
+    "name": "Riot Platforms",
+    "sector": "Financial",
+    "text": "~144% upside, up from 125%, today.",
+    "score": 38,
+    "reasons": [
+      "6 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "duplicate of a recent post (50% word overlap)"
+    ],
+    "facts": {
+      "upsideFrom": 124.7,
+      "upsideTo": 144.4,
+      "consensusFrom": "StrongBuy",
+      "consensusTo": "StrongBuy",
+      "price": 12.89,
+      "priceTarget": 31.5,
+      "analysts": 15,
+      "sector": "Financial",
+      "smartScoreFrom": 8,
+      "smartScoreTo": 7
+    },
+    "descriptor": "Bitcoin Mining"
+  },
+  {
     "id": "QBTS-2026-10-23T10:23:47.865Z",
     "ts": "2026-10-23T10:23:47.865Z",
     "kind": "surprise",
