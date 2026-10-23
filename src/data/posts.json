@@ -1,5 +1,33 @@
 [
   {
+    "id": "QNT-2026-10-23T19:18:09.487Z",
+    "ts": "2026-10-23T19:18:09.487Z",
+    "kind": "contrarian",
+    "ticker": "QNT",
+    "name": "Quantinuum",
+    "sector": "General",
+    "text": "12 analysts say 144% upside, AI says neutral.",
+    "score": 36,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (43% word overlap)"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "aiScore": 49,
+      "aiRating": "Neutral",
+      "consensus": "StrongBuy",
+      "upside": 143.6,
+      "price": 35.9,
+      "analysts": 12,
+      "bullish": "quant"
+    },
+    "descriptor": "Quantum Computing Hardware",
+    "image": "QNT-2026-10-23T19-18-09-487Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "RIOT-2026-10-23T15:28:34.286Z",
     "ts": "2026-10-23T15:28:34.286Z",
     "kind": "movement",

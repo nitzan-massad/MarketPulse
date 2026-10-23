@@ -213,5 +213,10 @@
     "name": "Riot Platforms",
     "descriptor": "Bitcoin Mining",
     "scene": "adjusting fans on a row of humming bitcoin servers in a large data hall"
+  },
+  "QNT": {
+    "name": "Quantinuum",
+    "descriptor": "Quantum Computing Hardware",
+    "scene": "carefully assembling a quantum processor module on a workbench"
   }
 }
