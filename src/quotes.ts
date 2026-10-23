@@ -237,8 +237,9 @@ export interface FhProfile {
   mktCap: number | null;
 }
 
-// Does the modal still need Finnhub's /quote? Only when CNBC has no quote, or is missing
-// open/high/low (always so outside the session — CNBC zeroes them).
+// Can CNBC's quote alone fill the modal's live half? Not when there is no quote, or no
+// open/high/low (outside the session CNBC zeroes them) — the modal then tries the closed
+// session's daily bar (Worker /bars?range=OHLC) and only then Finnhub's /quote.
 export const needsFhQuote = (q: CnbcQuote | null): boolean => !q || q.o == null || q.h == null || q.l == null;
 
 const pick = <T>(a: T | null | undefined, b: T | null | undefined): T | null => a ?? b ?? null;

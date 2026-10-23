@@ -57,7 +57,7 @@ live quotes and per-user state. No backend of our own.
 3. **App (`src/`)** — `App.tsx` holds all filter/sort/nav state and feeds four sections
    (`StockTable`, `BestOfBest`, `NewArrivals`, `Watchlist`) plus `StockModal`. Pure logic sits in
    dependency-free modules with a paired `*.check.ts` (`alertEngine`, `chartSession`,
-   `chartBars`, `consensusNull`, `fmtPx`, `metricChange`, `quotes`, `reviewAlerts`, `share`, `watchlistOrder`, and the
+   `chartBars`, `consensusNull`, `fmtPx`, `metricChange`, `quotes`, `quoteStore`, `reviewAlerts`, `share`, `watchlistOrder`, and the
    pure exports of `useLiveQuotes`) — keep it that way, that pairing is what makes it testable
    without React or Firebase. `consensus.ts` is covered from both sides: `consensusNull.check.ts`
    plus `ci/test-consensus-direction.mjs`.
@@ -73,7 +73,9 @@ and open/high/low read `0.00` off-hours. `StockModal` takes quote + fundamentals
 Finnhub per missing field (sector, 3-month volume, quarterly EPS stay Finnhub), chart bars from
 the Worker's `/bars` (`worker/bars.js`: CNBC, server-owned windows, regular hours only, weekly
 stamps shifted Sunday→Monday; Twelve Data only as a fallback), and FMP only for descriptions of
-off-universe tickers. Daily+ bars stop at yesterday — `chartBars.ts` `withLive` adds today from
+off-universe tickers. The modal opens on the CNBC quote the page already holds (`quoteStore`, fed
+by the table's poll and a search prefetch); off-hours open/high/low come from the closed
+session's daily bar (`/bars?range=OHLC&day=`), Finnhub's `/quote` only as a fallback. Daily+ bars stop at yesterday — `chartBars.ts` `withLive` adds today from
 the quote. P/E history needs **split-only** closes (`splitOnlyCloses`: CNBC's `adjusted` also
 removes spin-offs). The Worker deploys by hand: `cd worker && npx wrangler deploy`.
 Watchlist, thumb marks, saved filters, notifications and review-seen sets persist to Firebase

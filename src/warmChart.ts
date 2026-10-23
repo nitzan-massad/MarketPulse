@@ -1,4 +1,5 @@
-import { normSym } from "./quotes";
+import { cnbcRequest, normSym, type CnbcMap } from "./quotes";
+import { freshQuote, putQuotes } from "./quoteStore";
 import { WORKER_URL } from "./workerUrl";
 
 // Hovering a row for a moment warms its 1D chart in the Worker's cache (60 s), so the click
@@ -26,4 +27,28 @@ export function warmChart(ticker: string) {
     },
     onMouseLeave: () => clearTimeout(timer),
   };
+}
+
+// Search: the dropdown's quotes are fetched while the user is still choosing — one /quotes call
+// for the ones the page doesn't hold yet (into the shared store the modal reads) — and the top
+// SEARCH_WARM_CHARTS results' 1D charts are warmed (each uncached one costs a CNBC call, so not
+// all 12 on every pause in the typing). Debounced: only the list the typing settles on.
+const SEARCH_SETTLE_MS = 300;
+const SEARCH_WARM_CHARTS = 3;
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+/** An empty list cancels a pending prefetch (dropdown closed, or a result already picked). */
+export function prefetchStocks(tickers: string[]): void {
+  clearTimeout(searchTimer);
+  if (!tickers.length) return;
+  searchTimer = setTimeout(() => {
+    const need = cnbcRequest(tickers.filter((t) => !freshQuote(t)));
+    if (need.length)
+      void fetch(`${WORKER_URL}/quotes?symbols=${need.map(encodeURIComponent).join(",")}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          if (j?.quotes && typeof j.quotes === "object") putQuotes(j.quotes as CnbcMap);
+        })
+        .catch(() => {});
+    for (const t of tickers.slice(0, SEARCH_WARM_CHARTS)) warm(t);
+  }, SEARCH_SETTLE_MS);
 }

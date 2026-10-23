@@ -4,6 +4,7 @@ import type { Stock } from "../types";
 import { consClass, consLabel, fmtPx } from "../lib";
 import { buildOptions, nextIndex, type SearchOption } from "../searchNav";
 import { cnbcSearchHits, cnbcSearchMatched } from "../quotes";
+import { prefetchStocks } from "../warmChart";
 
 
 interface SearchProps {
@@ -141,6 +142,11 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
     () => buildOptions(results, remote, offUniverse ? upper : null),
     [results, remote, offUniverse, upper],
   );
+
+  // Fetch every listed stock's quote + 1D chart before one is picked, so the modal opens ready.
+  useEffect(() => {
+    prefetchStocks(open ? options.map((o) => (o.kind === "stock" ? o.stock.t : o.ticker)) : []);
+  }, [options, open]);
 
   // A new query invalidates the highlight — otherwise Enter would open whatever happened
   // to sit at that index in the previous result set.

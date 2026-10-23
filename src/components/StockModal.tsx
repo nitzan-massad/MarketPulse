@@ -21,6 +21,7 @@ import { earningsParts, fromEntry, todayYmd, type Earnings } from "../earnings";
 import { etClock, extNow, mergeModal, needsFhQuote, normSym, quoteStale, type CnbcQuote } from "../quotes";
 import { readBars, sessionBase, withLive, type BarKind } from "../chartBars";
 import { WORKER_URL } from "../workerUrl";
+import { freshQuote } from "../quoteStore";
 
 // Keys come from build-time env (same pattern App uses for Finnhub). Never hardcoded.
 const FINNHUB_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
@@ -224,9 +225,11 @@ function fmtVol(v: number | null | undefined): string {
 
 // CNBC (via the Worker) for the quote and most fundamentals; Finnhub per missing field.
 // Finnhub's metric + profile2 still run: CNBC has no P/E history, sector or 3-month volume.
-// Finnhub's /quote only runs when CNBC can't give price + open/high/low (always so outside
-// the session, when CNBC zeroes them) — one call saved per open during market hours.
+// Outside the session CNBC zeroes open/high/low: they come from the closed session's daily bar
+// (Worker /bars?range=OHLC). Finnhub's /quote only runs when CNBC has no fresh quote or no bar.
 async function fetchCnbc(ticker: string): Promise<CnbcQuote | null> {
+  const held = freshQuote(ticker); // the table's poll / a search prefetch already has it
+  if (held) return held;
   const k = normSym(ticker);
   if (!k) return null;
   try {
@@ -240,6 +243,40 @@ async function fetchCnbc(ticker: string): Promise<CnbcQuote | null> {
     return null;
   }
 }
+// What the modal can show the instant it opens, from a CNBC quote the page already holds: price,
+// day move, prior close, volume, 52-week range, P/E, EPS, beta, market cap (and in the session
+// open/high/low). The rest (sector, 3-month volume, EPS history, off-hours O/H/L) and the chart
+// still load as before and fill in over it. A stale held quote seeds nothing: its headline would
+// be empty, and the skeletons are what keep the snapshot price from flashing first.
+function instantQuoteMetric(ticker: string): QuoteMetric | null {
+  const cq = freshQuote(ticker);
+  if (!cq || quoteStale(cq, etClock())) return null;
+  const m = mergeModal(cq, null, null, null);
+  return {
+    quote: m.quote,
+    metric: { ...m.metric, epsQ: NO_EPS, peQ: NO_EPS },
+    profile: m.profile,
+    ext: cq.ext ?? null,
+    live: cq.day ? { day: cq.day, px: cq.px } : null,
+  };
+}
+
+// The closed session's open/high/low from the Worker (CNBC's daily bar), or null.
+async function sessionOhlc(ticker: string, day: string): Promise<{ o: number; h: number; l: number } | null> {
+  const k = normSym(ticker);
+  if (!k) return null;
+  try {
+    const r = await fetch(`${WORKER_URL}/bars?symbol=${encodeURIComponent(k)}&range=OHLC&day=${day}`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j?.o > 0 && j?.h > 0 && j?.l > 0 ? { o: j.o, h: j.h, l: j.l } : null;
+  } catch {
+    return null;
+  }
+}
+
 const finnhub = (path: string): Promise<Record<string, unknown> | null> =>
   FINNHUB_KEY
     ? fetch(`https://finnhub.io/api/v1/${path}&token=${FINNHUB_KEY}`)
@@ -252,14 +289,29 @@ async function fetchQuoteMetric(ticker: string): Promise<QuoteMetric> {
   const liveHit = liveQuoteCache.get(ticker);
   const live = liveHit && Date.now() - liveHit.at < QUOTE_TTL_MS ? liveHit : null;
   const fund = fundamentalsCache.get(ticker);
-  const [cq, mRes, pRes] = await Promise.all([
-    live ? live.cq : fetchCnbc(ticker),
+  // The quote half runs beside Finnhub's metric + profile, not after them.
+  const quoteHalf = async (): Promise<{ cq: CnbcQuote | null; qRes: Record<string, unknown> | null }> => {
+    // a newer quote the page holds beats the 60 s cache's copy (no price jumping backwards)
+    if (live) return { cq: freshQuote(ticker) ?? live.cq, qRes: live.fqRaw };
+    const cq = await fetchCnbc(ticker);
+    // A frozen previous-day CNBC quote mid-session gives the live half to Finnhub, as the table does.
+    const fresh = quoteStale(cq, etClock()) ? null : cq;
+    if (!needsFhQuote(fresh)) return { cq, qRes: null };
+    // Off-hours CNBC zeroes open/high/low, but the session that just closed has a daily bar with
+    // them (Worker /bars?range=OHLC, cached half a day): no Finnhub call. Finnhub's /quote only
+    // when CNBC has no fresh quote, or no bar for that session yet.
+    if (fresh?.day) {
+      const ohlc = await sessionOhlc(ticker, fresh.day);
+      if (ohlc) return { cq, qRes: ohlc };
+    }
+    return { cq, qRes: await finnhub(`quote?symbol=${enc}`) };
+  };
+  const [{ cq, qRes }, mRes, pRes] = await Promise.all([
+    quoteHalf(),
     fund?.mRes ?? finnhub(`stock/metric?symbol=${enc}&metric=all`),
     fund?.pRes ?? finnhub(`stock/profile2?symbol=${enc}`),
   ]);
-  // A frozen previous-day CNBC quote mid-session gives the live half to Finnhub, as the table does.
   const stale = quoteStale(cq, etClock());
-  const qRes = live ? live.fqRaw : needsFhQuote(stale ? null : cq) ? await finnhub(`quote?symbol=${enc}`) : null;
   if (!cq && !mRes && !pRes && !qRes) throw new Error("no quote source answered"); // keep snapshot, retry next open
   if (!live && (cq || qRes)) liveQuoteCache.set(ticker, { cq, fqRaw: qRes, at: Date.now() }); // a miss is retried next open
   // Only the halves that answered: a failed one (say a 429) is asked again next open.
@@ -572,11 +624,12 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
   // this ticker's "Track this stock" entry: changes when CI publishes it, re-running the loads below
   const trackedRev = useTrackedRev(stock.t);
-  const [quote, setQuote] = useState<Quote | null>(null);
-  const [metric, setMetric] = useState<Metric | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [ext, setExt] = useState<CnbcQuote["ext"]>(null); // pre/after-hours trade, display only
-  const [live, setLive] = useState<QuoteMetric["live"]>(null);
+  const [seed] = useState(() => instantQuoteMetric(stock.t)); // no wait when the page holds its quote
+  const [quote, setQuote] = useState<Quote | null>(seed?.quote ?? null);
+  const [metric, setMetric] = useState<Metric | null>(seed?.metric ?? null);
+  const [profile, setProfile] = useState<Profile | null>(seed?.profile ?? null);
+  const [ext, setExt] = useState<CnbcQuote["ext"]>(seed?.ext ?? null); // pre/after-hours trade, display only
+  const [live, setLive] = useState<QuoteMetric["live"]>(seed?.live ?? null);
   const [nextReport, setNextReport] = useState<Earnings | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -1334,15 +1387,15 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
             <div className="mkm-kv">
               <div className="row">
                 <div className="k">Open</div>
-                <div className={`v ${qmLoading && !quote ? "skel" : ""}`}>{usd(quote?.o)}</div>
+                <div className={`v ${qmLoading && quote?.o == null ? "skel" : ""}`}>{usd(quote?.o)}</div>
               </div>
               <div className="row">
                 <div className="k">High</div>
-                <div className={`v up ${qmLoading && !quote ? "skel" : ""}`}>{usd(quote?.h)}</div>
+                <div className={`v up ${qmLoading && quote?.h == null ? "skel" : ""}`}>{usd(quote?.h)}</div>
               </div>
               <div className="row">
                 <div className="k">Low</div>
-                <div className={`v dn ${qmLoading && !quote ? "skel" : ""}`}>{usd(quote?.l)}</div>
+                <div className={`v dn ${qmLoading && quote?.l == null ? "skel" : ""}`}>{usd(quote?.l)}</div>
               </div>
               <div className="row">
                 <div className="k">Prev Close</div>
@@ -1355,22 +1408,23 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
               {/* row 1 ends on Avg Vol 3M so it sits beside Volume, the number it's read against */}
               <div className="row">
                 <div className="k">Avg Vol 3M</div>
-                <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>
+                <div className={`v ${qmLoading && metric?.avgVol3M == null ? "skel" : ""}`}>
                   {fmtVol(metric?.avgVol3M != null ? metric.avgVol3M * 1e6 : null)}
                 </div>
               </div>
-              {/* row 2: range, risk, then the three valuation cells */}
+              {/* row 2: range, risk, then the three valuation cells. Skeletons are per field: a
+                  seeded CNBC quote fills most at once; a gap waits for Finnhub, not "—" first. */}
               <div className="row">
                 <div className="k">52W High</div>
-                <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>{usd(metric?.hi52)}</div>
+                <div className={`v ${qmLoading && metric?.hi52 == null ? "skel" : ""}`}>{usd(metric?.hi52)}</div>
               </div>
               <div className="row">
                 <div className="k">52W Low</div>
-                <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>{usd(metric?.lo52)}</div>
+                <div className={`v ${qmLoading && metric?.lo52 == null ? "skel" : ""}`}>{usd(metric?.lo52)}</div>
               </div>
               <div className="row">
                 <div className="k">Beta</div>
-                <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>
+                <div className={`v ${qmLoading && metric?.beta == null ? "skel" : ""}`}>
                   {metric?.beta == null ? "—" : metric.beta.toFixed(2)}
                 </div>
               </div>
@@ -1383,7 +1437,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
               >
                 <div className="row">
                   <div className="k">P/E</div>
-                  <div className={`v ${qmLoading && !metric ? "skel" : ""}`}>
+                  <div className={`v ${qmLoading && peLive == null ? "skel" : ""}`}>
                     {peLive == null || peLive <= 0 ? "—" : peLive.toFixed(2)}
                   </div>
                 </div>
@@ -1392,7 +1446,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                   {/* green/red vs the sector's FORWARD average — comparing it to the
                       trailing half would flatter every stock */}
                   <div
-                    className={`v ${fwdPeClass} ${qmLoading && !metric ? "skel" : ""}`}
+                    className={`v ${fwdPeClass} ${qmLoading && metric?.fwdPe == null ? "skel" : ""}`}
                   >
                     {metric?.fwdPe == null || metric.fwdPe <= 0 ? "—" : metric.fwdPe.toFixed(2)}
                   </div>

@@ -17,6 +17,7 @@ import {
   type Session,
   type SourceState,
 } from "./quotes";
+import { putQuotes } from "./quoteStore";
 
 // live/pre/post: CNBC is answering (regular session / around it). backup: CNBC is down and
 // Finnhub carries the session. error: CNBC is down and Finnhub can't carry the session —
@@ -477,6 +478,7 @@ export function useLiveQuotes(
               setCnbc((prev) => (sameQuotes(prev, quotes) ? prev : { ...prev, ...quotes }));
               const real = Object.fromEntries(Object.entries(quotes).filter(([, q]) => q != null));
               setCnbcLast((prev) => (sameQuotes(prev, real) ? prev : { ...prev, ...real }));
+              putQuotes(quotes, at); // the stock modal opens on these instead of re-fetching
             }
           }
         } catch {
