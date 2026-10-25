@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import { alertView } from "../alertEngine";
 import type { Notification } from "../useNotifications";
 import { fmtMarkDate } from "./ThumbMark";
+import { DATE_LOCALE } from "../lib";
+
+// "10/03" — the row's gray "since" date; the group header (Today / Earlier) carries the year
+const fmtTrackedDate = (ms: number) => new Date(ms).toLocaleDateString(DATE_LOCALE, { month: "2-digit", day: "2-digit" });
 
 interface Props {
   notifications: Notification[];
@@ -15,16 +20,6 @@ const BellIcon = (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
     <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-  </svg>
-);
-const ArrowUp = (
-  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
-  </svg>
-);
-const ArrowDown = (
-  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 5v14" /><path d="M19 12l-7 7-7-7" />
   </svg>
 );
 const TrashIcon = (
@@ -171,23 +166,20 @@ export default function NotificationBell({
       );
     }
     const up = n.dir === "up";
-    const msg = up ? "I hope you bought this: " : "it's time to buy: ";
-    const pct = n.pct ?? 0;
-    const sign = pct >= 0 ? "+" : "−";
+    const view = alertView(n, fmtTrackedDate);
     return (
-      <button key={n.id} className={`nb-row${isNew ? "" : " read"}`} role="menuitem" onClick={open}>
-        <span className={`nb-dot ${up ? "up" : "dn"}`} />
+      <button
+        key={n.id}
+        className={`nb-row nb-price${isNew ? "" : " read"}`}
+        role="menuitem"
+        aria-label={`${n.ticker} ${view.pct} since the last alert${view.total ? `, ${view.total}` : ""}, ${fmtMarkDate(n.at)}`}
+        title={fmtMarkDate(n.at)}
+        onClick={open}
+      >
+        <span className={`nb-blk ${up ? "up" : "dn"}`}>{view.pct}</span>
         <span className="nb-mid">
-          <span className="nb-msg">
-            {msg}
-            <span className="nb-tk">{n.ticker}</span>
-          </span>
-          <span className="nb-date">{fmtMarkDate(n.at)}</span>
-        </span>
-        <span className={`nb-pct ${up ? "up" : "dn"}`}>
-          {up ? ArrowUp : ArrowDown}
-          {sign}
-          {Math.abs(pct)}%
+          <span className="nb-tk">{n.ticker}</span>
+          {view.total && <span className="nb-date">{view.total}</span>}
         </span>
       </button>
     );

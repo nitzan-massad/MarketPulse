@@ -1,6 +1,6 @@
 import type { User } from "firebase/auth";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { evalAlert, reFireSuppressed, type Dir, type Meta } from "./alertEngine";
+import { fireAlerts, reconcileMeta, type Dir, type Meta } from "./alertEngine";
 import { DEV_AUTH, useFb } from "./watchlist";
 
 // Notifications reuse the exact persistence shape of useWatchlist: Firebase RTDB
@@ -12,7 +12,10 @@ export interface Notification {
   type: "price" | "review" | "tracked"; // tracked: a "Track this stock" request landed
   ticker: string;
   dir?: Dir; // price
-  pct?: number; // price: cumulative % vs add price at fire time
+  pct?: number; // price: legacy cumulative % vs add price — rows written before `since`
+  since?: number; // price: % since the previous alert (or since added, for the first)
+  total?: number; // price: % since the ticker was added to the watchlist, at fire time
+  addAt?: number; // price: when the ticker was added (absent for tickers added before it was saved)
   company?: string; // review
   keys?: string[]; // review: identity keys of the new reviews (drives the modal highlight)
   at: number; // epoch ms
@@ -242,37 +245,15 @@ export function useNotifications(
   // reconcile meta: create for newly-watched tickers (reqs 11 + 12), prune the rest
   useEffect(() => {
     if (!user || !metaLoaded) return;
-    for (const t of watchlist) {
-      if (!meta[t] && typeof prices[t] === "number") {
-        persistMeta(t, { addPx: prices[t], ref: prices[t] });
-      }
-    }
-    for (const t of Object.keys(meta)) {
-      if (!watchlist.includes(t)) {
-        persistMeta(t, null);
-        delete lastFiredPxRef.current[t]; // fresh baseline if it's ever re-added
-      }
-    }
+    for (const [t, m] of reconcileMeta(watchlist, prices, meta, lastFiredPxRef.current)) persistMeta(t, m);
   }, [user, metaLoaded, watchlist, prices, meta, persistMeta]);
 
   // fire alerts on the ratchet
   useEffect(() => {
     if (!user || !metaLoaded) return;
-    for (const t of watchlist) {
-      const m = meta[t];
-      const cur = prices[t];
-      if (!m || typeof cur !== "number") continue;
-      const res = evalAlert(cur, m);
-      if (!res) continue;
-      // `meta.ref` resets async via Firebase; a not-yet-echoed reset can be reverted by
-      // onValue's full-map replace, which let one 7% MU drop fire both a 5% and a 7%
-      // alert off the stale ref. Gate on the in-memory last-fire price, which no async
-      // write can revert.
-      if (reFireSuppressed(cur, lastFiredPxRef.current[t])) continue;
-      lastFiredPxRef.current[t] = cur;
-      addNotif({ type: "price", ticker: t, dir: res.dir, pct: res.pct, at: Date.now(), read: false });
-      persistMeta(t, { addPx: m.addPx, ref: res.newRef });
-    }
+    const { alerts, writes } = fireAlerts(watchlist, prices, meta, lastFiredPxRef.current);
+    for (const a of alerts) addNotif({ type: "price", ...a, at: Date.now(), read: false });
+    for (const [t, m] of writes) persistMeta(t, m);
   }, [user, metaLoaded, watchlist, prices, meta, addNotif, persistMeta]);
 
   const markAllRead = useCallback(() => {

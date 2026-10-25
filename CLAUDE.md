@@ -112,6 +112,10 @@ and localStorage — no real auth, no Firebase writes.
   file in and it runs, no runner edit. No test framework, no test dependency. A check that exits 0
   with no output, or has no assertion in its source, is reported **FAIL** — a gutted test is worse
   than none.
+- **Price-alert logic is LOCKED** (`src/alertEngine.ts` + `alertEngine.check.ts`): the ±5%
+  threshold, the ratchet (ref resets to the alert price), the re-fire guard, and what a row shows
+  (big % since the last alert, gray "−30% since tracked on 10/03/2026 (22d)"). Never change it — or edit a check
+  expectation to make a change pass — without a direct instruction from the repo owner.
 - Mark deliberate simplifications with a `ponytail:` comment naming the ceiling and the upgrade
   path (see `useLiveQuotes.ts` for the house style).
 - CSS is one global `src/index.css`, tokens on `:root`. The palette is light "Steel Navy" —
