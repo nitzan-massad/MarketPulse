@@ -1,5 +1,29 @@
 [
   {
+    "id": "QBTS-2026-10-25T10:19:07.046Z",
+    "ts": "2026-10-25T10:19:07.046Z",
+    "kind": "list",
+    "ticker": "QBTS",
+    "name": "D-Wave Quantum Inc.",
+    "sector": "Technology",
+    "text": "199% leads the board, 5 names follow.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "QBTS appeared in a recent post"
+    ],
+    "facts": {
+      "members": "D-Wave Quantum (198.7% to $34.83), Praxis Precision Medicines (193.4% to $742.17), Vera Therapeutics (176% to $77.25), Hut 8 (170.7% to $165.75), Rigetti Computing (157.6% to $29.67)",
+      "count": 5,
+      "leader": "D-Wave Quantum",
+      "leaderUpside": 198.7
+    },
+    "descriptor": "Quantum Computer Systems",
+    "image": "QBTS-2026-10-25T10-19-07-046Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "QNT-2026-10-23T19:18:09.487Z",
     "ts": "2026-10-23T19:18:09.487Z",
     "kind": "contrarian",
