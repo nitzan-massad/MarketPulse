@@ -1,5 +1,33 @@
 [
   {
+    "id": "GOOGL-2026-10-25T14:42:21.903Z",
+    "ts": "2026-10-25T14:42:21.903Z",
+    "kind": "steady",
+    "ticker": "GOOGL",
+    "name": "Alphabet Inc. Class A",
+    "sector": "CommunicationServices",
+    "text": "9 Smart Score, unchanged for 30 days.",
+    "score": 54,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "GOOGL appeared in a recent post"
+    ],
+    "facts": {
+      "smartScore": 9,
+      "snapshots": 145,
+      "days": 30.2,
+      "upside": 33.7,
+      "consensus": "StrongBuy",
+      "analysts": 21
+    },
+    "descriptor": "Digital Platform Provider",
+    "image": "GOOGL-2026-10-25T14-42-21-903Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "CC BY-SA 4.0",
+    "imageAttribution": "Ian Poellet — Wikimedia Commons (CC BY-SA 4.0)"
+  },
+  {
     "id": "QBTS-2026-10-25T10:19:07.046Z",
     "ts": "2026-10-25T10:19:07.046Z",
     "kind": "list",
