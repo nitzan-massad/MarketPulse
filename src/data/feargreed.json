@@ -1,12 +1,12 @@
 {
- "score": 21,
+ "score": 21.1,
  "rating": "extreme fear",
- "asOf": "2026-10-23T23:59:44",
+ "asOf": "2026-10-26T11:00:01",
  "previous": {
-  "close": 19.8,
-  "week": 22.1,
-  "month": 32.5,
-  "year": 27.6
+  "close": 21,
+  "week": 20.8,
+  "month": 36.9,
+  "year": 32.5
  },
  "components": [
   {
@@ -36,7 +36,7 @@
   {
    "key": "market_volatility_vix",
    "label": "Market volatility",
-   "score": 16.7,
+   "score": 17.2,
    "rating": "extreme fear"
   },
   {
@@ -1047,7 +1047,11 @@
   },
   {
    "d": "2026-10-23",
-   "v": 21
+   "v": 21.1
+  },
+  {
+   "d": "2026-10-26",
+   "v": 21.1
   }
  ]
 }
