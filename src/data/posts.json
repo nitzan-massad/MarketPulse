@@ -1,5 +1,31 @@
 [
   {
+    "id": "LOW-2026-10-26T20:56:07.313Z",
+    "ts": "2026-10-26T20:56:07.313Z",
+    "kind": "movement",
+    "ticker": "LOW",
+    "name": "Lowe's Companies",
+    "sector": "ConsumerCyclical",
+    "text": "Consensus upgraded to StrongBuy today, 16 analysts.",
+    "score": 70,
+    "reasons": [
+      "2 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band"
+    ],
+    "facts": {
+      "upsideFrom": 26.8,
+      "upsideTo": 26.8,
+      "consensusFrom": "Buy",
+      "consensusTo": "StrongBuy",
+      "price": 198.68,
+      "priceTarget": 252,
+      "analysts": 16,
+      "sector": "ConsumerCyclical"
+    },
+    "descriptor": "Home Improvement Retailer"
+  },
+  {
     "id": "HUT-2026-10-26T02:30:42.928Z",
     "ts": "2026-10-26T02:30:42.928Z",
     "kind": "surprise",

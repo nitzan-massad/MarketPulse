@@ -223,5 +223,10 @@
     "name": "Hut 8",
     "descriptor": "Energy Infrastructure Provider",
     "scene": "inspecting cryptocurrency mining equipment in a large data centre"
+  },
+  "LOW": {
+    "name": "Lowe's Companies",
+    "descriptor": "Home Improvement Retailer",
+    "scene": "carefully loading lumber onto a customer's truck from a store's loading dock"
   }
 }
