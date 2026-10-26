@@ -1,5 +1,31 @@
 [
   {
+    "id": "HUT-2026-10-26T02:30:42.928Z",
+    "ts": "2026-10-26T02:30:42.928Z",
+    "kind": "surprise",
+    "ticker": "HUT",
+    "name": "Hut 8 Corp.",
+    "sector": "Financial",
+    "text": "~171% upside, far above sector's 24%.",
+    "score": 70,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "upside": 170.7,
+      "price": 61.23,
+      "priceTarget": 165.75,
+      "consensus": "StrongBuy",
+      "analysts": 12,
+      "sector": "Financial",
+      "sectorMedianUpside": 23.7
+    },
+    "descriptor": "Energy Infrastructure Provider",
+    "image": "HUT-2026-10-26T02-30-42-928Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "GOOGL-2026-10-25T14:42:21.903Z",
     "ts": "2026-10-25T14:42:21.903Z",
     "kind": "steady",

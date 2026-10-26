@@ -218,5 +218,10 @@
     "name": "Quantinuum",
     "descriptor": "Quantum Computing Hardware",
     "scene": "carefully assembling a quantum processor module on a workbench"
+  },
+  "HUT": {
+    "name": "Hut 8",
+    "descriptor": "Energy Infrastructure Provider",
+    "scene": "inspecting cryptocurrency mining equipment in a large data centre"
   }
 }
