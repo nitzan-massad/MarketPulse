@@ -228,5 +228,10 @@
     "name": "Lowe's Companies",
     "descriptor": "Home Improvement Retailer",
     "scene": "carefully loading lumber onto a customer's truck from a store's loading dock"
+  },
+  "CRWD": {
+    "name": "Crowdstrike",
+    "descriptor": "Cloud Cybersecurity",
+    "scene": "configuring a threat detection appliance in a network operations center"
   }
 }
