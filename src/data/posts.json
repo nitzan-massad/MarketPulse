@@ -1,5 +1,29 @@
 [
   {
+    "id": "WULF-2026-10-27T23:46:44.284Z",
+    "ts": "2026-10-27T23:46:44.284Z",
+    "kind": "list",
+    "ticker": "WULF",
+    "name": "Terawulf Inc.",
+    "sector": "Financial",
+    "text": "187% upside, tops the board of 5.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "WULF appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Terawulf (187.1% to $34.4), Praxis Precision Medicines (177.6% to $742.17), Vera Therapeutics (173% to $77.25), Hut 8 (163.2% to $165.75), Rigetti Computing (159.4% to $29.67)",
+      "count": 5,
+      "leader": "Terawulf",
+      "leaderUpside": 187.1
+    },
+    "descriptor": "Bitcoin Mining Operator",
+    "image": "WULF-2026-10-27T23-46-44-284Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "CRWD-2026-10-27T20:36:18.340Z",
     "ts": "2026-10-27T20:36:18.340Z",
     "kind": "newcomer",
