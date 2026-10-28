@@ -16,7 +16,20 @@ const preloadStocks = (): Plugin => {
       handler: (_html, ctx) => {
         const f = Object.keys(ctx.bundle ?? {}).find((k) => /\/stocks-[\w-]+\.json$/.test(k));
         if (!f) throw new Error("preload-stocks: hashed stocks.json not in the bundle");
-        return [{ tag: "link", attrs: { rel: "preload", as: "fetch", crossorigin: true, href: base + f }, injectTo: "head-prepend" }];
+        // The Firebase chunk (+ its own imports) is import()ed only after first render, so its
+        // download used to start then. modulepreload fetches it alongside the main chunk; it still
+        // runs after first render. Every visit loads it, so this adds no bytes.
+        const fb = Object.keys(ctx.bundle ?? {}).find((k) => /\/firebase-[\w-]+\.js$/.test(k));
+        if (!fb) throw new Error("preload-stocks: firebase chunk not in the bundle");
+        const fbChunk = ctx.bundle![fb];
+        const fbFiles = [fb, ...(fbChunk.type === "chunk" ? fbChunk.imports : [])].filter((k) => {
+          const c = ctx.bundle![k];
+          return !(c?.type === "chunk" && c.isEntry);
+        });
+        return [
+          { tag: "link", attrs: { rel: "preload", as: "fetch", crossorigin: true, href: base + f }, injectTo: "head-prepend" },
+          ...fbFiles.map((k) => ({ tag: "link", attrs: { rel: "modulepreload", crossorigin: true, href: base + k }, injectTo: "head" as const })),
+        ];
       },
     },
   };

@@ -103,7 +103,7 @@ const LS_KEY = "mp_watchlist";
 // The last signed-in account, so a reload paints as signed in at once instead of waiting
 // ~1-2s for Firebase to restore (and maybe refresh) its session. Only the public profile
 // bits — no token. Firebase's answer always wins: a different/no user replaces it.
-const AUTH_LS = "mp_auth_user";
+export const AUTH_LS = "mp_auth_user";
 function readAuthHint(): User | null {
   try {
     const v = JSON.parse(localStorage.getItem(AUTH_LS) || "null");
@@ -387,7 +387,7 @@ export function useWatchlist(): WatchlistApi {
       if (!fb) return;
       const def = AUTH_PROVIDERS.find((p) => p.id === providerId);
       if (!def) return;
-      const res = await fb.signInWithPopup(fb.auth, def.make(fb));
+      const res = await fb.signInWithPopup(fb.auth, def.make(fb), fb.browserPopupRedirectResolver);
       // apply a thumb pressed while signed out (write against the resolved uid so
       // it doesn't race the auth-state / marks subscription)
       if (mark) await fb.set(fb.ref(fb.db, `marks/${res.user.uid}/${mark.ticker}`), { v: mark.v, d: Date.now() });
