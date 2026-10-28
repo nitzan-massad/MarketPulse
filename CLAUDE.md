@@ -25,7 +25,7 @@ CHECK=1 node ci/scrape-sectors.mjs   # the sector parser's fixture self-check
 
 **Node versions differ by task.** Tests/CI need **≥ 22.18** (`ci/test-consensus-direction.mjs`
 imports `src/consensus.ts`, which needs native TS type stripping; on Node 20 it cannot run at
-all). Both workflows pin **24** — keep them in step. The Vite **dev server** wants **20–22**;
+all). Every workflow pins **24** except `firebase-rules.yml` (20) — keep them in step. The Vite **dev server** wants **20–22**;
 Node 26 can crash `fsevents` on macOS (tests are fine on 26).
 
 Keys for `npm run dev` live in `.env.local` (gitignored): `VITE_FINNHUB_KEY`,
@@ -56,9 +56,8 @@ live quotes and per-user state. No backend of our own.
    `/MarketPulse/`, not `/`.
 3. **App (`src/`)** — `App.tsx` holds all filter/sort/nav state and feeds four sections
    (`StockTable`, `BestOfBest`, `NewArrivals`, `Watchlist`) plus `StockModal`. Pure logic sits in
-   dependency-free modules with a paired `*.check.ts` (`alertEngine`, `chartSession`,
-   `chartBars`, `consensusNull`, `fmtPx`, `metricChange`, `quotes`, `quoteStore`, `reviewAlerts`, `share`, `watchlistOrder`, and the
-   pure exports of `useLiveQuotes`) — keep it that way, that pairing is what makes it testable
+   dependency-free modules, each with a paired `src/<name>.check.ts` (hooks like
+   `useLiveQuotes` export their pure parts for this) — keep it that way, that pairing is what makes it testable
    without React or Firebase. `consensus.ts` is covered from both sides: `consensusNull.check.ts`
    plus `ci/test-consensus-direction.mjs`.
 
@@ -114,7 +113,7 @@ and localStorage — no real auth, no Firebase writes.
   than none.
 - **Price-alert logic is LOCKED** (`src/alertEngine.ts` + `alertEngine.check.ts`): the ±5%
   threshold, the ratchet (ref resets to the alert price), the re-fire guard, and what a row shows
-  (big % since the last alert, gray "−30% since tracked on 10/03/2026 (22d)"). Never change it — or edit a check
+  (big % since the last alert, gray "−30% since 10/03", or "since tracked" when `addAt` is unknown). Never change it — or edit a check
   expectation to make a change pass — without a direct instruction from the repo owner.
 - Mark deliberate simplifications with a `ponytail:` comment naming the ceiling and the upgrade
   path (see `useLiveQuotes.ts` for the house style).
@@ -127,6 +126,7 @@ and localStorage — no real auth, no Firebase writes.
   keep/pin/sticky rules, the enrich queue's cost bound, the forecast paywall fallback, and the
   bug each guard exists to prevent. **Read it before touching `ci/`.**
 - `ci/PLAN-ssr-merge.md` — designed, not built: merging SSR forecast rows into the JSON path.
-- `docs/superpowers/` — specs + plans for shipped features (notification bell).
+- `docs/superpowers/` — specs + plans (notification bell, social post generator, Twelve Data
+  replacement).
 - `design/` — static HTML/SVG explorations (modals, icons). Not part of the build.
 - `legacy/tipranks-top-stocks.html` — the original standalone dashboard this app was ported from.
