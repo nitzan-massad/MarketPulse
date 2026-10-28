@@ -233,5 +233,10 @@
     "name": "Crowdstrike",
     "descriptor": "Cloud Cybersecurity",
     "scene": "configuring a threat detection appliance in a network operations center"
+  },
+  "CMG": {
+    "name": "Chipotle Mexican Grill",
+    "descriptor": "Mexican Food Chain",
+    "scene": "expertly seasoning sizzling steak fajita ingredients on a large industrial grill"
   }
 }
