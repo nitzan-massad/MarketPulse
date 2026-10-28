@@ -880,23 +880,27 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-scroll::-webkit-scrollbar-thumb:hover{background:#b3bcc8; background-clip:padding-box}
 
 /* head line */
-.mkm-head{padding:16px 18px 14px; border-bottom:1px solid var(--t-line-2); display:flex; align-items:center; gap:14px; flex-wrap:wrap}
+/* 2x2 grid: company | price on row 1, earnings pill | pre/after-hours pill on row 2 */
+.mkm-head{padding:16px 18px 14px; border-bottom:1px solid var(--t-line-2); display:grid; grid-template-columns:minmax(0,1fr) auto;
+  align-items:center; gap:10px 16px}
 .mkm-headsym{font-size:26px; font-weight:700; letter-spacing:.02em; color:var(--t-gold); line-height:1}
-.mkm-co{font-family:inherit; font-size:12px; color:var(--t-muted)}
-.mkm-cocol{display:flex; flex-direction:column; gap:4px; align-self:center; min-width:0}
+.mkm-co{font-family:inherit; font-size:12px; color:var(--t-muted); grid-area:1/1}
+.mkm-cocol{display:contents} /* its children are grid items */
 /* next earnings: a tiny calendar page holding the real date, then the detail */
-.mkm-earn{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--t-muted); flex-wrap:wrap}
+/* same pill as .mkm-pill so the two row-2 badges match */
+.mkm-earn{grid-area:2/1; justify-self:start; display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--t-muted); flex-wrap:wrap;
+  background:var(--t-panel); border:1px solid var(--t-line); border-radius:14px; padding:4px 12px 4px 6px}
 .mkm-earn b{color:var(--t-ink)}
 .mkm-earn-cal{display:inline-flex; flex-direction:column; align-items:center; width:20px; border:1px solid var(--t-line);
   border-radius:4px; overflow:hidden; background:var(--t-bg); font-size:9.5px; font-weight:800; line-height:1.15; color:var(--t-ink)}
 .mkm-earn-cal span{align-self:stretch; text-align:center; background:var(--t-gold); color:#fff; font-size:5.5px;
   letter-spacing:.04em; padding:1px 0}
-.mkm-pxgrp{margin-left:auto; display:flex; align-items:center; gap:14px; flex:none}
+.mkm-pxgrp{grid-area:1/2; justify-self:end; display:flex; align-items:center; gap:14px}
 .mkm-px{font-size:24px; font-weight:700; line-height:1}
 .mkm-chg{font-size:13px; font-weight:700; align-self:center}
 .mkm-chg.up{color:var(--t-green)} .mkm-chg.dn{color:var(--t-red)} .mkm-chg.flat{color:var(--t-faint)}
-/* extended-hours pill: its own line under the price, right-aligned */
-.mkm-ext{flex-basis:100%; display:flex; justify-content:flex-end}
+/* extended-hours pill: under the price, facing the earnings pill */
+.mkm-ext{grid-area:2/2; justify-self:end; display:flex}
 .mkm-pill{display:inline-flex; align-items:center; gap:8px; background:var(--t-panel); border:1px solid var(--t-line);
   border-radius:999px; padding:5px 12px 5px 9px; font-size:12px; color:var(--t-ink)}
 .mkm-pill svg{color:var(--t-gold); flex:none}
@@ -1193,8 +1197,9 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
   .mkm-kv{grid-template-columns:repeat(2,1fr)}
   .mkm-swipe{--mw:calc(100vw - 48px)} /* prod declares -16px; the stage clamps it to -48px */
   .mkm-modal{max-height:calc(100dvh - 24px)}
-  .mkm-pxgrp{margin-left:0}
-  .mkm-ext{justify-content:flex-start} /* phone: price, % and pill share one left edge */
+  /* phone: one column in DOM order — company, earnings, price, pill — on one left edge */
+  .mkm-head{grid-template-columns:minmax(0,1fr)}
+  .mkm-co, .mkm-earn, .mkm-pxgrp, .mkm-ext{grid-area:auto; justify-self:start}
 }
 @media(max-width:430px){
   .mkm-scrim{padding:10px}
