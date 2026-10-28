@@ -18,7 +18,7 @@ import ThumbMark from "./ThumbMark";
 import PeHistory from "./PeHistory";
 import { parseEps, type EpsPoint } from "../peHistory";
 import { earningsParts, fromEntry, todayYmd, type Earnings } from "../earnings";
-import { etClock, extNow, mergeModal, needsFhQuote, normSym, quoteStale, type CnbcQuote } from "../quotes";
+import { etClock, extNow, mergeModal, sessionOf, needsFhQuote, normSym, quoteStale, type CnbcQuote } from "../quotes";
 import { readBars, sessionBase, withLive, type BarKind } from "../chartBars";
 import { WORKER_URL } from "../workerUrl";
 import { freshQuote } from "../quoteStore";
@@ -630,10 +630,10 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   const [profile, setProfile] = useState<Profile | null>(seed?.profile ?? null);
   const [ext, setExt] = useState<CnbcQuote["ext"]>(seed?.ext ?? null); // pre/after-hours trade, display only
   const [live, setLive] = useState<QuoteMetric["live"]>(seed?.live ?? null);
-  const [nextReport, setNextReport] = useState<Earnings | null>(null);
+  const [nextReport, setNextReport] = useState<Earnings | null | undefined>(undefined); // undefined: earnings.json still loading
   useEffect(() => {
     let cancelled = false;
-    setNextReport(null);
+    setNextReport(undefined);
     loadEarnings().then((idx) => {
       if (!cancelled) setNextReport(fromEntry(idx[stock.t], todayYmd()));
     });
@@ -875,6 +875,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   // ---- derived display values (live extras layered over the snapshot row) ----
   const price = quote?.c ?? stock.px;
   const extShown = extNow(ext, etClock()); // only today's, and only in its own session
+  const extGhost = sessionOf(etClock()); // what the placeholder says when there is no ext trade
   const dayPct = quote?.dp ?? stock.chg;
   // Apple Stocks shows a live trailing P/E = current price / trailing EPS. Recompute
   // it that way so it tracks the shown price; fall back to Finnhub's peTTM if no EPS.
@@ -1097,6 +1098,15 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                   <b>Earnings</b> {earnings.text}
                 </div>
               )}
+              {/* no date: a dashed placeholder keeps row 2 balanced against the session pill */}
+              {nextReport === null && (
+                <div className="mkm-earn mkm-ghost">
+                  <span className="mkm-earn-cal" aria-hidden="true">
+                    <span>—</span>?
+                  </span>
+                  Earnings date not announced
+                </div>
+              )}
             </div>
             {/* price + % move as one unit: on a phone the pair wraps together, never the % alone */}
             <div className="mkm-pxgrp">
@@ -1126,6 +1136,17 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                 {extShown.pct != null && (
                   <span className={extShown.pct > 0 ? "up" : extShown.pct < 0 ? "dn" : "flat"}>{pct(extShown.pct)}</span>
                 )}
+                </span>
+              </div>
+            )}
+            {/* no extended-hours trade: the session in a dashed placeholder (once the quote landed) */}
+            {!extShown && !qmLoading && (
+              <div className="mkm-ext">
+                <span className="mkm-pill mkm-ghost">
+                  {extGhost === "regular" && <i className="mkm-dot" aria-hidden="true" />}
+                  <span className="mkm-ext-k">
+                    {extGhost === "regular" ? "MARKET OPEN" : extGhost === "pre" ? "NO PRE-MARKET TRADES" : extGhost === "post" ? "NO AFTER-HOURS TRADES" : "MARKET CLOSED"}
+                  </span>
                 </span>
               </div>
             )}

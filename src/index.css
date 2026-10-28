@@ -906,6 +906,12 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-pill svg{color:var(--t-gold); flex:none}
 .mkm-ext-k{font-size:10.5px; font-weight:700; letter-spacing:.1em; color:var(--t-gold)}
 .mkm-pill b{font-size:13px}
+/* placeholder for a missing earnings date / extended-hours trade: same pill, dashed and faint */
+.mkm-earn.mkm-ghost, .mkm-pill.mkm-ghost{background:transparent; border-style:dashed; color:var(--faint)}
+.mkm-ghost .mkm-ext-k{color:var(--faint)}
+.mkm-ghost .mkm-earn-cal{color:var(--faint); border-style:dashed}
+.mkm-ghost .mkm-earn-cal span{background:var(--faint)}
+.mkm-dot{width:7px; height:7px; border-radius:50%; background:var(--t-green); flex:none}
 .mkm-pill .up{color:var(--t-green); font-weight:700} .mkm-pill .dn{color:var(--t-red); font-weight:700} .mkm-pill .flat{color:var(--t-faint); font-weight:700}
 
 /* chart pane */
