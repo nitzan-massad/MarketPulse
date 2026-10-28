@@ -392,6 +392,10 @@ export default function App() {
     return m;
   }, [watchlist, livePrice, pxByTicker]);
   const notif = useNotifications(user, watchlist, watchPrices);
+  // "(3) Market Pulse": an alert landing is visible from another tab
+  useEffect(() => {
+    document.title = notif.unreadCount ? `(${notif.unreadCount}) Market Pulse` : "Market Pulse";
+  }, [notif.unreadCount]);
   const liveCtx = useMemo(() => ({ price: livePrice, observe }), [livePrice, observe]);
   useReviewAlerts(user, watchlist, notif.pushReview);
 

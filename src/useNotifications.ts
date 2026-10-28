@@ -39,7 +39,9 @@ const NOTIFS_CACHE = "mp_notifs_cache";
 function readNotifsCache(uid: string): Notification[] {
   try {
     const v = JSON.parse(localStorage.getItem(NOTIFS_CACHE) || "null");
-    return v && v.uid === uid && Array.isArray(v.list) ? v.list : [];
+    // painted as read: the cache can be stale (read on another device since), so its unread
+    // flags would flash a wrong badge and let a panel-open mark the wrong ids — RTDB owns `read`
+    return v && v.uid === uid && Array.isArray(v.list) ? v.list.map((n: Notification) => ({ ...n, read: true })) : [];
   } catch {
     return [];
   }

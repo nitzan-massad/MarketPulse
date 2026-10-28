@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from "react";
 import { alertView } from "../alertEngine";
 import type { Notification } from "../useNotifications";
 import { fmtMarkDate } from "./ThumbMark";
@@ -106,38 +106,90 @@ export default function NotificationBell({
     };
   }, [open]);
 
+  // arrivals while the panel is open (RTDB landing after the boot cache, a review detected
+  // after open) are seen now: they join the end of the "new" set (so nothing already shown
+  // moves), slide in, and get marked read. Scrolled down, they're above the fold: count them
+  // for the "↑ N new" chip.
+  const [arrived, setArrived] = useState<Set<string>>(new Set());
+  const [jumpN, setJumpN] = useState(0);
+  useEffect(() => {
+    if (!open) return;
+    const fresh = notifications.filter((n) => !n.read && !sessionNew.has(n.id)).map((n) => n.id);
+    if (!fresh.length) return;
+    setSessionNew((s) => new Set([...s, ...fresh]));
+    setArrived((s) => new Set([...s, ...fresh]));
+    if ((bodyRef.current?.scrollTop ?? 0) > 0) setJumpN((j) => j + fresh.length);
+    onMarkAllRead();
+  }, [open, notifications, sessionNew, onMarkAllRead]);
+
+  // hold the scroll: pin the first visible row and undo however far a re-render moved it, so
+  // rows landing above (or a group header appearing/going) never shift what's under the finger.
+  // .nb-body has overflow-anchor:none — the browser's own anchoring would double this, and
+  // Safari's is unreliable anyway.
+  const anchor = useRef<{ el: HTMLElement; top: number } | null>(null);
+  const pinAnchor = () => {
+    const b = bodyRef.current;
+    const el = b && [...b.querySelectorAll<HTMLElement>(".nb-row")].find((r) => r.offsetTop + r.offsetHeight > b.scrollTop);
+    anchor.current = el ? { el, top: el.offsetTop } : null;
+  };
+  useLayoutEffect(() => {
+    const b = bodyRef.current;
+    const a = anchor.current;
+    if (b && a?.el.isConnected && b.scrollTop > 0) b.scrollTop += a.el.offsetTop - a.top;
+    pinAnchor();
+  }, [open, notifications, sessionNew]);
+
+  // "Clear all": rows sweep out first, then the store is cleared
+  const [clearing, setClearing] = useState(false);
+  function clearAll() {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return onClearAll();
+    setClearing(true);
+    setTimeout(() => {
+      setClearing(false);
+      onClearAll();
+    }, 420); // .22s animation + up to 8 x 25ms stagger
+  }
+
   function toggle() {
     setOpen((o) => {
       const next = !o;
       if (next) {
         savedScroll.current = 0;
         setSessionNew(new Set(notifications.filter((n) => !n.read).map((n) => n.id)));
+        setArrived(new Set());
+        setJumpN(0);
         onMarkAllRead();
       }
       return next;
     });
   }
 
+  // "New" = this viewing's unread rows, in the order they became new (sessionNew is a Set, so
+  // insertion order): the snapshot at open newest-first, then arrivals appended at its bottom.
   const groups = useMemo(() => {
     const now = new Date();
+    const byId = new Map(notifications.map((n) => [n.id, n]));
+    const fresh = [...sessionNew].map((id) => byId.get(id)).filter((n): n is Notification => !!n);
     const today: Notification[] = [];
     const earlier: Notification[] = [];
-    for (const n of notifications) (sameDay(n.at, now) ? today : earlier).push(n);
-    return { today, earlier };
-  }, [notifications]);
+    for (const n of notifications) if (!sessionNew.has(n.id)) (sameDay(n.at, now) ? today : earlier).push(n);
+    return { fresh, today, earlier };
+  }, [notifications, sessionNew]);
 
   const badge = unreadCount > 99 ? "99+" : String(unreadCount);
   const label = unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications";
 
-  function renderRow(n: Notification) {
+  function renderRow(n: Notification, i: number) {
     const isNew = sessionNew.has(n.id);
+    const cls = `${isNew ? "" : " read"}${arrived.has(n.id) ? " nb-in" : ""}`;
+    const style = { "--i": Math.min(i, 8) } as CSSProperties; // Clear-all stagger
     const open = () => {
       savedScroll.current = bodyRef.current?.scrollTop ?? 0;
       onOpen(n); // the panel stays open underneath — see modalUp() above
     };
     if (n.type === "tracked") {
       return (
-        <button key={n.id} className={`nb-row${isNew ? "" : " read"}`} role="menuitem" onClick={open}>
+        <button key={n.id} className={`nb-row${cls}`} style={style} role="menuitem" onClick={open}>
           <span className="nb-ico review">{CheckIcon}</span>
           <span className="nb-mid">
             <span className="nb-msg">
@@ -152,7 +204,7 @@ export default function NotificationBell({
     if (n.type === "review") {
       const count = n.keys?.length ?? 1;
       return (
-        <button key={n.id} className={`nb-row${isNew ? "" : " read"}`} role="menuitem" onClick={open}>
+        <button key={n.id} className={`nb-row${cls}`} style={style} role="menuitem" onClick={open}>
           <span className="nb-ico review">{DocIcon}</span>
           <span className="nb-mid">
             <span className="nb-msg">
@@ -170,7 +222,8 @@ export default function NotificationBell({
     return (
       <button
         key={n.id}
-        className={`nb-row nb-price${isNew ? "" : " read"}`}
+        className={`nb-row nb-price${cls}`}
+        style={style}
         role="menuitem"
         aria-label={`${n.ticker} ${view.pct} since the last alert${view.total ? `, ${view.total}` : ""}, ${fmtMarkDate(n.at)}`}
         title={fmtMarkDate(n.at)}
@@ -197,7 +250,9 @@ export default function NotificationBell({
         onClick={toggle}
       >
         {BellIcon}
-        {unreadCount > 0 && <span className="nb-badge">{badge}</span>}
+        {/* keyed by the count so the pop-in replays on each change. ponytail: it also replays on a
+            drop to a non-zero count, which only a read on another device causes */}
+        {unreadCount > 0 && <span key={unreadCount} className="nb-badge">{badge}</span>}
       </button>
 
       {open && (
@@ -213,7 +268,7 @@ export default function NotificationBell({
         >
           <div className="nb-head">
             <span className="nb-htitle">Notifications</span>
-            {sessionNew.size > 0 && <span className="nb-count">{sessionNew.size} new</span>}
+            {groups.fresh.length > 0 && <span className="nb-count">{groups.fresh.length} new</span>}
             <button className="nb-x" type="button" aria-label="Close notifications" onClick={() => setOpen(false)}>
               ×
             </button>
@@ -227,14 +282,37 @@ export default function NotificationBell({
             </div>
           ) : (
             <>
-              <div className="nb-body nb-fade" ref={bodyRef}>
+              <div
+                className={`nb-body nb-fade${clearing ? " nb-out" : ""}`}
+                ref={bodyRef}
+                onScroll={(e) => {
+                  pinAnchor();
+                  if (jumpN && e.currentTarget.scrollTop < 4) setJumpN(0);
+                }}
+              >
+                {jumpN > 0 && (
+                  <button
+                    className="nb-jump"
+                    type="button"
+                    onClick={() =>
+                      bodyRef.current?.scrollTo({
+                        top: 0,
+                        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+                      })
+                    }
+                  >
+                    ↑ {jumpN} new
+                  </button>
+                )}
+                {groups.fresh.length > 0 && <div className="nb-group new">New</div>}
+                {groups.fresh.map(renderRow)}
                 {groups.today.length > 0 && <div className="nb-group">Today</div>}
                 {groups.today.map(renderRow)}
                 {groups.earlier.length > 0 && <div className="nb-group">Earlier</div>}
                 {groups.earlier.map(renderRow)}
               </div>
               <div className="nb-foot">
-                <button className="nb-clear" type="button" onClick={onClearAll}>
+                <button className="nb-clear" type="button" onClick={clearAll} disabled={clearing}>
                   {TrashIcon}
                   Clear all notifications
                 </button>

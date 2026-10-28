@@ -1415,6 +1415,21 @@ body:has(.nb-scrim){overflow:hidden}
 .nb-row.read .nb-ico.review{opacity:.5}
 .nb-row.read .nb-rev, .nb-row.read .nb-co{color:var(--faint)}
 
+/* own the scroll correction when rows land above the viewport (see NotificationBell) */
+.nb-body{overflow-anchor:none}
+.nb-group.new{color:var(--gold)}
+.nb-jump{position:sticky; top:4px; z-index:2; display:block; margin:2px auto -24px; appearance:none; border:0; cursor:pointer;
+  font-family:"JetBrains Mono",monospace; font-size:10.5px; font-weight:700; line-height:1; color:#fff; background:var(--gold);
+  border-radius:999px; padding:5px 11px; box-shadow:0 6px 14px -8px rgba(19,26,36,.55)}
+.nb-jump:focus-visible{outline:2px solid var(--gold-soft); outline-offset:2px}
+@media(prefers-reduced-motion:no-preference){
+  .nb-badge{animation:search-in .22s cubic-bezier(.2,.7,.2,1)}
+  .nb-jump{animation:search-in .22s cubic-bezier(.2,.7,.2,1)}
+  .nb-row.nb-in{animation:rise .35s cubic-bezier(.2,.7,.2,1)}
+  .nb-out .nb-row{animation:nb-drop .22s forwards; animation-delay:calc(var(--i, 0) * 25ms)}
+  .nb-empty{animation:nb-fade .3s ease-out}
+}
+@keyframes nb-drop{to{opacity:0; transform:translateY(-10px)}}
 .nb-foot{border-top:1px solid var(--line); background:var(--bg)}
 .nb-clear{display:flex; align-items:center; justify-content:center; gap:8px; width:100%; appearance:none; border:0;
   background:none; padding:13px; font-family:"Archivo",system-ui,sans-serif; font-weight:600; font-size:12.5px;
