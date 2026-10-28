@@ -1143,8 +1143,21 @@ thead th:hover .col-resize::after{opacity:.6}
 body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
 .mkm-modal-fc{width:min(560px, calc(100vw - 32px))}
 .mkm-fcfull-modal{border-bottom:0; padding-top:8px}
-/* title + company · sector under it; the right padding clears the corner × */
-.mkm-fctitle{display:flex; flex-direction:column; gap:2px; min-width:0; padding-right:28px}
+/* title + company · sector under it, the whole block a button that raises the stock card;
+   it fills the titlebar (negative margin) so the hover tints the full header. The right
+   padding clears the corner × */
+.mkm-fctitle{display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:10px; row-gap:2px; align-items:center; min-width:0;
+  flex:1; margin:-11px -16px; padding:11px 44px 11px 16px; border:0; border-radius:13px 13px 0 0;
+  background:none; font:inherit; color:inherit; text-align:left; cursor:pointer}
+.mkm-fctitle:disabled{cursor:default}
+.mkm-fctitle:not(:disabled):hover{background:var(--panel-2)}
+.mkm-fctitle:focus-visible{outline:2px solid var(--t-gold); outline-offset:-2px}
+.mkm-fctitle .mkm-path, .mkm-fctitle .mkm-fcsub{grid-column:1}
+.mkm-fcgo{grid-column:2; grid-row:1 / span 2; font-size:22px; line-height:1; color:var(--t-gold)}
+/* stock card raised over its forecasts: forecasts stay mounted (scroll kept) but hidden,
+   and a bare (notification-opened) card shows */
+.mkm-under{opacity:0; visibility:hidden; pointer-events:none}
+.mkm-bare:has(.mkm-card-up) .mkm-stage{opacity:1; visibility:visible; pointer-events:auto}
 .mkm-fcsub{font-size:12px; color:var(--t-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 /* phones: the 6-col grid crushes the analyst name to an ellipsis — reflow to a
    2-row card so name + firm get full width (stacked, smaller) and never clip */

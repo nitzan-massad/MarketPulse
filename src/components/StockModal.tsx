@@ -651,6 +651,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   const [bbOpen, setBbOpen] = useState<Set<number>>(() => new Set()); // per-topic expanded indices
   const [forecasts, setForecasts] = useState<Forecast[] | null>(null);
   const [fcOpen, setFcOpen] = useState(false);
+  const [cardUp, setCardUp] = useState(false); // stock card raised over its open forecasts; closing it goes back to them
   const [peOpen, setPeOpen] = useState(false);
   // CI's verdict for this ticker: a chart file, still being prepared, or no P/E history at all
   const [peState, setPeState] = useState<"ok" | "pending" | "none" | null>(null);
@@ -702,7 +703,8 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     if (!active) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (fcOpen) setFcOpen(false); // close the forecasts modal first
+        if (cardUp) setCardUp(false); // card raised from the forecasts header: back to them
+        else if (fcOpen) setFcOpen(false); // close the forecasts modal first
         else if (peOpen) closePe();
         else onClose();
         return;
@@ -713,7 +715,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, onClose, fcOpen, peOpen, closePe, onPrev, onNext]);
+  }, [active, onClose, fcOpen, cardUp, peOpen, closePe, onPrev, onNext]);
 
   // fetch quote + metric on open (per ticker, cached). Gated on `active`: the neighbours
   // render immediately from the snapshot row and only reach for the network once you land
@@ -751,6 +753,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     setDescOpen(false);
     setForecasts(null);
     setFcOpen(false);
+    setCardUp(false);
     setPeOpen(false);
     setLiveDesc(null);
     if (!active) return;
@@ -1001,7 +1004,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   return (
     <>
       <div
-        className="mkm-modal"
+        className={`mkm-modal${cardUp ? " mkm-card-up" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="mkm-sym"
@@ -1029,7 +1032,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
         </div>
 
         {/* only the card in view: the neighbours' × sits outside their edge and peeked into view */}
-        {active && <CloseButton what={stock.t} onClose={onClose} />}
+        {active && <CloseButton what={stock.t} onClose={cardUp ? () => setCardUp(false) : onClose} />}
 
         {share.copyFailed && <ShareFail url={share.url} />}
 
@@ -1612,7 +1615,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     )}
     {active && fcOpen && forecasts && createPortal(
       <div
-        className="mkm-scrim mkm-scrim-top"
+        className={`mkm-scrim mkm-scrim-top${cardUp ? " mkm-under" : ""}`}
         onMouseDown={(e) => {
           if (e.target === e.currentTarget) setFcOpen(false);
         }}
@@ -1624,7 +1627,15 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
           aria-label={`${stock.t} analyst forecasts`}
         >
           <div className="mkm-titlebar">
-            <div className="mkm-fctitle">
+            {/* opened from a notification there is no stock card under the list (bare), so the
+                header raises it; opened from the card itself it is plain text */}
+            <button
+              type="button"
+              className="mkm-fctitle"
+              disabled={!fcFromHighlight.current}
+              onClick={() => setCardUp(true)}
+              aria-label={fcFromHighlight.current ? `Open ${stock.t} stock details` : undefined}
+            >
               <div className="mkm-path"><b>{stock.t}</b> · Analyst Forecasts</div>
               {(stock.n || name) && (
                 <div className="mkm-fcsub">
@@ -1632,7 +1643,8 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                   {(stock.sec || sector) ? " · " + consLabel(stock.sec || sector) : ""}
                 </div>
               )}
-            </div>
+              {fcFromHighlight.current && <span className="mkm-fcgo" aria-hidden="true">›</span>}
+            </button>
           </div>
           <CloseButton what={`${stock.t} analyst forecasts`} onClose={() => setFcOpen(false)} />
           <div className="mkm-scroll">
