@@ -375,22 +375,18 @@ export default function App() {
     WORKER_URL,
   );
 
-  // best-known price per watched ticker: live (CNBC, else Finnhub) when quoted, else the
-  // bundled snapshot — feeds the notification alert engine. Regular-session prices only:
-  // the pre/after-hours trade is display-only (see quotes.ts).
-  const pxByTicker = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const s of STOCKS) if (typeof s.px === "number") m[s.t] = s.px;
-    return m;
-  }, [STOCKS]);
+  // live price per watched ticker (CNBC, else Finnhub) — feeds the notification alert engine.
+  // Regular-session prices only: the pre/after-hours trade is display-only (see quotes.ts).
+  // No snapshot fallback: a scrape that ran pre-market can carry a pre-market px, and painting
+  // it before the live quote landed fired ±5% alerts against the prior close on every load.
   const watchPrices = useMemo(() => {
     const m: Record<string, number> = {};
     for (const t of watchlist) {
-      const p = livePrice[t] ?? pxByTicker[t];
+      const p = livePrice[t];
       if (typeof p === "number") m[t] = p;
     }
     return m;
-  }, [watchlist, livePrice, pxByTicker]);
+  }, [watchlist, livePrice]);
   const notif = useNotifications(user, watchlist, watchPrices);
   // "(3) Market Pulse": an alert landing is visible from another tab
   useEffect(() => {
