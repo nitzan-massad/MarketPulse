@@ -1,5 +1,35 @@
 [
   {
+    "id": "AXSM-2026-10-28T11:39:54.209Z",
+    "ts": "2026-10-28T11:39:54.209Z",
+    "kind": "record",
+    "ticker": "AXSM",
+    "name": "Axsome Therapeutics Inc.",
+    "sector": "Healthcare",
+    "text": "~103% upside, this month's high, beats sector.",
+    "score": 32,
+    "reasons": [
+      "3 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "duplicate of a recent post (50% word overlap)"
+    ],
+    "facts": {
+      "upside": 103.5,
+      "windowLow": 48.9,
+      "windowHigh": 103.5,
+      "snapshots": 145,
+      "days": 30.2,
+      "price": 142.2,
+      "priceTarget": 289.38,
+      "analysts": 14,
+      "sectorMedianUpside": 38.8
+    },
+    "descriptor": "Brain Disorder Treatments",
+    "image": "AXSM-2026-10-28T11-39-54-209Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "CMG-2026-10-28T03:14:17.128Z",
     "ts": "2026-10-28T03:14:17.128Z",
     "kind": "contrarian",

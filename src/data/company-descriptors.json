@@ -238,5 +238,10 @@
     "name": "Chipotle Mexican Grill",
     "descriptor": "Mexican Food Chain",
     "scene": "expertly seasoning sizzling steak fajita ingredients on a large industrial grill"
+  },
+  "AXSM": {
+    "name": "Axsome Therapeutics",
+    "descriptor": "Brain Disorder Treatments",
+    "scene": "researcher carefully measuring powdered compounds in a laboratory glove box"
   }
 }
