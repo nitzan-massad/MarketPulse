@@ -99,6 +99,7 @@ body::before{
 .search-con.sb, .search-con.b{color:var(--green)} .search-con.h{color:var(--gold-soft)} .search-con.s, .search-con.ss{color:var(--red)}
 .search-px{font-family:"JetBrains Mono",monospace; font-weight:700; font-size:12px; flex:none; width:58px; text-align:right}
 .search-res.off .search-co{color:var(--gold-soft); flex:1}
+.search-hd{padding:8px 14px 4px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint)}
 .search-empty{padding:14px; font-size:12px; color:var(--faint)}
 h1{
   font-family:"Fraunces",Georgia,serif; font-weight:900; font-optical-sizing:auto;

@@ -9,7 +9,7 @@
 //   npx tsc src/searchNav.ts src/searchNav.check.ts --outDir /tmp/sn \
 //     --module commonjs --target es2020 --lib es2020,dom --skipLibCheck \
 //   && node /tmp/sn/searchNav.check.js
-import { buildOptions, nextIndex } from "./searchNav";
+import { buildOptions, nextIndex, pushRecent } from "./searchNav";
 import type { Stock } from "./types";
 
 let n = 0;
@@ -31,6 +31,11 @@ eq("down past the end wraps to the top", nextIndex(4, 5, 1), 0);
 eq("up past the top wraps to the end", nextIndex(0, 5, -1), 4);
 eq("a single row wraps to itself going down", nextIndex(0, 1, 1), 0);
 eq("a single row wraps to itself going up", nextIndex(0, 1, -1), 0);
+
+// ---- recent searches -----------------------------------------------------
+eq("a new pick goes first", pushRecent(["A", "B"], "C"), ["C", "A", "B"]);
+eq("a repeat pick moves to the front, no duplicate", pushRecent(["A", "B", "C"], "B"), ["B", "A", "C"]);
+eq("capped at 5, oldest dropped", pushRecent(["A", "B", "C", "D", "E"], "F"), ["F", "A", "B", "C", "D"]);
 
 // ---- 2. nothing to select -------------------------------------------------
 // "No matches" is a div, not an option — arrowing must not produce an index for it.

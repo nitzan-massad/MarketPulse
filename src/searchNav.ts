@@ -38,3 +38,8 @@ export function nextIndex(current: number, length: number, dir: 1 | -1): number 
   if (current < 0) return dir === 1 ? 0 : length - 1;
   return (current + dir + length) % length;
 }
+
+/** The recent-searches list after picking `ticker`: newest first, no repeats, capped. */
+export function pushRecent(list: string[], ticker: string, max = 5): string[] {
+  return [ticker, ...list.filter((t) => t !== ticker)].slice(0, max);
+}

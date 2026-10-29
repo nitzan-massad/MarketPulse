@@ -5,6 +5,8 @@ import { consClass, consLabel, fmtPx } from "../lib";
 import { buildOptions, nextIndex, type SearchOption } from "../searchNav";
 import { cnbcSearchHits, cnbcSearchMatched } from "../quotes";
 import { prefetchStocks } from "../warmChart";
+import { useRecentSearches } from "../recentSearches";
+import type { User } from "firebase/auth";
 
 
 interface SearchProps {
@@ -13,10 +15,12 @@ interface SearchProps {
   /** Changing this clears the query — the app uses the current view, so moving page
    *  discards the search while merely dismissing it does not. */
   resetKey?: unknown;
+  user: User | null;
 }
 
-export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) {
+export default function Search({ onOpen, onOpenTicker, resetKey, user }: SearchProps) {
   const STOCKS = useStocks();
+  const [recent, pushRecent] = useRecentSearches(user);
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [remote, setRemote] = useState<{ t: string; n: string }[]>([]); // Finnhub name/ticker lookups off the ranked set
@@ -138,10 +142,14 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
 
   // the three result sources as ONE list, in render order, so the arrow keys address the
   // row the user is actually looking at
-  const options = useMemo(
-    () => buildOptions(results, remote, offUniverse ? upper : null),
-    [results, remote, offUniverse, upper],
-  );
+  // an empty query lists the recent picks instead, through the same option shape
+  const options = useMemo((): SearchOption[] => {
+    if (query) return buildOptions(results, remote, offUniverse ? upper : null);
+    return recent.map((t) => {
+      const stock = STOCKS.find((s) => s.t === t);
+      return stock ? { kind: "stock", key: `h:${t}`, stock } : { kind: "ticker", key: `h:${t}`, ticker: t };
+    });
+  }, [query, results, remote, offUniverse, upper, recent, STOCKS]);
 
   // Fetch every listed stock's quote + 1D chart before one is picked, so the modal opens ready.
   useEffect(() => {
@@ -160,7 +168,8 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
   }, [active]);
 
   const choose = (o: SearchOption) => {
-    if (o.kind === "stock") onOpen(o.stock, results);
+    pushRecent(o.kind === "stock" ? o.stock.t : o.ticker);
+    if (o.kind === "stock") onOpen(o.stock, query ? results : undefined);
     else onOpenTicker(o.ticker);
     setQ(""); // acting on a result is not a dismissal — start clean next time
     close();
@@ -206,7 +215,7 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
               placeholder="Search ticker or company…"
               aria-label="Search ticker or company"
               role="combobox"
-              aria-expanded={!!query}
+              aria-expanded={options.length > 0}
               aria-controls={listId}
               aria-autocomplete="list"
               aria-activedescendant={active >= 0 ? optionId(active) : undefined}
@@ -221,8 +230,9 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
             </button>
           </div>
 
-          {query && (
+          {(query || options.length > 0) && (
             <div className="search-results" role="listbox" id={listId} ref={listRef}>
+              {!query && <div className="search-hd">Recent</div>}
               {/* Rendered straight from `options`, so a row's position here IS the index
                   the arrow keys produce — the two cannot drift apart. */}
               {options.map((o, i) => {
@@ -254,7 +264,9 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
                   <button key={o.key} {...common}>
                     <span className="search-tk">{o.ticker}</span>
                     <span className="search-co">
-                      {hit
+                      {!query
+                        ? "not in the ranked set"
+                        : hit
                         ? hit.n
                           ? `${hit.n} · not in the ranked set`
                           : "not in the ranked set"
@@ -263,7 +275,7 @@ export default function Search({ onOpen, onOpenTicker, resetKey }: SearchProps) 
                   </button>
                 );
               })}
-              {options.length === 0 && (
+              {query && options.length === 0 && (
                 <div className="search-empty">No matches. Try a ticker (NVDA) or company name (Apple).</div>
               )}
             </div>
