@@ -18,7 +18,7 @@ import ThumbMark from "./ThumbMark";
 import PeHistory from "./PeHistory";
 import { parseEps, type EpsPoint } from "../peHistory";
 import { earningsParts, fromEntry, todayYmd, type Earnings } from "../earnings";
-import { etClock, extNow, mergeModal, sessionOf, needsFhQuote, normSym, quoteStale, type CnbcQuote } from "../quotes";
+import { etClock, extNow, mergeModal, sessionOf, needsFhQuote, normSym, quoteStale, type CnbcQuote, type Session } from "../quotes";
 import { readBars, sessionBase, withLive, type BarKind } from "../chartBars";
 import { WORKER_URL } from "../workerUrl";
 import { freshQuote } from "../quoteStore";
@@ -103,14 +103,22 @@ const loadPeIndex = (): Promise<PeIndex> =>
     .catch((): PeIndex => ({})));
 
 // Next earnings dates for every listed company (public/earnings.json, ci/scrape-earnings.mjs).
-// Fetched once per page load; a failed fetch only hides the earnings line.
+// Fetched once per page load; a failed fetch resolves null and only hides the earnings line
+// (never the "not announced" placeholder — that would claim something we don't know).
 type EarningsIndex = Record<string, unknown>;
-let earningsP: Promise<EarningsIndex> | null = null;
-const loadEarnings = (): Promise<EarningsIndex> =>
+let earningsP: Promise<EarningsIndex | null> | null = null;
+const loadEarnings = (): Promise<EarningsIndex | null> =>
   (earningsP ??= fetch(`${import.meta.env.BASE_URL}earnings.json`)
-    .then((r): Promise<{ e?: EarningsIndex }> | { e?: EarningsIndex } => (r.ok ? r.json() : {}))
-    .then((j) => (j?.e && typeof j.e === "object" ? j.e : {}))
-    .catch((): EarningsIndex => ({})));
+    .then((r): Promise<{ e?: EarningsIndex }> | null => (r.ok ? r.json() : null))
+    .then((j) => (j?.e && typeof j.e === "object" ? j.e : null))
+    .catch(() => null));
+
+const GHOST_LABEL: Record<Session, string> = {
+  regular: "MARKET OPEN",
+  pre: "NO PRE-MARKET TRADES",
+  post: "NO AFTER-HOURS TRADES",
+  closed: "MARKET CLOSED",
+};
 
 const NO_EPS: EpsPoint[] = []; // stable empty list, so PeHistory's effect doesn't refire every render
 // live: CNBC's fresh quote day + price — today's point on the daily/weekly/monthly charts and
@@ -635,13 +643,15 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     let cancelled = false;
     setNextReport(undefined);
     loadEarnings().then((idx) => {
-      if (!cancelled) setNextReport(fromEntry(idx[stock.t], todayYmd()));
+      if (!cancelled) setNextReport(idx ? fromEntry(idx[stock.t], todayYmd()) : undefined);
     });
     return () => {
       cancelled = true;
     };
   }, [stock.t]);
   const [qmLoading, setQmLoading] = useState(true);
+  // session when the quote/ext was fetched (null: not fetched / failed): the ghost pill describes that data
+  const [qmSession, setQmSession] = useState<Session | null>(null);
   const [series, setSeries] = useState<Series | null>(null);
   const [seriesLoading, setSeriesLoading] = useState(true);
   const [seriesError, setSeriesError] = useState(false);
@@ -724,9 +734,11 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     if (!active) return;
     let cancelled = false;
     setQmLoading(true);
+    setQmSession(null);
     fetchQuoteMetric(stock.t)
       .then((r) => {
         if (cancelled) return;
+        setQmSession(sessionOf(etClock()));
         setQuote(r.quote);
         setMetric(r.metric);
         setProfile(r.profile);
@@ -875,7 +887,6 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   // ---- derived display values (live extras layered over the snapshot row) ----
   const price = quote?.c ?? stock.px;
   const extShown = extNow(ext, etClock()); // only today's, and only in its own session
-  const extGhost = sessionOf(etClock()); // what the placeholder says when there is no ext trade
   const dayPct = quote?.dp ?? stock.chg;
   // Apple Stocks shows a live trailing P/E = current price / trailing EPS. Recompute
   // it that way so it tracks the shown price; fall back to Finnhub's peTTM if no EPS.
@@ -1108,7 +1119,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                 </div>
               )}
             </div>
-            {/* price + % move as one unit: on a phone the pair wraps together, never the % alone */}
+            {/* price + % move as one unit: never split; on a phone a long company name wraps instead */}
             <div className="mkm-pxgrp">
             <div className="mkm-px">{usd(price)}</div>
             {/* While a range loads, the previous figure stays (dimmed) rather than "…": the two
@@ -1139,14 +1150,14 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                 </span>
               </div>
             )}
-            {/* no extended-hours trade: the session in a dashed placeholder (once the quote landed) */}
-            {!extShown && !qmLoading && (
-              <div className={`mkm-ext${extGhost === "regular" ? " mkm-ext-open" : ""}`}>
+            {/* no extended-hours trade: the session in a dashed placeholder, once the quote landed and only
+                while the live session still matches the fetched one, so it never misdescribes old data */}
+            {!extShown && qmSession && sessionOf(etClock()) === qmSession && (
+              // mkm-ext-open: hidden on phones, where the top bar's LIVE says it (unless LIVE is hidden too)
+              <div className={`mkm-ext${qmSession === "regular" && !chromeOff ? " mkm-ext-open" : ""}`}>
                 <span className="mkm-pill mkm-ghost">
-                  {extGhost === "regular" && <i className="mkm-dot" aria-hidden="true" />}
-                  <span className="mkm-ext-k">
-                    {extGhost === "regular" ? "MARKET OPEN" : extGhost === "pre" ? "NO PRE-MARKET TRADES" : extGhost === "post" ? "NO AFTER-HOURS TRADES" : "MARKET CLOSED"}
-                  </span>
+                  {qmSession === "regular" && <i className="mkm-dot" aria-hidden="true" />}
+                  <span className="mkm-ext-k">{GHOST_LABEL[qmSession]}</span>
                 </span>
               </div>
             )}

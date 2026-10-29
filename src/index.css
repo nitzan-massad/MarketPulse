@@ -907,10 +907,10 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-ext-k{font-size:10.5px; font-weight:700; letter-spacing:.1em; color:var(--t-gold)}
 .mkm-pill b{font-size:13px}
 /* placeholder for a missing earnings date / extended-hours trade: same pill, dashed and faint */
-.mkm-earn.mkm-ghost, .mkm-pill.mkm-ghost{background:transparent; border-style:dashed; color:var(--faint)}
-.mkm-ghost .mkm-ext-k{color:var(--faint)}
-.mkm-ghost .mkm-earn-cal{color:var(--faint); border-style:dashed}
-.mkm-ghost .mkm-earn-cal span{background:var(--faint)}
+.mkm-earn.mkm-ghost, .mkm-pill.mkm-ghost{background:transparent; border-style:dashed; border-color:var(--t-faint); color:var(--t-faint)}
+.mkm-ghost .mkm-ext-k{color:var(--t-faint)}
+.mkm-ghost .mkm-earn-cal{color:var(--t-faint); border-style:dashed}
+.mkm-ghost .mkm-earn-cal span{background:var(--t-faint)}
 .mkm-dot{width:7px; height:7px; border-radius:50%; background:var(--t-green); flex:none}
 .mkm-pill .up{color:var(--t-green); font-weight:700} .mkm-pill .dn{color:var(--t-red); font-weight:700} .mkm-pill .flat{color:var(--t-faint); font-weight:700}
 
@@ -1218,6 +1218,7 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
   .mkm-modal{max-height:calc(100dvh - 24px)}
   /* phone: company | price on row 1; each pill takes a full row (two don't fit side by side) */
   .mkm-earn, .mkm-ext{grid-row:auto; grid-column:1 / -1; justify-self:start}
+  .mkm-co{overflow-wrap:anywhere} /* the price column never shrinks, so long names wrap */
   .mkm-ext-open{display:none} /* "MARKET OPEN" repeats the top bar's LIVE */
 }
 @media(max-width:430px){

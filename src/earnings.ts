@@ -7,10 +7,9 @@ export interface Earnings {
   hour: string; // "bmo" before open, "amc" after close, "" unknown
 }
 
-const ymd = (d: Date): string =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-export const todayYmd = (): string => ymd(new Date());
+// "today" in New York: report dates are US calendar days, so a viewer east of NY past their own
+// midnight must not see an after-close report (still tonight in NY) as already passed
+export const todayYmd = (d: Date = new Date()): string => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 
 /** A file entry as the next report, or null when missing or already past (the file can be a day old). */
 export function fromEntry(entry: unknown, today: string): Earnings | null {
