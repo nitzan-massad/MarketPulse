@@ -125,7 +125,8 @@ export default function App() {
   function handleOpen(s: Stock, list: Stock[] = []) {
     logOpen(s.t);
     setOpenStock(s);
-    setOpenList(list);
+    // StockModal draws one slide per list entry, so [] opens it blank (see openPostTicker)
+    setOpenList(list.length ? list : [s]);
     setFcHighlight(null);
   }
   /* Feed -> stock modal. A post can outlive its row: posts.json keeps 200 entries while the
