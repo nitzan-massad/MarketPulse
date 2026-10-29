@@ -79,7 +79,7 @@ the quote. P/E history needs **split-only** closes (`splitOnlyCloses`: CNBC's `a
 removes spin-offs). The Worker deploys by hand: `cd worker && npx wrangler deploy`.
 Watchlist, thumb marks, saved filters, notifications and review-seen sets persist to Firebase
 RTDB under `<path>/<uid>` — every path is enumerated in `database.rules.json`, so **adding a new
-RTDB path means adding a rule** (deployed by its own approval-gated workflow). The Firebase web
+RTDB path means adding a rule** (`firebase-rules.yml` auto-deploys it on push to `main` — no approval; the environment has no required reviewers). The Firebase web
 config in `src/watchlist.ts` is public by design. On localhost, `DEV_AUTH` swaps in a fake user
 and localStorage — no real auth, no Firebase writes.
 

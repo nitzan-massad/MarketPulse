@@ -2,8 +2,9 @@ name: Deploy Firebase RTDB rules
 
 # Security rules are project-wide and high-blast-radius (a bad ruleset can lock
 # out every user or expose all data), so this runs ONLY when the rules change,
-# and is gated behind the `firebase-production` GitHub Environment — add
-# required reviewers under Settings → Environments to require approval.
+# and runs in the `firebase-production` GitHub Environment. That environment has NO
+# required reviewers, so it deploys automatically on push — no approval step.
+# (Add reviewers under Settings → Environments if you ever want one.)
 on:
   push:
     branches: [main]
