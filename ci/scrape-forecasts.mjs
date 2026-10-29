@@ -101,13 +101,15 @@ const targets = stocks
   .sort((a, b) => age(a) - age(b)) // stalest (incl. never-fetched = 0) first
   .slice(0, LIMIT);
 
+// Clamped: 0/NaN/negative would start no worker and "succeed" having fetched nothing.
+const PARALLEL = Math.max(1, Math.floor(Number(process.env.PARALLEL)) || 1);
 mkdirSync(OUT, { recursive: true });
-console.log(`forecasts backfill: ${targets.length} ticker(s) (LIMIT=${LIMIT}, ALL=${ALL}, SSR_MERGE=${MERGE ? 1 : 0})`);
+console.log(`forecasts backfill: ${targets.length} ticker(s) (LIMIT=${LIMIT}, ALL=${ALL}, SSR_MERGE=${MERGE ? 1 : 0}, PARALLEL=${PARALLEL})`);
 const now = new Date().toISOString();
 let ok = 0, empty = 0, fail = 0, viaHtml = 0, gained = 0;
-// ponytail: a fixed pool of PARALLEL workers over one shared queue; FlareSolverr serves each
-// request in its own browser. Raise PARALLEL until TipRanks/Cloudflare starts failing fetches.
-const PARALLEL = Number(process.env.PARALLEL || 1);
+// ponytail: a fixed pool of PARALLEL workers over one shared FlareSolverr; each request is a
+// headless Chrome, so the ceiling is runner CPU, not TipRanks: 3 on the 4-vCPU runner
+// (90 tickers: P1 973s, P3 655s, P10 1378s). More needs more cores or more FlareSolverr instances.
 const queue = [...targets];
 async function scrape(t) {
   try {

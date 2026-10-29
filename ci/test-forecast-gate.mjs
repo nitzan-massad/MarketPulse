@@ -181,6 +181,8 @@ const PAGE = readFileSync(new URL("./fixtures/adct-forecast.html", import.meta.u
     "MERGE MOVED: the scraper no longer unions the two sources — if this is gone the paywall bug is back; see ci/test-forecast-merge.mjs");
   assert.ok(src.includes("if (fc.length) {\n      writeFileSync("),
     "WRITE GUARD MOVED: `if (fc.length)` is what stops [] being written over an existing file — update runTicker()");
+  assert.ok(src.includes("const PARALLEL = Math.max(1, "),
+    "PARALLEL CLAMP MOVED: an unclamped 0/NaN starts no worker and the run 'succeeds' having fetched nothing");
   assert.ok(!/^\s*import\s.*scrape-forecasts/m.test(readFileSync(new URL("./test-forecast-gate.mjs", import.meta.url), "utf8")),
     "this test must never import scrape-forecasts.mjs — its module body runs a live scrape");
 }

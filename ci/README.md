@@ -670,6 +670,11 @@ the commit step also stages `public/forecasts`.
   arrivals are always picked up on the very next run). `LIMIT` caps the per-run count
   (default 90); `ALL=1` forces everyone. With ~300 tickers and ~5 runs/day, `LIMIT=90`
   rotates through the whole universe in under a day, and no file exceeds ~`STALE_DAYS` old.
+  (`site.yml` now overrides to `STALE_DAYS=0`, `LIMIT=300`: the 300 stalest every run.)
+
+- **`PARALLEL`** (default 1; `site.yml` uses 3): a worker pool over the one FlareSolverr.
+  CPU-bound, since each request is a headless Chrome — on 90 tickers with 4 CPUs: P1 973s,
+  P3 655s, P10 1378s (slower than serial). Clamped to ≥ 1, so a bad value can't start zero workers.
 
 - **⚠️ Age comes from `public/forecasts/_asOf.json`, never from a file's mtime.** Git stores
   no mtimes, so `actions/checkout` stamps every file with the checkout time — an mtime-based
@@ -728,7 +733,7 @@ the commit step also stages `public/forecasts`.
   | tickers getting fresher data | 349 / 418 (83%), median **+16 days**, worst **+349** (ANVS, stuck on 2025-09-03) |
   | tickers losing rows | **0** |
   | malformed rows / target conflicts | **0 / 0** |
-  | cost | **+474s, +34 MB** per 90-ticker rotation (the plan's "+100s floor" was ~5× optimistic) |
+  | cost | **+474s, +34 MB** per 90-ticker rotation, measured serially at `PARALLEL=1` (the plan's "+100s floor" was ~5× optimistic) |
 
   ⚠️ **`SSR_MERGE=0` is the rollback** — set it on the workflow step and the scraper reverts to
   the exact old fallback, which is still covered by `node ci/test-forecast-gate.mjs` so it does
