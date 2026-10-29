@@ -33,7 +33,9 @@ assert.ok(
 );
 const scoredRows = rows.filter((r) => r.ai != null && Number.isFinite(Number(r.ai)));
 if (scoredRows.length >= 2) {
-  const rescaled = rows.map((r, i) => (i === 0 && r.ai != null ? { ...r, ai: +(Number(r.ai) / 10).toFixed(1) } : r));
+  // the FIRST SCORED row, not rows[0]: a null-ai row on top rescaled nothing and failed the gate
+  const victim = rows.indexOf(scoredRows[0]);
+  const rescaled = rows.map((r, i) => (i === victim ? { ...r, ai: +(Number(r.ai) / 10).toFixed(1) } : r));
   assert.ok(
     aiScaleError(rescaled),
     "positive control: rescaling ONE shipped row by /10 no longer trips the guard — a repeat of the original bug would ship undetected",
