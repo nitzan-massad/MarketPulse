@@ -113,7 +113,7 @@ export default function Search({ onOpen, onOpenTicker, resetKey, user }: SearchP
         if (ctrl.signal.aborted) return;
         /* blocked / reshaped -> Finnhub below */
       }
-      const key = localStorage.getItem("mp_finnhub") || import.meta.env.VITE_FINNHUB_KEY || "";
+      const key = import.meta.env.VITE_FINNHUB_KEY || "";
       if (!key) {
         setRemote([]);
         return;

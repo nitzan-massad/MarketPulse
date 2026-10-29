@@ -5,7 +5,6 @@ import type { LiveStatus } from "../useLiveQuotes";
 interface MastheadProps {
   poolN: number;
   liveStatus: LiveStatus;
-  hasKey: boolean;
   onLive: () => void;
 }
 
@@ -14,7 +13,7 @@ const SNAPSHOT = new Date(meta.generatedAt).toLocaleString(DATE_LOCALE, {
   hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short",
 });
 
-export default function Masthead({ poolN, liveStatus, hasKey, onLive }: MastheadProps) {
+export default function Masthead({ poolN, liveStatus, onLive }: MastheadProps) {
   const liveLabel =
     liveStatus === "live"
       ? "● Live"
@@ -29,13 +28,11 @@ export default function Masthead({ poolN, liveStatus, hasKey, onLive }: Masthead
               : liveStatus === "connecting"
                 ? "◐ Connecting…"
                 : liveStatus === "error"
-                  ? "⚠ Live — add key"
-                  : hasKey
-                    ? "○ Live off"
-                    : "⚡ Go live";
+                  ? "⚠ Live unavailable"
+                  : "○ Live off";
   const liveTitle =
     liveStatus === "error"
-      ? "CNBC quotes are unavailable and the Finnhub backup needs a free API key (stored only in this browser)"
+      ? "CNBC quotes and the Finnhub backup are both unavailable — click to turn live off"
       : "Live prices via CNBC, with Finnhub as the backup — click to turn off/on";
   return (
     <div className="metaline">

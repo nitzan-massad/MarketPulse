@@ -29,8 +29,8 @@ export type MarkFilter = "all" | "up" | "down" | "reviewed" | "unseen";
 const MARK_FILTERS: MarkFilter[] = ["all", "up", "down", "reviewed", "unseen"];
 
 // Baked-in Finnhub key (injected at build from the FINNHUB_KEY Actions secret) — only the
-// FALLBACK live source now (CNBC is primary and keyless). localStorage can override.
-const BAKED_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
+// FALLBACK live source now (CNBC is primary and keyless).
+const LIVE_KEY = import.meta.env.VITE_FINNHUB_KEY || null;
 // Belt-and-braces: the NavMenu item is already gated behind the same flag, but this keeps
 // the feed unreachable even if something else ever sets `nav` to "feed" directly.
 const FEED_ON = flagOn("feed");
@@ -214,9 +214,6 @@ export default function App() {
   useEffect(() => {
     if (authReady && !user) setMarkFilter("all");
   }, [authReady, user]);
-  const [liveKey, setLiveKey] = useState<string | null>(
-    () => localStorage.getItem("mp_finnhub") || BAKED_KEY || null,
-  );
   const [liveOn, setLiveOn] = useState<boolean>(
     () => localStorage.getItem("mp_live") !== "0", // CNBC needs no key, so live is on by default
   );
@@ -370,7 +367,7 @@ export default function App() {
   // are quoted on demand via `observe` (an IntersectionObserver ref-callback).
   const { live, price: livePrice, status: liveStatus, ticking, observe } = useLiveQuotes(
     watchlist,
-    liveKey,
+    LIVE_KEY,
     liveOn,
     WORKER_URL,
   );
@@ -443,24 +440,7 @@ export default function App() {
     }
   }
 
-  // On/off. The key prompt only appears when the Finnhub FALLBACK is carrying the session and
-  // has no working key — CNBC itself needs none.
   function toggleLive() {
-    if (liveStatus === "error") {
-      const k = window.prompt("Paste your free Finnhub API key (get one free at finnhub.io):", liveKey ?? "");
-      if (k && k.trim()) {
-        const key = k.trim();
-        localStorage.setItem("mp_finnhub", key);
-        localStorage.setItem("mp_live", "1");
-        setLiveKey(key);
-        setLiveOn(true);
-      } else if (k === null) {
-        // Cancelled: no key, no backup — let the badge turn live off rather than trap the user.
-        localStorage.setItem("mp_live", "0");
-        setLiveOn(false);
-      }
-      return;
-    }
     const next = !liveOn;
     localStorage.setItem("mp_live", next ? "1" : "0");
     setLiveOn(next);
@@ -523,7 +503,6 @@ export default function App() {
           <Masthead
             poolN={STOCKS.length}
             liveStatus={liveStatus}
-            hasKey={!!liveKey}
             onLive={toggleLive}
           />
 

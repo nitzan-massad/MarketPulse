@@ -59,29 +59,26 @@ eq("track=true registers the ticker with observe; track=false does not", seen, [
 eq("track=true without an observe (provider-less) still renders", px({ price: {} }, "X", 5, true), "$5.00");
 
 // ---- Masthead live badge ------------------------------------------------------------------------
-function badge(liveStatus: LiveStatus, hasKey = true): { label: string; cls: string; title: string } {
-  const html = renderToStaticMarkup(createElement(Masthead, { poolN: 10, liveStatus, hasKey, onLive: () => {} }));
+function badge(liveStatus: LiveStatus): { label: string; cls: string; title: string } {
+  const html = renderToStaticMarkup(createElement(Masthead, { poolN: 10, liveStatus, onLive: () => {} }));
   const m = /<button[^>]*class="([^"]*)"[^>]*title="([^"]*)"[^>]*>([^<]*)<\/button>/.exec(html);
   return m ? { cls: m[1], title: m[2], label: m[3] } : { cls: "", title: "", label: `no badge in: ${html}` };
 }
-const labels: Array<[LiveStatus, boolean, string]> = [
-  ["live", true, "● Live"],
-  ["backup", true, "● Live (backup)"],
-  ["pre", true, "◐ Pre-market"],
-  ["post", true, "◐ After hours"],
-  ["closed", true, "● Market closed"],
-  ["connecting", true, "◐ Connecting…"],
-  ["error", true, "⚠ Live — add key"],
-  ["error", false, "⚠ Live — add key"],
-  ["off", true, "○ Live off"],
-  ["off", false, "⚡ Go live"],
+const labels: Array<[LiveStatus, string]> = [
+  ["live", "● Live"],
+  ["backup", "● Live (backup)"],
+  ["pre", "◐ Pre-market"],
+  ["post", "◐ After hours"],
+  ["closed", "● Market closed"],
+  ["connecting", "◐ Connecting…"],
+  ["error", "⚠ Live unavailable"],
+  ["off", "○ Live off"],
 ];
-for (const [s, k, want] of labels) eq(`badge ${s}${k ? "" : " (no key)"} -> ${want}`, badge(s, k).label, want);
-eq("CNBC statuses need no key: live/pre/post/closed identical without one", (["live", "pre", "post", "closed"] as LiveStatus[]).map((s) => badge(s, false).label), ["● Live", "◐ Pre-market", "◐ After hours", "● Market closed"]);
+for (const [s, want] of labels) eq(`badge ${s} -> ${want}`, badge(s).label, want);
 eq("badge class carries the status (CSS hooks on it)", ["live", "backup", "pre", "post", "error"].map((s) => badge(s as LiveStatus).cls), [
   "livebadge live", "livebadge backup", "livebadge pre", "livebadge post", "livebadge error",
 ]);
-eq("error title explains the Finnhub key", /Finnhub backup needs a free API key/.test(badge("error").title), true);
+eq("error title asks for no key", /API key/.test(badge("error").title), false);
 eq("non-error title names CNBC + Finnhub backup", /via CNBC, with Finnhub as the backup/.test(badge("live").title), true);
 
 if (failed) throw new Error(`${failed} LivePx/Masthead check(s) failed`);
