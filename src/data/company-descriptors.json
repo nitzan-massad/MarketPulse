@@ -243,5 +243,10 @@
     "name": "Axsome Therapeutics",
     "descriptor": "Brain Disorder Treatments",
     "scene": "researcher carefully measuring powdered compounds in a laboratory glove box"
+  },
+  "GS": {
+    "name": "Goldman Sachs",
+    "descriptor": "Global Investment Bank",
+    "scene": "scrutinizing financial models on a spreadsheet alongside stacks of client files and financial reports"
   }
 }
