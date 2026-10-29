@@ -105,7 +105,11 @@ mkdirSync(OUT, { recursive: true });
 console.log(`forecasts backfill: ${targets.length} ticker(s) (LIMIT=${LIMIT}, ALL=${ALL}, SSR_MERGE=${MERGE ? 1 : 0})`);
 const now = new Date().toISOString();
 let ok = 0, empty = 0, fail = 0, viaHtml = 0, gained = 0;
-for (const t of targets) {
+// ponytail: a fixed pool of PARALLEL workers over one shared queue; FlareSolverr serves each
+// request in its own browser. Raise PARALLEL until TipRanks/Cloudflare starts failing fetches.
+const PARALLEL = Number(process.env.PARALLEL || 1);
+const queue = [...targets];
+async function scrape(t) {
   try {
     const html = await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`);
     const data = extractJson(html);
@@ -142,5 +146,8 @@ for (const t of targets) {
     console.log(`  ${t}: skip (${e.message})`);
   }
 }
+await Promise.all(Array.from({ length: PARALLEL }, async () => {
+  while (queue.length) await scrape(queue.shift());
+}));
 writeFileSync(ASOF, JSON.stringify(asOf, null, 1));
 console.log(`done: ${ok} written (${viaHtml} gained rows from the page, +${gained} rows total), ${empty} empty, ${fail} failed`);
