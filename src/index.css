@@ -1216,9 +1216,9 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
   .mkm-kv{grid-template-columns:repeat(2,1fr)}
   .mkm-swipe{--mw:calc(100vw - 48px)} /* prod declares -16px; the stage clamps it to -48px */
   .mkm-modal{max-height:calc(100dvh - 24px)}
-  /* phone: one column in DOM order — company, earnings, price, pill — on one left edge */
-  .mkm-head{grid-template-columns:minmax(0,1fr)}
-  .mkm-co, .mkm-earn, .mkm-pxgrp, .mkm-ext{grid-area:auto; justify-self:start}
+  /* phone: company | price on row 1; each pill takes a full row (two don't fit side by side) */
+  .mkm-earn, .mkm-ext{grid-row:auto; grid-column:1 / -1; justify-self:start}
+  .mkm-ext-open{display:none} /* "MARKET OPEN" repeats the top bar's LIVE */
 }
 @media(max-width:430px){
   .mkm-scrim{padding:10px}

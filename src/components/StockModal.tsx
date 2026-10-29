@@ -1141,7 +1141,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
             )}
             {/* no extended-hours trade: the session in a dashed placeholder (once the quote landed) */}
             {!extShown && !qmLoading && (
-              <div className="mkm-ext">
+              <div className={`mkm-ext${extGhost === "regular" ? " mkm-ext-open" : ""}`}>
                 <span className="mkm-pill mkm-ghost">
                   {extGhost === "regular" && <i className="mkm-dot" aria-hidden="true" />}
                   <span className="mkm-ext-k">
