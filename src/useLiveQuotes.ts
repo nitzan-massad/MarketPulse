@@ -621,7 +621,7 @@ export function useLiveQuotes(
     : src.source === "finnhub"
       ? session !== "regular"
         ? "closed"
-        : !apiKey || fhStatus === "error" // nothing can carry the session: ask for a key
+        : !apiKey || fhStatus === "error" // nothing can carry the session
           ? "error"
           : fhStatus === "live"
             ? "backup"
