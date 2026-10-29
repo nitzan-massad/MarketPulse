@@ -1,5 +1,36 @@
 [
   {
+    "id": "TMUS-2026-10-29T20:59:15.147Z",
+    "ts": "2026-10-29T20:59:15.147Z",
+    "kind": "movement",
+    "ticker": "TMUS",
+    "name": "T Mobile US",
+    "sector": "CommunicationServices",
+    "text": "40% upside, up from 37%, today, 17 analysts.",
+    "score": 32,
+    "reasons": [
+      "6 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "duplicate of a recent post (57% word overlap)"
+    ],
+    "facts": {
+      "upsideFrom": 37.3,
+      "upsideTo": 40,
+      "consensusFrom": "Buy",
+      "consensusTo": "StrongBuy",
+      "price": 148.08,
+      "priceTarget": 207.25,
+      "analysts": 17,
+      "sector": "CommunicationServices"
+    },
+    "descriptor": "Mobile Network Operator",
+    "image": "TMUS-2026-10-29T20-59-15-147Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "Public domain",
+    "imageAttribution": "MC1 Dustin Q. Diaz — Wikimedia Commons (Public domain)"
+  },
+  {
     "id": "ENVX-2026-10-29T17:22:19.262Z",
     "ts": "2026-10-29T17:22:19.262Z",
     "kind": "surprise",
