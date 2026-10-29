@@ -216,8 +216,9 @@ const num = (v: unknown): number | null => {
 // dp defaults to the shared price rule (cents, or 4dp under a cent) — a flat 2dp here
 // printed a real sub-penny quote as "$0.00" in the modal long after the table stopped.
 // An explicit dp still wins, for the axis ticks that size their own precision.
+// Thousands are grouped ($1,281.91) on the integer part only.
 const usd = (v: number | null | undefined, dp?: number): string =>
-  v == null ? "—" : "$" + (dp == null ? pxDp(v) : v.toFixed(dp));
+  v == null ? "—" : "$" + (dp == null ? pxDp(v) : v.toFixed(dp)).replace(/\d+/, (i) => i.replace(/\B(?=(\d{3})+$)/g, ","));
 
 const pct = (v: number | null | undefined): string =>
   v == null ? "—" : (v > 0 ? "+" : "") + v.toFixed(2) + "%";
@@ -654,6 +655,9 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   const [qmSession, setQmSession] = useState<Session | null>(null);
   const [series, setSeries] = useState<Series | null>(null);
   const [seriesLoading, setSeriesLoading] = useState(true);
+  // ticker|range the current `series` (or error) belongs to: right after a tab click `series` still
+  // holds the old range's bars for one render, before the fetch effect flips seriesLoading
+  const [seriesKey, setSeriesKey] = useState("");
   const [seriesError, setSeriesError] = useState(false);
   const [bb, setBb] = useState<BullBear | null>(null);
   const [bbTab, setBbTab] = useState<"bull" | "bear">("bull");
@@ -832,7 +836,9 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
         }
       })
       .finally(() => {
-        if (!cancelled) setSeriesLoading(false);
+        if (cancelled) return;
+        setSeriesKey(`${stock.t}|${range}`);
+        setSeriesLoading(false);
       });
     return () => {
       cancelled = true;
@@ -922,13 +928,20 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   // day move (vs prev close); other ranges use the series' first→last change
   // CNBC's daily/weekly/monthly bars stop at yesterday: today's live price joins the series here.
   const view = useMemo(() => (series ? withLive(series, live, RANGE_CFG[range].kind) : null), [series, live, range]);
-  const rangePct =
+  const pctLoading =
+    range === "1D" ? qmLoading && quote == null : seriesLoading || seriesKey !== `${stock.t}|${range}`;
+  // While a new range loads, `series` still holds the previous range's bars, so its first→last
+  // change is neither the old figure nor the new one. Keep showing the last settled figure.
+  const lastPctRef = useRef<{ t: string; v: number | null } | null>(null);
+  const settledPct =
     range === "1D"
       ? dayPct
       : view && view.closes.length > 1 && view.closes[0]
         ? ((view.closes[view.closes.length - 1] - view.closes[0]) / view.closes[0]) * 100
         : null;
-  const pctLoading = range === "1D" ? qmLoading && quote == null : seriesLoading;
+  const held = pctLoading && lastPctRef.current?.t === stock.t ? lastPctRef.current : null;
+  const rangePct = held ? held.v : settledPct;
+  if (!pctLoading) lastPctRef.current = { t: stock.t, v: settledPct };
   const dir = rangePct == null ? "flat" : rangePct > 0 ? "up" : rangePct < 0 ? "dn" : "flat";
   const arrow = rangePct == null ? "" : rangePct > 0 ? "▴" : rangePct < 0 ? "▾" : "•";
 

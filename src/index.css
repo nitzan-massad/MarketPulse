@@ -906,6 +906,8 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-pill svg{color:var(--t-gold); flex:none}
 .mkm-ext-k{font-size:10.5px; font-weight:700; letter-spacing:.1em; color:var(--t-gold)}
 .mkm-pill b{font-size:13px}
+/* one height for both row-2 pills (the calendar tile made earnings 1px taller), so the row never shifts as they load */
+.mkm-earn, .mkm-ext .mkm-pill{min-height:32px}
 /* placeholder for a missing earnings date / extended-hours trade: same pill, dashed and faint */
 .mkm-earn.mkm-ghost, .mkm-pill.mkm-ghost{background:transparent; border-style:dashed; border-color:var(--t-faint); color:var(--t-faint)}
 .mkm-ghost .mkm-ext-k{color:var(--t-faint)}
