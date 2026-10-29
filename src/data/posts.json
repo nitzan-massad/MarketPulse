@@ -1,5 +1,32 @@
 [
   {
+    "id": "ENVX-2026-10-29T17:22:19.262Z",
+    "ts": "2026-10-29T17:22:19.262Z",
+    "kind": "surprise",
+    "ticker": "ENVX",
+    "name": "Enovix",
+    "sector": "Industrials",
+    "text": "~193% upside, dwarfs sector's 39%.",
+    "score": 36,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (43% word overlap)"
+    ],
+    "facts": {
+      "upside": 193.5,
+      "price": 3.52,
+      "priceTarget": 10.33,
+      "consensus": "Buy",
+      "analysts": 9,
+      "sector": "Industrials",
+      "sectorMedianUpside": 38.9
+    },
+    "descriptor": "Lithium Ion Batteries",
+    "image": "ENVX-2026-10-29T17-22-19-262Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "PRAX-2026-10-29T13:44:37.145Z",
     "ts": "2026-10-29T13:44:37.145Z",
     "kind": "movement",

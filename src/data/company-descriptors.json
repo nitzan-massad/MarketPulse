@@ -248,5 +248,10 @@
     "name": "Goldman Sachs",
     "descriptor": "Global Investment Bank",
     "scene": "scrutinizing financial models on a spreadsheet alongside stacks of client files and financial reports"
+  },
+  "ENVX": {
+    "name": "Enovix",
+    "descriptor": "Lithium Ion Batteries",
+    "scene": "inspecting battery cells on a production line with a magnifying glass and tweezers"
   }
 }
