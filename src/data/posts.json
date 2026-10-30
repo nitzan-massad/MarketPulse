@@ -1,5 +1,29 @@
 [
   {
+    "id": "QBTS-2026-10-30T04:09:48.826Z",
+    "ts": "2026-10-30T04:09:48.826Z",
+    "kind": "list",
+    "ticker": "QBTS",
+    "name": "D-Wave Quantum Inc.",
+    "sector": "Technology",
+    "text": "200% upside leads the pack.",
+    "score": 54,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "QBTS appeared in a recent post"
+    ],
+    "facts": {
+      "members": "D-Wave Quantum (199.7% to $35.27), Enovix (193.5% to $10.33), Praxis Precision Medicines (160% to $742.17), Real Brokerage (158.4% to $37.5), Terawulf (156.3% to $34.4)",
+      "count": 5,
+      "leader": "D-Wave Quantum",
+      "leaderUpside": 199.7
+    },
+    "descriptor": "Quantum Computer Systems",
+    "image": "QBTS-2026-10-30T04-09-48-826Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "TMUS-2026-10-29T20:59:15.147Z",
     "ts": "2026-10-29T20:59:15.147Z",
     "kind": "movement",
