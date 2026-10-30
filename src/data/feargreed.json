@@ -1,7 +1,7 @@
 {
- "score": 34.6,
+ "score": 30.7,
  "rating": "fear",
- "asOf": "2026-10-30T00:00:00",
+ "asOf": "2026-10-30T11:52:25",
  "previous": {
   "close": 34.6,
   "week": 16.7,
@@ -18,26 +18,26 @@
   {
    "key": "stock_price_strength",
    "label": "Stock price strength",
-   "score": 32,
+   "score": 32.6,
    "rating": "fear"
   },
   {
    "key": "stock_price_breadth",
    "label": "Stock price breadth",
-   "score": 35.4,
+   "score": 40.2,
    "rating": "fear"
   },
   {
    "key": "put_call_options",
    "label": "Put / call ratio",
-   "score": 29.8,
-   "rating": "fear"
+   "score": 7.2,
+   "rating": "extreme fear"
   },
   {
    "key": "market_volatility_vix",
    "label": "Market volatility",
-   "score": 50,
-   "rating": "neutral"
+   "score": 39.7,
+   "rating": "fear"
   },
   {
    "key": "junk_bond_demand",
@@ -1051,11 +1051,11 @@
   },
   {
    "d": "2026-10-29",
-   "v": 34.6
+   "v": 30.7
   },
   {
    "d": "2026-10-30",
-   "v": 34.6
+   "v": 30.7
   }
  ]
 }

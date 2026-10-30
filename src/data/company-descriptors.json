@@ -253,5 +253,10 @@
     "name": "Enovix",
     "descriptor": "Lithium Ion Batteries",
     "scene": "inspecting battery cells on a production line with a magnifying glass and tweezers"
+  },
+  "ALNY": {
+    "name": "Alnylam Pharmaceuticals",
+    "descriptor": "RNA Therapy Developer",
+    "scene": "precisely pipetting samples into microplates for gene expression analysis"
   }
 }

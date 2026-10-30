@@ -1,5 +1,36 @@
 [
   {
+    "id": "ALNY-2026-10-30T12:14:52.017Z",
+    "ts": "2026-10-30T12:14:52.017Z",
+    "kind": "movement",
+    "ticker": "ALNY",
+    "name": "Alnylam Pharmaceuticals",
+    "sector": "Healthcare",
+    "text": "~101% upside, up from 55% today.",
+    "score": 36,
+    "reasons": [
+      "5 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "duplicate of a recent post (50% word overlap)"
+    ],
+    "facts": {
+      "upsideFrom": 55.1,
+      "upsideTo": 101.5,
+      "consensusFrom": "StrongBuy",
+      "consensusTo": "StrongBuy",
+      "price": 174,
+      "priceTarget": 350.59,
+      "analysts": 15,
+      "sector": "Healthcare",
+      "smartScoreFrom": 9,
+      "smartScoreTo": 8
+    },
+    "descriptor": "RNA Therapy Developer",
+    "image": "ALNY-2026-10-30T12-14-52-017Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "QBTS-2026-10-30T04:09:48.826Z",
     "ts": "2026-10-30T04:09:48.826Z",
     "kind": "list",
