@@ -1,5 +1,33 @@
 [
   {
+    "id": "MSFT-2026-10-31T23:53:53.887Z",
+    "ts": "2026-10-31T23:53:53.887Z",
+    "kind": "steady",
+    "ticker": "MSFT",
+    "name": "Microsoft",
+    "sector": "General",
+    "text": "10 Smart Score for 30 days straight.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "MSFT appeared in a recent post"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "snapshots": 145,
+      "days": 30.2,
+      "upside": 22.8,
+      "consensus": "StrongBuy",
+      "analysts": 28
+    },
+    "descriptor": "Software Developer",
+    "image": "MSFT-2026-10-31T23-53-53-887Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "CC BY-SA 4.0",
+    "imageAttribution": "Ank Kumar — Wikimedia Commons (CC BY-SA 4.0)"
+  },
+  {
     "id": "WULF-2026-10-31T19:57:03.121Z",
     "ts": "2026-10-31T19:57:03.121Z",
     "kind": "list",
