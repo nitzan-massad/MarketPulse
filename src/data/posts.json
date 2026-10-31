@@ -1,5 +1,29 @@
 [
   {
+    "id": "ENVX-2026-10-31T00:22:16.139Z",
+    "ts": "2026-10-31T00:22:16.139Z",
+    "kind": "list",
+    "ticker": "ENVX",
+    "name": "Enovix",
+    "sector": "Industrials",
+    "text": "~194% upside, tops the list of 5.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "ENVX appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Enovix (194.3% to $10.33), Real Brokerage (159.5% to $37.5), Terawulf (158.8% to $33), Praxis Precision Medicines (157.1% to $742.17), Vera Therapeutics (153% to $77.25)",
+      "count": 5,
+      "leader": "Enovix",
+      "leaderUpside": 194.3
+    },
+    "descriptor": "Lithium Ion Batteries",
+    "image": "ENVX-2026-10-31T00-22-16-139Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "ENVX-2026-10-30T20:29:36.551Z",
     "ts": "2026-10-30T20:29:36.551Z",
     "kind": "list",

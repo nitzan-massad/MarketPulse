@@ -1,7 +1,7 @@
 {
- "score": 25.3,
+ "score": 26.2,
  "rating": "fear",
- "asOf": "2026-10-30T20:12:54",
+ "asOf": "2026-10-30T23:57:59",
  "previous": {
   "close": 34.6,
   "week": 16.7,
@@ -36,13 +36,13 @@
   {
    "key": "market_volatility_vix",
    "label": "Market volatility",
-   "score": 19.9,
-   "rating": "extreme fear"
+   "score": 26.5,
+   "rating": "fear"
   },
   {
    "key": "junk_bond_demand",
    "label": "Junk bond demand",
-   "score": 41.8,
+   "score": 43,
    "rating": "fear"
   },
   {
@@ -53,10 +53,6 @@
   }
  ],
  "history": [
-  {
-   "d": "2025-10-30",
-   "v": 37.1
-  },
   {
    "d": "2025-10-31",
    "v": 34.5
@@ -1055,7 +1051,7 @@
   },
   {
    "d": "2026-10-30",
-   "v": 25.3
+   "v": 26.2
   }
  ]
 }
