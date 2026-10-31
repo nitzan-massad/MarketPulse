@@ -1,5 +1,32 @@
 [
   {
+    "id": "BA-2026-10-31T11:42:26.345Z",
+    "ts": "2026-10-31T11:42:26.345Z",
+    "kind": "contrarian",
+    "ticker": "BA",
+    "name": "Boeing Company",
+    "sector": "Industrials",
+    "text": "~40% upside, quant and AI disagree.",
+    "score": 64,
+    "reasons": [
+      "2 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "aiScore": 54,
+      "aiRating": "Neutral",
+      "consensus": "StrongBuy",
+      "upside": 39.6,
+      "price": 171.55,
+      "analysts": 16,
+      "bullish": "quant"
+    },
+    "descriptor": "Aircraft Manufacturer",
+    "image": "BA-2026-10-31T11-42-26-345Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "PRAX-2026-10-31T04:36:11.803Z",
     "ts": "2026-10-31T04:36:11.803Z",
     "kind": "surprise",
