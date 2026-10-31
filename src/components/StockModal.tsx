@@ -1166,8 +1166,8 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
             {/* no extended-hours trade: the session in a dashed placeholder, once the quote landed and only
                 while the live session still matches the fetched one, so it never misdescribes old data */}
             {!extShown && qmSession && sessionOf(etClock()) === qmSession && (
-              // mkm-ext-open: hidden on phones, where the top bar's LIVE says it (unless LIVE is hidden too)
-              <div className={`mkm-ext${qmSession === "regular" && !chromeOff ? " mkm-ext-open" : ""}`}>
+              // mkm-ext-open: hidden on phones, where the top bar's LIVE / the 1D chart's CLOSED says it
+              <div className={`mkm-ext${(qmSession === "regular" && !chromeOff) || (qmSession === "closed" && range === "1D") ? " mkm-ext-open" : ""}`}>
                 <span className="mkm-pill mkm-ghost">
                   {qmSession === "regular" && <i className="mkm-dot" aria-hidden="true" />}
                   <span className="mkm-ext-k">{GHOST_LABEL[qmSession]}</span>

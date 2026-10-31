@@ -1222,7 +1222,7 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
   /* phone: company | price on row 1; each pill takes a full row (two don't fit side by side) */
   .mkm-earn, .mkm-ext{grid-row:auto; grid-column:1 / -1; justify-self:start}
   .mkm-co{overflow-wrap:anywhere} /* the price column never shrinks, so long names wrap */
-  .mkm-ext-open{display:none} /* "MARKET OPEN" repeats the top bar's LIVE */
+  .mkm-ext-open{display:none} /* "MARKET OPEN" / "MARKET CLOSED" repeat LIVE / the 1D chart's CLOSED */
 }
 @media(max-width:430px){
   .mkm-scrim{padding:10px}
