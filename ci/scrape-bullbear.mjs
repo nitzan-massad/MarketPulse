@@ -7,6 +7,7 @@
 // two ~15-line copies beat a shared module that would touch the known-good forecast
 // script; factor into ci/flare.mjs if a third consumer appears.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { nearEarningsNow } from "./scrape-earnings.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -74,14 +75,18 @@ const ages = new Map(stocks.map((s) => {
   return [s.t, Date.parse(d) || 0];
 }));
 const age = (t) => ages.get(t) ?? 0;
-const targets = stocks
+// Companies within 2 days of an earnings report are refreshed EVERY run, on top of LIMIT —
+// that is when new analyst reviews land. The rest rotate stalest-first as before.
+const near = ONLY ? new Set() : nearEarningsNow();
+const hot = stocks.map((s) => s.t).filter((t) => near.has(t));
+const targets = [...hot, ...stocks
   .map((s) => s.t)
-  .filter((t) => (ONLY ? ONLY.includes(t) : ALL || age(t) < staleBefore))
+  .filter((t) => !near.has(t) && (ONLY ? ONLY.includes(t) : ALL || age(t) < staleBefore))
   .sort((a, b) => age(a) - age(b)) // stalest (incl. never-fetched = 0) first
-  .slice(0, LIMIT);
+  .slice(0, LIMIT)];
 
 mkdirSync(OUT, { recursive: true });
-console.log(`bullbear backfill: ${targets.length} ticker(s) (LIMIT=${LIMIT}, ALL=${ALL})`);
+console.log(`bullbear backfill: ${targets.length} ticker(s), ${hot.length} near earnings (LIMIT=${LIMIT}, ALL=${ALL})`);
 let ok = 0, empty = 0, fail = 0;
 for (const t of targets) {
   try {

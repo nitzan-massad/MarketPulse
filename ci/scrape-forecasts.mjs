@@ -13,6 +13,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { parseForecastHtml, withStars } from "./forecast-html.mjs";
 import { mergeForecasts, shouldFetchPage } from "./forecast-merge.mjs";
+import { nearEarningsNow } from "./scrape-earnings.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -95,16 +96,20 @@ const stocks = JSON.parse(readFileSync("src/data/stocks.json", "utf8"));
 const staleBefore = Date.now() - STALE_DAYS * 864e5;
 const asOf = existsSync(ASOF) ? JSON.parse(readFileSync(ASOF, "utf8")) : {};
 const age = (t) => Date.parse(asOf[t]) || 0; // never fetched -> 0 -> front of the queue
-const targets = stocks
+// Companies within 2 days of an earnings report are refreshed EVERY run, on top of LIMIT —
+// that is when new analyst reviews land. The rest rotate stalest-first as before.
+const near = ONLY ? new Set() : nearEarningsNow();
+const hot = stocks.map((s) => s.t).filter((t) => near.has(t));
+const targets = [...hot, ...stocks
   .map((s) => s.t)
-  .filter((t) => (ONLY ? ONLY.includes(t) : ALL || age(t) < staleBefore))
+  .filter((t) => !near.has(t) && (ONLY ? ONLY.includes(t) : ALL || age(t) < staleBefore))
   .sort((a, b) => age(a) - age(b)) // stalest (incl. never-fetched = 0) first
-  .slice(0, LIMIT);
+  .slice(0, LIMIT)];
 
 // Clamped: 0/NaN/negative would start no worker and "succeed" having fetched nothing.
 const PARALLEL = Math.max(1, Math.floor(Number(process.env.PARALLEL)) || 1);
 mkdirSync(OUT, { recursive: true });
-console.log(`forecasts backfill: ${targets.length} ticker(s) (LIMIT=${LIMIT}, ALL=${ALL}, SSR_MERGE=${MERGE ? 1 : 0}, PARALLEL=${PARALLEL})`);
+console.log(`forecasts backfill: ${targets.length} ticker(s), ${hot.length} near earnings (LIMIT=${LIMIT}, ALL=${ALL}, SSR_MERGE=${MERGE ? 1 : 0}, PARALLEL=${PARALLEL})`);
 const now = new Date().toISOString();
 let ok = 0, empty = 0, fail = 0, viaHtml = 0, gained = 0;
 // ponytail: a fixed pool of PARALLEL workers over one shared FlareSolverr; each request is a

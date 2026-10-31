@@ -5,7 +5,7 @@
 //   4. a full (capped) window that cannot be split looping forever
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { halve, mergeNext, windows } from "./scrape-earnings.mjs";
+import { halve, mergeNext, mergeRecent, nearEarnings, windows } from "./scrape-earnings.mjs";
 
 const today = "2026-10-11";
 const e = mergeNext(
@@ -38,6 +38,36 @@ assert.equal(w.length, 18);
 assert.deepEqual(halve("2026-10-11", "2026-10-17"), [["2026-10-11", "2026-10-14"], ["2026-10-15", "2026-10-17"]]);
 assert.deepEqual(halve("2026-10-11", "2026-10-12"), [["2026-10-11", "2026-10-11"], ["2026-10-12", "2026-10-12"]]);
 assert.equal(halve("2026-10-11", "2026-10-11"), null);
+
+// recent keeps each company's latest report inside [from, today) only
+assert.deepEqual(
+  mergeRecent(
+    [
+      { symbol: "MU", date: "2026-10-09" },
+      { symbol: "MU", date: "2026-10-10" },
+      { symbol: "OLD", date: "2026-10-08" }, // before the window
+      { symbol: "NOW", date: "2026-10-11" }, // today belongs to `e`, not `recent`
+    ],
+    "2026-10-09",
+    today,
+  ),
+  { MU: "2026-10-10" },
+);
+
+// near = next report within 2 days ahead, or a report within the last 2 days
+const near = nearEarnings(
+  {
+    e: {
+      TODAY: ["2026-10-11", "amc"], IN2: ["2026-10-13", ""], IN3: ["2026-10-14", "bmo"],
+      PAST: ["2026-10-10", ""], // a stale "next" from an old file is not trusted
+    },
+    recent: { AGO1: "2026-10-10", AGO2: "2026-10-09", AGO3: "2026-10-08" },
+  },
+  today,
+);
+assert.deepEqual([...near].sort(), ["AGO1", "AGO2", "IN2", "TODAY"]);
+assert.equal(nearEarnings({}, today).size, 0); // an older file without `recent` still works
+assert.equal(nearEarnings(null, today).size, 0);
 
 // the committed file, when present, has the shape the app reads
 if (existsSync("public/earnings.json")) {

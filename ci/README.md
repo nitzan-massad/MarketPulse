@@ -671,6 +671,9 @@ the commit step also stages `public/forecasts`.
   (default 90); `ALL=1` forces everyone. With ~300 tickers and ~5 runs/day, `LIMIT=90`
   rotates through the whole universe in under a day, and no file exceeds ~`STALE_DAYS` old.
   (`site.yml` now overrides to `STALE_DAYS=0`, `LIMIT=300`: the 300 stalest every run.)
+  **Earnings window:** a ranked ticker reporting within 2 days either way (`nearEarnings` in
+  `scrape-earnings.mjs`, from `public/earnings.json`'s `e` + `recent`) is scraped EVERY run, on
+  top of `LIMIT` — that is when new reviews land. `scrape-bullbear.mjs` does the same.
 
 - **`PARALLEL`** (default 1; `site.yml` uses 3): a worker pool over the one FlareSolverr.
   CPU-bound, since each request is a headless Chrome — on 90 tickers with 4 CPUs: P1 973s,

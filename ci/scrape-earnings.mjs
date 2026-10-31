@@ -1,6 +1,7 @@
 // Refresh public/earnings.json — each company's NEXT earnings report, for the stock modal's
-// "Earnings Thu · after close · in 25 days" line. Shape: { asOf, e: { T: [date, hour] } } with
-// date "YYYY-MM-DD" and hour "bmo" (before open) | "amc" (after close) | "" (not announced).
+// "Earnings Thu · after close · in 25 days" line. Shape: { asOf, e: { T: [date, hour] }, recent:
+// { T: date } } with date "YYYY-MM-DD" and hour "bmo" (before open) | "amc" (after close) | ""
+// (not announced). `recent` holds reports from the last NEAR days, for nearEarnings() below.
 //
 // Source: Finnhub /calendar/earnings?from&to (free key). With no symbol it returns every company
 // reporting in the window, but caps the answer at 1500 rows — so the next HORIZON days are asked
@@ -23,6 +24,7 @@ const STEP = 7; // days per request
 const CAP = 1500; // Finnhub's row cap per answer
 const MIN_COMPANIES = 500; // a good run lists thousands; far fewer means a bad key or a reshaped payload
 const DAY = 864e5;
+const NEAR = 2; // days either side of a report that the forecast/bullbear scrapers refresh every run
 
 const iso = (t) => new Date(t).toISOString().slice(0, 10);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -38,6 +40,38 @@ export function mergeNext(rows, today, into = {}) {
     if (!cur || d < cur[0] || (d === cur[0] && !cur[1] && hour)) into[t] = [d, hour];
   }
   return into;
+}
+
+/** Fold calendar rows into `into` ({ T: date }): each company's latest report in [from, today). */
+export function mergeRecent(rows, from, today, into = {}) {
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const t = typeof r?.symbol === "string" ? r.symbol.trim().toUpperCase() : "";
+    const d = typeof r?.date === "string" ? r.date : "";
+    if (!t || !/^\d{4}-\d{2}-\d{2}$/.test(d) || d < from || d >= today) continue;
+    if (!into[t] || d > into[t]) into[t] = d;
+  }
+  return into;
+}
+
+/**
+ * Tickers reporting within `days` of `today` either way, from an earnings.json object: the next
+ * report from `e`, the just-passed one from `recent` (`e` has already moved on to next quarter).
+ */
+export function nearEarnings(file, today, days = NEAR) {
+  const lo = iso(Date.parse(today) - days * DAY), hi = iso(Date.parse(today) + days * DAY);
+  const out = new Set();
+  for (const [t, v] of Object.entries(file?.e || {})) if (Array.isArray(v) && v[0] >= today && v[0] <= hi) out.add(t);
+  for (const [t, d] of Object.entries(file?.recent || {})) if (typeof d === "string" && d >= lo && d < today) out.add(t);
+  return out;
+}
+
+/** Read public/earnings.json and return nearEarnings for today; an unreadable file means none. */
+export function nearEarningsNow(path = OUT) {
+  try {
+    return nearEarnings(JSON.parse(readFileSync(path, "utf8")), iso(Date.now()));
+  } catch {
+    return new Set();
+  }
 }
 
 /** [from, to] day windows covering `days` days from `start`, `step` days each (inclusive ends). */
@@ -90,6 +124,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     mergeNext(await getWindow(from, to), today, e);
     calls++;
   }
+  // the last NEAR days too, so a just-reported company stays hot after `e` moves to next quarter.
+  // ponytail: bulk only — a ranked ticker the bulk answer misses drops out a day or two early.
+  const since = iso(Date.now() - NEAR * DAY);
+  const recent = mergeRecent(await getWindow(since, iso(Date.now() - DAY)), since, today);
+  calls++;
   const bulk = Object.keys(e).length;
   // ranked tickers the bulk pass missed: ask each on its own (a failure skips that one ticker)
   const ranked = JSON.parse(readFileSync("src/data/stocks.json", "utf8")).map((s) => s.t);
@@ -111,7 +150,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (n < MIN_COMPANIES) throw new Error(`earnings: only ${n} companies — keeping ${OUT} as it is`);
   const sorted = Object.fromEntries(Object.keys(e).sort().map((t) => [t, e[t]]));
   const prev = existsSync(OUT) ? readFileSync(OUT, "utf8") : "";
-  const next = JSON.stringify({ asOf: today, e: sorted }) + "\n";
+  const next = JSON.stringify({ asOf: today, e: sorted, recent }) + "\n";
   if (prev !== next) writeFileSync(OUT, next);
   console.log(`earnings.json: ${n} companies reporting by ${iso(Date.now() + HORIZON * DAY)} (${calls} windows)`);
 }
