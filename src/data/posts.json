@@ -1,5 +1,35 @@
 [
   {
+    "id": "HUT-2026-11-01T20:41:35.421Z",
+    "ts": "2026-11-01T20:41:35.421Z",
+    "kind": "surprise",
+    "ticker": "HUT",
+    "name": "Hut 8 Corp.",
+    "sector": "Financial",
+    "text": "~170% upside, dwarfs sector's 23.5 median.",
+    "score": 30,
+    "reasons": [
+      "6 digits of concrete detail",
+      "length in band",
+      "HUT appeared in a recent post",
+      "duplicate of a recent post (38% word overlap)"
+    ],
+    "facts": {
+      "upside": 170.1,
+      "price": 59.4,
+      "priceTarget": 160.45,
+      "consensus": "StrongBuy",
+      "analysts": 11,
+      "sector": "Financial",
+      "sectorMedianUpside": 23.5
+    },
+    "descriptor": "Energy Infrastructure Provider",
+    "image": "HUT-2026-11-01T20-41-35-421Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "CC BY-SA 2.0",
+    "imageAttribution": "Ian Petticrew — Wikimedia Commons (CC BY-SA 2.0)"
+  },
+  {
     "id": "WULF-2026-11-01T13:01:14.554Z",
     "ts": "2026-11-01T13:01:14.554Z",
     "kind": "surprise",
