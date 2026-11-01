@@ -1,5 +1,29 @@
 [
   {
+    "id": "WULF-2026-11-01T04:15:40.624Z",
+    "ts": "2026-11-01T04:15:40.624Z",
+    "kind": "list",
+    "ticker": "WULF",
+    "name": "Terawulf Inc.",
+    "sector": "Financial",
+    "text": "181% leads, 5 names on the board.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "WULF appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Terawulf (181.3% to $33), Hut 8 (175% to $163.33), Real Brokerage (167.7% to $37.5), Rigetti Computing (163.7% to $29.67), Quantinuum (160.2% to $87.44)",
+      "count": 5,
+      "leader": "Terawulf",
+      "leaderUpside": 181.3
+    },
+    "descriptor": "Bitcoin Mining Operator",
+    "image": "WULF-2026-11-01T04-15-40-624Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "MSFT-2026-10-31T23:53:53.887Z",
     "ts": "2026-10-31T23:53:53.887Z",
     "kind": "steady",
