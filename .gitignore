@@ -10,3 +10,4 @@ preview-images/
 
 # wrangler dev state
 .wrangler/
+.firebase/

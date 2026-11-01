@@ -1,5 +1,15 @@
 {
   "database": {
     "rules": "database.rules.json"
+  },
+  "hosting": {
+    "site": "marketpulse-app",
+    "public": "dist",
+    "headers": [
+      {
+        "source": "**/*.@(html|json)",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
+    ]
   }
 }

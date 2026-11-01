@@ -6,8 +6,8 @@
 // arguments instead of reading `location` / `import.meta.env.BASE_URL` itself; the two
 // call sites pass them in. See share.check.ts.
 //
-// The link is a HASH (`…/MarketPulse/#AAPL`) rather than a path or a query. On GitHub
-// Pages a path like /MarketPulse/AAPL is a 404 — there is no server to rewrite it — and a
+// The link is a HASH (`…/#AAPL`) rather than a path or a query. On a static host a path
+// like /AAPL is a 404 — there is no server to rewrite it — and a
 // query string still costs `?t=`. The hash is the shortest form that a static host can
 // serve, and it never reaches the network at all.
 
@@ -55,8 +55,8 @@ export const panelTarget = (id: PanelId): ShareTarget => ({ kind: "panel", id })
 
 /**
  * The shareable URL for a target.
- * `base` is Vite's BASE_URL — "/" in dev, "/MarketPulse/" in the production build — so the
- * same code produces a working link in both. A target we can't normalize yields the bare
+ * `base` is Vite's BASE_URL ("/" today; it was "/MarketPulse/" on GitHub Pages) — so the
+ * same code produces a working link under any base. A target we can't normalize yields the bare
  * app URL rather than a link to a modal that would open empty.
  */
 export function buildShareUrl(target: ShareTarget, origin: string, base: string): string {

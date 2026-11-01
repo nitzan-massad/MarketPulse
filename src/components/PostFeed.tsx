@@ -328,8 +328,8 @@ function CanvasArt({ post }: { post: Post }) {
  *  posted to X or Instagram and the text travels with it.
  *
  *  `base` is Vite's BASE_URL, same as every other lazy-fetched public/ asset (forecasts,
- *  bullbear, reviews-recent) — production serves from `/MarketPulse/`, not `/`, and this is
- *  the one that 404s only in production if it is missed (see CLAUDE.md). It is a PROP, not
+ *  bullbear, reviews-recent) — so it keeps working if the site ever moves off the root
+ *  again (it served from `/MarketPulse/` on GitHub Pages; see CLAUDE.md). It is a PROP, not
  *  read here via `import.meta.env`, for the exact reason share.ts documents on
  *  `buildShareUrl`: ci/run-tests.mjs compiles src/*.check.ts (postfeed.check.ts imports this
  *  file, for formatStamp/sortNewestFirst) with `--module commonjs`, where `import.meta` is a

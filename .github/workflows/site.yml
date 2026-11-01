@@ -9,7 +9,7 @@ on:
 
 permissions:
   contents: write   # commit refreshed data
-  pages: write      # deploy Pages
+  pages: write      # deploy the github.io redirect stub
   id-token: write   # Pages OIDC
 
 concurrency:
@@ -236,9 +236,17 @@ jobs:
           VITE_FMP_KEY: ${{ secrets.FMP_KEY }}
         run: npm run build
 
+      - name: Deploy to Firebase Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: npx --yes firebase-tools deploy --only hosting --project marketpulse-df5d9 --non-interactive
+
+      # The old https://nitzan-massad.github.io/MarketPulse/ URL keeps serving only a redirect
+      # to the Firebase site. 404.html catches every deep path.
+      - run: cp redirect/index.html redirect/404.html
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: redirect
 
       - id: deployment
         uses: actions/deploy-pages@v4

@@ -220,8 +220,8 @@ export default function App() {
   );
 
   // ---- deep link: /#AAPL opens that stock's modal ------------------------
-  // Shared links land here. A hash is used (not a path) because GitHub Pages has no
-  // server to rewrite /MarketPulse/AAPL, and it's one character cheaper than "?t=".
+  // Shared links land here. A hash is used (not a path) because a static host has no
+  // server to rewrite /AAPL, and it's one character cheaper than "?t=".
   // parseShareHash whitelists symbol-shaped hashes, so an unrelated "#section-2" or a
   // leftover OAuth fragment can't open a "No data" modal over the whole page on load.
   // Two kinds of target share this hash now (a symbol, and `#!<panel>`), so this can no

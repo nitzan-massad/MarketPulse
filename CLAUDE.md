@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm install
 npm run dev            # vite dev server (base "/")
-npm run build          # tsc && vite build -> dist/ (base "/MarketPulse/")
+npm run build          # tsc && vite build -> dist/ (base "/")
 npm run preview
 npm test               # === node ci/run-tests.mjs — the same command CI runs
 npx tsc --noEmit       # typecheck only (tests.yml runs this too)
@@ -52,8 +52,8 @@ live quotes and per-user state. No backend of our own.
    in the JS bundle; `src/data/{seen,meta,sectors,pinned}.json` likewise. Per-ticker payloads are
    too big to bundle and are **lazy-fetched from `public/`** at
    `${import.meta.env.BASE_URL}forecasts/<T>.json`, `bullbear/<T>.json`, plus `reviews-recent.json`
-   and `desc.json`. Always route those fetches through `BASE_URL` — the production base is
-   `/MarketPulse/`, not `/`.
+   and `desc.json`. Always route those fetches through `BASE_URL` (now "/", but it was `/MarketPulse/` on
+   GitHub Pages).
 3. **App (`src/`)** — `App.tsx` holds all filter/sort/nav state and feeds four sections
    (`StockTable`, `BestOfBest`, `NewArrivals`, `Watchlist`) plus `StockModal`. Pure logic sits in
    dependency-free modules, each with a paired `src/<name>.check.ts` (hooks like
@@ -87,6 +87,9 @@ and localStorage — no real auth, no Firebase writes.
 
 - **Pushing to `main` *is* the deploy.** The pipeline lives entirely in this repo; there is no
   external CI system. Never edit the workflow through the GitHub web UI. See `AGENTS.md`.
+  `site.yml` deploys `dist/` to Firebase Hosting (https://marketpulse-app.web.app, via the
+  `FIREBASE_TOKEN` secret) and deploys only `redirect/` to GitHub Pages, so the old
+  github.io URL forwards there. The worker's `ORIGIN` must match the Firebase site.
 - **Never hand-edit** `src/data/*.json`, `public/forecasts/`, `public/bullbear/`,
   `public/reviews-recent.json` — CI overwrites them. `src/data/pinned.json` is the one exception
   (hand-maintained list of never-expiring tickers). Users' "Track this stock" requests go to
