@@ -1,18 +1,18 @@
 {
- "score": 26.2,
+ "score": 26.5,
  "rating": "fear",
- "asOf": "2026-10-30T23:59:48",
+ "asOf": "2026-11-02T14:42:08",
  "previous": {
-  "close": 34.6,
-  "week": 16.7,
-  "month": 30.3,
-  "year": 37.1
+  "close": 26.2,
+  "week": 29.8,
+  "month": 38.2,
+  "year": 34.5
  },
  "components": [
   {
    "key": "market_momentum_sp500",
    "label": "Market momentum",
-   "score": 14.6,
+   "score": 15.8,
    "rating": "extreme fear"
   },
   {
@@ -30,13 +30,13 @@
   {
    "key": "put_call_options",
    "label": "Put / call ratio",
-   "score": 27.8,
+   "score": 29.4,
    "rating": "fear"
   },
   {
    "key": "market_volatility_vix",
    "label": "Market volatility",
-   "score": 26.5,
+   "score": 38.2,
    "rating": "fear"
   },
   {
@@ -48,7 +48,7 @@
   {
    "key": "safe_haven_demand",
    "label": "Safe haven demand",
-   "score": 2.2,
+   "score": 3.6,
    "rating": "extreme fear"
   }
  ],
@@ -1047,7 +1047,11 @@
   },
   {
    "d": "2026-10-30",
-   "v": 26.2
+   "v": 26.3
+  },
+  {
+   "d": "2026-11-02",
+   "v": 26.5
   }
  ]
 }
