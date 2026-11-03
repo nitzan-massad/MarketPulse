@@ -5,7 +5,7 @@ import { useShare } from "../useShare";
 import ShareBurst from "./ShareBurst";
 import CloseButton from "./CloseButton";
 import ShareButton, { ShareFail } from "./ShareButton";
-import { ariaSummary, bandOf, extremes, needlePoint, RANGES, shortDate, sliceDays, sparkPath, trend,
+import { ariaSummary, bandOf, extremes, needlePoint, RANGES, shortDate, sliceDays, sparkPath,
   zoomDomain, type FearGreed } from "../feargreed";
 
 const fg = data as FearGreed;
@@ -110,7 +110,6 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
   const [rangeKey, setRangeKey] = useState("1W"); // 1W by default
   const range = RANGES.find((r) => r.key === rangeKey) ?? RANGES[0];
   const hist = sliceDays(fg.history, range.days);
-  const t = trend(fg.score, hist[0]?.v ?? fg.score);
   const spark = sparkPath(hist, SPARK_W, SPARK_H, range.fixedAxis ? undefined : zoomDomain(hist));
   // two labelled peaks/troughs only once there is room for them; gap scales with the points
   const ext = extremes(hist, hist.length > 60 ? 2 : 1, Math.max(2, Math.round(hist.length / 8)));
@@ -247,11 +246,8 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
               {/* the caption is the text alternative, and carries the dates too so a
                   screen reader gets what the labels show */}
               <p className="fg-cap">
-                High <b>{Math.round(spark.hi)}</b> on {shortDate(hist[iHi].d)}
-                {" · "}low <b>{Math.round(spark.lo)}</b> on {shortDate(hist[iLo].d)}
-                <br />
-                now <b>{Math.round(fg.score)}</b>
-                {t.dir !== "flat" && <> · {t.delta} {t.dir} on the {range.per}</>}
+                High: <b>{Math.round(spark.hi)}</b> ({shortDate(hist[iHi].d)})
+                {" · "}Low: <b>{Math.round(spark.lo)}</b> ({shortDate(hist[iLo].d)})
               </p>
             </>
           )}

@@ -1,4 +1,3 @@
-import { DATE_LOCALE } from "./lib";
 // Pure logic for the Fear & Greed gauge: bands, needle geometry, trend chart.
 // No React, no fetch — paired with feargreed.check.ts, like lib/consensus/alertEngine.
 //
@@ -139,7 +138,8 @@ export function extremes(history: HistoryPoint[], count = 2, minGap = 6): Extrem
 export function shortDate(iso: string): string {
   const [y, m, day] = iso.split("-").map(Number);
   if (!y || !m || !day) return "";
-  return new Date(Date.UTC(y, m - 1, day)).toLocaleDateString(DATE_LOCALE, {
+  // en-US on purpose ("Oct 28"): this widget's labels read in English, unlike the app-wide he-IL DATE_LOCALE.
+  return new Date(Date.UTC(y, m - 1, day)).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     timeZone: "UTC",
