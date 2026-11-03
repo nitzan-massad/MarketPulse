@@ -263,5 +263,10 @@
     "name": "Waters",
     "descriptor": "Liquid Chromatography Systems",
     "scene": "carefully calibrating a mass spectrometer in a laboratory setting"
+  },
+  "CRWV": {
+    "name": "Coreweave",
+    "descriptor": "Cloud Computing Platform",
+    "scene": "tuning a rack of high-performance GPU servers in a datacentre hall"
   }
 }
