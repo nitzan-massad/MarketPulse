@@ -54,9 +54,12 @@ function extractJson(html) {
 
 // aiAnalysis.keyPoints[] -> { bull:[{t,b}], bear:[{t,b}] } (typically 3 + 3)
 function toBullBear(data) {
-  const kp = data?.models?.stocks_extra?.[0]?.aiAnalysis?.keyPoints || [];
+  // Small caps carry the thesis under news.keyPoints ("Bullish"), not aiAnalysis.keyPoints
+  // ("bullish"): reading only the latter left 24 tickers empty that tipranks.com shows.
+  const x = data?.models?.stocks_extra?.[0];
+  const kp = x?.aiAnalysis?.keyPoints?.length ? x.aiAnalysis.keyPoints : x?.news?.keyPoints || [];
   const pick = (s) =>
-    kp.filter((x) => x.sentiment === s && x.title).map((x) => ({ t: x.title, b: x.description || "" }));
+    kp.filter((x) => String(x.sentiment).toLowerCase() === s && x.title).map((x) => ({ t: x.title, b: x.description || "" }));
   return { bull: pick("bullish"), bear: pick("bearish") };
 }
 
