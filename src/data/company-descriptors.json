@@ -258,5 +258,10 @@
     "name": "Alnylam Pharmaceuticals",
     "descriptor": "RNA Therapy Developer",
     "scene": "precisely pipetting samples into microplates for gene expression analysis"
+  },
+  "WAT": {
+    "name": "Waters",
+    "descriptor": "Liquid Chromatography Systems",
+    "scene": "carefully calibrating a mass spectrometer in a laboratory setting"
   }
 }

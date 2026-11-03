@@ -1,5 +1,33 @@
 [
   {
+    "id": "WAT-2026-11-03T00:32:39.127Z",
+    "ts": "2026-11-03T00:32:39.127Z",
+    "kind": "movement",
+    "ticker": "WAT",
+    "name": "Waters",
+    "sector": "Healthcare",
+    "text": "17 analysts cut to Buy today from StrongBuy.",
+    "score": 70,
+    "reasons": [
+      "2 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band"
+    ],
+    "facts": {
+      "upsideFrom": 1.2,
+      "upsideTo": 1.2,
+      "consensusFrom": "StrongBuy",
+      "consensusTo": "Buy",
+      "price": 462.72,
+      "priceTarget": 468.33,
+      "analysts": 17,
+      "sector": "Healthcare"
+    },
+    "descriptor": "Liquid Chromatography Systems",
+    "image": "WAT-2026-11-03T00-32-39-127Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "DELL-2026-11-02T05:59:17.021Z",
     "ts": "2026-11-02T05:59:17.021Z",
     "kind": "contrarian",
