@@ -441,4 +441,14 @@ for (const name of [...REAL, ...SYNTH]) {
   total += got.length;
 }
 
+// TipRanks lowercased the position cell ("buy") on 2026-11-01 and every page row was dropped.
+// Upper-case ALL page text so any case-sensitive match left in the parser fails here.
+{
+  const lower = readFileSync(new URL("./fixtures/adct-forecast.html", import.meta.url), "utf8")
+    .replace(/>([^<]*[A-Za-z][^<]*)</g, (_, x) => `>${x.toUpperCase()}<`);
+  const lr = parseForecastHtml(lower);
+  assert.equal(lr.length, rows.length, "case-changed page must parse the same rows");
+  assertWellFormed(lr, "case-changed");
+}
+
 console.log(`forecast HTML parser: ok (${rows.length} ADCT + ${v.length} VTGN rows, ${total} rows across ${REAL.length + SYNTH.length} fixtures)`);

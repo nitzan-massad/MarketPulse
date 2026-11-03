@@ -18,12 +18,12 @@
 // (`Q9SxkXbq`). Guarded by ci/test-forecast-html.mjs against a real trimmed page. If the
 // markup moves, that test fails and this returns [] — a stale file, never a corrupt one.
 
-const ACTIONS = /^(Reiterated|Initiated|Maintained|Assigned|Upgraded|Downgraded|Reinstated)$/;
+const ACTIONS = /^(Reiterated|Initiated|Maintained|Assigned|Upgraded|Downgraded|Reinstated)$/i; // any case: see the rating note below
 
 // Column order in the table: Analyst | Firm | Price Target | Position | Upside | Action | Date
 export function parseForecastHtml(html) {
   if (typeof html !== "string") return []; // contract: anything but a string is "no rows", never a throw
-  const start = html.indexOf("Analyst Profile");
+  const start = html.search(/Analyst Profile/i);
   if (start < 0) return [];
   const body = html.slice(start);
 
@@ -68,7 +68,10 @@ export function parseForecastHtml(html) {
     const num = (s) => +s.slice(1).replace(/,/g, "");
     const pt = num(money[money.length - 1]);
     const opt = money.length > 1 ? num(money[0]) : null;
-    const r = before.find((s) => /^(Buy|Hold|Sell)$/.test(s));
+    // TipRanks switched the cell to lowercase ("buy") on 2026-11-01 and every row was dropped.
+    // Every text match in this parser is case-insensitive for that reason; output stays "Buy".
+    const r0 = before.find((s) => /^(buy|hold|sell)$/i.test(s));
+    const r = r0 && r0[0].toUpperCase() + r0.slice(1).toLowerCase();
     const [n, f] = before;
     // A shifted column must never be adopted as a name or a firm. ACTIONS caught only the
     // case where an action VERB landed in the firm cell; an empty firm cell shifted the
@@ -76,7 +79,7 @@ export function parseForecastHtml(html) {
     // back to the firm, emitting n === f. Reject anything that is plainly another column.
     const notAColumn = (v) => v && !ACTIONS.test(v) && !/^\$[\d.,]+$/.test(v)
       && !/^-?[\d.,]+%$/.test(v) && !/^\d{2}\/\d{2}\/\d{2}$/.test(v)
-      && !/^(Buy|Hold|Sell|Upside|Downside)$/.test(v) && v !== "―" && v !== "—";
+      && !/^(Buy|Hold|Sell|Upside|Downside)$/i.test(v) && v !== "―" && v !== "—";
     // `n === f` is a DELIBERATE over-reach, not column detection: it is the signature of an
     // empty analyst cell (n falls back to the firm), but it also drops the genuine row where
     // an analyst's name IS their firm's — an eponymous or sole-proprietor shop. Losing one
