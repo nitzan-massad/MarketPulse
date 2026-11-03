@@ -1,5 +1,33 @@
 [
   {
+    "id": "AMZN-2026-11-03T06:07:43.147Z",
+    "ts": "2026-11-03T06:07:43.147Z",
+    "kind": "steady",
+    "ticker": "AMZN",
+    "name": "Amazon.Com, Inc.",
+    "sector": "ConsumerCyclical",
+    "text": "32 analysts, 30 days at Strong Buy.",
+    "score": 36,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (40% word overlap)"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "snapshots": 145,
+      "days": 30.2,
+      "upside": 37.2,
+      "consensus": "StrongBuy",
+      "analysts": 32
+    },
+    "descriptor": "Global Online Retailer",
+    "image": "AMZN-2026-11-03T06-07-43-147Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "Public domain",
+    "imageAttribution": "NTSBgov — Wikimedia Commons (Public domain)"
+  },
+  {
     "id": "WAT-2026-11-03T00:32:39.127Z",
     "ts": "2026-11-03T00:32:39.127Z",
     "kind": "movement",
