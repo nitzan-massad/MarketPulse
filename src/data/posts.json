@@ -1,5 +1,30 @@
 [
   {
+    "id": "QNT-2026-11-03T17:12:21.915Z",
+    "ts": "2026-11-03T17:12:21.915Z",
+    "kind": "surprise",
+    "ticker": "QNT",
+    "name": "Quantinuum",
+    "sector": "General",
+    "text": "~183% upside, more than quadruple sector.",
+    "score": 54,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "QNT appeared in a recent post"
+    ],
+    "facts": {
+      "upside": 182.5,
+      "price": 30.95,
+      "priceTarget": 87.44,
+      "consensus": "StrongBuy",
+      "analysts": 12,
+      "sector": "General",
+      "sectorMedianUpside": 42.7
+    },
+    "descriptor": "Quantum Computing Hardware"
+  },
+  {
     "id": "CRWV-2026-11-03T13:48:34.413Z",
     "ts": "2026-11-03T13:48:34.413Z",
     "kind": "record",
