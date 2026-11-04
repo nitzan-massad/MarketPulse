@@ -1,5 +1,27 @@
 [
   {
+    "id": "QNT-2026-11-04T14:32:35.864Z",
+    "ts": "2026-11-04T14:32:35.864Z",
+    "kind": "list",
+    "ticker": "QNT",
+    "name": "Quantinuum",
+    "sector": "General",
+    "text": "168% upside leads the board of 5.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "QNT appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Quantinuum (168.5% to $87.44), Praxis Precision Medicines (164.6% to $742.17), Hut 8 (156.2% to $163.33), Vera Therapeutics (151.5% to $77.25), Terawulf (150.6% to $31.4)",
+      "count": 5,
+      "leader": "Quantinuum",
+      "leaderUpside": 168.5
+    },
+    "descriptor": "Quantum Computing Hardware"
+  },
+  {
     "id": "BA-2026-11-04T05:12:20.551Z",
     "ts": "2026-11-04T05:12:20.551Z",
     "kind": "contrarian",
