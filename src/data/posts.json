@@ -1,5 +1,33 @@
 [
   {
+    "id": "ALAB-2026-11-04T22:37:39.038Z",
+    "ts": "2026-11-04T22:37:39.038Z",
+    "kind": "movement",
+    "ticker": "ALAB",
+    "name": "Astera Labs, Inc.",
+    "sector": "Technology",
+    "text": "17% drop today, from 75% upside.",
+    "score": 74,
+    "reasons": [
+      "4 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band"
+    ],
+    "facts": {
+      "upsideFrom": 75.1,
+      "upsideTo": 58.7,
+      "consensusFrom": "Buy",
+      "consensusTo": "Buy",
+      "price": 233.62,
+      "priceTarget": 370.69,
+      "analysts": 17,
+      "sector": "Technology"
+    },
+    "descriptor": "Cloud Connectivity Solutions",
+    "image": "ALAB-2026-11-04T22-37-39-038Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "QNT-2026-11-04T14:32:35.864Z",
     "ts": "2026-11-04T14:32:35.864Z",
     "kind": "list",

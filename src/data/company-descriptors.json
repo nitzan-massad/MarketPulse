@@ -268,5 +268,10 @@
     "name": "Coreweave",
     "descriptor": "Cloud Computing Platform",
     "scene": "tuning a rack of high-performance GPU servers in a datacentre hall"
+  },
+  "ALAB": {
+    "name": "Astera Labs",
+    "descriptor": "Cloud Connectivity Solutions",
+    "scene": "inspecting a semiconductor wafer under a microscope with tweezers and probe tips nearby"
   }
 }
