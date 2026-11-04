@@ -153,8 +153,8 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, tic
                           <button
                             className={`wl-star ${watchlist.includes(s.t) ? "on" : ""}`}
                             type="button"
-                            title={watchlist.includes(s.t) ? "Untrack" : "Track"}
-                            aria-label={watchlist.includes(s.t) ? `Untrack ${s.t}` : `Track ${s.t}`}
+                            title={watchlist.includes(s.t) ? "Remove from watchlist" : "Add to watchlist"}
+                            aria-label={watchlist.includes(s.t) ? `Remove ${s.t} from watchlist` : `Add ${s.t} to watchlist`}
                             onClick={(e) => {
                               e.stopPropagation();
                               onToggleTrack(s.t);

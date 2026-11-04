@@ -220,8 +220,8 @@ export default function Watchlist({
                     <button
                       className="wl-star on"
                       type="button"
-                      title="Untrack"
-                      aria-label={`Untrack ${s.t}`}
+                      title="Remove from watchlist"
+                      aria-label={`Remove ${s.t} from watchlist`}
                       onClick={(e) => {
                         e.stopPropagation();
                         onToggle(s.t);

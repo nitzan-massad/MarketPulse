@@ -588,9 +588,9 @@ interface StockModalProps {
   isTracked: (t: string) => boolean;
   onToggleTrack: (t: string) => void;
   isCovered: (t: string) => boolean; // in the TipRanks ranked set? false => live data only
-  /** Signed-in user (null when signed out) — drives the "Track this stock" state. */
+  /** Signed-in user (null when signed out) — drives the "Get analyst data" state. */
   user: User | null;
-  /** "Track this stock" pressed. Absent => sync off, button hidden. */
+  /** "Get analyst data" pressed. Absent => sync off, button hidden. */
   onRequestTrack?: (t: string) => void;
   /** Ticker whose request was just made — its card shows the "We're on it" sheet. */
   confirmTicker?: string | null;
@@ -631,7 +631,7 @@ interface StockCardProps {
 
 function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, user, onRequestTrack, confirming, onConfirmDone, mark, onMark, onPrev, onNext, highlightReviews, openView, onViewClosed, onReviewsClosed, onReviewsUnavailable, active }: StockCardProps) {
   const [range, setRange] = useState<RangeId>(DEFAULT_RANGE);
-  // this ticker's "Track this stock" entry: changes when CI publishes it, re-running the loads below
+  // this ticker's "Get analyst data" (internally: track request) entry: changes when CI publishes it, re-running the loads below
   const trackedRev = useTrackedRev(stock.t);
   const [seed] = useState(() => instantQuoteMetric(stock.t)); // no wait when the page holds its quote
   const [quote, setQuote] = useState<Quote | null>(seed?.quote ?? null);
@@ -1043,8 +1043,8 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
             <button
               type="button"
               className={`mkm-star ${tracked ? "on" : ""}`}
-              title={tracked ? "Untrack" : "Track this stock"}
-              aria-label={tracked ? "Untrack" : "Track this stock"}
+              title={tracked ? "Remove from watchlist" : "Add to watchlist"}
+              aria-label={tracked ? "Remove from watchlist" : "Add to watchlist"}
               aria-pressed={tracked}
               onClick={onToggleTrack}
             >
@@ -1078,30 +1078,43 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
             </div>
           ) : (
           <>
+          {/* Uncovered: offer the analyst data, then show it's on its way. Usually the data lands live
+              (trackedRows), the stock becomes covered and this banner goes on its own. But when CI ships
+              the row in a new stocks.json deploy instead, this session still holds the old bundle:
+              trackReq is "tracked" while covered stays false, and only a reload shows the data. */}
           {!covered && (
             <div className="mkm-lim" role="status">
-              {trackReq === "none" ? (
-                <svg className="mkm-lim-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" />
-                </svg>
-              ) : trackReq === "pending" ? (
-                <span className="mkm-lim-spin" aria-hidden="true" />
-              ) : (
+              {trackReq === "tracked" ? (
                 <svg className="mkm-lim-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" aria-hidden="true">
                   <path d="M5 12l5 5L19 7" />
                 </svg>
+              ) : trackReq === "none" ? (
+                <svg className="mkm-lim-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" />
+                </svg>
+              ) : (
+                <span className="mkm-lim-spin" aria-hidden="true" />
               )}
               <div className="mkm-lim-txt">
                 <div className="mkm-lim-t">
-                  {trackReq === "none" ? "Live price only" : trackReq === "pending" ? `Tracking ${stock.t}` : `${stock.t} is tracked`}
+                  {trackReq === "none" ? "Live price only" : trackReq === "pending" ? "Loading analyst data" : "Analyst data ready"}
                 </div>
                 <div className="mkm-lim-s">
-                  {trackReq === "none" ? "Analyst data isn’t tracked yet" : trackReq === "pending" ? "Full analyst data in a few minutes" : "Refresh to see the full data"}
+                  {trackReq === "none"
+                    ? "No price targets, ratings or scores yet"
+                    : trackReq === "pending"
+                      ? "Collecting targets, ratings and scores…"
+                      : "Reload to see it"}
                 </div>
               </div>
+              {trackReq === "tracked" && (
+                <button type="button" className="mkm-trackreq" onClick={() => window.location.reload()}>
+                  Reload
+                </button>
+              )}
               {onRequestTrack && trackReq === "none" && (
                 <button type="button" className="mkm-trackreq" onClick={onRequestTrack}>
-                  Track this stock
+                  Get analyst data
                 </button>
               )}
             </div>
@@ -1317,7 +1330,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
           </div>
 
           {/* metric matrix */}
-          <div className={`mkm-matrix ${covered ? "" : "uncovered"}`}>
+          <div className={`mkm-matrix ${covered ? "" : trackReq === "pending" ? "uncovered pending" : "uncovered"}`}>
             <div className="mkm-cell">
               <div className="k">Prc Target</div>
               <div className="v gold">{usd(stock.pt)}</div>
@@ -1757,7 +1770,7 @@ const MOUNT_RADIUS = 1;
    reaches the people this hint is for. A blocked or cleared store reads as "already seen":
    showing the hint twice is a nuisance, nagging someone every visit is worse. */
 const COACH_KEY = "mp-swipe-coach";
-const COACH_MS = 2200; // keep in step with the mkm-coach-life keyframes
+const COACH_MS = 4000; // keep in step with the mkm-coach-life keyframes
 function coachSeen(): boolean {
   try {
     return localStorage.getItem(COACH_KEY) === "1";
@@ -1766,24 +1779,48 @@ function coachSeen(): boolean {
   }
 }
 
-/* The scrim takes no pointer events, so the gesture it is teaching works straight through it —
-   you can follow the instruction without dismissing it first, and doing so dismisses it.
+/* Touch screens page by swiping, so they get swipe cues instead of the ‹ › buttons (hidden by
+   CSS on pointer:coarse): page dots under the card, and two small chevrons at its edges that
+   fade out over the first SWIPES_RETIRE swipes — once you have swiped a few times you know.
+   The count is per browser, like the coachmark; blocked storage reads as "already learned". */
+const isTouch = () => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+const SWIPES_KEY = "mp-swipes";
+const SWIPES_RETIRE = 3;
+function readSwipes(): number {
+  try {
+    return Number(localStorage.getItem(SWIPES_KEY)) || 0;
+  } catch {
+    return SWIPES_RETIRE;
+  }
+}
 
-   A mouse cannot drag a scroll container, so "swipe" is a lie on a desktop with no trackpad.
-   `pointer: coarse` is the closest the platform gets to "the primary pointer is a finger";
-   everywhere else the hint names the controls that definitely work instead. */
-function SwipeCoach({ onDismiss }: { onDismiss: () => void }) {
-  const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
-  const label = touch ? "Swipe for the next stock" : "Use the arrows for the next stock";
+/* iOS-style page dots: at most 7, the outer two on a side shrink when the list goes on past
+   them, and the current stock is a wide pill. Decorative — the count is not announced. */
+const DOTS_MAX = 7;
+function SwipeDots({ n, i }: { n: number; i: number }) {
+  const lo = Math.max(0, Math.min(i - 3, n - DOTS_MAX));
+  const hi = Math.min(n, lo + DOTS_MAX);
+  const more = (d: number, k: number) => (lo > 0 && d === lo + k) || (hi < n && d === hi - 1 - k);
   return (
-    <div className="mkm-coach" role="note" aria-label={label}>
+    <div className="mkm-dots" aria-hidden="true">
+      {Array.from({ length: hi - lo }, (_, k) => {
+        const d = lo + k;
+        const cls = d === i ? " on" : more(d, 0) ? " s2" : more(d, 1) ? " s1" : "";
+        return <span key={d} className={`mkm-pdot${cls}`} />;
+      })}
+    </div>
+  );
+}
+
+/* Non-touch only: touch screens get the chevron pulse instead (see .mkm-pulse). A mouse cannot
+   drag a scroll container, so the hint names the arrows rather than miming a swipe. The scrim
+   takes no pointer events, so the arrows it points at work straight through it. */
+function SwipeCoach({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div className="mkm-coach" role="note" aria-label="Use the arrows for the next stock">
       <div className="mkm-coach-in">
-        {touch ? (
-          <span className="mkm-coach-puck" />
-        ) : (
-          <span className="mkm-coach-keys" aria-hidden="true"><b>‹</b><b>›</b></span>
-        )}
-        <small>{touch ? "SWIPE FOR THE NEXT STOCK" : "ARROWS FOR THE NEXT STOCK"}</small>
+        <span className="mkm-coach-keys" aria-hidden="true"><b>‹</b><b>›</b></span>
+        <small>ARROWS FOR THE NEXT STOCK</small>
         <button type="button" onClick={onDismiss}>Got it</button>
       </div>
     </div>
@@ -1847,12 +1884,26 @@ export default function StockModal({
       /* nothing to persist to; the hint simply returns next visit */
     }
   }, []);
-  const openedOn = useRef(stock.t);
+  const [touch] = useState(isTouch);
+  const [swipes, setSwipes] = useState(readSwipes);
+  const shownT = useRef(stock.t);
   useEffect(() => {
-    if (stock.t !== openedOn.current) dismissCoach();
+    if (stock.t === shownT.current) return;
+    shownT.current = stock.t; // every page counts, including back to the stock you opened on
+    dismissCoach();
+    setSwipes((n) => {
+      if (n >= SWIPES_RETIRE) return n;
+      try {
+        localStorage.setItem(SWIPES_KEY, String(n + 1));
+      } catch {
+        /* the chevrons simply come back next visit */
+      }
+      return n + 1;
+    });
   }, [stock.t, dismissCoach]);
+  const chevAlpha = Math.max(0, 1 - swipes / SWIPES_RETIRE);
 
-  // It bows out on its own after 1.5s, and any touch anywhere takes it away early. The tap
+  // It bows out on its own after 4s, and any touch anywhere takes it away early. The tap
   // listener is capture-phase and passive: it dismisses without consuming the event, so the
   // press still lands on whatever was underneath — the hint never costs you a tap.
   useEffect(() => {
@@ -1875,7 +1926,11 @@ export default function StockModal({
 
   return (
     <div className={`mkm-scrim${bare ? " mkm-bare" : ""}`} onMouseDown={onBackdrop}>
-      <div className="mkm-stage">
+      {/* On touch the first-open hint is the chevrons pulsing (mkm-pulse) rather than the coachmark. */}
+      <div className={`mkm-stage${touch && list.length > 1 ? " has-dots" : ""}${touch && coach ? " mkm-pulse" : ""}`}>
+        {touch && goPrev && chevAlpha > 0 && <span className="mkm-chev prev" style={{ opacity: chevAlpha }} aria-hidden="true">‹</span>}
+        {touch && goNext && chevAlpha > 0 && <span className="mkm-chev next" style={{ opacity: chevAlpha }} aria-hidden="true">›</span>}
+        {touch && list.length > 1 && <SwipeDots n={list.length} i={idx} />}
         {goPrev && (
           <button type="button" className="mkm-nav prev" aria-label="Previous stock" onClick={goPrev}>
             ‹
@@ -1907,7 +1962,7 @@ export default function StockModal({
                   onReviewsUnavailable={i === idx ? onReviewsUnavailable : undefined}
                 />
               )}
-              {coach && i === idx && <SwipeCoach onDismiss={dismissCoach} />}
+              {coach && !touch && i === idx && <SwipeCoach onDismiss={dismissCoach} />}
             </div>
           ))}
         </div>

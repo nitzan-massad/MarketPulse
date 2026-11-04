@@ -830,17 +830,11 @@ thead th:hover .col-resize::after{opacity:.6}
    teaching still works underneath it — only the button takes clicks. */
 .mkm-coach{position:absolute; inset:0; z-index:58; display:grid; place-items:center;
   background:rgba(27,29,24,.55); backdrop-filter:blur(1.5px); border-radius:14px;
-  pointer-events:none; animation:mkm-coach-life 2.2s ease-out forwards}
-/* 2.2s total, matching COACH_MS in StockModal.tsx — it fades itself out as React drops it */
+  pointer-events:none; animation:mkm-coach-life 4s ease-out forwards}
+/* 4s total, matching COACH_MS in StockModal.tsx — it fades itself out as React drops it */
 @keyframes mkm-coach-life{0%{opacity:0} 8%{opacity:1} 84%{opacity:1} 100%{opacity:0}}
 .mkm-coach-in{display:flex; flex-direction:column; align-items:center; gap:13px; color:#fff; text-align:center}
-.mkm-coach-puck{width:38px; height:38px; border-radius:50%; background:rgba(255,255,255,.96);
-  box-shadow:0 0 0 10px rgba(255,255,255,.2), 0 2px 10px rgba(27,29,24,.35);
-  animation:mkm-coach-sweep 2s cubic-bezier(.4,0,.2,1) both}
-@keyframes mkm-coach-sweep{
-  0%{transform:translateX(68px); opacity:0} 16%{opacity:1}
-  74%{transform:translateX(-68px); opacity:1} 100%{transform:translateX(-68px); opacity:0}}
-/* the no-touch variant: name the controls instead of miming a gesture a mouse cannot do */
+/* non-touch only: name the controls instead of miming a gesture a mouse cannot do */
 .mkm-coach-keys{display:flex; gap:9px}
 .mkm-coach-keys b{width:34px; height:34px; border-radius:50%; display:grid; place-items:center;
   border:1px solid rgba(255,255,255,.5); color:#fff; font-size:19px; font-weight:400; line-height:1;
@@ -857,7 +851,6 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-coach button:hover{background:rgba(255,255,255,.14)}
 .mkm-coach button:focus-visible{outline:2px solid #fff; outline-offset:2px}
 @media (prefers-reduced-motion:reduce){
-  .mkm-coach-puck{animation:none; opacity:1}
   .mkm-coach-keys b{animation:none; opacity:1}
   .mkm-coach{animation:none; opacity:1}
 }
@@ -873,6 +866,32 @@ thead th:hover .col-resize::after{opacity:.6}
   .mkm-nav{width:38px; height:38px; font-size:20px; background:rgba(255,255,255,.9); -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px)}
   .mkm-nav.prev{left:7px} .mkm-nav.next{right:7px}
 }
+/* Touch screens swipe between stocks; the arrows only covered card content there. They stay in
+   the accessibility tree (visually clipped, not display:none) so screen-reader users can still page. */
+@media (pointer:coarse){.mkm-nav{width:1px; height:1px; padding:0; border:0; overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); box-shadow:none}}
+/* Touch swipe cues (StockModal: SwipeDots + .mkm-chev). The card gives up 26px of height so the
+   dots fit under it; the stage shifts up by half of that to stay centred. */
+.mkm-stage.has-dots{margin-bottom:26px}
+/* each is the breakpoint's normal cap minus the 26px dot row */
+.mkm-stage.has-dots .mkm-modal{max-height:calc(100dvh - 74px)}
+@media(max-width:640px){.mkm-stage.has-dots .mkm-modal{max-height:calc(100dvh - 50px)}}
+@media(max-width:430px){.mkm-stage.has-dots .mkm-modal{max-height:calc(92vh - 26px)}}
+.mkm-dots{position:absolute; top:100%; left:0; right:0; height:26px; display:flex; align-items:center; justify-content:center; gap:6px; pointer-events:none}
+.mkm-pdot{width:7px; height:7px; border-radius:99px; background:rgba(255,255,255,.5); transition:width .25s, background .25s, transform .25s}
+.mkm-pdot.s1{transform:scale(.75)} .mkm-pdot.s2{transform:scale(.5)}
+.mkm-pdot.on{width:22px; background:#fff}
+/* Small tabs half in the gutter, half over the card's padding — never over content, never tappable. */
+.mkm-chev{position:absolute; top:50%; z-index:55; width:16px; height:34px; margin-top:-17px; border-radius:8px;
+  display:grid; place-items:center; background:rgba(255,255,255,.92); color:var(--t-gold); font-size:15px; font-weight:800; line-height:1;
+  pointer-events:none; box-shadow:0 4px 12px -6px rgba(0,0,0,.5); transition:opacity .4s; animation:mkm-sway-r 2.2s ease-in-out infinite}
+.mkm-chev.prev{left:-9px; animation-name:mkm-sway-l} .mkm-chev.next{right:-9px}
+@keyframes mkm-sway-r{50%{transform:translateX(2px)}} @keyframes mkm-sway-l{50%{transform:translateX(-2px)}}
+/* First open: three outward pulses, then back to the sway. */
+.mkm-pulse .mkm-chev.next{animation:mkm-pulse-r .7s ease-in-out 3}
+.mkm-pulse .mkm-chev.prev{animation:mkm-pulse-l .7s ease-in-out 3}
+@keyframes mkm-pulse-r{50%{transform:translateX(6px) scale(1.18); box-shadow:0 0 0 6px rgba(255,255,255,.35)}}
+@keyframes mkm-pulse-l{50%{transform:translateX(-6px) scale(1.18); box-shadow:0 0 0 6px rgba(255,255,255,.35)}}
+@media (prefers-reduced-motion:reduce){.mkm-chev{animation:none!important}}
 
 .mkm-scroll{overflow-y:auto; scrollbar-width:thin; scrollbar-color:#c2c9d3 transparent}
 .mkm-scroll::-webkit-scrollbar{width:12px}
@@ -1067,6 +1086,15 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-cell{background:var(--t-bg); padding:12px 14px}
 .mkm-matrix.uncovered .mkm-cell{background:repeating-linear-gradient(135deg, var(--t-bg), var(--t-bg) 6px, #e9edf2 6px, #e9edf2 12px)}
 .mkm-matrix.uncovered .mkm-cell .v{color:#c3c1b6}
+/* Data requested and on its way: plain cells with a shimmering bar where each value will land */
+.mkm-matrix.pending .mkm-cell{background:var(--t-bg)}
+.mkm-matrix.pending .mkm-cell:not(.mkm-cell-live) .v{position:relative; color:transparent!important} /* beats AI Rating's inline teal */
+.mkm-matrix.pending .mkm-cell:not(.mkm-cell-live) .v *{visibility:hidden}
+.mkm-matrix.pending .mkm-cell:not(.mkm-cell-live) .v::before{content:""; position:absolute; left:0; top:50%; transform:translateY(-50%);
+  width:62%; height:13px; border-radius:4px; animation:mkm-shimmer 1.4s linear infinite;
+  background:linear-gradient(90deg, var(--t-line-2) 0, #f6f8fb 40%, var(--t-line-2) 80%) 0 0/300% 100%}
+@keyframes mkm-shimmer{from{background-position:100% 0} to{background-position:-100% 0}}
+@media (prefers-reduced-motion:reduce){.mkm-matrix.pending .mkm-cell:not(.mkm-cell-live) .v::before{animation:none}}
 /* Mkt Cap is live (Finnhub), not a TipRanks ranking metric — keep it readable even when uncovered */
 .mkm-matrix.uncovered .mkm-cell.mkm-cell-live{background:var(--t-bg)}
 .mkm-matrix.uncovered .mkm-cell.mkm-cell-live .v{color:var(--t-ink)}
