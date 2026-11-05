@@ -91,6 +91,7 @@ jobs:
         continue-on-error: true
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
+          GETDATA_CACHE: ${{ runner.temp }}/getdata # hand-off to the forecasts step (ci/getdata-cache.mjs)
         run: node ci/refresh-data-ci.mjs
 
       # Three backfills, run side by side (the track-requests.yml pattern) instead of one after
@@ -126,6 +127,7 @@ jobs:
         continue-on-error: true
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
+          GETDATA_CACHE: ${{ runner.temp }}/getdata # forecasts reuses the snapshot step's getData bodies (ci/getdata-cache.mjs)
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
           TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }} # fallback only (CNBC first)
           TWELVEDATA_CI_KEY: ${{ secrets.TWELVEDATA_CI_KEY }} # optional; used first when set

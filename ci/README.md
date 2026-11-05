@@ -682,6 +682,13 @@ the commit step also stages `public/forecasts`.
   `scrape-bullbear.mjs` runs beside it as a 4th FlareSolverr client (FlareSolverr's waitress
   serves 4 requests at once): measured on 4 CPUs, 12 tickers, forecasts went 118s → 125s.
 
+- **`GETDATA_CACHE`** (`site.yml` only, `runner.temp`): the snapshot step's keep-set backfill
+  saves each getData body that produced a row; this step reads it once instead of re-fetching
+  the same URL (31-40% of its tickers on 2026-11-04/05, ~13s each under `PARALLEL=3`). Cached
+  tickers are worked first so the JSON and the live SSR page stay minutes apart. Any miss or
+  unparseable entry fetches live; unset (local, track-requests lite run) = old behaviour.
+  `ci/getdata-cache.mjs`, guarded by `ci/test-getdata-cache.mjs`.
+
 - **⚠️ Age comes from `public/forecasts/_asOf.json`, never from a file's mtime.** Git stores
   no mtimes, so `actions/checkout` stamps every file with the checkout time — an mtime-based
   check makes all 300+ files look seconds old, so nothing is ever refreshed and only
