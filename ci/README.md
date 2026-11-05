@@ -662,7 +662,8 @@ scripts) and has a built-in self-check: `node ci/keep.mjs`.
 ## Analyst forecasts — automated ✅
 
 `ci/scrape-forecasts.mjs` refreshes `public/forecasts/<TICKER>.json` from TipRanks'
-`getData` feed via FlareSolverr. `site.yml` runs it right after the data refresh, and
+`getData` feed via FlareSolverr. `site.yml` runs it right after the data refresh, side by
+side with the bulls/bears and P/E scrapes (one step; each writes only its own files), and
 the commit step also stages `public/forecasts`.
 
 - **Selection:** a ticker is scraped if we **last fetched it more than `STALE_DAYS` ago**
@@ -678,6 +679,8 @@ the commit step also stages `public/forecasts`.
 - **`PARALLEL`** (default 1; `site.yml` uses 3): a worker pool over the one FlareSolverr.
   CPU-bound, since each request is a headless Chrome — on 90 tickers with 4 CPUs: P1 973s,
   P3 655s, P10 1378s (slower than serial). Clamped to ≥ 1, so a bad value can't start zero workers.
+  `scrape-bullbear.mjs` runs beside it as a 4th FlareSolverr client (FlareSolverr's waitress
+  serves 4 requests at once): measured on 4 CPUs, 12 tickers, forecasts went 118s → 125s.
 
 - **⚠️ Age comes from `public/forecasts/_asOf.json`, never from a file's mtime.** Git stores
   no mtimes, so `actions/checkout` stamps every file with the checkout time — an mtime-based
@@ -769,8 +772,8 @@ Bears Say thesis) from the SSR **`/stocks/<t>`** page via FlareSolverr, using th
 **same selection logic as the forecast scrape** — `STALE_DAYS` staleness, stalest-first,
 `LIMIT` (default 90), `ALL=1` to force everyone. Age comes from the `asOf` field already
 stored **inside** each `<T>.json` (no sidecar needed here), never from mtime — see the
-warning under Analyst forecasts for why. `site.yml` runs it right
-after the forecast backfill, and the commit step stages `public/bullbear`.
+warning under Analyst forecasts for why. `site.yml` runs it in
+parallel with the forecast backfill (and `scrape-pe.mjs`), and the commit step stages `public/bullbear`.
 
 - **Source:** `https://www.tipranks.com/stocks/<t-lowercase>` (HTML). The old
   `/stocks/<t>/stock-analysis/payload.json` was retired 2026-11 — it returns
