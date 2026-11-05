@@ -280,8 +280,17 @@ export default function App() {
     if (location.hash) history.replaceState(null, "", location.pathname + location.search);
   }, []);
 
+  // A link's view (`#TSM/pe`, `#TSM/fc`) belongs to the one stock it opened over: clear it and
+  // fall back to the stock's own link, so it can never reopen on another stock.
+  const closeView = useCallback(() => {
+    setOpenView(null);
+    const t = parseShareHash(location.hash);
+    if (t?.kind === "ticker" && t.view) history.replaceState(null, "", location.pathname + location.search + "#" + t.id);
+  }, []);
+
   const closeStock = useCallback(() => {
     setOpenStock(null);
+    setOpenView(null);
     setFcHighlight(null);
     setBellReturn(false);
     if (parseShareHash(location.hash)?.kind === "ticker") dropHash();
@@ -606,15 +615,11 @@ export default function App() {
             onReviewsUnavailable={() => setFcHighlight(null)}
             bare={bellReturn && fcHighlight != null}
             openView={openView}
-            onViewClosed={() => {
-              setOpenView(null);
-              // `#TSM/pe` -> `#TSM`: closing the chart keeps the stock's own link
-              const t = parseShareHash(location.hash);
-              if (t?.kind === "ticker" && t.view) history.replaceState(null, "", location.pathname + location.search + "#" + t.id);
-            }}
+            onViewClosed={closeView}
             list={openList}
             onIndex={(n) => {
               logOpen(openList[n].t, { via: "swipe" });
+              closeView();
               setOpenStock(openList[n]);
             }}
           />

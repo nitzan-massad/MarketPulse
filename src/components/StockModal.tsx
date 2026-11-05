@@ -664,6 +664,10 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   const [descOpen, setDescOpen] = useState(false);
   const [bbOpen, setBbOpen] = useState<Set<number>>(() => new Set()); // per-topic expanded indices
   const [forecasts, setForecasts] = useState<Forecast[] | null>(null);
+  // which ticker `forecasts` was loaded for: null means loading OR none, and keying on the
+  // ticker keeps the previous stock's list from counting as loaded in the render that switches
+  const [fcFor, setFcFor] = useState<string | null>(null);
+  const fcState = fcFor !== stock.t ? "loading" : forecasts ? "ok" : "none";
   const [fcOpen, setFcOpen] = useState(false);
   const [cardUp, setCardUp] = useState(false); // stock card raised over its open forecasts; closing it goes back to them
   const [peOpen, setPeOpen] = useState(false);
@@ -773,6 +777,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     setBbOpen(new Set());
     setDescOpen(false);
     setForecasts(null);
+    setFcFor(null);
     setFcOpen(false);
     setCardUp(false);
     setPeOpen(false);
@@ -784,6 +789,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     fetchForecasts(stock.t).then((r) => {
       if (cancelled) return;
       setForecasts(r);
+      setFcFor(stock.t);
       // opened for its reviews but there are none: hand back, so the stock card shows instead
       if (!r && highlightReviews?.length) onReviewsUnavailable?.();
     });
@@ -801,8 +807,14 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   // reset above, which closes every overlay on a ticker change and would otherwise win.
   useEffect(() => {
     if (active && openView === "pe") setPeOpen(true);
-    if (active && openView === "fc") setFcOpen(true); // renders once forecasts load
   }, [active, openView, stock.t]);
+  // `#TSM/fc` waits for the list: opening it early would leave an invisible overlay that eats
+  // Escape and paging. A stock with no forecasts drops the view and stays on its card.
+  useEffect(() => {
+    if (!active || openView !== "fc" || fcState === "loading") return;
+    if (fcState === "ok") setFcOpen(true);
+    else onViewClosed?.();
+  }, [active, openView, stock.t, fcState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // opened from a review notification: once forecasts load, open the forecast view and
   // glow the new rows for 2s, then let the CSS transition fade them out. Fires once per
