@@ -765,25 +765,28 @@ the commit step also stages `public/forecasts`.
 ## Bulls Say / Bears Say — automated ✅
 
 `ci/scrape-bullbear.mjs` refreshes `public/bullbear/<TICKER>.json` (the AI Bulls Say /
-Bears Say thesis) from TipRanks' **stock-analysis** payload via FlareSolverr, using the
+Bears Say thesis) from the SSR **`/stocks/<t>`** page via FlareSolverr, using the
 **same selection logic as the forecast scrape** — `STALE_DAYS` staleness, stalest-first,
 `LIMIT` (default 90), `ALL=1` to force everyone. Age comes from the `asOf` field already
 stored **inside** each `<T>.json` (no sidecar needed here), never from mtime — see the
 warning under Analyst forecasts for why. `site.yml` runs it right
-after the forecast backfill, and the commit step stages `public/bullbear`. (The old "no
-free endpoint / still manual" note was wrong — the data is free and unauthenticated.)
+after the forecast backfill, and the commit step stages `public/bullbear`.
 
-- **Source (verified live on AAPL, AMD, ACAD, RIVN, NVDA):**
-  `https://www.tipranks.com/stocks/<t-lowercase>/stock-analysis/payload.json` — no auth, no key.
-  Unlike `getData` this path isn't even Cloudflare-gated (plain `fetch` returns 200), but CI goes
-  through the existing FlareSolverr for runner-IP safety. Same `payload.json` family as the
-  AI-score enrichment above, different subpage (`stock-analysis`, not `stock-forecast`).
-- **JSON path:** `models.stocks_extra[0].aiAnalysis.keyPoints[]` → `{ sentiment: "bullish"|"bearish", title, description }` (typically 3 bull + 3 bear).
+- **Source:** `https://www.tipranks.com/stocks/<t-lowercase>` (HTML). The old
+  `/stocks/<t>/stock-analysis/payload.json` was retired 2026-11 — it returns
+  `{"data":null,"error":"not found"}` for every ticker, which the old code counted as "no thesis",
+  so nothing refreshed and nothing failed.
+- **Markup** (parser: `ci/bullbear-html.mjs`): `<h2>Bulls Say, Bears Say</h2>`, then two columns,
+  each opened by `<h3>…<span>Bulls Say|Bears Say</span></h3>` with `<h4>title</h4><p>body</p>`
+  pairs (typically 3 + 3). Anchored on text and tag names, never class names. Guarded by
+  `node ci/test-bullbear-html.mjs` against a real trimmed ONDS page (`ci/fixtures/onds-bullbear.html`).
 - **Output shape:** `{ "bull": [{ "t": "title", "b": "body" }, …], "bear": [ … ], "asOf": "YYYY-MM-DD" }`
-  (`asOf` = the date we last refreshed the ticker, shown next to the panel headline; the payload
+  (`asOf` = the date we last refreshed the ticker, shown next to the panel headline; the page
   carries no content date of its own).
-- **Failure-tolerant:** per-ticker try/catch, only writes non-empty results, `continue-on-error`
-  in CI — never blocks the deploy. Tickers with no AI analysis simply get no file (retried next run).
+- **Failure-tolerant, but never silent:** a page without the section (challenge page, error
+  page, redesign) **throws** and counts as `failed`, not `empty`; only a section with no points
+  is `empty`. Per-ticker try/catch, only writes non-empty results, `continue-on-error` in CI.
+  A full run (not `ONLY`) of ≥10 tickers that writes nothing prints a `::warning::` and exits 1.
 
 ## Sector average P/E — automated ✅
 

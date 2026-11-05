@@ -1,13 +1,14 @@
-// Backfill/refresh public/bullbear/<T>.json from TipRanks' stock-analysis payload
-// (the AI Bulls Say / Bears Say thesis), via FlareSolverr — same Cloudflare-bypass the
+// Backfill/refresh public/bullbear/<T>.json from the SSR tipranks.com/stocks/<t> page
+// (the AI Bulls Say / Bears Say thesis; parser in ci/bullbear-html.mjs), via FlareSolverr — same Cloudflare-bypass the
 // forecast scrape uses. Fills tickers MISSING a file or older than STALE_DAYS, stalest
 // first so LIMIT rotates through the whole universe (pass ALL=1 to force everyone).
 // Strictly additive + per-ticker failure-tolerant: a bad ticker is skipped, never fatal.
-// ponytail: flareGet/extractJson are duplicated from scrape-forecasts.mjs on purpose —
+// ponytail: flareGet is duplicated from scrape-forecasts.mjs on purpose —
 // two ~15-line copies beat a shared module that would touch the known-good forecast
 // script; factor into ci/flare.mjs if a third consumer appears.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
+import { parseBullBearHtml } from "./bullbear-html.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -38,32 +39,7 @@ async function flareGet(url, tries = ONLY ? 3 : 6) {
   throw lastErr;
 }
 
-// payload.json comes back as JSON, sometimes wrapped in <pre> with HTML entities
-function extractJson(html) {
-  const pre = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
-  for (const cand of [pre && pre[1], html].filter(Boolean)) {
-    const decoded = cand
-      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-    const m = decoded.match(/\{[\s\S]*\}/);
-    if (!m) continue;
-    try { return JSON.parse(m[0]); } catch { /* try next */ }
-  }
-  throw new Error("no JSON in response");
-}
-
-// aiAnalysis.keyPoints[] -> { bull:[{t,b}], bear:[{t,b}] } (typically 3 + 3)
-function toBullBear(data) {
-  // Small caps carry the thesis under news.keyPoints ("Bullish"), not aiAnalysis.keyPoints
-  // ("bullish"): reading only the latter left 24 tickers empty that tipranks.com shows.
-  const x = data?.models?.stocks_extra?.[0];
-  const kp = x?.aiAnalysis?.keyPoints?.length ? x.aiAnalysis.keyPoints : x?.news?.keyPoints || [];
-  const pick = (s) =>
-    kp.filter((x) => String(x.sentiment).toLowerCase() === s && x.title).map((x) => ({ t: x.title, b: x.description || "" }));
-  return { bull: pick("bullish"), bear: pick("bearish") };
-}
-
-// the payload carries no content date, so stamp when WE refreshed it
+// the page carries no content date, so stamp when WE refreshed it
 const ASOF = new Date().toISOString().slice(0, 10);
 
 const stocks = JSON.parse(readFileSync("src/data/stocks.json", "utf8"));
@@ -93,16 +69,18 @@ console.log(`bullbear backfill: ${targets.length} ticker(s), ${hot.length} near 
 let ok = 0, empty = 0, fail = 0;
 for (const t of targets) {
   try {
-    const url = `https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/stock-analysis/payload.json`;
-    const bb = toBullBear(extractJson(await flareGet(url)));
+    const url = `https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}`;
+    const bb = parseBullBearHtml(await flareGet(url));
     if (bb.bull.length || bb.bear.length) {
       writeFileSync(`${OUT}/${t}.json`, JSON.stringify({ ...bb, asOf: ASOF }));
       ok++;
       console.log(`  ${t}: ${bb.bull.length}↑ ${bb.bear.length}↓ ✓`);
     } else {
-      // ponytail: nothing written, so this ticker stays at age 0 and is retried every run.
-      // Currently ~6 tickers (TipRanks has no thesis for them) out of a 90 slot budget —
-      // cheap. If that set grows, write `{bull:[],bear:[],asOf}` so they rotate out instead.
+      // Section present but no points (rare). Tickers with NO thesis most likely have no section
+      // at all, so they throw and land under `failed` below, not here.
+      // ponytail: either way nothing is written, so the ticker stays at age 0 and is retried
+      // every run. Cheap while that set is small; if `failed` grows on healthy runs, stamp an
+      // asOf for "no section" tickers (or keep a skip list) so they rotate out of the budget.
       empty++;
       console.log(`  ${t}: none`);
     }
@@ -112,3 +90,10 @@ for (const t of targets) {
   }
 }
 console.log(`done: ${ok} written, ${empty} empty, ${fail} failed`);
+// Tripwire: a big run that wrote NOTHING means the source moved again (payload.json died exactly
+// this way, silently, as "N empty"). Warn loudly; the step is continue-on-error so it never blocks
+// the deploy. Off for ONLY runs: track-requests.yml fails the lite run on any non-zero exit.
+if (!ONLY && ok === 0 && targets.length >= 10) {
+  console.log(`::warning::bullbear: 0 of ${targets.length} written — TipRanks markup or source likely changed (see ci/bullbear-html.mjs)`);
+  process.exitCode = 1;
+}
