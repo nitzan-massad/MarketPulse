@@ -110,8 +110,9 @@ jobs:
       # (the exit line says which), never the others: each is waited on separately.
       # Per-scraper env stays per command, not step env — LIMIT and STALE_DAYS differ:
       #   forecasts: no age gate — the 300 stalest every run, so all ~518 rotate within 2 runs
-      #     (≤10h) and fresh reviews land the same day. PARALLEL=3: was serial (300 tickers took
-      #     41 min); 2 was slower in prod (12.5 vs 8.9 s/ticker median).
+      #     (≤10h) and fresh reviews land the same day. PARALLEL=2: bullbear's Chrome runs beside
+      #     it, so 3 here made 4 Chromes on the 4-vCPU runner -> 175 FlareSolverr 60s timeouts
+      #     (run 42022887893; ~28 median at 3 alone). Alone, 3 beat 2 (8.9 vs 12.5 s/ticker).
       #   bullbear: Bulls Say / Bears Say (AI thesis) from the SSR tipranks.com/stocks/<t> page.
       #     LIMIT 200 (was 90 and always hit; ~4-7 min).
       #   pe: 5-year weekly P/E history per ticker for the stock modal's P/E chart. Inputs cached
@@ -139,7 +140,7 @@ jobs:
           # and bullbear's ::warning:: are never lost
           dump() { for n in bullbear pe; do echo "::group::$n"; cat "$RUNNER_TEMP/$n.log" 2>/dev/null; echo "::endgroup::"; done; }
           trap 'dump; trap - EXIT' EXIT INT TERM
-          STALE_DAYS=0 LIMIT=300 PARALLEL=3 node ci/scrape-forecasts.mjs & a=$!
+          STALE_DAYS=0 LIMIT=300 PARALLEL=2 node ci/scrape-forecasts.mjs & a=$!
           LIMIT=200 node ci/scrape-bullbear.mjs > "$RUNNER_TEMP/bullbear.log" 2>&1 & b=$!
           LIMIT=200 node ci/scrape-pe.mjs > "$RUNNER_TEMP/pe.log" 2>&1 & c=$!
           # `|| r=$?`, not `; r=$?`: Actions runs bash -e, which would quit at the first failed wait
@@ -242,6 +243,8 @@ jobs:
           else
             git add src/data public/forecasts public/bullbear public/pe ci/cache public/reviews-recent.json public/post-images public/earnings.json
             git commit -m "chore: refresh TipRanks snapshot [skip ci]"
+            # a code push landing during this ~2h run must not discard the data (run 42022887893)
+            git pull --rebase
             git push
           fi
 
