@@ -91,47 +91,63 @@ jobs:
         continue-on-error: true
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
+          GETDATA_CACHE: ${{ runner.temp }}/getdata # hand-off to the forecasts step (ci/getdata-cache.mjs)
         run: node ci/refresh-data-ci.mjs
 
-      # Backfill analyst forecasts for tickers missing a file (new arrivals).
-      # Additive + failure-tolerant; never blocks the deploy.
-      - name: Backfill analyst forecasts (via FlareSolverr)
+      # Three backfills, run side by side (the track-requests.yml pattern) instead of one after
+      # another: bulls/bears and P/E finish inside forecasts' ~55-100 min, so they cost no wall time.
+      # Safe because each writes only its own files and all three only READ src/data/stocks.json
+      # (written by the snapshot step above), pinned.json and public/earnings.json (written below):
+      #   forecasts -> public/forecasts/<T>.json + _asOf.json
+      #   bullbear  -> public/bullbear/<T>.json (asOf inside each file)
+      #   pe        -> public/pe/<T>.json + _asOf.json, ci/cache/pe/<T>.json
+      # Every step below waits for all three (the reviews feed reads public/forecasts).
+      # FlareSolverr: one Chrome per request, waitress serves 4 at once — forecasts' 3 workers +
+      # bulls/bears' 1 fit without queueing. P/E never touches it (CNBC, Finnhub, SEC, Twelve Data).
+      # Measured on 4 CPUs, 12 tickers each: forecasts 118s alone vs 125s beside bulls/bears.
+      #
+      # Additive + failure-tolerant; never blocks the deploy. A failed scraper fails this step
+      # (the exit line says which), never the others: each is waited on separately.
+      # Per-scraper env stays per command, not step env — LIMIT and STALE_DAYS differ:
+      #   forecasts: no age gate — the 300 stalest every run, so all ~518 rotate within 2 runs
+      #     (≤10h) and fresh reviews land the same day. PARALLEL=3: was serial (300 tickers took
+      #     41 min); 2 was slower in prod (12.5 vs 8.9 s/ticker median).
+      #   bullbear: Bulls Say / Bears Say (AI thesis) from the SSR tipranks.com/stocks/<t> page.
+      #     LIMIT 200 (was 90 and always hit; ~4-7 min).
+      #   pe: 5-year weekly P/E history per ticker for the stock modal's P/E chart. Inputs cached
+      #     per ticker in ci/cache/pe/ (committed): split-only weekly closes from CNBC, refreshed
+      #     weekly (Twelve Data only as the fallback for a ticker with none), then this week's close
+      #     from our own stocks.json; Finnhub quarterly EPS/peTTM and SEC EDGAR report dates on a
+      #     rotating LIMIT. Every ticker's chart is recomputed from cache each run. LIMIT 200 (was
+      #     60, ~8 runs to rotate); Finnhub-paced at 60/min; CNBC closes capped at 60/run.
+      # Forecasts streams live; the other two buffer to files and print in groups afterwards, so
+      # the log isn't interleaved and bullbear's `::warning::` tripwire still starts a line.
+      - name: Backfill forecasts + bulls/bears + P/E (in parallel)
         if: github.event_name != 'push'
         continue-on-error: true
+        # forecasts' worst recent run was ~102 min; a hung scraper now ends only this step
+        # (continue-on-error), not the whole deploy at GitHub's 6h job limit
+        timeout-minutes: 150
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
-          # No age gate: the 300 stalest every run, so all ~518 rotate within 2 runs (≤10h)
-          # and fresh reviews land the same day.
-          STALE_DAYS: "0"
-          LIMIT: "300"
-          PARALLEL: "3" # was serial: 300 tickers took 41 min; 2 was slower in prod (12.5 vs 8.9 s/ticker median)
-        run: node ci/scrape-forecasts.mjs
-
-      # Backfill Bulls Say / Bears Say (AI thesis) from the SSR tipranks.com/stocks/<t>
-      # page. Same additive + failure-tolerant pattern; never blocks the deploy.
-      - name: Backfill bulls/bears (via FlareSolverr)
-        if: github.event_name != 'push'
-        continue-on-error: true
-        env:
-          FLARESOLVERR_URL: http://localhost:8191/v1
-          LIMIT: "200" # was 90 and always hit; ~6-7 min
-        run: node ci/scrape-bullbear.mjs
-
-      # 5-year weekly P/E history per ticker (public/pe/<T>.json) for the stock modal's P/E
-      # chart. Inputs cached per ticker in ci/cache/pe/ (committed): split-only weekly closes from
-      # CNBC, refreshed weekly (Twelve Data only as the fallback for a ticker with none), then this
-      # week's close from our own stocks.json; Finnhub quarterly EPS/peTTM and SEC EDGAR report
-      # dates on a rotating LIMIT. Every ticker's chart is recomputed from cache each run.
-      # Same additive + failure-tolerant pattern; never blocks the deploy.
-      - name: Refresh P/E history
-        if: github.event_name != 'push'
-        continue-on-error: true
-        env:
+          GETDATA_CACHE: ${{ runner.temp }}/getdata # forecasts reuses the snapshot step's getData bodies (ci/getdata-cache.mjs)
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
           TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }} # fallback only (CNBC first)
           TWELVEDATA_CI_KEY: ${{ secrets.TWELVEDATA_CI_KEY }} # optional; used first when set
-          LIMIT: "200" # was 60 (~8 runs to rotate); Finnhub-paced at 60/min; CNBC closes capped at 60/run
-        run: node ci/scrape-pe.mjs
+        run: |
+          # print the buffered logs on EVERY exit, including a timeout/cancel kill, so a hang point
+          # and bullbear's ::warning:: are never lost
+          dump() { for n in bullbear pe; do echo "::group::$n"; cat "$RUNNER_TEMP/$n.log" 2>/dev/null; echo "::endgroup::"; done; }
+          trap 'dump; trap - EXIT' EXIT INT TERM
+          STALE_DAYS=0 LIMIT=300 PARALLEL=3 node ci/scrape-forecasts.mjs & a=$!
+          LIMIT=200 node ci/scrape-bullbear.mjs > "$RUNNER_TEMP/bullbear.log" 2>&1 & b=$!
+          LIMIT=200 node ci/scrape-pe.mjs > "$RUNNER_TEMP/pe.log" 2>&1 & c=$!
+          # `|| r=$?`, not `; r=$?`: Actions runs bash -e, which would quit at the first failed wait
+          # and leave the others still writing while the steps below run
+          ra=0; rb=0; rc=0
+          wait $a || ra=$?; wait $b || rb=$?; wait $c || rc=$?
+          echo "exit: forecasts=$ra bullbear=$rb pe=$rc"
+          [ $((ra+rb+rc)) -eq 0 ]
 
       # Rebuild the compact "recent reviews" feed New Arrivals reads (from the forecasts on disk).
       - name: Build recent-reviews feed

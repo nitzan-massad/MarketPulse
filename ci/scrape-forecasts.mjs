@@ -10,10 +10,12 @@
 // with the checkout time — an mtime check makes all 300+ files look seconds old, nothing
 // is ever refreshed, and only brand-new tickers get fetched. That's exactly what happened
 // between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { parseForecastHtml, withStars } from "./forecast-html.mjs";
 import { mergeForecasts, shouldFetchPage } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
+import { cachedFirst, takeGetData } from "./getdata-cache.mjs";
+import { rowFromGetData } from "./keep.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -29,6 +31,8 @@ const MERGE = process.env.SSR_MERGE !== "0";
 // Overridable so a live run can be pointed at a throwaway directory to verify the merge
 // against real TipRanks pages without touching the committed files. CI never sets it.
 const OUT = process.env.OUT || "public/forecasts";
+// getData bodies the snapshot step fetched minutes ago this run (see ci/getdata-cache.mjs).
+const CACHE = process.env.GETDATA_CACHE || null;
 const ASOF = `${OUT}/_asOf.json`; // { ticker: ISO } — build-reviews-recent skips it (not an array)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const RATING = { 1: "Buy", 2: "Hold", 3: "Sell" };
@@ -111,15 +115,25 @@ const PARALLEL = Math.max(1, Math.floor(Number(process.env.PARALLEL)) || 1);
 mkdirSync(OUT, { recursive: true });
 console.log(`forecasts backfill: ${targets.length} ticker(s), ${hot.length} near earnings (LIMIT=${LIMIT}, ALL=${ALL}, SSR_MERGE=${MERGE ? 1 : 0}, PARALLEL=${PARALLEL})`);
 const now = new Date().toISOString();
-let ok = 0, empty = 0, fail = 0, viaHtml = 0, gained = 0;
+let ok = 0, empty = 0, fail = 0, viaHtml = 0, gained = 0, fromCache = 0;
 // ponytail: a fixed pool of PARALLEL workers over one shared FlareSolverr; each request is a
 // headless Chrome, so the ceiling is runner CPU, not TipRanks: 3 on the 4-vCPU runner
 // (90 tickers: P1 973s, P3 655s, P10 1378s). More needs more cores or more FlareSolverr instances.
-const queue = [...targets];
+const queue = cachedFirst(targets, CACHE);
+// ponytail: _asOf is flushed every 20 stamps and on SIGTERM/SIGINT, atomically (tmp + rename), so a
+// step timeout or cancel keeps the rotation progress it made instead of re-picking the same
+// tickers next run; files already written are committed either way. Ceiling: up to 19 stamps lost
+// on a hard SIGKILL — those tickers are simply refetched next run.
+let stamped = 0;
+const saveAsOf = () => { writeFileSync(`${ASOF}.tmp`, JSON.stringify(asOf, null, 1)); renameSync(`${ASOF}.tmp`, ASOF); };
+for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => { saveAsOf(); console.log(`${sig}: _asOf saved (${stamped} stamped)`); process.exit(143); });
 async function scrape(t) {
   try {
-    const html = await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`);
-    const data = extractJson(html);
+    let data = null;
+    const cached = takeGetData(CACHE, t);
+    // same test the writer applied (a real row for THIS ticker); anything else -> fetch live
+    if (cached) { try { const j = extractJson(cached); if (rowFromGetData(j).t === t) { data = j; fromCache++; } } catch { /* unusable -> fetch live */ } }
+    data ??= extractJson(await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`));
     let fc = toForecasts(data);
     const jsonCount = fc.length;
     // The API paywall-anonymizes its FRESHEST rows, so the JSON path is systematically behind
@@ -130,7 +144,7 @@ async function scrape(t) {
       const page = await flareGet(`https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/forecast`);
       const rows = withStars(parseForecastHtml(page), data);
       if (MERGE) {
-        // Strictly additive: a page that parses to nothing leaves the JSON result untouched.
+        // Additive per analyst: a page that parses to nothing leaves the JSON result untouched.
         const merged = mergeForecasts(rows, fc);
         if (merged.length > fc.length) viaHtml++;
         fc = merged;
@@ -148,6 +162,7 @@ async function scrape(t) {
     // rotates out instead of hogging a LIMIT slot every run. It still gets retried each
     // STALE_DAYS. Failures are NOT stamped — those are transient, retry next run.
     asOf[t] = now;
+    if (++stamped % 20 === 0) saveAsOf();
   } catch (e) {
     fail++;
     console.log(`  ${t}: skip (${e.message})`);
@@ -156,5 +171,5 @@ async function scrape(t) {
 await Promise.all(Array.from({ length: PARALLEL }, async () => {
   while (queue.length) await scrape(queue.shift());
 }));
-writeFileSync(ASOF, JSON.stringify(asOf, null, 1));
-console.log(`done: ${ok} written (${viaHtml} gained rows from the page, +${gained} rows total), ${empty} empty, ${fail} failed`);
+saveAsOf();
+console.log(`done: ${ok} written (${viaHtml} gained rows from the page, +${gained} rows total), ${empty} empty, ${fail} failed, ${fromCache} getData reused from the snapshot step`);

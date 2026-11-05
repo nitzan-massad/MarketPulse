@@ -11,3 +11,4 @@ preview-images/
 # wrangler dev state
 .wrangler/
 .firebase/
+public/forecasts/*.tmp
