@@ -15,6 +15,7 @@ import { parseForecastHtml, withStars } from "./forecast-html.mjs";
 import { mergeForecasts, shouldFetchPage } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
 import { cachedFirst, takeGetData } from "./getdata-cache.mjs";
+import { rowFromGetData } from "./keep.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -123,7 +124,8 @@ async function scrape(t) {
   try {
     let data = null;
     const cached = takeGetData(CACHE, t);
-    if (cached) { try { data = extractJson(cached); fromCache++; } catch { /* unusable -> fetch live */ } }
+    // same test the writer applied (a real row for THIS ticker); anything else -> fetch live
+    if (cached) { try { const j = extractJson(cached); if (rowFromGetData(j).t === t) { data = j; fromCache++; } } catch { /* unusable -> fetch live */ } }
     data ??= extractJson(await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`));
     let fc = toForecasts(data);
     const jsonCount = fc.length;

@@ -10,7 +10,7 @@
 //
 // Every failure degrades to "not cached" -> a live fetch. A cache write can never cost the
 // backfill its row, and a bad cache entry can never cost the forecast step a ticker.
-import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
 export const cachePath = (dir, t) => `${dir}/${encodeURIComponent(t)}.txt`;
 
@@ -40,8 +40,7 @@ export function takeGetData(dir, t) {
  *  than up to the whole step apart. Same set, so nothing is skipped or added. */
 export function cachedFirst(targets, dir) {
   if (!dir) return [...targets];
-  const has = (t) => { try { readFileSync(cachePath(dir, t)); return true; } catch { return false; } };
-  const hit = targets.filter(has);
+  const hit = targets.filter((t) => existsSync(cachePath(dir, t)));
   const hitSet = new Set(hit);
   return [...hit, ...targets.filter((t) => !hitSet.has(t))];
 }
