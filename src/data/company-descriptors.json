@@ -273,5 +273,10 @@
     "name": "Astera Labs",
     "descriptor": "Cloud Connectivity Solutions",
     "scene": "inspecting a semiconductor wafer under a microscope with tweezers and probe tips nearby"
+  },
+  "LUNR": {
+    "name": "Intuitive Machines",
+    "descriptor": "Space Exploration Systems",
+    "scene": "assembling lunar lander propulsion components in a cleanroom workstation"
   }
 }

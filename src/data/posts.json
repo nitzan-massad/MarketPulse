@@ -1,5 +1,28 @@
 [
   {
+    "id": "LUNR-2026-11-05T11:07:54.352Z",
+    "ts": "2026-11-05T11:07:54.352Z",
+    "kind": "list",
+    "ticker": "LUNR",
+    "name": "Intuitive Machines",
+    "sector": "Industrials",
+    "text": "169% upside leads the pack of 5.",
+    "score": 68,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "members": "Intuitive Machines (169.4% to $26.75), Coreweave (168.7% to $130.12), Terawulf (168.4% to $31.4), Quantinuum (167% to $87.44), Praxis Precision Medicines (160.6% to $742.17)",
+      "count": 5,
+      "leader": "Intuitive Machines",
+      "leaderUpside": 169.4
+    },
+    "descriptor": "Space Exploration Systems",
+    "image": "LUNR-2026-11-05T11-07-54-352Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "ALAB-2026-11-04T22:37:39.038Z",
     "ts": "2026-11-04T22:37:39.038Z",
     "kind": "movement",
