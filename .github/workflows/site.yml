@@ -125,6 +125,9 @@ jobs:
       - name: Backfill forecasts + bulls/bears + P/E (in parallel)
         if: github.event_name != 'push'
         continue-on-error: true
+        # forecasts' worst recent run was ~102 min; a hung scraper now ends only this step
+        # (continue-on-error), not the whole deploy at GitHub's 6h job limit
+        timeout-minutes: 150
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
           GETDATA_CACHE: ${{ runner.temp }}/getdata # forecasts reuses the snapshot step's getData bodies (ci/getdata-cache.mjs)
@@ -132,6 +135,10 @@ jobs:
           TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }} # fallback only (CNBC first)
           TWELVEDATA_CI_KEY: ${{ secrets.TWELVEDATA_CI_KEY }} # optional; used first when set
         run: |
+          # print the buffered logs on EVERY exit, including a timeout/cancel kill, so a hang point
+          # and bullbear's ::warning:: are never lost
+          dump() { for n in bullbear pe; do echo "::group::$n"; cat "$RUNNER_TEMP/$n.log" 2>/dev/null; echo "::endgroup::"; done; }
+          trap 'dump; trap - EXIT' EXIT INT TERM
           STALE_DAYS=0 LIMIT=300 PARALLEL=3 node ci/scrape-forecasts.mjs & a=$!
           LIMIT=200 node ci/scrape-bullbear.mjs > "$RUNNER_TEMP/bullbear.log" 2>&1 & b=$!
           LIMIT=200 node ci/scrape-pe.mjs > "$RUNNER_TEMP/pe.log" 2>&1 & c=$!
@@ -139,7 +146,6 @@ jobs:
           # and leave the others still writing while the steps below run
           ra=0; rb=0; rc=0
           wait $a || ra=$?; wait $b || rb=$?; wait $c || rc=$?
-          for n in bullbear pe; do echo "::group::$n"; cat "$RUNNER_TEMP/$n.log"; echo "::endgroup::"; done
           echo "exit: forecasts=$ra bullbear=$rb pe=$rc"
           [ $((ra+rb+rc)) -eq 0 ]
 
