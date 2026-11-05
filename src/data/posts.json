@@ -1,5 +1,34 @@
 [
   {
+    "id": "CGEM-2026-11-05T15:11:33.593Z",
+    "ts": "2026-11-05T15:11:33.593Z",
+    "kind": "surprise",
+    "ticker": "CGEM",
+    "name": "Cullinan Management",
+    "sector": "Healthcare",
+    "text": "~186% upside, 13 analysts, crushes sector's 29%.",
+    "score": 44,
+    "reasons": [
+      "7 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (38% word overlap)"
+    ],
+    "facts": {
+      "upside": 186.2,
+      "price": 12.49,
+      "priceTarget": 35.75,
+      "consensus": "StrongBuy",
+      "analysts": 13,
+      "sector": "Healthcare",
+      "sectorMedianUpside": 29.1
+    },
+    "descriptor": "Biopharmaceutical Developer",
+    "image": "CGEM-2026-11-05T15-11-33-593Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "Public domain",
+    "imageAttribution": "United States Customs and Border Protection — Wikimedia Commons (Public domain)"
+  },
+  {
     "id": "LUNR-2026-11-05T11:07:54.352Z",
     "ts": "2026-11-05T11:07:54.352Z",
     "kind": "list",
