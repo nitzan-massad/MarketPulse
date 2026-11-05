@@ -57,7 +57,9 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   const b = { n: "Bob", f: "BigBank", st: null, r: "Hold", pt: 9, opt: null, d: "2026-08-01" };
   assert.equal(mergeForecasts([a, b], []).length, 2, "same firm + date, different analyst = two rows");
   // Same analyst, two dates: two ratings.
-  assert.equal(mergeForecasts([row("Ann", "2026-08-01", 10), row("Ann", "2026-06-01", 8)], []).length, 2);
+  // Same analyst, two dates: the older is a superseded rating (one source lagging) — keep the newest.
+  assert.deepEqual(mergeForecasts([row("Ann", "2026-08-01", 10)], [row("Ann", "2026-06-01", 8, { st: 4.2 })]),
+    [row("Ann", "2026-08-01", 10, { st: 4.2 })], "lagging JSON row dropped; its stars carried to the newer row");
   // Case and whitespace must not create a phantom duplicate.
   assert.equal(mergeForecasts([row("Ann", "2026-08-01", 10)], [row(" ann ", "2026-08-01", 99)]).length, 1,
     "name matching is case- and space-insensitive");

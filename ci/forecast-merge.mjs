@@ -27,6 +27,7 @@
  * accepted for the STAR join in forecast-html.mjs `withStars`, where the cost is a wrong star
  * count; here it would drop a whole rating).
  */
+export const analystKey = (f) => (f.n || "").toLowerCase().trim();
 export const mergeKey = (f) => `${(f.n || "").toLowerCase().trim()}|${f.d || ""}`;
 
 /**
@@ -52,8 +53,10 @@ export function shouldFetchPage(fc, data, merge) {
  *                           them on firm|date before we get here; this backfills on the
  *                           stronger name|date key for any it missed.
  *
- * STRICTLY ADDITIVE, and that is load-bearing: a truncated FlareSolverr read parses to a valid
- * PREFIX, so under union it can only shrink the GAIN, never the file. That property is why
+ * ADDITIVE PER ANALYST, and that is load-bearing: a truncated FlareSolverr read parses to a valid
+ * PREFIX, so under union it can only shrink the GAIN, never lose an analyst. The one row that can
+ * go is an analyst's OLDER rating when the other source already has a newer one (getData lags the
+ * page by up to ~a day; 89 such duplicates shipped on main Aug-Nov 2026, inflating "See all N"). That property is why
  * PLAN-ssr-merge.md's row-count guardrail was dropped rather than fixed — see the note in
  * ci/README.md. Verified across 418 tickers: 0 lost a row.
  */
@@ -62,7 +65,8 @@ export function mergeForecasts(ssr, json) {
   const ssrRows = Array.isArray(ssr) ? ssr : [];
 
   const starFor = new Map();
-  for (const f of jsonRows) if (f?.n && f.st != null) starFor.set(mergeKey(f), f.st);
+  const starByName = new Map(); // stars belong to the analyst, not the rating
+  for (const f of jsonRows) if (f?.n && f.st != null) { starFor.set(mergeKey(f), f.st); starByName.set(analystKey(f), f.st); }
 
   const out = [];
   const seen = new Set();
@@ -71,7 +75,8 @@ export function mergeForecasts(ssr, json) {
     const k = mergeKey(f);
     if (seen.has(k)) continue; // the page renders an analyst's avatar and name; dedupe anyway
     seen.add(k);
-    out.push(f.st == null && starFor.has(k) ? { ...f, st: starFor.get(k) } : f);
+    const st = f.st ?? starFor.get(k) ?? starByName.get(analystKey(f));
+    out.push(st != null && f.st == null ? { ...f, st } : f);
   }
   for (const f of jsonRows) {
     // An anonymized JSON row never joins on its own: no name to key on and no target to show.
@@ -83,5 +88,9 @@ export function mergeForecasts(ssr, json) {
     out.push(f);
   }
   out.sort((a, b) => (b.d || "").localeCompare(a.d || ""));
-  return out;
+  // One row per analyst, the newest. Both sources carry only an analyst's LATEST rating, so a
+  // second row means one source lags the other (getData trails the page by up to ~a day) and
+  // the older row is a superseded rating, not history.
+  const byAnalyst = new Set();
+  return out.filter((f) => !byAnalyst.has(analystKey(f)) && byAnalyst.add(analystKey(f)));
 }

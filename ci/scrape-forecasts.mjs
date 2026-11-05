@@ -137,7 +137,7 @@ async function scrape(t) {
       const page = await flareGet(`https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/forecast`);
       const rows = withStars(parseForecastHtml(page), data);
       if (MERGE) {
-        // Strictly additive: a page that parses to nothing leaves the JSON result untouched.
+        // Additive per analyst: a page that parses to nothing leaves the JSON result untouched.
         const merged = mergeForecasts(rows, fc);
         if (merged.length > fc.length) viaHtml++;
         fc = merged;
