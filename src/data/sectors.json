@@ -1,5 +1,5 @@
 {
- "asOf": "2026-11-04",
+ "asOf": "2026-11-05",
  "sectors": {
   "BasicMaterials": {
    "pe": 19.35,
@@ -35,15 +35,15 @@
   },
   "RealEstate": {
    "pe": 36.36,
-   "fpe": 29.96
+   "fpe": 29.97
   },
   "Technology": {
    "pe": 27.58,
-   "fpe": 18.52
+   "fpe": 18.5
   },
   "Utilities": {
    "pe": 18.64,
-   "fpe": 16.37
+   "fpe": 16.35
   }
  }
 }
