@@ -56,7 +56,8 @@ export function shouldFetchPage(fc, data, merge) {
  * ADDITIVE PER ANALYST, and that is load-bearing: a truncated FlareSolverr read parses to a valid
  * PREFIX, so under union it can only shrink the GAIN, never lose an analyst. The one row that can
  * go is an analyst's OLDER rating when the other source already has a newer one (getData lags the
- * page by up to ~a day; 89 such duplicates shipped on main Aug-Nov 2026, inflating "See all N"). That property is why
+ * page by up to ~a day; 136 such duplicates shipped in 34 snapshots on main Aug-Nov 2026,
+ * inflating "See all N"). That property is why
  * PLAN-ssr-merge.md's row-count guardrail was dropped rather than fixed — see the note in
  * ci/README.md. Verified across 418 tickers: 0 lost a row.
  */
