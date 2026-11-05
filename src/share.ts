@@ -40,8 +40,8 @@ export const PANEL_SIGIL = "!";
 export const PANELS = ["feargreed"] as const;
 export type PanelId = (typeof PANELS)[number];
 
-/** Views inside a stock modal that a link can open on top of it: `#TSM/pe`. Whitelisted. */
-export const TICKER_VIEWS = ["pe"] as const;
+/** Views inside a stock modal that a link can open on top of it: `#TSM/pe`, `#TSM/fc`. Whitelisted. */
+export const TICKER_VIEWS = ["pe", "fc"] as const;
 export type TickerView = (typeof TICKER_VIEWS)[number];
 
 export type ShareTarget =

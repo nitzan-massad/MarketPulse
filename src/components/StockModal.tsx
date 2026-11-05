@@ -684,6 +684,11 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     setPeOpen(false);
     onViewClosed?.();
   }, [onViewClosed]);
+  // `#TSM/fc` -> `#TSM`: closing the list leaves the stock card (and its own link) under it
+  const closeFc = useCallback(() => {
+    setFcOpen(false);
+    onViewClosed?.();
+  }, [onViewClosed]);
   const [hotKeys, setHotKeys] = useState<Set<string>>(() => new Set()); // review rows to glow, from a notification
   const highlightDone = useRef<string[] | null>(null);
   const fcFromHighlight = useRef(false);
@@ -718,7 +723,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (cardUp) setCardUp(false); // card raised from the forecasts header: back to them
-        else if (fcOpen) setFcOpen(false); // close the forecasts modal first
+        else if (fcOpen) closeFc(); // close the forecasts modal first
         else if (peOpen) closePe();
         else onClose();
         return;
@@ -729,7 +734,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [active, onClose, fcOpen, cardUp, peOpen, closePe, onPrev, onNext]);
+  }, [active, onClose, fcOpen, cardUp, peOpen, closePe, closeFc, onPrev, onNext]);
 
   // fetch quote + metric on open (per ticker, cached). Gated on `active`: the neighbours
   // render immediately from the snapshot row and only reach for the network once you land
@@ -796,6 +801,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   // reset above, which closes every overlay on a ticker change and would otherwise win.
   useEffect(() => {
     if (active && openView === "pe") setPeOpen(true);
+    if (active && openView === "fc") setFcOpen(true); // renders once forecasts load
   }, [active, openView, stock.t]);
 
   // opened from a review notification: once forecasts load, open the forecast view and
@@ -878,6 +884,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   // running when the user pages ‹ › to another stock is cleared rather than finishing
   // over the new ticker, which would read as "this one was copied too".
   const share = useShare(tickerTarget(stock.t), stock.t);
+  const fcShare = useShare(tickerTarget(stock.t, "fc"), stock.t);
 
   // `button` only when there are forecasts to show — an empty card must not be focusable
   // or announce itself as something you can activate.
@@ -1675,11 +1682,12 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
       <div
         className={`mkm-scrim mkm-scrim-top${cardUp ? " mkm-under" : ""}`}
         onMouseDown={(e) => {
-          if (e.target === e.currentTarget) setFcOpen(false);
+          if (e.target === e.currentTarget) closeFc();
         }}
       >
         <div
           className="mkm-modal mkm-modal-fc"
+          data-burst={fcShare.burst ?? undefined}
           role="dialog"
           aria-modal="true"
           aria-label={`${stock.t} analyst forecasts`}
@@ -1703,8 +1711,10 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
               )}
               {fcFromHighlight.current && <span className="mkm-fcgo" aria-hidden="true">›</span>}
             </button>
+            <ShareButton what={`${stock.t} analyst forecasts`} onShare={fcShare.onShare} compact />
           </div>
-          <CloseButton what={`${stock.t} analyst forecasts`} onClose={() => setFcOpen(false)} />
+          {fcShare.copyFailed && <ShareFail url={fcShare.url} />}
+          <CloseButton what={`${stock.t} analyst forecasts`} onClose={closeFc} />
           <div className="mkm-scroll">
             <div className="mkm-fcfull mkm-fcfull-modal">
               <div className="mkm-fctable">
@@ -1744,6 +1754,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
               </div>
             </div>
           </div>
+          {fcShare.burst && <ShareBurst id={fcShare.burst} onDone={fcShare.onBurstDone} />}
         </div>
       </div>,
       document.body,

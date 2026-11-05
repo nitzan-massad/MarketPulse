@@ -177,6 +177,7 @@ eq("a P/E link builds TICKER/pe", buildShareUrl(tickerTarget("tsm", "pe"), ORIGI
 eq("…and parses back to the stock plus the view", parseShareHash("#TSM/pe"), { kind: "ticker", id: "TSM", view: "pe" });
 eq("an unknown view still opens the stock", parseShareHash("#TSM/zzz"), tk("TSM"));
 eq("a plain link is unchanged", parseShareHash("#TSM"), tk("TSM"));
+eq("a forecasts link round-trips", parseShareHash(new URL(buildShareUrl(tickerTarget("ddog", "fc"), ORIGIN, "/")).hash), { kind: "ticker", id: "DDOG", view: "fc" });
 eq("a bad symbol with a view is still nothing", parseShareHash("#123/pe"), null);
 
 console.log("\nall share checks passed");
