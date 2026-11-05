@@ -679,6 +679,13 @@ the commit step also stages `public/forecasts`.
   CPU-bound, since each request is a headless Chrome — on 90 tickers with 4 CPUs: P1 973s,
   P3 655s, P10 1378s (slower than serial). Clamped to ≥ 1, so a bad value can't start zero workers.
 
+- **`GETDATA_CACHE`** (`site.yml` only, `runner.temp`): the snapshot step's keep-set backfill
+  saves each getData body that produced a row; this step reads it once instead of re-fetching
+  the same URL (31-40% of its tickers on 2026-11-04/05, ~13s each under `PARALLEL=3`). Cached
+  tickers are worked first so the JSON and the live SSR page stay minutes apart. Any miss or
+  unparseable entry fetches live; unset (local, track-requests lite run) = old behaviour.
+  `ci/getdata-cache.mjs`, guarded by `ci/test-getdata-cache.mjs`.
+
 - **⚠️ Age comes from `public/forecasts/_asOf.json`, never from a file's mtime.** Git stores
   no mtimes, so `actions/checkout` stamps every file with the checkout time — an mtime-based
   check makes all 300+ files look seconds old, so nothing is ever refreshed and only

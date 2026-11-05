@@ -4,6 +4,7 @@
 // (Local manual refresh uses scripts/refresh-data.mjs with Playwright instead.)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { computeKeep, rowFromGetData, forecastFields, applyForecast, enrichQueue, nextLastSeen, rndPx, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
+import { saveGetData } from "./getdata-cache.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const API =
@@ -119,7 +120,11 @@ for (const t of missing) {
     try {
       const sol = await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`);
       const row = rowFromGetData(extractJson(sol.response), prev);
-      if (row.t) { seen.set(t, row); refreshed++; continue; }
+      if (row.t) {
+        seen.set(t, row); refreshed++;
+        saveGetData(process.env.GETDATA_CACHE, t, sol.response); // reused by scrape-forecasts this run
+        continue;
+      }
     } catch (e) { console.log(`  keep ${t}: getData skip (${e.message})`); }
   }
   if (prev.t) { seen.set(t, prev); carried++; } // over cap or fetch failed — keep last-known row

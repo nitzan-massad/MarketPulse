@@ -91,6 +91,7 @@ jobs:
         continue-on-error: true
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
+          GETDATA_CACHE: ${{ runner.temp }}/getdata # hand-off to the forecasts step (ci/getdata-cache.mjs)
         run: node ci/refresh-data-ci.mjs
 
       # Backfill analyst forecasts for tickers missing a file (new arrivals).
@@ -105,6 +106,7 @@ jobs:
           STALE_DAYS: "0"
           LIMIT: "300"
           PARALLEL: "3" # was serial: 300 tickers took 41 min; 2 was slower in prod (12.5 vs 8.9 s/ticker median)
+          GETDATA_CACHE: ${{ runner.temp }}/getdata # reuse the snapshot step's getData bodies (~31-40% of tickers)
         run: node ci/scrape-forecasts.mjs
 
       # Backfill Bulls Say / Bears Say (AI thesis) from the SSR tipranks.com/stocks/<t>

@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { parseForecastHtml, withStars } from "./forecast-html.mjs";
 import { mergeForecasts, shouldFetchPage } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
+import { cachedFirst, takeGetData } from "./getdata-cache.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -29,6 +30,8 @@ const MERGE = process.env.SSR_MERGE !== "0";
 // Overridable so a live run can be pointed at a throwaway directory to verify the merge
 // against real TipRanks pages without touching the committed files. CI never sets it.
 const OUT = process.env.OUT || "public/forecasts";
+// getData bodies the snapshot step fetched minutes ago this run (see ci/getdata-cache.mjs).
+const CACHE = process.env.GETDATA_CACHE || null;
 const ASOF = `${OUT}/_asOf.json`; // { ticker: ISO } — build-reviews-recent skips it (not an array)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const RATING = { 1: "Buy", 2: "Hold", 3: "Sell" };
@@ -111,15 +114,17 @@ const PARALLEL = Math.max(1, Math.floor(Number(process.env.PARALLEL)) || 1);
 mkdirSync(OUT, { recursive: true });
 console.log(`forecasts backfill: ${targets.length} ticker(s), ${hot.length} near earnings (LIMIT=${LIMIT}, ALL=${ALL}, SSR_MERGE=${MERGE ? 1 : 0}, PARALLEL=${PARALLEL})`);
 const now = new Date().toISOString();
-let ok = 0, empty = 0, fail = 0, viaHtml = 0, gained = 0;
+let ok = 0, empty = 0, fail = 0, viaHtml = 0, gained = 0, fromCache = 0;
 // ponytail: a fixed pool of PARALLEL workers over one shared FlareSolverr; each request is a
 // headless Chrome, so the ceiling is runner CPU, not TipRanks: 3 on the 4-vCPU runner
 // (90 tickers: P1 973s, P3 655s, P10 1378s). More needs more cores or more FlareSolverr instances.
-const queue = [...targets];
+const queue = cachedFirst(targets, CACHE);
 async function scrape(t) {
   try {
-    const html = await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`);
-    const data = extractJson(html);
+    let data = null;
+    const cached = takeGetData(CACHE, t);
+    if (cached) { try { data = extractJson(cached); fromCache++; } catch { /* unusable -> fetch live */ } }
+    data ??= extractJson(await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`));
     let fc = toForecasts(data);
     const jsonCount = fc.length;
     // The API paywall-anonymizes its FRESHEST rows, so the JSON path is systematically behind
@@ -157,4 +162,4 @@ await Promise.all(Array.from({ length: PARALLEL }, async () => {
   while (queue.length) await scrape(queue.shift());
 }));
 writeFileSync(ASOF, JSON.stringify(asOf, null, 1));
-console.log(`done: ${ok} written (${viaHtml} gained rows from the page, +${gained} rows total), ${empty} empty, ${fail} failed`);
+console.log(`done: ${ok} written (${viaHtml} gained rows from the page, +${gained} rows total), ${empty} empty, ${fail} failed, ${fromCache} getData reused from the snapshot step`);
