@@ -10,7 +10,7 @@
 // with the checkout time — an mtime check makes all 300+ files look seconds old, nothing
 // is ever refreshed, and only brand-new tickers get fetched. That's exactly what happened
 // between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { parseForecastHtml, withStars } from "./forecast-html.mjs";
 import { mergeForecasts, shouldFetchPage } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
@@ -120,6 +120,13 @@ let ok = 0, empty = 0, fail = 0, viaHtml = 0, gained = 0, fromCache = 0;
 // headless Chrome, so the ceiling is runner CPU, not TipRanks: 3 on the 4-vCPU runner
 // (90 tickers: P1 973s, P3 655s, P10 1378s). More needs more cores or more FlareSolverr instances.
 const queue = cachedFirst(targets, CACHE);
+// ponytail: _asOf is flushed every 20 stamps and on SIGTERM/SIGINT, atomically (tmp + rename), so a
+// step timeout or cancel keeps the rotation progress it made instead of re-picking the same
+// tickers next run; files already written are committed either way. Ceiling: up to 19 stamps lost
+// on a hard SIGKILL — those tickers are simply refetched next run.
+let stamped = 0;
+const saveAsOf = () => { writeFileSync(`${ASOF}.tmp`, JSON.stringify(asOf, null, 1)); renameSync(`${ASOF}.tmp`, ASOF); };
+for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => { saveAsOf(); console.log(`${sig}: _asOf saved (${stamped} stamped)`); process.exit(143); });
 async function scrape(t) {
   try {
     let data = null;
@@ -155,6 +162,7 @@ async function scrape(t) {
     // rotates out instead of hogging a LIMIT slot every run. It still gets retried each
     // STALE_DAYS. Failures are NOT stamped — those are transient, retry next run.
     asOf[t] = now;
+    if (++stamped % 20 === 0) saveAsOf();
   } catch (e) {
     fail++;
     console.log(`  ${t}: skip (${e.message})`);
@@ -163,5 +171,5 @@ async function scrape(t) {
 await Promise.all(Array.from({ length: PARALLEL }, async () => {
   while (queue.length) await scrape(queue.shift());
 }));
-writeFileSync(ASOF, JSON.stringify(asOf, null, 1));
+saveAsOf();
 console.log(`done: ${ok} written (${viaHtml} gained rows from the page, +${gained} rows total), ${empty} empty, ${fail} failed, ${fromCache} getData reused from the snapshot step`);
