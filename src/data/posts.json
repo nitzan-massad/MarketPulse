@@ -1,5 +1,32 @@
 [
   {
+    "id": "CRWD-2026-11-06T05:11:29.728Z",
+    "ts": "2026-11-06T05:11:29.728Z",
+    "kind": "newcomer",
+    "ticker": "CRWD",
+    "name": "Crowdstrike Holdings",
+    "sector": "Technology",
+    "text": "New for 20 days, 10% upside.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "CRWD appeared in a recent post"
+    ],
+    "facts": {
+      "seenIn": 88,
+      "windowSnapshots": 145,
+      "days": 20.2,
+      "upside": 10.1,
+      "consensus": "StrongBuy",
+      "analysts": 37,
+      "smartScore": 8
+    },
+    "descriptor": "Cloud Cybersecurity",
+    "image": "CRWD-2026-11-06T05-11-29-728Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "DELL-2026-11-05T23:02:10.507Z",
     "ts": "2026-11-05T23:02:10.507Z",
     "kind": "contrarian",
