@@ -5,7 +5,7 @@
 //   4. a full (capped) window that cannot be split looping forever
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
-import { halve, mergeNext, mergeRecent, nearEarnings, windows } from "./scrape-earnings.mjs";
+import { carriedRows, halve, mergeNext, mergeRecent, nearEarnings, windows } from "./scrape-earnings.mjs";
 
 const today = "2026-10-11";
 const e = mergeNext(
@@ -52,6 +52,12 @@ assert.deepEqual(
     today,
   ),
   { MU: "2026-10-10" },
+);
+
+// a date only yesterday's `e` knew (bulk misses FWONK) is carried into `recent` once it passes
+assert.deepEqual(
+  mergeRecent(carriedRows({ e: { FWONK: ["2026-10-10", "bmo"], LATER: ["2026-11-01", ""] }, recent: { MU: "2026-10-09" } }), "2026-10-09", today),
+  { FWONK: "2026-10-10", MU: "2026-10-09" },
 );
 
 // near = next report within 2 days ahead, or a report within the last 2 days

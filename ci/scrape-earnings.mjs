@@ -54,6 +54,18 @@ export function mergeRecent(rows, from, today, into = {}) {
 }
 
 /**
+ * Yesterday's file as calendar rows: its `e` dates and its `recent`. Fed to mergeRecent so a
+ * report the per-symbol pass found (FWONK: the bulk answer lists only FWONA) stays in `recent`
+ * after its date passes, instead of dropping off the hot list the moment analysts start updating.
+ */
+export function carriedRows(file) {
+  return [
+    ...Object.entries(file?.e || {}).map(([symbol, v]) => ({ symbol, date: Array.isArray(v) ? v[0] : "" })),
+    ...Object.entries(file?.recent || {}).map(([symbol, date]) => ({ symbol, date })),
+  ];
+}
+
+/**
  * Tickers reporting within `days` of `today` either way, from an earnings.json object: the next
  * report from `e`, the just-passed one from `recent` (`e` has already moved on to next quarter).
  */
@@ -125,9 +137,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     calls++;
   }
   // the last NEAR days too, so a just-reported company stays hot after `e` moves to next quarter.
-  // ponytail: bulk only — a ranked ticker the bulk answer misses drops out a day or two early.
+  // Plus yesterday's own dates (carriedRows), so tickers only the per-symbol pass knows stay hot.
+  // ponytail: a ticker missing from both the bulk answer and yesterday's file still drops out early.
   const since = iso(Date.now() - NEAR * DAY);
-  const recent = mergeRecent(await getWindow(since, iso(Date.now() - DAY)), since, today);
+  let prevFile = {};
+  try { prevFile = JSON.parse(readFileSync(OUT, "utf8")); } catch { /* none yet / unreadable */ }
+  const recent = mergeRecent([...carriedRows(prevFile), ...(await getWindow(since, iso(Date.now() - DAY)))], since, today);
   calls++;
   const bulk = Object.keys(e).length;
   // ranked tickers the bulk pass missed: ask each on its own (a failure skips that one ticker)
