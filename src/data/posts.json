@@ -1,5 +1,33 @@
 [
   {
+    "id": "QNT-2026-11-06T22:00:47.447Z",
+    "ts": "2026-11-06T22:00:47.447Z",
+    "kind": "movement",
+    "ticker": "QNT",
+    "name": "Quantinuum",
+    "sector": "General",
+    "text": "~148% upside, down from 193% today.",
+    "score": 32,
+    "reasons": [
+      "6 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "QNT appeared in a recent post",
+      "duplicate of a recent post (43% word overlap)"
+    ],
+    "facts": {
+      "upsideFrom": 193.2,
+      "upsideTo": 148.2,
+      "consensusFrom": "StrongBuy",
+      "consensusTo": "StrongBuy",
+      "price": 29.82,
+      "priceTarget": 74,
+      "analysts": 13,
+      "sector": "General"
+    },
+    "descriptor": "Quantum Computing Hardware"
+  },
+  {
     "id": "CRWD-2026-11-06T05:11:29.728Z",
     "ts": "2026-11-06T05:11:29.728Z",
     "kind": "newcomer",
