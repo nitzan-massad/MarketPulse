@@ -20,7 +20,7 @@
 //      a $0.24 stock (+6100% upside on screen)
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { parseForecastHtml, withStars } from "./forecast-html.mjs";
+import { isChallenge, parseForecastHtml, usablePage, withStars } from "./forecast-html.mjs";
 
 const fx = (name) => readFileSync(new URL(`./fixtures/${name}-forecast.html`, import.meta.url), "utf8");
 const REAL = ["adct", "vtgn"];
@@ -450,5 +450,32 @@ for (const name of [...REAL, ...SYNTH]) {
   assert.equal(lr.length, rows.length, "case-changed page must parse the same rows");
   assertWellFormed(lr, "case-changed");
 }
+
+// Cloudflare pages must be recognised so flareGet retries them instead of merging [] ...
+for (const cf of [
+  "<html><head><title>Just a moment...</title></head></html>",
+  "<html><head><title>Attention Required! | Cloudflare</title></head></html>",
+  "<html><head><title>Access denied | tipranks.com used Cloudflare to restrict access</title></head></html>",
+  '<html><body><div id="cf-error-details">Error 1015</div></body></html>',
+  '<html><script src="/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1"></script></html>',
+]) {
+  assert.ok(isChallenge(cf), `Cloudflare page not detected: ${cf}`);
+  assert.ok(!usablePage(cf, 0), "a Cloudflare page is never usable");
+}
+// ... while every real TipRanks page stays usable (a false positive would fail every fetch).
+for (const name of REAL) {
+  assert.ok(!isChallenge(fx(name)), `real ${name} page flagged as Cloudflare`);
+  assert.ok(usablePage(fx(name), 5), `real ${name} page judged unusable`);
+}
+assert.ok(!isChallenge(undefined), "non-string flagged as Cloudflare");
+// The real <head> + Cloudflare bot-beacon script from the live MA page: never a challenge, always usable.
+const cfHead = readFileSync(new URL("./fixtures/ma-cloudflare-head.html", import.meta.url), "utf8");
+assert.ok(cfHead.includes("challenge-platform/scripts/jsd/main.js"), "fixture lost its Cloudflare beacon");
+assert.ok(!isChallenge(cfHead) && usablePage(cfHead, 5), "real page with Cloudflare beacon rejected");
+// Real pages embed Cloudflare's bot beacon (seen on the live MA page, 2026-11-07) — not a challenge.
+assert.ok(!isChallenge("<title>Mastercard (MA) Stock Forecast</title><script>var u='/cdn-cgi/challenge-platform/scripts/jsd/main.js?ray=a56bd92d49b33d7c'</script>"), "bot beacon flagged as Cloudflare");
+// A table-less page is unusable only when the JSON says analysts exist (else it is just "no coverage").
+assert.ok(!usablePage("<html><title>X (X) Stock Forecast</title></html>", 3), "table-less page accepted despite JSON rows");
+assert.ok(usablePage("<html><title>X (X) Stock Forecast</title></html>", 0), "no-coverage page rejected");
 
 console.log(`forecast HTML parser: ok (${rows.length} ADCT + ${v.length} VTGN rows, ${total} rows across ${REAL.length + SYNTH.length} fixtures)`);

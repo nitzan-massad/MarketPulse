@@ -11,6 +11,15 @@
 // Every failure degrades to "not cached" -> a live fetch. A cache write can never cost the
 // backfill its row, and a bad cache entry can never cost the forecast step a ticker.
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { rowFromGetData } from "./keep.mjs";
+
+/** A getData body that parses (via `parse`) into a real row for THIS ticker. The one definition of
+ *  "usable payload", shared by the cache read and the live fetch: a page that merely contains a
+ *  `{...}` (an error page's `{"status":404}`, a challenge's `_cf_chl_opt={}`) parses to an object
+ *  with no experts and once read as "no coverage", shrinking the file to its page rows. */
+export function isPayloadFor(parse, text, t) {
+  try { return rowFromGetData(parse(text)).t === t; } catch { return false; }
+}
 
 export const cachePath = (dir, t) => `${dir}/${encodeURIComponent(t)}.txt`;
 

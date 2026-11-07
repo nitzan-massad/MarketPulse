@@ -6,7 +6,16 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cachePath, cachedFirst, saveGetData, takeGetData } from "./getdata-cache.mjs";
+import { cachePath, cachedFirst, isPayloadFor, saveGetData, takeGetData } from "./getdata-cache.mjs";
+
+// isPayloadFor: only a real payload for THIS ticker counts; any other `{...}` must be refetched.
+const parse = (h) => JSON.parse(h.match(/\{[\s\S]*\}/)[0]);
+assert.ok(isPayloadFor(parse, '<pre>{"ticker":"MA","experts":[]}</pre>', "MA"), "real payload rejected");
+assert.ok(!isPayloadFor(parse, '<pre>{"ticker":"MA"}</pre>', "DLR"), "another ticker's payload accepted");
+assert.ok(!isPayloadFor(parse, "<html><script>x={}</script></html>", "MA"), "a page with an inline {} accepted as a payload");
+assert.ok(!isPayloadFor(parse, '<html>{"status":404}</html>', "MA"), "an error body accepted as a payload");
+assert.ok(!isPayloadFor(parse, "<html>no json</html>", "MA"), "unparseable body accepted");
+
 
 const dir = join(mkdtempSync(join(tmpdir(), "getdata-")), "nested");
 try {

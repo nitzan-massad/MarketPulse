@@ -11,11 +11,10 @@
 // is ever refreshed, and only brand-new tickers get fetched. That's exactly what happened
 // between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { parseForecastHtml, withStars } from "./forecast-html.mjs";
+import { isChallenge, parseForecastHtml, usablePage, withStars } from "./forecast-html.mjs";
 import { mergeForecasts, shouldFetchPage } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
-import { cachedFirst, takeGetData } from "./getdata-cache.mjs";
-import { rowFromGetData } from "./keep.mjs";
+import { cachedFirst, isPayloadFor, takeGetData } from "./getdata-cache.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -38,7 +37,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const RATING = { 1: "Buy", 2: "Hold", 3: "Sell" };
 
 // the lite run (ONLY) has a user waiting: 3 tries, not 6 x (up to 60s + 6s) per URL
-async function flareGet(url, tries = ONLY ? 3 : 6) {
+// A Cloudflare page is always retried like an error; `ok` adds a per-URL check (e.g. "is JSON").
+// Never fold the Cloudflare test into `ok`: a challenge's inline `_cf_chl_opt={}` parses as JSON
+// `{}`, which read as "no experts" and shrank MA to its page rows in the E2E fault run.
+async function flareGet(url, ok = () => true, tries = ONLY ? 3 : 6) {
   let lastErr;
   for (let i = 1; i <= tries; i++) {
     try {
@@ -48,7 +50,12 @@ async function flareGet(url, tries = ONLY ? 3 : 6) {
         body: JSON.stringify({ cmd: "request.get", url, maxTimeout: 60000 }),
       });
       const j = await r.json();
-      if (j.status === "ok" && j.solution) return j.solution.response || "";
+      if (j.status === "ok" && j.solution) {
+        const html = j.solution.response || "";
+        if (isChallenge(html)) throw new Error("Cloudflare page");
+        if (!ok(html)) throw new Error("unusable response");
+        return html;
+      }
       throw new Error(j.message || "status != ok");
     } catch (e) {
       lastErr = e;
@@ -115,7 +122,7 @@ const PARALLEL = Math.max(1, Math.floor(Number(process.env.PARALLEL)) || 1);
 mkdirSync(OUT, { recursive: true });
 console.log(`forecasts backfill: ${targets.length} ticker(s), ${hot.length} near earnings (LIMIT=${LIMIT}, ALL=${ALL}, SSR_MERGE=${MERGE ? 1 : 0}, PARALLEL=${PARALLEL})`);
 const now = new Date().toISOString();
-let ok = 0, empty = 0, fail = 0, viaHtml = 0, gained = 0, fromCache = 0;
+let ok = 0, empty = 0, fail = 0, viaHtml = 0, gained = 0, fromCache = 0, tableless = 0;
 // ponytail: a fixed pool of PARALLEL workers over one shared FlareSolverr; each request is a
 // headless Chrome, so the ceiling is runner CPU, not TipRanks: 3 on the 4-vCPU runner
 // (90 tickers: P1 973s, P3 655s, P10 1378s). More needs more cores or more FlareSolverr instances.
@@ -132,8 +139,8 @@ async function scrape(t) {
     let data = null;
     const cached = takeGetData(CACHE, t);
     // same test the writer applied (a real row for THIS ticker); anything else -> fetch live
-    if (cached) { try { const j = extractJson(cached); if (rowFromGetData(j).t === t) { data = j; fromCache++; } } catch { /* unusable -> fetch live */ } }
-    data ??= extractJson(await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`));
+    if (cached && isPayloadFor(extractJson, cached, t)) { data = extractJson(cached); fromCache++; } // else fetch live
+    data ??= extractJson(await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`, (h) => isPayloadFor(extractJson, h, t)));
     let fc = toForecasts(data);
     const jsonCount = fc.length;
     // The API paywall-anonymizes its FRESHEST rows, so the JSON path is systematically behind
@@ -141,7 +148,12 @@ async function scrape(t) {
     // names and targets in full, so we union the two rather than only falling back when JSON
     // came up empty. See ci/forecast-merge.mjs for the merge rules and the measured effect.
     if (shouldFetchPage(fc, data, MERGE)) {
-      const page = await flareGet(`https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/forecast`);
+      const url = `https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/forecast`;
+      let page = await flareGet(url);
+      // ponytail: one refetch for a table-less page, then merge it anyway (JSON rows only). A full
+      // retry loop here would turn a TipRanks redesign into a frozen run past the step timeout.
+      if (!usablePage(page, jsonCount)) page = await flareGet(url);
+      if (!usablePage(page, jsonCount)) tableless++;
       const rows = withStars(parseForecastHtml(page), data);
       if (MERGE) {
         // Additive per analyst: a page that parses to nothing leaves the JSON result untouched.
@@ -172,4 +184,6 @@ await Promise.all(Array.from({ length: PARALLEL }, async () => {
   while (queue.length) await scrape(queue.shift());
 }));
 saveAsOf();
+// tripwire: many table-less pages while the JSON has rows = TipRanks changed the page markup
+if (tableless) console.log(`${tableless > 10 ? "::warning::" : ""}forecasts: ${tableless} page(s) had no analyst table despite JSON rows${tableless > 10 ? " — did the TipRanks forecast page markup change?" : ""}`);
 console.log(`done: ${ok} written (${viaHtml} gained rows from the page, +${gained} rows total), ${empty} empty, ${fail} failed, ${fromCache} getData reused from the snapshot step`);

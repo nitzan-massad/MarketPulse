@@ -18,6 +18,21 @@
 // (`Q9SxkXbq`). Guarded by ci/test-forecast-html.mjs against a real trimmed page. If the
 // markup moves, that test fails and this returns [] — a stale file, never a corrupt one.
 
+// Cloudflare's interstitial / block / rate-limit pages. FlareSolverr returns them as status "ok"
+// when it loses the challenge, which happens under concurrent load (measured: 0/24 at 2 parallel
+// fetches, 2/24 at 4; CI runs forecasts x2 beside bullbear on one instance). One parses to [], and
+// the merge then wrote the JSON rows alone — MA, DLR, DNLI missed every post-earnings rating on
+// 2026-11-07. Matched on markers every Cloudflare page carries, not only the "Just a moment" title.
+// NOT bare `cdn-cgi/challenge-platform`: every real TipRanks page loads its `.../scripts/jsd/main.js`
+// bot beacon, so that would reject every page; only interstitials load `.../challenge-platform/h/`.
+export const isChallenge = (html) => typeof html === "string"
+  && /cdn-cgi\/challenge-platform\/h\/|_cf_chl_opt|cf-error-details|<title>[^<]*(Just a moment|Attention Required|Access denied|One moment, please|Please wait)/i.test(html);
+
+// A page carrying the analyst table — or a no-coverage page, when the JSON has no rows either.
+// Cloudflare pages are rejected (and retried) inside flareGet. A table-less page while the JSON has
+// rows is refetched once by scrape(), then merged anyway: a markup change must degrade, not stall.
+export const usablePage = (html, jsonRows) => !isChallenge(html) && (jsonRows === 0 || /Analyst Profile/i.test(html));
+
 const ACTIONS = /^(Reiterated|Initiated|Maintained|Assigned|Upgraded|Downgraded|Reinstated)$/i; // any case: see the rating note below
 
 // Column order in the table: Analyst | Firm | Price Target | Position | Upside | Action | Date
