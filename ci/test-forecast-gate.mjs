@@ -21,13 +21,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import { parseForecastHtml, withStars } from "./forecast-html.mjs";
-import { shouldFetchPage } from "./forecast-merge.mjs";
+import { pickSource } from "./forecast-merge.mjs";
 
 /* ---------------------------------------------------------------- the mirror */
 
-// No longer a mirror: the gate moved into ci/forecast-merge.mjs, which is pure and
-// import-safe, so this calls the REAL decision with merge disabled. One less copy to drift.
-const shouldFallBack = (fc, data) => shouldFetchPage(fc, data, false);
+// No longer a mirror: the gate lives in ci/forecast-merge.mjs (pickSource, which defers to
+// shouldFetchPage when merge is off), pure and import-safe, so this calls the REAL decision with
+// merge disabled and no payload. One less copy to drift.
+const shouldFallBack = (fc, data) => pickSource(null, fc, data, false) === "page";
 
 // MIRROR of scrape-forecasts.mjs:108-112
 //   const rows = withStars(parseForecastHtml(page), data);
@@ -169,8 +170,8 @@ const PAGE = readFileSync(new URL("./fixtures/adct-forecast.html", import.meta.u
    source lines. If one of these fails the scraper changed — update BOTH. */
 {
   const src = readFileSync(new URL("./scrape-forecasts.mjs", import.meta.url), "utf8");
-  assert.ok(src.includes("if (shouldFetchPage(fc, data, MERGE)) {"),
-    "GATE MOVED: the scraper no longer calls shouldFetchPage(fc, data, MERGE) — update this file");
+  assert.ok(src.includes("const source = pickSource(src, fc, data, MERGE);") && src.includes('} else if (source === "page") {'),
+    "GATE MOVED: the scraper no longer picks its second source via pickSource(src, fc, data, MERGE) — update this file");
   assert.ok(src.includes('const MERGE = process.env.SSR_MERGE !== "0";'),
     "ROLLBACK FLAG MOVED: SSR_MERGE is what makes this whole file's scenario reachable — if it is gone, the fallback path is dead code and these tests are theatre");
   assert.ok(src.includes("const rows = withStars(parseForecastHtml(page), data);"),

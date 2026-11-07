@@ -28,7 +28,11 @@
  * count; here it would drop a whole rating).
  */
 export const analystKey = (f) => (f.n || "").toLowerCase().trim();
-export const mergeKey = (f) => `${(f.n || "").toLowerCase().trim()}|${f.d || ""}`;
+// TipRanks names every unranked analyst "Unknown Analyst", so for them the firm is the identity —
+// two of them on one date (different firms) are two ratings, not a duplicate.
+const UNKNOWN = "unknown analyst";
+const firmKey = (f) => (f.f || "").toLowerCase().trim();
+export const mergeKey = (f) => `${analystKey(f)}|${f.d || ""}${analystKey(f) === UNKNOWN ? `|${firmKey(f)}` : ""}`;
 
 /**
  * Should we fetch the SSR page for this ticker?
@@ -89,4 +93,123 @@ export function mergeForecasts(ssr, json) {
   // Same analyst on two DIFFERENT dates = two ratings, both kept (product choice). Only a
   // same-date repeat is a duplicate, and mergeKey (name|date) already collapses that.
   return out;
+}
+
+const POSITION = { buy: "Buy", hold: "Hold", sell: "Sell" };
+
+/**
+ * Every rating in TipRanks' consensus window, NAMED, from /stocks/<t>/stock-forecast/payload.json
+ * (`models.ratings[]` joined to `models.experts[]` on expert.uid = _id). Unlike getData it does not
+ * anonymize the freshest ~10 brokers, and unlike the SSR page it is not cut at ~15 rows — on
+ * 2026-11-07 MA had 46 ratings here, including Clear Street (anonymized in getData, below row 15 on
+ * the page) and Deutsche Bank's "Unknown Analyst" row (getData files those under
+ * `notRankedExperts[]`, which toForecasts never read). Returns null when the payload is not this
+ * shape, so the caller falls back to the page.
+ *
+ * Dropped: TipRanks' own AI models (firm "TipRanks - OpenAI" etc. — toForecasts drops them via
+ * `aiModel`), ratings without a target (a Forecast needs one), a rating whose expert is missing.
+ * `priceTarget` is the USD-converted value, the same one getData calls convertedPriceTarget.
+ *
+ * FIRM: the payload's firm sits on the expert PROFILE (where the analyst works now), not on the
+ * rating. AMD 2026-11-04 David O'Connor read "Exane BNP Paribas" here but "Piper Sandler" in getData
+ * and on the page; DVN/OVV/BMRN had the same skew. getData keeps a per-rating firm on every expert,
+ * anonymized ones included, keyed by `eUid` = the payload's `expert.uid` — pass `data` and that
+ * firm wins. Experts getData does not list keep the profile firm (no better source).
+ */
+export function forecastsFromPayload(fj, ticker, data) {
+  const m = fj?.models;
+  if (!Array.isArray(m?.ratings) || !Array.isArray(m?.experts)) return null;
+  const experts = new Map(m.experts.filter((e) => e?._id).map((e) => [e._id, e]));
+  const firmOf = new Map();
+  const gd = new Map(); // eUid -> getData's latest rating (one per expert)
+  for (const e of [...(data?.experts || []), ...(data?.notRankedExperts || [])]) {
+    if (!e?.eUid) continue;
+    if (typeof e.firm === "string" && e.firm.trim()) firmOf.set(e.eUid, e.firm.trim());
+    if ((e.ratings || [])[0]) gd.set(e.eUid, e.ratings[0]);
+  }
+  const out = [];
+  for (const r of m.ratings) {
+    if (ticker && r?.object?.ticker && r.object.ticker !== ticker) continue; // a peer's rating
+    const e = experts.get(r?.expert?.uid);
+    const n = typeof e?.name === "string" ? e.name.trim() : "";
+    const f = firmOf.get(r?.expert?.uid) ?? (typeof e?.firm === "string" ? e.firm.trim() : "");
+    if (!n || !f || /^TipRanks\b/i.test(f)) continue;
+    const pt = Number(r.priceTarget?.value);
+    if (!Number.isFinite(pt) || pt <= 0) continue;
+    const d = String(r.date || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    // TARGETS: the payload converts non-USD targets at TODAY's FX (SHOP Doug Taylor 128.9995 here
+    // vs 127.537 in getData), so they wobble run to run — and src/reviewAlerts.ts keys a review on
+    // n|f|d|r|pt, so every wobble would ring the bell as a "new review". getData's
+    // convertedPriceTarget is stable; use it whenever getData names this same rating.
+    const g = gd.get(r?.expert?.uid);
+    const same = g && String(g.date || "").slice(0, 10) === d && Number.isFinite(g.convertedPriceTarget) && g.convertedPriceTarget > 0;
+    const opt = same ? Number(g.convertedOldPriceTarget) : Number(r.oldPriceTarget);
+    out.push({
+      n, f, r: POSITION[String(r.position || "").toLowerCase()] ?? null,
+      pt: +(same ? g.convertedPriceTarget : pt).toFixed(2), opt: Number.isFinite(opt) && opt > 0 ? opt : null, d,
+    });
+  }
+  return out;
+}
+
+/**
+ * Bring back a rating an EARLIER run recovered but this run's sources no longer show.
+ *
+ * Every run rebuilds the file from its own sources, so a rating that was only ever named on the
+ * page vanished once newer ratings pushed it below the page's ~15-row cut (AMD Mizuho 2026-11-04,
+ * NFLX Argus/Deutsche/Seaport 2026-10-21, MA Clear Street 2026-10-30 flapped in and out). A
+ * previous row returns only while it is provably still current:
+ *   - getData still lists an ANONYMIZED rating with the same firm and date (it exists, still the
+ *     analyst's latest — getData keeps one rating per expert);
+ *   - no output row already covers that firm on that date;
+ *   - the analyst has no newer row in the output.
+ * Anything else (a superseded or expired rating) stays gone.
+ */
+export function carryForward(out, prev, data) {
+  const rows = Array.isArray(out) ? out : [];
+  if (!Array.isArray(prev) || !prev.length) return rows;
+  const hidden = new Set();
+  for (const e of data?.experts || []) {
+    const r0 = (e?.ratings || [])[0];
+    if (!e || e.name || e.aiModel || !e.firm || !r0?.date) continue;
+    hidden.add(`${firmKey({ f: e.firm })}|${String(r0.date).slice(0, 10)}`); // getData calls it `firm`
+  }
+  if (!hidden.size) return rows;
+  const covered = new Set(rows.map((f) => `${firmKey(f)}|${f.d}`));
+  const newest = new Map();
+  for (const f of rows) if (f?.n) newest.set(analystKey(f), (newest.get(analystKey(f)) || "") > f.d ? newest.get(analystKey(f)) : f.d);
+  const back = prev.filter((f) => f?.n && f.f && f.d && Number.isFinite(f.pt)
+    && hidden.has(`${firmKey(f)}|${f.d}`) && !covered.has(`${firmKey(f)}|${f.d}`)
+    && !((newest.get(analystKey(f)) || "") >= f.d));
+  if (!back.length) return rows;
+  return [...rows, ...back].sort((a, b) => (b.d || "").localeCompare(a.d || ""));
+}
+
+
+/**
+ * Keep last run's target when this run's differs only by FX drift: same rating (mergeKey and
+ * position) within 1%. Covers the rows getData anonymizes, which have no stable converted target
+ * of their own (see forecastsFromPayload) — without it each would re-alert in the bell whenever
+ * the exchange rate moved. A real revision (> 1%, or a changed rating) passes straight through.
+ */
+export function keepPrevTarget(rows, prev) {
+  if (!Array.isArray(prev) || !prev.length) return rows;
+  const old = new Map(prev.filter((p) => p?.n && Number.isFinite(p.pt)).map((p) => [mergeKey(p), p]));
+  return rows.map((f) => {
+    const p = old.get(mergeKey(f));
+    if (!p || p.r !== f.r || p.pt === f.pt || Math.abs(f.pt - p.pt) / p.pt >= 0.01) return f;
+    return { ...f, pt: p.pt, opt: p.opt ?? f.opt };
+  });
+}
+
+/**
+ * Which second source to use next to getData: "payload" | "page" | "none". The payload when it
+ * parsed — unless it came back empty while getData admits it hid rows (then the page can still
+ * name them). Otherwise the legacy page rule (shouldFetchPage). `src` is forecastsFromPayload's
+ * result: null = failed / reshaped / not fetched.
+ */
+export function pickSource(src, fc, data, merge) {
+  if (merge && Array.isArray(src) && (src.length || !((data?.expertRatingsFilteredCount ?? 0) > 0))) return "payload";
+  return shouldFetchPage(fc, data, merge) ? "page" : "none";
 }

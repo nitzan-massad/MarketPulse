@@ -12,7 +12,7 @@
 // between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { isChallenge, parseForecastHtml, usablePage, withStars } from "./forecast-html.mjs";
-import { mergeForecasts, shouldFetchPage } from "./forecast-merge.mjs";
+import { carryForward, forecastsFromPayload, keepPrevTarget, mergeForecasts, pickSource } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
 import { cachedFirst, isPayloadFor, takeGetData } from "./getdata-cache.mjs";
 
@@ -122,7 +122,11 @@ const PARALLEL = Math.max(1, Math.floor(Number(process.env.PARALLEL)) || 1);
 mkdirSync(OUT, { recursive: true });
 console.log(`forecasts backfill: ${targets.length} ticker(s), ${hot.length} near earnings (LIMIT=${LIMIT}, ALL=${ALL}, SSR_MERGE=${MERGE ? 1 : 0}, PARALLEL=${PARALLEL})`);
 const now = new Date().toISOString();
-let ok = 0, empty = 0, fail = 0, viaHtml = 0, gained = 0, fromCache = 0, tableless = 0;
+let ok = 0, empty = 0, fail = 0, viaHtml = 0, viaPayload = 0, carried = 0, gained = 0, fromCache = 0, tableless = 0;
+// payload circuit breaker: after PAYLOAD_TRIP failures in a row, stop asking for the rest of the run
+// (each failure costs 2 tries + 6s sleeps; a site-wide break would add ~30-40 min to the step).
+const PAYLOAD_TRIP = 10;
+let payloadFails = 0, payloadStreak = 0;
 // ponytail: a fixed pool of PARALLEL workers over one shared FlareSolverr; each request is a
 // headless Chrome, so the ceiling is runner CPU, not TipRanks: 3 on the 4-vCPU runner
 // (90 tickers: P1 973s, P3 655s, P10 1378s). More needs more cores or more FlareSolverr instances.
@@ -143,11 +147,26 @@ async function scrape(t) {
     data ??= extractJson(await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`, (h) => isPayloadFor(extractJson, h, t)));
     let fc = toForecasts(data);
     const jsonCount = fc.length;
-    // The API paywall-anonymizes its FRESHEST rows, so the JSON path is systematically behind
-    // on every ticker — not just the micro-caps where it returned nothing. The SSR page renders
-    // names and targets in full, so we union the two rather than only falling back when JSON
-    // came up empty. See ci/forecast-merge.mjs for the merge rules and the measured effect.
-    if (shouldFetchPage(fc, data, MERGE)) {
+    // getData paywall-anonymizes its FRESHEST ~10 brokers and files unranked analysts under
+    // notRankedExperts, so the JSON path alone is behind on every ticker. stock-forecast/
+    // payload.json names every rating in the consensus window (~0.8s vs ~11s for the page), so it
+    // is the primary second source; the SSR page is the fallback when the payload fails or comes
+    // back empty while getData admits it hid rows. See ci/forecast-merge.mjs.
+    let src = null;
+    if (MERGE && payloadStreak < PAYLOAD_TRIP) {
+      try {
+        const okPayload = (h) => { try { return forecastsFromPayload(extractJson(h), t) !== null; } catch { return false; } };
+        // ponytail: 2 tries, not 6 — the page fallback below covers a payload that will not load.
+        src = forecastsFromPayload(extractJson(await flareGet(`https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/stock-forecast/payload.json`, okPayload, 2)), t, data);
+      } catch { src = null; }
+      if (src) payloadStreak = 0; else { payloadFails++; payloadStreak++; }
+    }
+    const source = pickSource(src, fc, data, MERGE);
+    if (source === "payload") {
+      const merged = mergeForecasts(withStars(src, data), fc);
+      if (merged.length > fc.length) viaPayload++;
+      fc = merged;
+    } else if (source === "page") {
       const url = `https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/forecast`;
       let page = await flareGet(url);
       // ponytail: one refetch for a table-less page, then merge it anyway (JSON rows only). A full
@@ -164,10 +183,21 @@ async function scrape(t) {
         fc = rows; viaHtml++;
       }
     }
+    const viaSource = fc.length - jsonCount; // before carry-forward, so the telemetry stays honest
+    let back = 0;
+    if (MERGE) {
+      let prev = null;
+      try { prev = JSON.parse(readFileSync(`${OUT}/${t}.json`, "utf8")); } catch { /* first fetch */ }
+      fc = keepPrevTarget(fc, prev);
+      const before = fc.length;
+      fc = carryForward(fc, prev, data);
+      back = fc.length - before;
+      carried += back;
+    }
     if (fc.length) {
       writeFileSync(`${OUT}/${t}.json`, JSON.stringify(fc)); ok++;
-      gained += fc.length - jsonCount;
-      console.log(`  ${t}: ${fc.length} ✓${fc.length > jsonCount ? ` (+${fc.length - jsonCount} via page)` : ""}`);
+      gained += viaSource;
+      console.log(`  ${t}: ${fc.length} ✓${viaSource > 0 ? ` (+${viaSource} via ${source})` : ""}${back ? ` (+${back} carried)` : ""}`);
     }
     else { empty++; console.log(`  ${t}: none`); }
     // ponytail: stamp on empty too, so a ticker TipRanks genuinely has no experts for
@@ -184,6 +214,8 @@ await Promise.all(Array.from({ length: PARALLEL }, async () => {
   while (queue.length) await scrape(queue.shift());
 }));
 saveAsOf();
+// tripwire: payload.json failing a lot = TipRanks moved or blocked it; every ticker is on the slow page path
+if (payloadFails) console.log(`${payloadFails > PAYLOAD_TRIP || payloadStreak >= PAYLOAD_TRIP ? "::warning::" : ""}forecasts: payload.json failed for ${payloadFails} ticker(s)${payloadStreak >= PAYLOAD_TRIP ? ` — tripped after ${PAYLOAD_TRIP} in a row, page fallback for the rest of the run` : ""}`);
 // tripwire: many table-less pages while the JSON has rows = TipRanks changed the page markup
 if (tableless) console.log(`${tableless > 10 ? "::warning::" : ""}forecasts: ${tableless} page(s) had no analyst table despite JSON rows${tableless > 10 ? " — did the TipRanks forecast page markup change?" : ""}`);
-console.log(`done: ${ok} written (${viaHtml} gained rows from the page, +${gained} rows total), ${empty} empty, ${fail} failed, ${fromCache} getData reused from the snapshot step`);
+console.log(`done: ${ok} written (${viaPayload} gained rows from the payload, ${viaHtml} from the page, ${carried} carried forward, +${gained} rows total), ${empty} empty, ${fail} failed, ${fromCache} getData reused from the snapshot step`);

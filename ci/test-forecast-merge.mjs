@@ -3,7 +3,7 @@
 // import-safe precisely so this file does not have to mirror them the way
 // ci/test-forecast-gate.mjs had to mirror the old inline gate.
 import assert from "node:assert/strict";
-import { mergeForecasts, mergeKey, shouldFetchPage } from "./forecast-merge.mjs";
+import { carryForward, forecastsFromPayload, keepPrevTarget, mergeForecasts, mergeKey, pickSource, shouldFetchPage } from "./forecast-merge.mjs";
 
 const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", pt, opt: null, d, ...extra });
 
@@ -114,4 +114,119 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   assert.ok(out.length > json.length, "and it is strictly more than the API alone gave us");
 }
 
-console.log("ok   forecast merge: gate, additive guarantee, union, dedup, precedence, anonymized rows, BIOA");
+/* ------------------------------------- stock-forecast/payload.json -> Forecast[] */
+{
+  // Shape verified on the live MA payload, 2026-11-07 (46 ratings, 91 experts).
+  const fj = { models: {
+    experts: [
+      { _id: "u1", name: "Owen Lau", firm: "Clear Street" },
+      { _id: "u2", name: "Unknown Analyst", firm: "Deutsche Bank " },
+      { _id: "u3", name: "Unknown Analyst", firm: "Argus" },
+      { _id: "ai", name: "OpenAI Financial - Credit Services", firm: "TipRanks - OpenAI" },
+      { _id: "u4", name: "No Target", firm: "DZ BANK" },
+    ],
+    ratings: [
+      { object: { ticker: "MA" }, expert: { uid: "u1" }, date: "2026-10-30T00:00:00.000Z", position: "buy", priceTarget: { value: 732 }, oldPriceTarget: 729 },
+      { object: { ticker: "MA" }, expert: { uid: "u2" }, date: "2026-10-15T00:00:00.000Z", position: "buy", priceTarget: { value: 668 } },
+      { object: { ticker: "MA" }, expert: { uid: "u3" }, date: "2026-10-15T00:00:00.000Z", position: "hold", priceTarget: { value: 600 } },
+      { object: { ticker: "MA" }, expert: { uid: "ai" }, date: "2026-10-29T00:00:00.000Z", position: "buy", priceTarget: { value: 699 } },
+      { object: { ticker: "MA" }, expert: { uid: "u4" }, date: "2026-11-03T00:00:00.000Z", position: "sell", priceTarget: null },
+      { object: { ticker: "MA" }, expert: { uid: "missing" }, date: "2026-10-01T00:00:00.000Z", position: "buy", priceTarget: { value: 1 } },
+      { object: { ticker: "V" }, expert: { uid: "u1" }, date: "2026-10-30T00:00:00.000Z", position: "buy", priceTarget: { value: 400 } },
+    ],
+  } };
+  const rows = forecastsFromPayload(fj, "MA");
+  assert.deepEqual(rows, [
+    { n: "Owen Lau", f: "Clear Street", r: "Buy", pt: 732, opt: 729, d: "2026-10-30" },
+    { n: "Unknown Analyst", f: "Deutsche Bank", r: "Buy", pt: 668, opt: null, d: "2026-10-15" },
+    { n: "Unknown Analyst", f: "Argus", r: "Hold", pt: 600, opt: null, d: "2026-10-15" },
+  ], "named + unranked rows kept; AI, no-target, orphan and peer-ticker rows dropped; firm trimmed");
+  assert.equal(forecastsFromPayload({}, "MA"), null, "reshaped payload -> null (caller falls back to the page)");
+  // AMD 2026-11-04: the payload's PROFILE firm is where the analyst works now; getData's per-rating
+  // firm (joined on eUid, anonymized experts included) wins.
+  const amd = { models: {
+    experts: [{ _id: "oc", name: "David O'Connor", firm: "Exane BNP Paribas" }, { _id: "ml", name: "Mark Lear", firm: "Piper Sandler" }, { _id: "zz", name: "Not In GetData", firm: "Profile Firm" }],
+    ratings: [
+      { object: { ticker: "AMD" }, expert: { uid: "oc" }, date: "2026-11-04T00:00:00.000Z", position: "buy", priceTarget: { value: 650 } },
+      { object: { ticker: "AMD" }, expert: { uid: "ml" }, date: "2026-11-06T00:00:00.000Z", position: "buy", priceTarget: { value: 61 } },
+      { object: { ticker: "AMD" }, expert: { uid: "zz" }, date: "2026-11-01T00:00:00.000Z", position: "buy", priceTarget: { value: 5 } },
+    ],
+  } };
+  const gd = { experts: [{ name: "David O'Connor", firm: "Piper Sandler", eUid: "oc" }, { name: null, firm: "Scotiabank ", eUid: "ml" }] };
+  assert.deepEqual(forecastsFromPayload(amd, "AMD", gd).map((r) => r.f), ["Piper Sandler", "Scotiabank", "Profile Firm"],
+    "getData firm (named or anonymized) beats the payload profile firm; unknown experts keep the profile firm");
+  assert.equal(forecastsFromPayload(null, "MA"), null);
+  // two Unknown Analysts on one date are two ratings, not a duplicate
+  assert.equal(mergeForecasts(rows, []).length, 3, "Unknown Analysts at different firms must not collapse");
+  assert.notEqual(mergeKey(rows[1]), mergeKey(rows[2]));
+  assert.equal(mergeKey({ n: "Owen Lau", f: "X", d: "2026-10-30" }), mergeKey({ n: "owen lau ", f: "Y", d: "2026-10-30" }),
+    "named analysts still key on name|date only");
+}
+
+/* ------------------------------------------ carryForward: keep what we recovered */
+{
+  // AMD 2026-11-04: Mizuho's rating is anonymized in getData and fell below the page's ~15 rows.
+  const prev = [
+    { n: "Vijay Rakesh", f: "Mizuho", st: 4.2, r: "Buy", pt: 610, opt: 500, d: "2026-11-04" },
+    { n: "Old Rating", f: "Gone & Co", st: 3, r: "Buy", pt: 100, opt: null, d: "2026-08-01" },
+    { n: "Superseded", f: "Newer Co", st: 3, r: "Buy", pt: 90, opt: null, d: "2026-10-01" },
+  ];
+  const data = { experts: [
+    { name: null, firm: "Mizuho", ratings: [{ date: "2026-11-04T00:00:00" }] },
+    { name: null, firm: "Newer Co", ratings: [{ date: "2026-10-01T00:00:00" }] },
+    { name: null, aiModel: true, firm: "TipRanks - OpenAI", ratings: [{ date: "2026-11-04T00:00:00" }] },
+  ] };
+  const now = [{ n: "Superseded", f: "Newer Co", st: 3, r: "Buy", pt: 95, opt: 90, d: "2026-11-05" }];
+  const out = carryForward(now, prev, data);
+  assert.deepEqual(out.map((f) => `${f.n}|${f.d}`), ["Superseded|2026-11-05", "Vijay Rakesh|2026-11-04"],
+    "hidden-and-current row carried; expired and superseded rows stay gone; newest first");
+  assert.deepEqual(carryForward(now, prev, { experts: [] }), now, "nothing hidden -> nothing carried");
+  assert.deepEqual(carryForward(now, null, data), now, "no previous file -> unchanged");
+  // already covered (same firm+date in this run) -> not duplicated
+  const covered = [{ n: "V. Rakesh", f: "Mizuho ", st: null, r: "Buy", pt: 610, opt: null, d: "2026-11-04" }];
+  assert.equal(carryForward(covered, prev, data).filter((f) => f.f.trim() === "Mizuho").length, 1,
+    "a firm+date already in the output is not carried again");
+}
+
+/* ------------------------------------------------ FX-stable targets (review alerts) */
+{
+  // SHOP: the payload converts at today's FX (128.9995); getData's convertedPriceTarget (127.537) is
+  // stable — used whenever getData names the same rating on the same date.
+  const fj = { models: {
+    experts: [{ _id: "dt", name: "Doug Taylor", firm: "Canaccord" }, { _id: "an", name: "Hidden One", firm: "RBC" }],
+    ratings: [
+      { object: { ticker: "SHOP" }, expert: { uid: "dt" }, date: "2026-10-01T00:00:00.000Z", position: "buy", priceTarget: { value: 128.9995 }, oldPriceTarget: 120.4 },
+      { object: { ticker: "SHOP" }, expert: { uid: "an" }, date: "2026-11-05T00:00:00.000Z", position: "buy", priceTarget: { value: 150.12 } },
+    ],
+  } };
+  const data = { experts: [
+    { name: "Doug Taylor", firm: "Canaccord", eUid: "dt", ratings: [{ date: "2026-10-01T00:00:00", convertedPriceTarget: 127.537, convertedOldPriceTarget: 119.2 }] },
+    { name: null, firm: "RBC", eUid: "an", ratings: [{ date: "2026-11-05T00:00:00", convertedPriceTarget: null }] },
+  ] };
+  const rows = forecastsFromPayload(fj, "SHOP", data);
+  assert.deepEqual(rows.map((r) => [r.pt, r.opt]), [[127.54, 119.2], [150.12, null]],
+    "getData's stable converted target wins when it names the rating; an anonymized one keeps the payload's");
+  // a stale getData rating (different date) must not lend its target to a newer payload rating
+  const stale = { experts: [{ name: "Doug Taylor", firm: "Canaccord", eUid: "dt", ratings: [{ date: "2026-08-01T00:00:00", convertedPriceTarget: 99 }] }] };
+  assert.equal(forecastsFromPayload(fj, "SHOP", stale)[0].pt, 129, "another date's target is never borrowed");
+
+  // keepPrevTarget: FX drift under 1% keeps last run's number; a real revision passes through
+  const prev = [{ n: "Hidden One", f: "RBC", r: "Buy", pt: 149.5, opt: 140, d: "2026-11-05" }];
+  assert.equal(keepPrevTarget([{ ...prev[0], pt: 150.12, opt: null }], prev)[0].pt, 149.5, "0.4% drift -> previous target kept");
+  assert.equal(keepPrevTarget([{ ...prev[0], pt: 160 }], prev)[0].pt, 160, "a 7% move is a real revision");
+  assert.equal(keepPrevTarget([{ ...prev[0], pt: 150.12, r: "Hold" }], prev)[0].pt, 150.12, "a changed rating is a new review");
+  assert.deepEqual(keepPrevTarget(rows, null), rows, "no previous file -> unchanged");
+}
+
+/* ----------------------------------------------------- source choice (pickSource) */
+{
+  const fc = [row("A", "2026-07-01", 10)];
+  assert.equal(pickSource([row("B", "2026-11-01", 5)], fc, { expertRatingsFilteredCount: 10 }, true), "payload", "payload rows -> payload");
+  assert.equal(pickSource([], fc, { expertRatingsFilteredCount: 0 }, true), "payload", "empty payload, nothing hidden -> payload (no coverage)");
+  assert.equal(pickSource([], fc, { expertRatingsFilteredCount: 3 }, true), "page", "empty payload but getData hid rows -> page");
+  assert.equal(pickSource(null, fc, { expertRatingsFilteredCount: 0 }, true), "page", "payload failed -> page");
+  assert.equal(pickSource([row("B", "2026-11-01", 5)], fc, { expertRatingsFilteredCount: 3 }, false), "none", "SSR_MERGE=0, JSON had rows -> legacy: nothing");
+  assert.equal(pickSource(null, [], { expertRatingsFilteredCount: 3 }, false), "page", "SSR_MERGE=0, empty + withheld -> legacy page fallback");
+}
+
+console.log("ok   forecast merge: gate, additive guarantee, union, dedup, precedence, anonymized rows, BIOA, payload, carry-forward, FX-stable targets, source choice");
