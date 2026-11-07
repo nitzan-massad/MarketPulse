@@ -27,11 +27,11 @@
 import { computeNeuronUsage, DAILY_FREE_NEURONS } from "./neuron-usage.mjs";
 import { MIN_PUBLISHABLE, MAX_WORDS } from "./post-score.mjs";
 
-/** `.github/workflows/site.yml`'s own cron schedule fires on the hour, every 5 hours — 24/5 =
- *  4.8 runs/day. Restated here (not imported — the workflow YAML has no exports) so the "how
+/** `.github/workflows/site.yml`'s own cron schedule fires at :17, every 3 hours — 24/3 =
+ *  8 runs/day (it was :00 every 5h until 2026-11-07; GitHub delayed or dropped most :00 slots). Restated here (not imported — the workflow YAML has no exports) so the "how
  *  many posts/day fit in the budget" comparison has a real number to compare against, not a
  *  made-up one; update this if the cron schedule ever changes. */
-export const CRON_RUNS_PER_DAY = 24 / 5;
+export const CRON_RUNS_PER_DAY = 24 / 3;
 
 /** Bounds the persisted history file the same way `POSTS_KEEP` bounds `posts.json` (see
  *  ci/generate-posts.mjs) — one compact record per run, so even at the cron's 4.8 runs/day this

@@ -2,7 +2,7 @@ name: Refresh data & deploy
 
 on:
   schedule:
-    - cron: "0 */5 * * *"   # every 5 hours
+    - cron: "17 */3 * * *"  # every 3 hours, off the top of the hour (GitHub delays/drops :00 runs)
   workflow_dispatch:         # manual run button
   push:
     branches: [main]         # redeploy on code changes
@@ -198,9 +198,9 @@ jobs:
           POST_PROVIDER: cloudflare
           POSTS_PER_RUN: "1"
           POST_CANDIDATES: "5"
-          # 144 snapshots at the 5h cadence is ~30 days. Measured: 1.9s to load, 87MB.
+          # 240 snapshots at the 3h cadence is ~30 days (was 144 at 5h; 144 measured 1.9s, 87MB).
           # This is why the checkout is not shallow — see fetch-depth above.
-          POST_WINDOW: "144"
+          POST_WINDOW: "240"
           POST_IMAGES: "true"
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}

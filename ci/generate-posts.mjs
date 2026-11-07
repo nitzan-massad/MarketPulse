@@ -28,7 +28,7 @@ import { composePost } from "./post-compose.mjs";
 import { describeCompany } from "./company-descriptor.mjs";
 import { findCompanyPhoto } from "./company-photo.mjs";
 import { isExhausted } from "./cf-budget.mjs";
-import { newUsageTracker, recordTextCall, recordImageCall } from "./neuron-usage.mjs";
+import { newUsageTracker, recordTextCall, recordImageCall, DAILY_FREE_NEURONS } from "./neuron-usage.mjs";
 import {
   newRunTelemetry, recordStageMs, recordHookAttempt, recordHookPublished, recordCandidateOutcomes,
   buildHistoryRecord, formatSummaryBlock, computeHeadroom, sumNeuronsForDate, trimHistory, utcDateKey,
@@ -134,7 +134,7 @@ export const humanizeFactKey = (key) => FACT_LABELS[key] ?? key;
 // NATURAL-LANGUAGE BANDS, not a raw day count — "6.3 days" is exactly the kind of precision
 // that reads as a machine copying a spreadsheet cell (see the system prompt's own "ROUND THE
 // NUMBERS" rule below). `hook.facts.days` ranges from a fraction of a day up to ~30 across this
-// pipeline (POST_WINDOW=144 snapshots at a 5h cadence), but only two kinds ever reach here at
+// pipeline (POST_WINDOW=240 snapshots at a 3h cadence; `days` comes from commit times), but only two kinds ever reach here at
 // all (`hasGenuineChange` — see ci/hooks.mjs's own comment — is true only for `movement` and
 // `record`):
 //   - `movement` (ci/hooks.mjs's `# 3. MOVEMENT`) carries NO `days` fact — its "before" reading
@@ -255,7 +255,7 @@ export async function generate({
   // Task 0, Finding 2: feed the last few posts' KINDS back into the detector so the top
   // hook rotates shape instead of being "big upside number" every single run.
   const recentKinds = recent.slice(0, kindMemory).map((p) => p.kind).filter(Boolean);
-  const rawHooks = detectHooks(history, { recentKinds });
+  const rawHooks = detectHooks(history, { recentKinds, snapTimes: history.times });
   // DE-TICKER, as its own pass, before anything downstream (the prompt builder, the scorer)
   // ever sees a hook's facts. See ci/hooks.mjs for why this has to run here and not inside
   // detectHooks itself — a hook's `facts` fed a ticker straight to the model once
@@ -521,16 +521,19 @@ function loadWindow(n) {
   const current = readJson(STOCKS, []);
   let shas = [];
   try {
-    shas = git(["log", `-${n}`, "--format=%H", "--", "src/data/stocks.json"]).trim().split("\n").filter(Boolean);
+    shas = git(["log", `-${n}`, "--format=%H %ct", "--", "src/data/stocks.json"]).trim().split("\n").filter(Boolean);
   } catch {
     console.error("  no git history available — window rules are skipped this run");
     return [current];
   }
 
   const window = [];
-  for (const sha of shas.reverse()) {            // oldest first
+  const times = []; // commit time (ms) per snapshot, for hooks' real `days` (see ci/hooks.mjs DEFAULTS)
+  for (const line of shas.reverse()) {           // oldest first
+    const [sha, ct] = line.split(" ");
     try {
       window.push(JSON.parse(git(["show", `${sha}:src/data/stocks.json`])));
+      times.push(Number(ct) * 1000);
     } catch {
       // A commit that predates the file, or a bad blob: skip it, keep the rest.
     }
@@ -538,9 +541,11 @@ function loadWindow(n) {
 
   // Drop the newest commit if it is byte-identical to the working copy (the local case).
   const last = window[window.length - 1];
-  if (last && JSON.stringify(last) === JSON.stringify(current)) window.pop();
+  if (last && JSON.stringify(last) === JSON.stringify(current)) { window.pop(); times.pop(); }
 
   window.push(current);
+  times.push(Date.now());
+  window.times = times;
 
   // LOUD, because the failure mode is silent. `git log` exits 0 on a shallow clone and
   // simply returns one sha, so the catch above never fires: the window quietly collapses
@@ -591,7 +596,7 @@ async function main() {
 
   const existing = readJson(POSTS, []);
   const exemplars = readJson(CORPUS, []);
-  const history = loadWindow(Number(process.env.POST_WINDOW ?? 144));
+  const history = loadWindow(Number(process.env.POST_WINDOW ?? 240));
   const curr = history[history.length - 1];
 
   console.log(`generate-posts — ${curr.length} rows, ${history.length} snapshots in window, ` +
@@ -621,12 +626,18 @@ async function main() {
   const todayKey = utcDateKey();
   const usedTodayBeforeRun = sumNeuronsForDate(historyBefore, todayKey);
   const estimatedRunCost = estimateRunCostFromHistory(historyBefore);
-  if (estimatedRunCost != null && usedTodayBeforeRun + estimatedRunCost > 10_000) {
-    console.error(
-      `  WARNING: ~${Math.round(usedTodayBeforeRun)} neurons already used today, and recent runs ` +
-      `average ~${Math.round(estimatedRunCost)} neurons — this run may not have enough of today's ` +
-      "free allocation left to complete. Proceeding anyway; a genuine exhaustion degrades gracefully (see ci/cf-budget.mjs).",
+  // Skip, not just warn: the cron runs 8x/day since 2026-11-07 at ~1,600 neurons a run, so the
+  // last runs of a day would drain the shared allocation and starve the theme classifier that
+  // runs after this step — whose spend is NOT in this history, hence a fixed reserve for it.
+  // ponytail: estimate-based, fixed reserve (~30 classifier calls; new arrivals use 0-5/run) —
+  // record the classifier's usage in the same history if a backfill ever needs more.
+  const THEME_RESERVE = 1_500;
+  if (estimatedRunCost != null && usedTodayBeforeRun + estimatedRunCost > DAILY_FREE_NEURONS - THEME_RESERVE) {
+    console.log(
+      `  skipping: ~${Math.round(usedTodayBeforeRun)} neurons already used today and recent runs ` +
+      `average ~${Math.round(estimatedRunCost)} — not enough of today's ${DAILY_FREE_NEURONS} left after the ${THEME_RESERVE} theme-classifier reserve.`,
     );
+    return;
   }
 
   const generateImageFor = imagesEnabled

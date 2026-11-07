@@ -568,6 +568,21 @@ assert.equal(displayCompanyName("Class A"), "Class A", "same for a bare share-cl
   assert.equal(genuineChangeDirection(hooks[0]), "up", "a window record can only ever be a climb");
 }
 
+// --- `days` is real elapsed time, not snapshots x a fixed cadence ---------------------------
+{
+  const w = win(30, (i) => row({ t: "HIGH", up: 60 + i * 1.7 }));
+  const day = 864e5, t0 = Date.UTC(2026, 10, 1);
+  // 30 snapshots, the first 10 at 5h spacing and the rest at 3h (the cron change mid-window)
+  const times = []; let t = t0;
+  for (let i = 0; i < 30; i++) { times.push(t); t += (i < 10 ? 5 : 3) * 36e5; }
+  const rec = detectHooks(w, { snapTimes: times }).find((h) => h.kind === "record");
+  assert.equal(rec.facts.days, Math.round(((times[29] - times[0]) / day) * 10) / 10, "record days = first-to-last commit time");
+  assert.equal(detectHooks(w).find((h) => h.kind === "record").facts.days, Math.round((30 * 3 / 24) * 10) / 10,
+    "without times: snapshots x the 3h cadence, not the old 5h");
+  assert.equal(detectHooks(w, { snapTimes: times.slice(1) }).find((h) => h.kind === "record").facts.days,
+    Math.round((30 * 3 / 24) * 10) / 10, "misaligned times are ignored, never misread");
+}
+
 // --- surprise/contrarian/steady/newcomer/list: standing states, never a genuine change ------
 {
   const surprise = detectHooks([[row({ t: "S1", up: 85 })]]).filter((h) => h.kind === "surprise")[0];

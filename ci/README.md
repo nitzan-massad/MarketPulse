@@ -10,7 +10,7 @@ uses whatever is on `main`.
 `.github/workflows/site.yml` (the workflow YAML **must** live in `.github/workflows/`
 — GitHub requirement — but all the logic it calls lives here in `ci/`):
 
-- **Trigger:** every 5h (`cron`), the "Run workflow" button (`workflow_dispatch`), and every push to `main`.
+- **Trigger:** every 3h at :17 (`cron`; off the hour because GitHub delays/drops :00 schedules — the old `0 */5` delivered ~3 runs/day), the "Run workflow" button (`workflow_dispatch`), and every push to `main`.
 - **FlareSolverr** service starts (solves Cloudflare from the runner's IP).
 - **`ci/refresh-data-ci.mjs`** pulls the TipRanks screener API through FlareSolverr and writes
   `src/data/stocks.json`, `src/data/seen.json`, `src/data/meta.json` (skipped on plain pushes;
@@ -445,7 +445,7 @@ uses whatever is on `main`.
   divides the run's total by how many posts actually published — 5 candidates spent on 1 post is
   a very different lever from an expensive image on every post — then `dailyPostCapacity` says
   how many posts/day that cost would afford inside the 10,000/day pool, printed alongside the
-  cron's own real cadence (24/5 = 4.8 runs/day, `CRON_RUNS_PER_DAY`) so the two numbers sit next
+  cron's own real cadence (24/3 = 8 runs/day, `CRON_RUNS_PER_DAY`) so the two numbers sit next
   to each other for comparison.
 
   **Waste — candidates generated vs. used vs. rejected, by REASON.** `ci/post-score.mjs`'s
@@ -669,11 +669,11 @@ the commit step also stages `public/forecasts`.
 - **Selection:** a ticker is scraped if we **last fetched it more than `STALE_DAYS` ago**
   (default 3), processed **stalest-first** (never-fetched = age 0 = front of queue, so new
   arrivals are always picked up on the very next run). `LIMIT` caps the per-run count
-  (default 90); `ALL=1` forces everyone. With ~300 tickers and ~5 runs/day, `LIMIT=90`
+  (default 90); `ALL=1` forces everyone. With ~300 tickers and several runs/day, `LIMIT=90`
   rotates through the whole universe in under a day, and no file exceeds ~`STALE_DAYS` old.
   (`site.yml` now overrides to `STALE_DAYS=0`, `LIMIT=300`: the 300 stalest every run.)
   **Earnings window:** a ranked ticker reporting within 2 days either way (`nearEarnings` in
-  `scrape-earnings.mjs`, from `public/earnings.json`'s `e` + `recent`) is scraped EVERY run, on
+  `scrape-earnings.mjs`, from `public/earnings.json`'s `e` + `recent`; an `e` date up to 2 days back still counts, because the first run of a UTC day reads yesterday's file) is scraped EVERY run, on
   top of `LIMIT` — that is when new reviews land. `scrape-bullbear.mjs` does the same.
 
 - **`PARALLEL`** (default 1; `site.yml` uses 3): a worker pool over the one FlareSolverr.
@@ -1066,7 +1066,7 @@ the UI's `scoreColor(s.ai, 100)` paints them dark — the fill path already stra
 stamped on **attempt, not success**, so a permanently-dead ticker goes to the back instead of
 camping at the head. `ls` cannot serve as that clock — `nextLastSeen` deliberately freezes it
 for exactly the off-pull tickers being rotated. `ba` does the same job for the backfill queue.
-Worst-case staleness is `ceil(eligible / (ENRICH_LIMIT − sticky))` runs × the 5h cron.
+Worst-case staleness is `ceil(eligible / (ENRICH_LIMIT − sticky))` runs × the 3h cron.
 Measured 2026-08-03: 73 off-pull with 9 sticky slots (2 pins by design, 7 rows whose payload
 carries no AI report at all) → 31 fresh slots/run → 3 runs ≈ 15h, inside a news cycle.
 

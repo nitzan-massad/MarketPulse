@@ -41,7 +41,7 @@ live quotes and per-user state. No backend of our own.
 **Three layers, and the boundary between them matters:**
 
 1. **Pipeline (`ci/`, Node ESM, effectively no deps)** — scrapes TipRanks/Finviz through
-   FlareSolverr and writes the data files. Runs in `.github/workflows/site.yml` every 5h.
+   FlareSolverr and writes the data files. Runs in `.github/workflows/site.yml` every 3h (at :17).
    `ci/keep.mjs` is the shared brain (keep-set expiry, row mapping, enrich queue, scale
    guards); `scripts/refresh-data.mjs` is the *local* Playwright equivalent and **must stay in
    step** — the two held copies of this logic once, drifted, and silently re-introduced a

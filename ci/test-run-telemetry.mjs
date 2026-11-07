@@ -106,7 +106,7 @@ assert.equal(dailyPostCapacity(null), null, "no cost-per-post -> no daily capaci
 assert.equal(dailyPostCapacity(0), null, "a zero cost never implies infinite capacity");
 assert.equal(dailyPostCapacity(100), 100, "10,000 / 100 = 100 posts/day");
 assert.equal(dailyPostCapacity(3000), 3, "rounds DOWN — a fraction of a post is not a post");
-assert.ok(Math.abs(CRON_RUNS_PER_DAY - 4.8) < 1e-9, "the cron cadence this compares against is 24/5 = 4.8 runs/day");
+assert.ok(Math.abs(CRON_RUNS_PER_DAY - 8) < 1e-9, "the cron cadence this compares against is 24/3 = 8 runs/day");
 
 console.log("cost/capacity OK — neurons-per-post and daily-capacity maths, including the null-on-no-data cases");
 

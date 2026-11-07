@@ -27,7 +27,11 @@ export const MIN_SECTOR_PEERS = 3;
  *  as noise around the middle. */
 export const MIN_COMPARISON_GAP = 10;
 
-const DEFAULTS = { minMc: 300, minPx: 3, minAnalysts: 4, limit: 12, maxPerKind: 2, recentKinds: [] };
+// `snapTimes`: epoch ms per snapshot (aligned with `history`), so a window's `days` is the time it
+// really spans — it used to be `snapshots * 5h`, which overstated every timeframe by 5/3 once the
+// cron went to every 3h (2026-11-07), and the window mixes both spacings for weeks after.
+// `hoursPerSnapshot` is only the fallback when times are absent (tests, no git).
+const DEFAULTS = { minMc: 300, minPx: 3, minAnalysts: 4, limit: 12, maxPerKind: 2, recentKinds: [], snapTimes: null, hoursPerSnapshot: 3 };
 
 /** Analysts covering the name. TipRanks splits the count across three fields. */
 export const coverage = (r) => (r?.b ?? 0) + (r?.h ?? 0) + (r?.s ?? 0);
@@ -65,6 +69,10 @@ export function detectHooks(history, opts = {}) {
 
   const curr = snaps[snaps.length - 1];
   const rows = curr.filter((r) => eligible(r, o));
+  // Days from snapshot `from` to now: measured from commit times when we have them for every
+  // snapshot, else `count` snapshots at the nominal cadence.
+  const times = Array.isArray(o.snapTimes) && o.snapTimes.length === snaps.length && o.snapTimes.every(isNum) ? o.snapTimes : null;
+  const spanDays = (from, count) => round(times ? (times[times.length - 1] - times[from]) / 864e5 : (count * o.hoursPerSnapshot) / 24);
   if (!rows.length) return [];
 
   // (12) COMPARISON FRAMING — a name's own number next to what is TYPICAL for its sector this
@@ -227,7 +235,7 @@ export function detectHooks(history, opts = {}) {
       if (r.up >= high - 0.01 && r.up - low >= 20) {
         const facts = {
           upside: round(r.up), windowLow: round(low), windowHigh: round(high),
-          snapshots: hist.length, days: round((hist.length * 5) / 24),
+          snapshots: hist.length, days: spanDays(hist[0].i, hist.length),
           price: r.px, priceTarget: r.pt, analysts: coverage(r),
         };
         // (12) Comparison framing, same rule as `surprise` above.
@@ -249,7 +257,7 @@ export function detectHooks(history, opts = {}) {
     //    kind of story (what the rating IS/has held) than to `trend`'s (that it changed).
     if (sss.length >= MIN_WINDOW && sss.length === hist.length && sss.every((v) => v >= 9)) {
       hooks.push(base(r, "steady", 60 * prom * damp("steady"), {
-        smartScore: sss[sss.length - 1], snapshots: hist.length, days: round((hist.length * 5) / 24),
+        smartScore: sss[sss.length - 1], snapshots: hist.length, days: spanDays(hist[0].i, hist.length),
         upside: round(r.up), consensus: r.con, analysts: coverage(r),
       }));
     }
@@ -259,7 +267,7 @@ export function detectHooks(history, opts = {}) {
     if (firstSeen >= earlyCut) {
       const facts = {
         seenIn: hist.length, windowSnapshots: snaps.length,
-        days: round(((snaps.length - firstSeen) * 5) / 24),
+        days: spanDays(firstSeen, snaps.length - firstSeen),
         upside: round(r.up), consensus: r.con, analysts: coverage(r),
       };
       // Include Smart Score only when it exists — null is data, not a gap.
