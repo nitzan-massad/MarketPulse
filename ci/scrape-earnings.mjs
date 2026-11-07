@@ -72,7 +72,10 @@ export function carriedRows(file) {
 export function nearEarnings(file, today, days = NEAR) {
   const lo = iso(Date.parse(today) - days * DAY), hi = iso(Date.parse(today) + days * DAY);
   const out = new Set();
-  for (const [t, v] of Object.entries(file?.e || {})) if (Array.isArray(v) && v[0] >= today && v[0] <= hi) out.add(t);
+  // `>= lo`, not `>= today`: the first run of a UTC day still reads YESTERDAY's file, whose `recent`
+  // stops before yesterday and whose `e` still holds yesterday's reports — `>= today` dropped all
+  // of them (28–63 tickers a day, e.g. COP/MCHP 2026-11-06) right when their analysts publish.
+  for (const [t, v] of Object.entries(file?.e || {})) if (Array.isArray(v) && v[0] >= lo && v[0] <= hi) out.add(t);
   for (const [t, d] of Object.entries(file?.recent || {})) if (typeof d === "string" && d >= lo && d < today) out.add(t);
   return out;
 }

@@ -65,13 +65,14 @@ const near = nearEarnings(
   {
     e: {
       TODAY: ["2026-10-11", "amc"], IN2: ["2026-10-13", ""], IN3: ["2026-10-14", "bmo"],
-      PAST: ["2026-10-10", ""], // a stale "next" from an old file is not trusted
+      PAST: ["2026-10-10", ""], // yesterday's report in yesterday's file: still hot (first run of a day)
+      OLD: ["2026-10-08", ""], // older than the 2-day window: not hot
     },
     recent: { AGO1: "2026-10-10", AGO2: "2026-10-09", AGO3: "2026-10-08" },
   },
   today,
 );
-assert.deepEqual([...near].sort(), ["AGO1", "AGO2", "IN2", "TODAY"]);
+assert.deepEqual([...near].sort(), ["AGO1", "AGO2", "IN2", "PAST", "TODAY"]);
 assert.equal(nearEarnings({}, today).size, 0); // an older file without `recent` still works
 assert.equal(nearEarnings(null, today).size, 0);
 
