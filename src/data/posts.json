@@ -1,5 +1,30 @@
 [
   {
+    "id": "CRWV-2026-11-07T05:06:00.525Z",
+    "ts": "2026-11-07T05:06:00.525Z",
+    "kind": "surprise",
+    "ticker": "CRWV",
+    "name": "Coreweave, Inc.",
+    "sector": "General",
+    "text": "~195% upside, more than sector's 41%.",
+    "score": 58,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band",
+      "CRWV appeared in a recent post"
+    ],
+    "facts": {
+      "upside": 195.3,
+      "price": 43.66,
+      "priceTarget": 128.93,
+      "consensus": "StrongBuy",
+      "analysts": 18,
+      "sector": "General",
+      "sectorMedianUpside": 40.8
+    },
+    "descriptor": "Cloud Computing Platform"
+  },
+  {
     "id": "QNT-2026-11-06T22:00:47.447Z",
     "ts": "2026-11-06T22:00:47.447Z",
     "kind": "movement",

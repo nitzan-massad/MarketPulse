@@ -1,17 +1,17 @@
 {
- "asOf": "2026-11-06",
+ "asOf": "2026-11-07",
  "sectors": {
   "BasicMaterials": {
    "pe": 18.67,
-   "fpe": 14.39
+   "fpe": 14.4
   },
   "CommunicationServices": {
    "pe": 15.98,
    "fpe": 17.19
   },
   "ConsumerCyclical": {
-   "pe": 24.59,
-   "fpe": 20.74
+   "pe": 24.61,
+   "fpe": 20.75
   },
   "ConsumerDefensive": {
    "pe": 26.17,
@@ -22,8 +22,8 @@
    "fpe": 10.36
   },
   "Financial": {
-   "pe": 14.86,
-   "fpe": 13.88
+   "pe": 14.87,
+   "fpe": 13.89
   },
   "Healthcare": {
    "pe": 33.3,
