@@ -283,5 +283,10 @@
     "name": "Forgent Power Solutions",
     "descriptor": "Power Distribution Systems",
     "scene": "assembling electrical panels with wires and circuit breakers on a workbench"
+  },
+  "SNPS": {
+    "name": "Synopsys",
+    "descriptor": "Circuit Design Software",
+    "scene": "carefully routing wires on a prototype circuit board with tweezers and a microscope"
   }
 }
