@@ -1,5 +1,33 @@
 [
   {
+    "id": "SNPS-2026-11-08T04:32:51.060Z",
+    "ts": "2026-11-08T04:32:51.060Z",
+    "kind": "contrarian",
+    "ticker": "SNPS",
+    "name": "Synopsys",
+    "sector": "Technology",
+    "text": "31% upside, AI and Smart Scores clash.",
+    "score": 52,
+    "reasons": [
+      "2 digits of concrete detail",
+      "length in band",
+      "SNPS appeared in a recent post"
+    ],
+    "facts": {
+      "smartScore": 2,
+      "aiScore": 68,
+      "aiRating": "Neutral",
+      "consensus": "StrongBuy",
+      "upside": 31.3,
+      "price": 450.46,
+      "analysts": 14,
+      "bullish": "ai"
+    },
+    "descriptor": "Circuit Design Software",
+    "image": "SNPS-2026-11-08T04-32-51-060Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "LIN-2026-11-08T00:41:01.786Z",
     "ts": "2026-11-08T00:41:01.786Z",
     "kind": "newcomer",
