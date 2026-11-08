@@ -146,7 +146,7 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
       <div className="mkm-modal mkm-modal-fc" data-burst={share.burst ?? undefined} role="dialog" aria-modal="true" aria-label={`${ticker} P/E history`}>
         <div className="mkm-titlebar">
           <div className="mkm-path"><b>{ticker}</b> · P/E History</div>
-          <ShareButton what={`${ticker} P/E history`} onShare={share.onShare} compact />
+          <ShareButton what={`${ticker} P/E history`} onShare={share.onShare} />
         </div>
         {share.copyFailed && <ShareFail url={share.url} />}
         <CloseButton what={`${ticker} P/E history`} onClose={onClose} />
