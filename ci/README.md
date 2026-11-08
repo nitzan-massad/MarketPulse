@@ -737,6 +737,25 @@ the commit step also stages `public/forecasts`.
   of those is nulled for exactly the anonymized rows this path exists to recover); JSON wins
   `st`, the only source of stars.
 
+  **Stage 3 — 2026-11-08: `stock-forecast/payload.json` is the primary second source; the page
+  is a fallback and a targeted top-up.** The payload names every rating in the consensus window
+  (~0.8s vs ~11s for the page), so the full-page merge above now runs only when the payload fails
+  or comes back empty while getData admits it hid rows (`pickSource`). On the payload path the
+  payload wins `pt`/`opt` (getData's FX-stable converted targets — the page's re-convert at
+  today's rate and would re-ring the bell). The payload omits some unranked analysts the page
+  still shows (QTTB's Leerink "Initiated $40 10/12"), so when getData lists a hidden analyst firm
+  (anonymized, or `notRankedExperts` with `eTypeId` 1 — 3 is bloggers/StockTwits) rated in the
+  last 92 days that no row covers, the scraper fetches the page and adds ONLY that firm's rows
+  (`missingFirms` + `topUpRows`). Each attempt is recorded as `firm|getData date` in
+  `public/forecasts/_pageTried.json`, so a firm the page cannot supply either (a target-less `―`
+  row, below the ~15-row cut) costs one fetch per new getData rating, not one per run; a failed
+  fetch is not recorded and is retried. `carryMissing` keeps last run's rows for those firms, so
+  a skipped or failed top-up never drops a recovered rating. 2 tries per page, and 5 failures in
+  a row stop top-ups for the rest of the run (`::warning::`). Guarded by
+  `node ci/test-forecast-merge.mjs` ("page top-up") and the source pins in
+  `ci/test-forecast-gate.mjs`. Measured on 45 tickers: ~20 trigger on the first run, 7 gained a
+  real rating (QTTB Leerink, MSFT/ORCL Phillip, NVDA Bernstein, EAT Baird, AMAT Citi, TVRD Chardan).
+
   Measured over all 418 tickers before shipping (Phase 0, writes-nothing):
 
   | | |

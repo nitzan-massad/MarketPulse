@@ -170,8 +170,10 @@ const PAGE = readFileSync(new URL("./fixtures/adct-forecast.html", import.meta.u
    source lines. If one of these fails the scraper changed — update BOTH. */
 {
   const src = readFileSync(new URL("./scrape-forecasts.mjs", import.meta.url), "utf8");
-  assert.ok(src.includes("const source = pickSource(src, fc, data, MERGE);") && src.includes('} else if (source === "page") {'),
+  assert.ok(src.includes("let source = pickSource(src, fc, data, MERGE);") && src.includes('    if (source === "page") {'),
     "GATE MOVED: the scraper no longer picks its second source via pickSource(src, fc, data, MERGE) — update this file");
+  assert.ok(src.includes("const merged = mergeForecasts(fc, topUpRows(withStars(parseForecastHtml(page), data), missing));") && src.includes("const fresh = missing.filter((m) => !(tried[t] || []).includes(m.key));") && src.includes("fc = carryMissing(carryForward(fc, prev, data), prev, data);") && src.includes("const page = await flareGet(url, (h) => usablePage(h, 1), 2);"),
+    "TOP-UP MOVED: the payload path must still fetch the page for firms the payload missed (QTTB Leerink), with payload rows winning, only the missing firms' page rows, once per getData rating (_pageTried.json), and carryMissing keeping them — see ci/forecast-merge.mjs");
   assert.ok(src.includes('const MERGE = process.env.SSR_MERGE !== "0";'),
     "ROLLBACK FLAG MOVED: SSR_MERGE is what makes this whole file's scenario reachable — if it is gone, the fallback path is dead code and these tests are theatre");
   assert.ok(src.includes("const rows = withStars(parseForecastHtml(page), data);"),

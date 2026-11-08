@@ -3,7 +3,7 @@
 // import-safe precisely so this file does not have to mirror them the way
 // ci/test-forecast-gate.mjs had to mirror the old inline gate.
 import assert from "node:assert/strict";
-import { carryForward, forecastsFromPayload, keepPrevTarget, mergeForecasts, mergeKey, pickSource, shouldFetchPage } from "./forecast-merge.mjs";
+import { carryForward, forecastsFromPayload, carryMissing, keepPrevTarget, mergeForecasts, mergeKey, missingFirms, pickSource, topUpRows, shouldFetchPage } from "./forecast-merge.mjs";
 
 const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", pt, opt: null, d, ...extra });
 
@@ -241,4 +241,50 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   assert.equal(m[0].st, 0.2, "star joins across the bidi mark");
 }
 
-console.log("ok   forecast merge: gate, additive guarantee, union, dedup, precedence, anonymized rows, BIOA, payload, carry-forward, FX-stable targets, source choice");
+/* ------------------------------------------- page top-up (missingFirms / topUpRows / carryMissing) */
+{
+  // QTTB 2026-11-08: getData files Leerink under notRankedExperts (reiterated 11-05); the payload has
+  // no Leerink rating; the page shows "Will Soghikian, Leerink, Initiated $40 10/12".
+  const now = Date.UTC(2026, 10, 8);
+  const payload = [{ n: "Derek Archila", f: "Wells Fargo", r: "Buy", pt: 59, d: "2026-11-05" }];
+  const data = {
+    experts: [
+      { name: "Derek Archila", firm: "Wells Fargo", ratings: [{ date: "2026-11-05T00:00:00" }] },
+      { name: null, firm: "Wells Fargo", ratings: [{ date: "2026-11-05T00:00:00" }] },
+      { name: null, firm: "TipRanks", aiModel: true, ratings: [{ date: "2026-11-06T00:00:00" }] },
+      { name: null, firm: "Old Bank", ratings: [{ date: "2026-05-01T00:00:00" }] },
+    ],
+    notRankedExperts: [
+      { name: null, firm: "Leerink Partners", eTypeId: 1, ratings: [{ date: "2026-11-05T00:00:00" }] },
+      { name: "thor0810", firm: "StockTwits", eTypeId: 3, ratings: [{ date: "2026-11-01T00:00:00" }] }, // blogger: never a row
+    ],
+  };
+  assert.deepEqual(missingFirms(payload, data, now), [{ firm: "Leerink Partners", key: "leerink partners|2026-11-05" }],
+    "an uncovered unranked firm triggers, keyed by getData's date; covered, AI, blogger (eTypeId 3) and >92-day-old ones do not");
+  assert.deepEqual(missingFirms(payload, null, now), [], "no getData -> nothing to top up");
+
+  // topUpRows: only the missing firm's page rows — never the page's extra history for covered firms
+  const page = [
+    { n: "Derek Archila", f: "Wells Fargo", r: "Buy", pt: 59.4, d: "2026-11-05" },
+    { n: "Derek Archila", f: "Wells Fargo", r: "Hold", pt: 45, d: "2026-06-01" }, // history the payload dropped
+    { n: "Will Soghikian", f: "Leerink Partners", r: "Buy", pt: 40, d: "2026-10-12" },
+  ];
+  const run1 = mergeForecasts(payload, topUpRows(page, missingFirms(payload, data, now)));
+  assert.deepEqual(run1.map((r) => [r.n, r.pt, r.d]), [["Derek Archila", 59, "2026-11-05"], ["Will Soghikian", 40, "2026-10-12"]],
+    "payload target kept, Leerink added, Wells Fargo's old page row NOT added");
+
+  // run 2: the page is not refetched (key already tried) or fails — carryMissing keeps Leerink
+  const run2 = carryMissing(payload, run1, data, now);
+  assert.deepEqual(run2.map((r) => r.n), ["Derek Archila", "Will Soghikian"], "recovered row survives a run without the page");
+  // ...and is NOT kept once getData stops listing the firm, or the analyst has a newer row
+  assert.deepEqual(carryMissing(payload, run1, { experts: data.experts }, now).map((r) => r.n), ["Derek Archila"], "firm gone from getData -> dropped");
+  const newer = [...payload, { n: "Will Soghikian", f: "Leerink Partners", r: "Buy", pt: 45, d: "2026-11-05" }];
+  assert.deepEqual(carryMissing(newer, run1, data, now), newer, "covered again -> nothing carried");
+  // Unknown Analyst: one firm's newer row must not block another firm's carried row
+  const unk = { notRankedExperts: [{ name: null, firm: "Argus", eTypeId: 1, ratings: [{ date: "2026-10-29T00:00:00" }] }] };
+  const prevU = [{ n: "Unknown Analyst", f: "Argus", r: "Buy", pt: 325, d: "2026-10-29" }];
+  const outU = [{ n: "Unknown Analyst", f: "DZ Bank", r: "Buy", pt: 300, d: "2026-11-02" }];
+  assert.equal(carryMissing(outU, prevU, unk, now).length, 2, "Unknown Analyst identity is per firm");
+}
+
+console.log("ok   forecast merge: gate, additive guarantee, union, dedup, precedence, anonymized rows, BIOA, payload, carry-forward, FX-stable targets, source choice, page top-up");

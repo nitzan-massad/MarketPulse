@@ -209,6 +209,61 @@ export function keepPrevTarget(rows, prev) {
 }
 
 /**
+ * Firms getData lists with a hidden analyst rating (anonymized, or notRankedExperts eTypeId 1)
+ * dated within `days` of `now` that no row in `rows` covers: [{ firm, key: "firm|date" }]. The
+ * payload omits some of these — QTTB's unranked Leerink "Initiated $40 10/12" (2026-11-08) was on
+ * the page and in notRankedExperts but not in payload.json — so the scraper fetches the page for
+ * them. `key` carries getData's date: the scraper records the keys it already tried (sidecar), so a
+ * firm the page cannot supply either (no target, below the ~15-row cut) costs ONE fetch per new
+ * getData rating, not one per run. Firm-level coverage, because getData's date for an unranked
+ * expert can be a later reiteration than the row the page shows (Leerink 11-05 vs 10-12).
+ */
+export function missingFirms(rows, data, now = Date.now(), days = 92) {
+  const have = new Set((rows || []).map(firmKey));
+  const since = new Date(now - days * 864e5).toISOString().slice(0, 10);
+  const out = new Map();
+  // a NAMED ranked expert is already a JSON row (toForecasts); only hidden ones can be missing
+  const hidden = [...(data?.experts || []).filter((e) => !e?.name), ...(data?.notRankedExperts || [])];
+  for (const e of hidden) {
+    const d = String((e?.ratings || [])[0]?.date || "").slice(0, 10);
+    // eTypeId 3 = bloggers / StockTwits / news sites, which notRankedExperts mostly is; never a forecast row
+    if (!e || e.aiModel || !e.firm || (e.eTypeId ?? 1) !== 1 || d < since) continue;
+    const k = firmKey({ f: e.firm });
+    if (have.has(k) || /^tipranks\b/i.test(k)) continue;
+    if (!out.has(k) || out.get(k).d < d) out.set(k, { firm: e.firm, d, key: `${k}|${d}` });
+  }
+  return [...out.values()].map(({ firm, key }) => ({ firm, key }));
+}
+
+/** Page rows for the top-up: only the missing firms' — the page also renders history the payload
+ *  deliberately dropped, and adding that on just the tickers that trigger would flap it in and out
+ *  of the file (and the bell) as the trigger comes and goes. */
+export function topUpRows(pageRows, missing) {
+  const want = new Set((missing || []).map((m) => firmKey({ f: m.firm })));
+  return (pageRows || []).filter((r) => want.has(firmKey(r)));
+}
+
+/**
+ * Keep last run's rows for firms getData still lists as hidden and this run lacks — the rows the
+ * page top-up recovered. Without it one failed/truncated page (or a skipped refetch, see
+ * missingFirms) drops them and the next good run re-rings the bell for an old rating. Firm-level,
+ * like missingFirms; never brings back a rating the analyst has since superseded in `out`.
+ */
+export function carryMissing(out, prev, data, now = Date.now()) {
+  const rows = Array.isArray(out) ? out : [];
+  if (!Array.isArray(prev) || !prev.length) return rows;
+  const want = new Set(missingFirms(rows, data, now).map((m) => firmKey({ f: m.firm })));
+  if (!want.size) return rows;
+  const who = (f) => (analystKey(f) === UNKNOWN ? `${UNKNOWN}|${firmKey(f)}` : analystKey(f)); // see UNKNOWN
+  const newest = new Map();
+  for (const f of rows) if (f?.n && (newest.get(who(f)) || "") < f.d) newest.set(who(f), f.d);
+  const back = prev.filter((f) => f?.n && f.d && Number.isFinite(f.pt) && want.has(firmKey(f))
+    && !((newest.get(who(f)) || "") >= f.d));
+  if (!back.length) return rows;
+  return [...rows, ...back].sort((a, b) => (b.d || "").localeCompare(a.d || ""));
+}
+
+/**
  * Which second source to use next to getData: "payload" | "page" | "none". The payload when it
  * parsed — unless it came back empty while getData admits it hid rows (then the page can still
  * name them). Otherwise the legacy page rule (shouldFetchPage). `src` is forecastsFromPayload's

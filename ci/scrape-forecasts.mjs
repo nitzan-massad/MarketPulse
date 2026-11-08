@@ -12,7 +12,7 @@
 // between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { isChallenge, parseForecastHtml, usablePage, withStars } from "./forecast-html.mjs";
-import { carryForward, cleanName, forecastsFromPayload, keepPrevTarget, mergeForecasts, pickSource } from "./forecast-merge.mjs";
+import { carryForward, carryMissing, cleanName, forecastsFromPayload, keepPrevTarget, mergeForecasts, missingFirms, pickSource, topUpRows } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
 import { cachedFirst, isPayloadFor, takeGetData } from "./getdata-cache.mjs";
 
@@ -33,6 +33,9 @@ const OUT = process.env.OUT || "public/forecasts";
 // getData bodies the snapshot step fetched minutes ago this run (see ci/getdata-cache.mjs).
 const CACHE = process.env.GETDATA_CACHE || null;
 const ASOF = `${OUT}/_asOf.json`; // { ticker: ISO } — build-reviews-recent skips it (not an array)
+// { ticker: ["firm|getData date", ...] } — page top-ups already tried (see missingFirms). Same
+// "not an array, not a ticker name" property keeps it out of the reviews feed and the data gate.
+const TRIED = `${OUT}/_pageTried.json`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const RATING = { 1: "Buy", 2: "Hold", 3: "Sell" };
 
@@ -106,6 +109,7 @@ function toForecasts(data) {
 const stocks = JSON.parse(readFileSync("src/data/stocks.json", "utf8"));
 const staleBefore = Date.now() - STALE_DAYS * 864e5;
 const asOf = existsSync(ASOF) ? JSON.parse(readFileSync(ASOF, "utf8")) : {};
+const tried = existsSync(TRIED) ? JSON.parse(readFileSync(TRIED, "utf8")) : {};
 const age = (t) => Date.parse(asOf[t]) || 0; // never fetched -> 0 -> front of the queue
 // Companies within 2 days of an earnings report are refreshed EVERY run, on top of LIMIT —
 // that is when new analyst reviews land. The rest rotate stalest-first as before.
@@ -122,10 +126,11 @@ const PARALLEL = Math.max(1, Math.floor(Number(process.env.PARALLEL)) || 1);
 mkdirSync(OUT, { recursive: true });
 console.log(`forecasts backfill: ${targets.length} ticker(s), ${hot.length} near earnings (LIMIT=${LIMIT}, ALL=${ALL}, SSR_MERGE=${MERGE ? 1 : 0}, PARALLEL=${PARALLEL})`);
 const now = new Date().toISOString();
-let ok = 0, empty = 0, fail = 0, viaHtml = 0, viaPayload = 0, carried = 0, gained = 0, fromCache = 0, tableless = 0;
+let ok = 0, empty = 0, fail = 0, viaHtml = 0, viaPayload = 0, pageTopUps = 0, topUpFails = 0, topUpStreak = 0, carried = 0, gained = 0, fromCache = 0, tableless = 0;
 // payload circuit breaker: after PAYLOAD_TRIP failures in a row, stop asking for the rest of the run
 // (each failure costs 2 tries + 6s sleeps; a site-wide break would add ~30-40 min to the step).
 const PAYLOAD_TRIP = 10;
+const TOPUP_TRIP = 5; // page top-ups failing in a row -> stop trying them this run (a FlareSolverr/page outage)
 let payloadFails = 0, payloadStreak = 0;
 // ponytail: a fixed pool of PARALLEL workers over one shared FlareSolverr; each request is a
 // headless Chrome, so the ceiling is runner CPU, not TipRanks: 3 on the 4-vCPU runner
@@ -136,7 +141,10 @@ const queue = cachedFirst(targets, CACHE);
 // tickers next run; files already written are committed either way. Ceiling: up to 19 stamps lost
 // on a hard SIGKILL — those tickers are simply refetched next run.
 let stamped = 0;
-const saveAsOf = () => { writeFileSync(`${ASOF}.tmp`, JSON.stringify(asOf, null, 1)); renameSync(`${ASOF}.tmp`, ASOF); };
+const saveAsOf = () => {
+  writeFileSync(`${ASOF}.tmp`, JSON.stringify(asOf, null, 1)); renameSync(`${ASOF}.tmp`, ASOF);
+  writeFileSync(`${TRIED}.tmp`, JSON.stringify(tried)); renameSync(`${TRIED}.tmp`, TRIED);
+};
 for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => { saveAsOf(); console.log(`${sig}: _asOf saved (${stamped} stamped)`); process.exit(143); });
 async function scrape(t) {
   try {
@@ -161,12 +169,39 @@ async function scrape(t) {
       } catch { src = null; }
       if (src) payloadStreak = 0; else { payloadFails++; payloadStreak++; }
     }
-    const source = pickSource(src, fc, data, MERGE);
+    let source = pickSource(src, fc, data, MERGE);
     if (source === "payload") {
       const merged = mergeForecasts(withStars(src, data), fc);
       if (merged.length > fc.length) viaPayload++;
       fc = merged;
-    } else if (source === "page") {
+      // The payload omits some unranked analysts' ratings that the page still shows (QTTB Leerink,
+      // 2026-11-08). Top up from the page for those firms only, once per getData rating (`tried`).
+      const missing = missingFirms(fc, data);
+      const fresh = missing.filter((m) => !(tried[t] || []).includes(m.key));
+      if (!missing.length) delete tried[t];
+      else if (!fresh.length) tried[t] = missing.map((m) => m.key); // drop keys getData moved past
+      else if (topUpStreak < TOPUP_TRIP) {
+        pageTopUps++;
+        try {
+          const url = `https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/forecast`;
+          // ponytail: 2 tries — a top-up is optional, and 6 x 60s per ticker would sink the step on a page outage
+          // usablePage(h, 1), not jsonCount: getData says a hidden analyst exists, so the table must be
+          // there (parseForecastHtml needs the same marker). With jsonCount 0 (all-anonymized
+          // micro-caps) an error/empty page would pass, parse to [] and be recorded as tried.
+          const page = await flareGet(url, (h) => usablePage(h, 1), 2);
+          // payload rows win (FX-stable targets — the page's would re-ring the bell); the page only adds
+          const merged = mergeForecasts(fc, topUpRows(withStars(parseForecastHtml(page), data), missing));
+          if (merged.length > fc.length) { viaHtml++; source = "payload+page"; }
+          fc = merged;
+          tried[t] = missing.map((m) => m.key);
+          topUpStreak = 0;
+        } catch (e) {
+          topUpFails++; topUpStreak++; // not recorded in `tried`: retried next run; carryMissing keeps last run's rows
+          console.log(`  ${t}: page top-up failed (${e.message}), payload rows kept`);
+        }
+      }
+    }
+    if (source === "page") {
       const url = `https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/forecast`;
       let page = await flareGet(url);
       // ponytail: one refetch for a table-less page, then merge it anyway (JSON rows only). A full
@@ -190,7 +225,7 @@ async function scrape(t) {
       try { prev = JSON.parse(readFileSync(`${OUT}/${t}.json`, "utf8")); } catch { /* first fetch */ }
       fc = keepPrevTarget(fc, prev);
       const before = fc.length;
-      fc = carryForward(fc, prev, data);
+      fc = carryMissing(carryForward(fc, prev, data), prev, data);
       back = fc.length - before;
       carried += back;
     }
@@ -217,5 +252,6 @@ saveAsOf();
 // tripwire: payload.json failing a lot = TipRanks moved or blocked it; every ticker is on the slow page path
 if (payloadFails) console.log(`${payloadFails > PAYLOAD_TRIP || payloadStreak >= PAYLOAD_TRIP ? "::warning::" : ""}forecasts: payload.json failed for ${payloadFails} ticker(s)${payloadStreak >= PAYLOAD_TRIP ? ` — tripped after ${PAYLOAD_TRIP} in a row, page fallback for the rest of the run` : ""}`);
 // tripwire: many table-less pages while the JSON has rows = TipRanks changed the page markup
+if (topUpFails) console.log(`${topUpStreak >= TOPUP_TRIP || topUpFails > 10 ? "::warning::" : ""}forecasts: ${topUpFails} page top-up(s) failed${topUpStreak >= TOPUP_TRIP ? ` — tripped after ${TOPUP_TRIP} in a row, no more top-ups this run` : ""}`);
 if (tableless) console.log(`${tableless > 10 ? "::warning::" : ""}forecasts: ${tableless} page(s) had no analyst table despite JSON rows${tableless > 10 ? " — did the TipRanks forecast page markup change?" : ""}`);
-console.log(`done: ${ok} written (${viaPayload} gained rows from the payload, ${viaHtml} from the page, ${carried} carried forward, +${gained} rows total), ${empty} empty, ${fail} failed, ${fromCache} getData reused from the snapshot step`);
+console.log(`done: ${ok} written (${viaPayload} gained rows from the payload, ${viaHtml} from the page (${pageTopUps} page top-ups for firms the payload missed, ${topUpFails} failed), ${carried} carried forward, +${gained} rows total), ${empty} empty, ${fail} failed, ${fromCache} getData reused from the snapshot step`);
