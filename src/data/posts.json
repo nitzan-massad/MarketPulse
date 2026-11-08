@@ -1,5 +1,34 @@
 [
   {
+    "id": "LIN-2026-11-08T00:41:01.786Z",
+    "ts": "2026-11-08T00:41:01.786Z",
+    "kind": "newcomer",
+    "ticker": "LIN",
+    "name": "Linde",
+    "sector": "BasicMaterials",
+    "text": "7 days in, 10% upside, 15 analysts.",
+    "score": 30,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (50% word overlap)"
+    ],
+    "facts": {
+      "seenIn": 38,
+      "windowSnapshots": 145,
+      "days": 7.9,
+      "upside": 10.3,
+      "consensus": "StrongBuy",
+      "analysts": 15,
+      "smartScore": 7
+    },
+    "descriptor": "Industrial Gas Producer",
+    "image": "LIN-2026-11-08T00-41-01-786Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "CC BY-SA 4.0",
+    "imageAttribution": "Martin Falbisoner — Wikimedia Commons (CC BY-SA 4.0)"
+  },
+  {
     "id": "SNPS-2026-11-07T20:44:16.885Z",
     "ts": "2026-11-07T20:44:16.885Z",
     "kind": "contrarian",

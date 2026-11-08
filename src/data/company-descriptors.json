@@ -288,5 +288,10 @@
     "name": "Synopsys",
     "descriptor": "Circuit Design Software",
     "scene": "carefully routing wires on a prototype circuit board with tweezers and a microscope"
+  },
+  "LIN": {
+    "name": "Linde",
+    "descriptor": "Industrial Gas Producer",
+    "scene": "inspecting oxygen tanks on a factory production line"
   }
 }
