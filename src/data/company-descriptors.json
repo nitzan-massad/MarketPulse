@@ -293,5 +293,10 @@
     "name": "Linde",
     "descriptor": "Industrial Gas Producer",
     "scene": "inspecting oxygen tanks on a factory production line"
+  },
+  "STX": {
+    "name": "Seagate Technology",
+    "descriptor": "Data Storage Solutions",
+    "scene": "inspecting disk drives on a factory assembly line with calipers and a microscope"
   }
 }

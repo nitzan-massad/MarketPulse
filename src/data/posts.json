@@ -1,5 +1,35 @@
 [
   {
+    "id": "STX-2026-11-08T10:08:30.511Z",
+    "ts": "2026-11-08T10:08:30.511Z",
+    "kind": "record",
+    "ticker": "STX",
+    "name": "Seagate Technology",
+    "sector": "Technology",
+    "text": "~124% upside, this month's high, 15 analysts.",
+    "score": 40,
+    "reasons": [
+      "5 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "duplicate of a recent post (44% word overlap)"
+    ],
+    "facts": {
+      "upside": 124.4,
+      "windowLow": 12.7,
+      "windowHigh": 124.4,
+      "snapshots": 241,
+      "days": 55.7,
+      "price": 460.99,
+      "priceTarget": 1034.5,
+      "analysts": 15,
+      "sectorMedianUpside": 48.7
+    },
+    "descriptor": "Data Storage Solutions",
+    "image": "STX-2026-11-08T10-08-30-511Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "SNPS-2026-11-08T04:32:51.060Z",
     "ts": "2026-11-08T04:32:51.060Z",
     "kind": "contrarian",
