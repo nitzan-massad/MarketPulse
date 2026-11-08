@@ -5,7 +5,7 @@ import { fetchForecasts, type Forecast } from "../forecasts";
 import { trackedPayload, useTrackedRev } from "../stocks";
 import sectorPe from "../data/sectors.json";
 import { consClass, consLabel, DATE_LOCALE, fmtMc, pxDp } from "../lib";
-import { reviewKey } from "../reviewAlerts";
+import { reviewKey, unmark } from "../reviewAlerts";
 import type { Stock } from "../types";
 import { tickerTarget, type TickerView } from "../share";
 import { useShare } from "../useShare";
@@ -825,7 +825,8 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     highlightDone.current = highlightReviews;
     setFcOpen(true);
     fcFromHighlight.current = true;
-    setHotKeys(new Set(highlightReviews));
+    // keys saved by an older reviewKey may still carry bidi marks; reviewKey strips them now
+    setHotKeys(new Set(highlightReviews.map(unmark)));
     const id = window.setTimeout(() => setHotKeys(new Set()), 2000);
     return () => window.clearTimeout(id);
   }, [highlightReviews, forecasts]);

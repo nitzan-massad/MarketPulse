@@ -31,6 +31,9 @@ eq("only unseen returned", newReviewKeys(cur, seen), [reviewKey(cur[0]), reviewK
 eq("all seen -> none new", newReviewKeys(cur, allReviewKeys(cur)), []);
 eq("empty seen sees all (baseline)", newReviewKeys(cur, []).length, 3);
 eq("duplicate rows collapse to one key", newReviewKeys([mk("Ann", "2026-07-25", 340), mk("Ann", "2026-07-25", 340)], []).length, 1);
+eq("bidi mark in the name does not change the key", reviewKey(mk("Daniel Zhu\u200f", "2026-10-25", 400)), reviewKey(mk("Daniel Zhu", "2026-10-25", 400)));
+eq("an old marked seen-key still matches the cleaned row",
+  newReviewKeys([mk("Daniel Zhu", "2026-10-25", 400)], ["Daniel Zhu\u200f|Firm|2026-10-25|Buy|400"]), []);
 
 if (failed) throw new Error(`${failed} reviewAlerts check(s) failed`);
 console.log("\nall reviewAlerts checks passed");

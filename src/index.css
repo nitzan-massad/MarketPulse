@@ -1181,10 +1181,10 @@ body:has(.mkm-bare) .mkm-scrim-top{background:transparent; backdrop-filter:none}
 .mkm-modal-fc{width:min(560px, calc(100vw - 32px))}
 .mkm-fcfull-modal{border-bottom:0; padding-top:8px}
 /* title + company · sector under it, the whole block a button that raises the stock card;
-   it fills the titlebar (negative margin) so the hover tints the full header. The right
-   padding clears the corner × */
+   it fills the titlebar's left/top/bottom (negative margin) so the hover tints the header, but
+   stops before the share button so the two hit areas never overlap */
 .mkm-fctitle{display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:10px; row-gap:2px; align-items:center; min-width:0;
-  flex:1; margin:-11px -16px; padding:11px 44px 11px 16px; border:0; border-radius:13px 13px 0 0;
+  flex:1; margin:-11px 0 -11px -16px; padding:11px 10px 11px 16px; border:0; border-radius:13px 0 0 0;
   background:none; font:inherit; color:inherit; text-align:left; cursor:pointer}
 .mkm-fctitle:disabled{cursor:default}
 .mkm-fctitle:not(:disabled):hover{background:var(--panel-2)}

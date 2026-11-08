@@ -14,13 +14,19 @@ export interface ReviewLike {
   pt: number | null; // price target
 }
 
+// Invisible bidi/zero-width marks TipRanks pads some names with. The pipeline now strips them
+// (ci/forecast-merge.mjs cleanName), but users' stored seen-keys still carry them — so strip on
+// BOTH sides, or the cleaned rows re-ring the bell as "new" once. Keep in step with cleanName.
+const MARKS = /[\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\u061c\ufeff]/g;
+export const unmark = (k: string): string => k.replace(MARKS, "");
+
 export function reviewKey(f: ReviewLike): string {
-  return [f.n ?? "", f.f ?? "", f.d ?? "", f.r ?? "", f.pt ?? ""].join("|");
+  return unmark([f.n ?? "", f.f ?? "", f.d ?? "", f.r ?? "", f.pt ?? ""].join("|"));
 }
 
 // Keys present in `current` but not in `seen`, de-duplicated, order preserved (newest first).
 export function newReviewKeys(current: ReviewLike[], seen: readonly string[]): string[] {
-  const s = new Set(seen);
+  const s = new Set(seen.map(unmark));
   const out: string[] = [];
   for (const f of current) {
     const k = reviewKey(f);

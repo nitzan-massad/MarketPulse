@@ -12,7 +12,7 @@
 // between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { isChallenge, parseForecastHtml, usablePage, withStars } from "./forecast-html.mjs";
-import { carryForward, forecastsFromPayload, keepPrevTarget, mergeForecasts, pickSource } from "./forecast-merge.mjs";
+import { carryForward, cleanName, forecastsFromPayload, keepPrevTarget, mergeForecasts, pickSource } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
 import { cachedFirst, isPayloadFor, takeGetData } from "./getdata-cache.mjs";
 
@@ -90,7 +90,7 @@ function toForecasts(data) {
     if (pt == null) continue; // a forecast needs a target
     const rk = (e.rankings || []).find((x) => x.stars != null) || {};
     out.push({
-      n: e.name,
+      n: cleanName(e.name),
       f: e.firm || null,
       st: rk.stars ?? null,
       r: RATING[r0.ratingId] ?? null,

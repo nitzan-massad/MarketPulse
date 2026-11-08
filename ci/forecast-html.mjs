@@ -1,3 +1,5 @@
+import { cleanName } from "./forecast-merge.mjs";
+
 // Parse analyst forecasts out of TipRanks' SSR forecast page.
 //
 // Why this exists: the `getData` API paywall-anonymizes a fixed teaser window of rows —
@@ -68,7 +70,7 @@ export function parseForecastHtml(html) {
       .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(+d))
       .replace(/&nbsp;/g, " ").replace(/&quot;/g, '"').replace(/&apos;/g, "'")
       .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")
-      .split("|").map((s) => s.trim()).filter(Boolean);
+      .split("|").map(cleanName).filter(Boolean);
 
     const date = tok.find((s) => /^\d{2}\/\d{2}\/\d{2}$/.test(s));
     if (!date) continue;
@@ -129,9 +131,9 @@ export function withStars(rows, data) {
     const r0 = (e.ratings || [])[0];
     if (!e.firm || !r0?.date) continue;
     const rk = (e.rankings || []).find((x) => x.stars != null);
-    if (rk) stars.set(`${e.firm.trim()}|${String(r0.date).slice(0, 10)}`, rk.stars);
+    if (rk) stars.set(`${cleanName(e.firm)}|${String(r0.date).slice(0, 10)}`, rk.stars);
   }
   return rows
-    .map((x) => ({ n: x.n, f: x.f, st: stars.get(`${(x.f || "").trim()}|${x.d}`) ?? null, r: x.r, pt: x.pt, opt: x.opt ?? null, d: x.d }))
+    .map((x) => ({ n: x.n, f: x.f, st: stars.get(`${cleanName(x.f)}|${x.d}`) ?? null, r: x.r, pt: x.pt, opt: x.opt ?? null, d: x.d }))
     .sort((a, b) => (b.d || "").localeCompare(a.d || ""));
 }

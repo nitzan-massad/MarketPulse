@@ -229,4 +229,16 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   assert.equal(pickSource(null, [], { expertRatingsFilteredCount: 3 }, false), "page", "SSR_MERGE=0, empty + withheld -> legacy page fallback");
 }
 
+{ // invisible bidi marks in a name must not split one analyst into two keys
+  const { cleanName } = await import("./forecast-merge.mjs");
+  assert.equal(cleanName("Daniel Zhu\u200f"), "Daniel Zhu");
+  assert.equal(cleanName("\u200fAvantika Dhabaria\u200f"), "Avantika Dhabaria");
+  assert.equal(cleanName("Mohammad\u200cReza"), "Mohammad\u200cReza", "ZWNJ is real spelling, kept");
+  assert.equal(cleanName(null), "");
+  const m = mergeForecasts([{ n: "Daniel Zhu", f: "Bernstein", r: "Buy", pt: 400, d: "2026-10-25" }],
+    [{ n: "Daniel Zhu\u200f", f: "Bernstein", st: 0.2, r: "Buy", pt: 400, d: "2026-10-25" }]);
+  assert.equal(m.length, 1, "bidi-marked duplicate collapses");
+  assert.equal(m[0].st, 0.2, "star joins across the bidi mark");
+}
+
 console.log("ok   forecast merge: gate, additive guarantee, union, dedup, precedence, anonymized rows, BIOA, payload, carry-forward, FX-stable targets, source choice");

@@ -27,11 +27,16 @@
  * accepted for the STAR join in forecast-html.mjs `withStars`, where the cost is a wrong star
  * count; here it would drop a whole rating).
  */
-export const analystKey = (f) => (f.n || "").toLowerCase().trim();
+// TipRanks pads some names with invisible bidi/zero-width marks ("Daniel Zhu\u200f"), which
+// String#trim() keeps — so the same analyst keyed two ways and missed the star/dedupe joins.
+// ZWNJ/ZWJ (U+200C/D) are left alone: they are real spelling in Persian/Indic names.
+// Keep in step with src/reviewAlerts.ts MARKS.
+export const cleanName = (s) => (typeof s === "string" ? s.replace(/[\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\u061c\ufeff]/g, "").trim() : "");
+export const analystKey = (f) => cleanName(f.n).toLowerCase();
 // TipRanks names every unranked analyst "Unknown Analyst", so for them the firm is the identity —
 // two of them on one date (different firms) are two ratings, not a duplicate.
 const UNKNOWN = "unknown analyst";
-const firmKey = (f) => (f.f || "").toLowerCase().trim();
+const firmKey = (f) => cleanName(f.f).toLowerCase();
 export const mergeKey = (f) => `${analystKey(f)}|${f.d || ""}${analystKey(f) === UNKNOWN ? `|${firmKey(f)}` : ""}`;
 
 /**
@@ -131,7 +136,7 @@ export function forecastsFromPayload(fj, ticker, data) {
   for (const r of m.ratings) {
     if (ticker && r?.object?.ticker && r.object.ticker !== ticker) continue; // a peer's rating
     const e = experts.get(r?.expert?.uid);
-    const n = typeof e?.name === "string" ? e.name.trim() : "";
+    const n = cleanName(e?.name);
     const f = firmOf.get(r?.expert?.uid) ?? (typeof e?.firm === "string" ? e.firm.trim() : "");
     if (!n || !f || /^TipRanks\b/i.test(f)) continue;
     const pt = Number(r.priceTarget?.value);
