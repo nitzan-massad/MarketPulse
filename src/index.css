@@ -1655,14 +1655,6 @@ body:has(.nb-scrim){overflow:hidden}
 /* Clear the corner × (.mp-close), which reaches ~23px into the host (27px on phones). */
 .mp-share{margin-right:12px}
 @media(max-width:640px){ .mp-share{margin-right:16px} }
-.mp-share ~ /* Phones: 22px ticker + star + thumbs + LIVE + chip + × overflows a 344px modal, so the
-   label goes and the glyph stays. Not a graceful degradation — the icon alone is the
-   same control, and a wrapped title bar would be worse than a wordless button. */
-@media(max-width:640px){
-  .mp-share.compact{padding:6px; gap:0}
-  /* clipped, not display:none — the word stays the button's accessible name */
-  .mp-share.compact span{position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%)}
-}
 
 /* the copy-failed row — never dressed up as a success */
 .mp-copyfail{

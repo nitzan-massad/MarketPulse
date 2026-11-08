@@ -19,16 +19,14 @@ interface ShareButtonProps {
   /** What the link points at, for the tooltip — e.g. "AAPL" or "the Fear & Greed index". */
   what: string;
   onShare: () => void;
-  /** Hide the visible word on narrow screens but keep it for screen readers. */
-  compact?: boolean;
   className?: string;
 }
 
-export default function ShareButton({ what, onShare, compact, className }: ShareButtonProps) {
+export default function ShareButton({ what, onShare, className }: ShareButtonProps) {
   return (
     <button
       type="button"
-      className={`mp-share${compact ? " compact" : ""}${className ? " " + className : ""}`}
+      className={`mp-share${className ? " " + className : ""}`}
       title={`Copy link to ${what}`}
       onClick={onShare}
     >

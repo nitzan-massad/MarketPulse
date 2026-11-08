@@ -155,7 +155,7 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
           <div className="fg-body">
           <div className="fg-head">
             <h2 className="fg-title" id={titleId}>Fear &amp; Greed Index</h2>
-            <ShareButton what="the Fear &amp; Greed index" onShare={share.onShare} compact />
+            <ShareButton what="the Fear &amp; Greed index" onShare={share.onShare} />
           </div>
           {share.copyFailed && <ShareFail url={share.url} />}
 

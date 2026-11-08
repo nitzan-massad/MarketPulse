@@ -1073,7 +1073,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
           )}
           {!chromeOff && <ThumbMark mark={mark} onMark={onMark} both />}
           {!chromeOff && marketOpen() && <div className="mkm-live">LIVE</div>}
-          {!chromeOff && <ShareButton what={stock.t} onShare={share.onShare} compact />}
+          {!chromeOff && <ShareButton what={stock.t} onShare={share.onShare} />}
         </div>
 
         {/* only the card in view: the neighbours' × sits outside their edge and peeked into view */}
@@ -1724,7 +1724,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
               )}
               {fcFromHighlight.current && <span className="mkm-fcgo" aria-hidden="true">›</span>}
             </button>
-            <ShareButton what={`${stock.t} analyst forecasts`} onShare={fcShare.onShare} compact />
+            <ShareButton what={`${stock.t} analyst forecasts`} onShare={fcShare.onShare} />
           </div>
           {fcShare.copyFailed && <ShareFail url={fcShare.url} />}
           <CloseButton what={`${stock.t} analyst forecasts`} onClose={closeFc} />
