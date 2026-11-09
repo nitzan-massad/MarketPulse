@@ -1,5 +1,32 @@
 [
   {
+    "id": "GS-2026-11-09T08:03:40.258Z",
+    "ts": "2026-11-09T08:03:40.258Z",
+    "kind": "newcomer",
+    "ticker": "GS",
+    "name": "Goldman Sachs Group",
+    "sector": "Financial",
+    "text": "New to board, 19 days covered.",
+    "score": 52,
+    "reasons": [
+      "2 digits of concrete detail",
+      "length in band",
+      "GS appeared in a recent post"
+    ],
+    "facts": {
+      "seenIn": 78,
+      "windowSnapshots": 241,
+      "days": 18.5,
+      "upside": 25.7,
+      "consensus": "Buy",
+      "analysts": 16,
+      "smartScore": 5
+    },
+    "descriptor": "Global Investment Bank",
+    "image": "GS-2026-11-09T08-03-40-258Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "STX-2026-11-08T10:08:30.511Z",
     "ts": "2026-11-08T10:08:30.511Z",
     "kind": "record",
