@@ -1,5 +1,36 @@
 [
   {
+    "id": "TWLO-2026-11-10T04:43:54.536Z",
+    "ts": "2026-11-10T04:43:54.536Z",
+    "kind": "movement",
+    "ticker": "TWLO",
+    "name": "Twilio Inc",
+    "sector": "Technology",
+    "text": "12 analysts upgraded to Strong Buy today.",
+    "score": 38,
+    "reasons": [
+      "2 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "duplicate of a recent post (40% word overlap)"
+    ],
+    "facts": {
+      "upsideFrom": 37.8,
+      "upsideTo": 37.8,
+      "consensusFrom": "Buy",
+      "consensusTo": "StrongBuy",
+      "price": 202.02,
+      "priceTarget": 278.33,
+      "analysts": 12,
+      "sector": "Technology"
+    },
+    "descriptor": "Cloud Communications Platform",
+    "image": "TWLO-2026-11-10T04-43-54-536Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "CC BY-SA 2.0",
+    "imageAttribution": "Atomic Taco from Seattle, WA, USA — Wikimedia Commons (CC BY-SA 2.0)"
+  },
+  {
     "id": "CRWV-2026-11-09T20:51:00.739Z",
     "ts": "2026-11-09T20:51:00.739Z",
     "kind": "surprise",

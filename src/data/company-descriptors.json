@@ -298,5 +298,10 @@
     "name": "Seagate Technology",
     "descriptor": "Data Storage Solutions",
     "scene": "inspecting disk drives on a factory assembly line with calipers and a microscope"
+  },
+  "TWLO": {
+    "name": "Twilio",
+    "descriptor": "Cloud Communications Platform",
+    "scene": "tuning a bank of telecommunications servers with wires and circuit boards exposed"
   }
 }
