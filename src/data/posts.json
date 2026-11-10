@@ -1,5 +1,29 @@
 [
   {
+    "id": "RAPP-2026-11-10T21:52:13.632Z",
+    "ts": "2026-11-10T21:52:13.632Z",
+    "kind": "list",
+    "ticker": "RAPP",
+    "name": "Rapport Therapeutics, Inc.",
+    "sector": "General",
+    "text": "186% upside leads the top 5.",
+    "score": 36,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (40% word overlap)"
+    ],
+    "facts": {
+      "members": "Rapport Therapeutics (186.4% to $70), Praxis Precision Medicines (180% to $777.33), Forgent Power Solutions, Inc. Class A (177.2% to $54), Coreweave (174.6% to $127.43), Zura Bio (164.1% to $10.8)",
+      "count": 5,
+      "leader": "Rapport Therapeutics",
+      "leaderUpside": 186.4
+    },
+    "descriptor": "CNS Therapeutics Developer",
+    "image": "RAPP-2026-11-10T21-52-13-632Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "ORLY-2026-11-10T16:09:00.260Z",
     "ts": "2026-11-10T16:09:00.260Z",
     "kind": "contrarian",

@@ -303,5 +303,10 @@
     "name": "Twilio",
     "descriptor": "Cloud Communications Platform",
     "scene": "tuning a bank of telecommunications servers with wires and circuit boards exposed"
+  },
+  "RAPP": {
+    "name": "Rapport Therapeutics",
+    "descriptor": "CNS Therapeutics Developer",
+    "scene": "carefully measuring compounds in a laboratory fume hood with precision instruments"
   }
 }
