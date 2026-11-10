@@ -135,9 +135,9 @@
     "scene": "calibrating a server rack with diagnostic tools and cables"
   },
   "ORLY": {
-    "name": "O'Reilly Automotive",
-    "descriptor": "Auto Parts Retailer",
-    "scene": "inspecting used engine blocks on a warehouse shelf"
+    "name": "O'Reilly Auto",
+    "descriptor": "Auto Parts Supplier",
+    "scene": "inspecting used engine blocks on a warehouse shelving unit"
   },
   "ARGX": {
     "name": "Argenx",
