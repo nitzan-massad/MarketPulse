@@ -398,7 +398,7 @@ export default function App() {
   const liveCtx = useMemo(() => ({ price: livePrice, observe }), [livePrice, observe]);
   useReviewAlerts(user, watchlist, notif.pushReview);
 
-  // clicking a notification: jump to the watchlist view and open that stock's modal.
+  // clicking a notification: open that stock's modal over whatever page is showing.
   // A review notification also opens the forecast view with its new rows highlighted.
   function openFromNotification(n: Notification) {
     const s = STOCKS.find((x) => x.t === n.ticker);
@@ -408,7 +408,6 @@ export default function App() {
       location.reload();
       return;
     }
-    setNav("watch");
     const watched = STOCKS.filter((x) => watchlist.includes(x.t));
     // a ticker since removed from the watchlist still opens on itself, not on the list's first row
     if (s) handleOpen(s, watched.includes(s) ? watched : [s]);

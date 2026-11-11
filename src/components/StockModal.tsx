@@ -695,6 +695,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     onViewClosed?.();
   }, [onViewClosed]);
   const [hotKeys, setHotKeys] = useState<Set<string>>(() => new Set()); // review rows to glow, from a notification
+  const [pinKeys, setPinKeys] = useState<Set<string>>(() => new Set()); // same rows, first within their date while that view is open
   const highlightDone = useRef<string[] | null>(null);
   const fcFromHighlight = useRef(false);
   const [liveDesc, setLiveDesc] = useState<string | null>(null);
@@ -827,15 +828,37 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     setFcOpen(true);
     fcFromHighlight.current = true;
     // keys saved by an older reviewKey may still carry bidi marks; reviewKey strips them now
-    setHotKeys(new Set(highlightReviews.map(unmark)));
+    const keys = new Set(highlightReviews.map(unmark));
+    setHotKeys(keys);
+    setPinKeys(keys); // outlives the 2s glow, but only for this one highlight-opened view
     const id = window.setTimeout(() => setHotKeys(new Set()), 2000);
     return () => window.clearTimeout(id);
   }, [highlightReviews, forecasts]);
+
+  // Date order stays; the notification's rows only win the tie within their own date, so a
+  // busy day never pushes them below that day's other ratings. The list arrives date-sorted
+  // (every ci/ writer sorts on `d`), so each date is one contiguous run: within a run, pinned
+  // rows first, both halves stable. Keyed on pinKeys, not the prop: the prop outlives this view
+  // (swipe away and back, "See all" later), and a later open must be plain date order.
+  const fcOrdered = useMemo(() => {
+    if (!forecasts || !pinKeys.size) return forecasts ?? [];
+    const pin = pinKeys;
+    const out: typeof forecasts = [];
+    for (let i = 0; i < forecasts.length; ) {
+      let j = i;
+      while (j < forecasts.length && forecasts[j].d === forecasts[i].d) j++;
+      const run = forecasts.slice(i, j);
+      out.push(...run.filter((f) => pin.has(reviewKey(f))), ...run.filter((f) => !pin.has(reviewKey(f))));
+      i = j;
+    }
+    return out;
+  }, [forecasts, pinKeys]);
 
   // closing that notification-opened forecasts view hands control back to the opener
   useEffect(() => {
     if (fcOpen || !fcFromHighlight.current) return;
     fcFromHighlight.current = false;
+    setPinKeys(new Set());
     onReviewsClosed?.();
   }, [fcOpen, onReviewsClosed]);
 
@@ -1742,7 +1765,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                   <span className="ar">Potential</span>
                   <span className="ar">Rating Date</span>
                 </div>
-                {forecasts.map((f, i) => {
+                {fcOrdered.map((f, i) => {
                   const up = fcUpside(f.pt);
                   const hot = hotKeys.has(reviewKey(f));
                   return (
