@@ -1,9 +1,9 @@
 import { useMemo, type ReactNode } from "react";
-import { consLabel, fmtMc, scoreColor } from "../lib";
+import { consLabel, fmtMc } from "../lib";
 import { useStocks } from "../stocks";
 import type { Stock } from "../types";
 import type { Mark, MarkEntry } from "../watchlist";
-import { ConsPill } from "./StockTable";
+import { aiTone, Chip, ConsPill } from "./StockTable";
 import ThumbMark from "./ThumbMark";
 import { LivePx } from "../LivePx";
 import { warmChart } from "../warmChart";
@@ -20,25 +20,13 @@ interface BestOfBestProps {
 function UpBar({ up }: { up: number | null }) {
   if (up == null) return <span className="dash">—</span>;
   const neg = up < 0;
-  const c = scoreColor(up, 100) ?? undefined;
   const val = (up > 0 ? "+" : "") + up.toFixed(up >= 100 ? 0 : 1) + "%";
   return (
     <div className="bob-up">
-      <span className="bob-upval" style={neg ? undefined : { color: c }}>
+      <span className={`bob-upval${neg ? " neg" : ""}`}>
         {val}
       </span>
     </div>
-  );
-}
-
-function Chip({ v, max }: { v: number | null; max: number }) {
-  if (v == null) return <span className="dash">—</span>;
-  const c = scoreColor(v, max)!;
-  const text = v % 1 ? v : v | 0;
-  return (
-    <span className="chip" style={{ color: c, borderColor: c + "44", background: c + "14" }}>
-      {text}
-    </span>
   );
 }
 
@@ -106,7 +94,7 @@ export function Card({
         <div className="bob-m">
           <span className="bob-k">Smart Score</span>
           <span className="bob-v">
-            <Chip v={s.ss} max={10} />
+            <Chip v={s.ss} />
           </span>
         </div>
         <div className="bob-m">
@@ -115,9 +103,9 @@ export function Card({
             {s.ai == null ? (
               <span className="dash">—</span>
             ) : (
-              <span className="bob-ai" style={{ color: scoreColor(s.ai, 100)! }}>
+              <span className="bob-ai">
                 {s.ai}
-                {s.air ? <small>{s.air}</small> : null}
+                {s.air ? <span className={`tag ${aiTone(s.air)}`}>{s.air}</span> : null}
               </span>
             )}
           </span>

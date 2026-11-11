@@ -24,14 +24,14 @@ export const COLS: Col[] = [
   { k: "_rank", l: "#", cls: "rank l", sortable: false },
   { k: "_tk", l: "Ticker / Company", cls: "l", sortable: false },
   { k: "px", l: "Price", sortable: true },
-  { k: "chg", l: "Day %", sortable: true },
-  { k: "con", l: "Consensus", cls: "c", sortable: true },
-  { k: "pt", l: "Predicted Price", sortable: true },
+  { k: "chg", l: "Day", sortable: true },
+  { k: "con", l: "Consensus", cls: "l", sortable: true },
+  { k: "pt", l: "Target", sortable: true },
   { k: "up", l: "Upside", sortable: true },
-  { k: "ss", l: "Smart Score", sortable: true },
-  { k: "ai", l: "AI Score", sortable: true },
+  { k: "ss", l: "Smart", sortable: true },
+  { k: "ai", l: "AI Score", cls: "l", sortable: true },
   { k: "sec", l: "Sector", cls: "sec l", sortable: true },
-  { k: "mc", l: "Mkt Cap", sortable: true },
+  { k: "mc", l: "Mkt cap", sortable: true },
 ];
 
 // dates follow the device locale; fall back to en-GB (dd/mm/yy) when unknown

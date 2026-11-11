@@ -34,12 +34,12 @@ const px = (n: number): string => n.toFixed(1) + "px";
 const many = (n: number, f: (i: number) => ReactNode): ReactNode[] => Array.from({ length: n }, (_, i) => f(i));
 
 // The modal's own palette (src/index.css --t-*), inlined because these land on CSS vars.
-const NAVY = "#1b3f73";
-const NAVY2 = "#2a5695";
-const TEAL = "#147c86";
-const GREEN = "#17864f";
-const RED = "#c73a2b";
-const AMBER = "#b8860b";
+const NAVY = "#1E3A6E";
+const NAVY2 = "#2A4C86";
+const TEAL = "#0E7466";
+const GREEN = "#16803C";
+const RED = "#B42318";
+const AMBER = "#A86A0C";
 const PARTY = [NAVY, NAVY2, TEAL, GREEN, AMBER, RED];
 
 const PLANE = (

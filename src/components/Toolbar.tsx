@@ -3,7 +3,6 @@ import MultiSelect from "./MultiSelect";
 import type { MarkFilter } from "../App";
 
 interface ToolbarProps {
-  q: string;
   sectors: string[];
   sectorOptions: string[];
   sectorNot: boolean;
@@ -14,7 +13,6 @@ interface ToolbarProps {
   activeCount: number;
   canReset: boolean;
   onReset: () => void;
-  onQ: (v: string) => void;
   onSectors: (v: string[]) => void;
   onSectorNot: (v: boolean) => void;
   onConsensuses: (v: string[]) => void;
@@ -40,8 +38,8 @@ const CAPS = [
 ];
 
 export default function Toolbar({
-  q, sectors, sectorOptions, sectorNot, consensuses, consensusOptions, cap, count, activeCount, canReset,
-  onReset, onQ, onSectors, onSectorNot, onConsensuses, onCap,
+  sectors, sectorOptions, sectorNot, consensuses, consensusOptions, cap, count, activeCount, canReset,
+  onReset, onSectors, onSectorNot, onConsensuses, onCap,
   markFilter, onMarkFilter, showMarkFilter,
 }: ToolbarProps) {
   return (
@@ -71,26 +69,6 @@ export default function Toolbar({
         )}
       </summary>
       <div className="toolbar">
-        <label className="field">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-            <circle cx="11" cy="11" r="7" />
-            <path d="M21 21l-4.3-4.3" />
-          </svg>
-          <input
-            className="search"
-            id="q"
-            placeholder="Search ticker or company…"
-            autoComplete="off"
-            value={q}
-            onChange={(e) => onQ(e.target.value)}
-          />
-          {q && (
-            <button type="button" className="clear" aria-label="Clear search" onClick={() => onQ("")}>
-              ×
-            </button>
-          )}
-        </label>
-
         <div className="mode" role="group" aria-label="Sector match mode">
           <button
             type="button"

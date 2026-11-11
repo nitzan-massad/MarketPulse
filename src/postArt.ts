@@ -55,10 +55,10 @@ export function sceneFor(sector: string): SceneName {
 // plumbing, so the values a scene is allowed to draw MARKS in are restated here, literally —
 // keep both in sync if the palette ever moves. Grounds (sky() gradients, terrain fills) are
 // not required to be exactly one of these; they just have to be LIGHT, to match the card.
-const INK = "#131a24", MUTED = "#55606f";
-const BG = "#f9fafb", PANEL2 = "#e3e8ef";
-const NAVY = "#1b3f73";
-const GREEN = "#17864f", AMBER = "#b8860b", RED = "#c73a2b", TEAL = "#147c86";
+const INK = "#0F1B2D", MUTED = "#5E6A7C";
+const BG = "#F4F6F9", PANEL2 = "#EDF1F6";
+const NAVY = "#1E3A6E";
+const GREEN = "#16803C", AMBER = "#A86A0C", RED = "#B42318", TEAL = "#0E7466";
 
 /** "#rrggbb" -> "r,g,b", once, so a translucent version of a palette mark can be written as
  *  `rgba(${rgbOf(TEAL)},.4)` instead of a second, easy-to-drift decimal literal next to it. */

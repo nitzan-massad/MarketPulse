@@ -375,14 +375,17 @@ export function PostFeed({ base, onOpenTicker }: { base: string; onOpenTicker: (
 
   if (!items.length) {
     return (
-      <div className="feed-empty">
-        <p>No posts yet.</p>
-        <p className="feed-empty-sub">The next data refresh writes one.</p>
+      <div className="feed-wrap">
+        <div className="feed-empty">
+          <p>No posts yet.</p>
+          <p className="feed-empty-sub">The next data refresh writes one.</p>
+        </div>
       </div>
     );
   }
 
   return (
+    <div className="feed-wrap">
     <ul className="feed">
       {items.map((p) => (
         <li key={p.id} className={`feed-card k-${p.kind}`}>
@@ -403,5 +406,6 @@ export function PostFeed({ base, onOpenTicker }: { base: string; onOpenTicker: (
         </li>
       ))}
     </ul>
+    </div>
   );
 }

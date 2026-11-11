@@ -15,6 +15,7 @@ import ShareBurst from "./ShareBurst";
 import CloseButton from "./CloseButton";
 import ShareButton, { ShareFail } from "./ShareButton";
 import ThumbMark from "./ThumbMark";
+import { aiTone } from "./StockTable";
 import PeHistory from "./PeHistory";
 import { parseEps, type EpsPoint } from "../peHistory";
 import { earningsParts, fromEntry, todayYmd, type Earnings } from "../earnings";
@@ -566,7 +567,7 @@ function buildChart(
 
 // Confetti rain over the "We're on it" sheet: 40 pieces, fixed once so a re-render doesn't
 // reshuffle them mid-fall. Position, size, colour, delay, sway and spin per piece.
-const CONFETTI_COLORS = ["#1b3f73", "#4a78b8", "#9fb8dc", "#e0a43a", "#2e9e6e", "#e56b6f", "#7c5cbf"];
+const CONFETTI_COLORS = ["#1E3A6E", "#4a78b8", "#9fb8dc", "#e0a43a", "#2e9e6e", "#e56b6f", "#7c5cbf"];
 const CONFETTI = Array.from({ length: 40 }, (_, i) => ({
   left: `${Math.random() * 96}%`,
   width: `${5 + (i % 3)}px`,
@@ -963,7 +964,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   const rangePct = held ? held.v : settledPct;
   if (!pctLoading) lastPctRef.current = { t: stock.t, v: settledPct };
   const dir = rangePct == null ? "flat" : rangePct > 0 ? "up" : rangePct < 0 ? "dn" : "flat";
-  const arrow = rangePct == null ? "" : rangePct > 0 ? "▴" : rangePct < 0 ? "▾" : "•";
+  const arrow = rangePct == null ? "" : rangePct > 0 ? "▲ " : rangePct < 0 ? "▼ " : "• ";
 
   const upside =
     stock.up != null ? stock.up : price != null && stock.pt != null && price > 0
@@ -1269,12 +1270,12 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                 >
                   <defs>
                     <linearGradient id="mkm-fill-up" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0" stopColor="rgba(50,215,75,.22)" />
-                      <stop offset="1" stopColor="rgba(50,215,75,0)" />
+                      <stop offset="0" style={{ stopColor: "var(--t-green)", stopOpacity: 0.18 }} />
+                      <stop offset="1" style={{ stopColor: "var(--t-green)", stopOpacity: 0 }} />
                     </linearGradient>
                     <linearGradient id="mkm-fill-dn" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0" stopColor="rgba(255,69,58,.22)" />
-                      <stop offset="1" stopColor="rgba(255,69,58,0)" />
+                      <stop offset="0" style={{ stopColor: "var(--t-red)", stopOpacity: 0.18 }} />
+                      <stop offset="1" style={{ stopColor: "var(--t-red)", stopOpacity: 0 }} />
                     </linearGradient>
                   </defs>
                   {/* gridlines: horizontal at price ticks, vertical at date ticks */}
@@ -1310,14 +1311,14 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                       cy={chart!.lastY}
                       r="4"
                       fill="none"
-                      stroke={chart!.up ? "#32d74b" : "#ff453a"}
+                      style={{ stroke: chart!.up ? "var(--t-green)" : "var(--t-red)" }}
                     />
                   )}
                   <circle
                     cx={chart!.lastX}
                     cy={chart!.lastY}
                     r={chart!.live ? 3.4 : 3}
-                    fill={chart!.up ? "#32d74b" : "#ff453a"}
+                    style={{ fill: chart!.up ? "var(--t-green)" : "var(--t-red)" }}
                   />
                   {/* scrubber crosshair — vertical line + dot snapped to the nearest point */}
                   {scrubPt && (
@@ -1353,36 +1354,38 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
           <div className={`mkm-matrix ${covered ? "" : trackReq === "pending" ? "uncovered pending" : "uncovered"}`}>
             <div className="mkm-cell">
               <div className="k">Prc Target</div>
-              <div className="v gold">{usd(stock.pt)}</div>
+              <div className="v">{usd(stock.pt)}</div>
             </div>
             <div className="mkm-cell">
               <div className="k">Upside</div>
-              <div className="v gold">{upside == null ? "—" : pct(upside)}</div>
+              <div className="v big">
+                {upside == null ? "—" : (upside > 0 ? "+" : "") + upside.toLocaleString("en-US", { maximumFractionDigits: 0 }) + "%"}
+              </div>
             </div>
             <div className="mkm-cell">
               <div className="k">Smart Score</div>
-              <div className="v green">
-                {stock.ss == null ? "—" : stock.ss}
+              <div className={`v${stock.ss == null ? " nr" : ""}`}>
+                {stock.ss == null ? "Not rated" : stock.ss}
                 {stock.ss != null && <small>/10</small>}
               </div>
             </div>
             <div className="mkm-cell">
               <div className="k">AI Score</div>
-              <div className="v green">
-                {stock.ai == null ? "—" : stock.ai}
+              <div className={`v${stock.ai == null ? " nr" : ""}`}>
+                {stock.ai == null ? "Not rated" : stock.ai}
                 {stock.ai != null && <small>/100</small>}
               </div>
             </div>
             <div className="mkm-cell">
               <div className="k">Consensus</div>
-              <div className={`v ${consClass(stock.con)}`} style={{ fontSize: 14 }}>
-                {consLabel(stock.con).toUpperCase()}
+              <div className="v">
+                {stock.con ? <span className={`pill ${consClass(stock.con)}`}>{consLabel(stock.con)}</span> : "—"}
               </div>
             </div>
             <div className="mkm-cell">
               <div className="k">AI Rating</div>
-              <div className="v" style={{ fontSize: 14, color: "var(--t-teal)" }}>
-                {(stock.air || "—").toUpperCase()}
+              <div className="v">
+                {stock.air ? <span className={`tag ${aiTone(stock.air)}`}>{stock.air}</span> : "—"}
               </div>
             </div>
             <div className="mkm-cell">

@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { reviewKey } from "../reviewAlerts";
 import { useStocks } from "../stocks";
 import type { Stock } from "../types";
-import { addedInfo, agoLabel, consLabel, DATE_LOCALE, metricChange, firstSeen, fmtMc, fmtPx, LIST_LABEL, NEW_WINDOW_DAYS, scoreColor } from "../lib";
+import { addedInfo, agoLabel, consLabel, DATE_LOCALE, metricChange, firstSeen, fmtMc, fmtPx, LIST_LABEL, NEW_WINDOW_DAYS } from "../lib";
 import { consDir, type ConsDir } from "../consensus";
-import { Chip, ConsPill, UpBar } from "./StockTable";
+import { AiScore, Chip, ConsPill, MiniSplit, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
 import { LivePx } from "../LivePx";
@@ -140,12 +140,12 @@ export default function NewArrivals({ onOpen, onOpenReview, marks, onMark }: New
                 <th className="l">Added</th>
                 <th className="l">Changes</th>
                 <th className="l">Ticker / Company</th>
-                <th className="l">Sector</th>
-                <th>Upside</th>
                 <th>Price</th>
-                <th className="c">Consensus</th>
+                <th className="l">Consensus</th>
+                <th>Upside</th>
                 <th>Smart Score</th>
-                <th>AI Score</th>
+                <th className="l">AI Score</th>
+                <th className="l">Sector</th>
                 <th>Mkt Cap</th>
               </tr>
             </thead>
@@ -230,33 +230,26 @@ export default function NewArrivals({ onOpen, onOpenReview, marks, onMark }: New
                               {s.t}
                             </button>
                           </span>
-                          <div className="co">{s.n || ""}</div>
+                          <div className="co" title={s.n || undefined}>{s.n || ""}</div>
                         </div>
                         <ThumbMark mark={marks[s.t]} onMark={(v) => onMark(s.t, v)} />
                       </div>
                     </td>
-                    <td className="na-sec l">{s.sec || "—"}</td>
-                    <td className="na-up">
-                      <UpBar up={s.up} />
-                    </td>
                     <td className="num"><LivePx t={s.t} px={s.px} track /></td>
                     <td className="con-cell">
                       <ConsPill con={s.con} />
-                      <div className="dist">{s.b}·{s.h}·{s.s}</div>
+                      <MiniSplit b={s.b} h={s.h} s={s.s} />
+                    </td>
+                    <td className="na-up">
+                      <UpBar up={s.up} />
                     </td>
                     <td>
-                      <Chip v={s.ss} max={10} />
+                      <Chip v={s.ss} />
                     </td>
-                    <td>
-                      {s.ai == null ? (
-                        <span className="dash">—</span>
-                      ) : (
-                        <span className="na-ai" style={{ color: scoreColor(s.ai, 100)! }}>
-                          {s.ai}
-                          {s.air ? <small>{s.air}</small> : null}
-                        </span>
-                      )}
+                    <td className="l">
+                      <AiScore ai={s.ai} air={s.air} />
                     </td>
+                    <td className="na-sec l">{s.sec || "—"}</td>
                     <td className="num">{fmtMc(s.mc)}</td>
                   </tr>
                 );

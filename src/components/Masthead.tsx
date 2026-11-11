@@ -36,7 +36,7 @@ export default function Masthead({ poolN, liveStatus, onLive }: MastheadProps) {
       : "Live prices via CNBC, with Finnhub as the backup — click to turn off/on";
   return (
     <div className="metaline">
-      <span>Universe <b>{meta.universe.toLocaleString()}</b> US stocks</span>
+      <span className="hide-sm">Universe <b>{meta.universe.toLocaleString()}</b> US stocks</span>
       <span>Showing <b id="poolN">{poolN}</b> ranked names</span>
       <span className="live">Snapshot · {SNAPSHOT}</span>
       <button type="button" className={`livebadge ${liveStatus}`} onClick={onLive} title={liveTitle}>

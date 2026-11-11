@@ -75,7 +75,6 @@ export default function App() {
   const [view, setView] = useState<ViewId>("analyst");
   const [sort, setSort] = useState<keyof Stock>("up");
   const [dir, setDir] = useState<number>(-1);
-  const [q, setQ] = useState("");
   const [sectors, setSectors] = useState<string[]>([]);
   const [sectorNot, setSectorNot] = useState(false);
   // analyst tab defaults to Strong Buy to match the real page
@@ -318,7 +317,7 @@ export default function App() {
   }, [STOCKS]);
 
   const rows = useMemo(() => {
-    let filtered = STOCKS.filter((s) => passes(s, { q, sectors, sectorNot, consensuses, cap }));
+    let filtered = STOCKS.filter((s) => passes(s, { q: "", sectors, sectorNot, consensuses, cap }));
     // Gated on `user` because the toolbar only shows this control when signed in. Now
     // that the value persists, a restored "Liked" would otherwise hide every row for a
     // signed-out visitor — who has no marks and no button to clear it with.
@@ -332,21 +331,19 @@ export default function App() {
       });
     }
     return sortRows(filtered, sort, dir);
-  }, [STOCKS, q, sectors, sectorNot, consensuses, cap, sort, dir, markFilter, marks, user]);
+  }, [STOCKS, sectors, sectorNot, consensuses, cap, sort, dir, markFilter, marks, user]);
 
   // "clean" filter state = the view's own default (analyst view starts on Strong Buy)
   const consensusDefault = useMemo(() => (view === "analyst" ? ["StrongBuy"] : []), [view]);
   const sameSet = (a: string[], b: string[]) =>
     a.length === b.length && [...a].sort().join("|") === [...b].sort().join("|");
   const activeCount =
-    (q !== "" ? 1 : 0) +
     (sectors.length ? 1 : 0) +
     (sameSet(consensuses, consensusDefault) ? 0 : 1) +
     (cap !== 0 ? 1 : 0) +
     (user && markFilter !== "all" ? 1 : 0);
   const filtersActive = activeCount > 0;
   function resetFilters() {
-    setQ("");
     setSectors([]);
     setSectorNot(false);
     setCap(0);
@@ -357,11 +354,10 @@ export default function App() {
   // filters follow the user across sessions/devices (DB when signed in, else
   // localStorage). Restored on load; written on every change.
   const filters = useMemo<SavedFilters>(
-    () => ({ q, sectors, sectorNot, consensuses, cap, markFilter }),
-    [q, sectors, sectorNot, consensuses, cap, markFilter],
+    () => ({ q: "", sectors, sectorNot, consensuses, cap, markFilter }),
+    [sectors, sectorNot, consensuses, cap, markFilter],
   );
   const applyFilters = useCallback((f: SavedFilters) => {
-    setQ(f.q ?? "");
     // migrate the older single-select shape (sector / consensus strings)
     setSectors(f.sectors ?? (f.sector ? [f.sector] : []));
     setSectorNot(!!f.sectorNot);
@@ -531,7 +527,6 @@ export default function App() {
           </div>
 
           <Toolbar
-            q={q}
             sectors={sectors}
             sectorOptions={sectorOptions}
             sectorNot={sectorNot}
@@ -542,7 +537,6 @@ export default function App() {
             activeCount={activeCount}
             canReset={filtersActive}
             onReset={resetFilters}
-            onQ={setQ}
             onSectors={setSectors}
             onSectorNot={setSectorNot}
             onConsensuses={setConsensuses}

@@ -30,7 +30,7 @@ function Dial({ score, big }: { score: number; big?: boolean }) {
   return (
     <svg
       className={big ? "fg-dial lg" : "fg-dial sm"}
-      viewBox={big ? "0 0 200 152" : "0 0 152 58"}
+      viewBox={big ? "0 0 200 152" : "7 7 78 44"}
       aria-hidden="true"
       focusable="false"
     >
@@ -59,12 +59,7 @@ function Dial({ score, big }: { score: number; big?: boolean }) {
             {band.label.toUpperCase()}
           </text>
         </>
-      ) : (
-        <>
-          <text x={90} y={40} className="fg-num" fontSize="23">{Math.round(score)}</text>
-          <text x={90} y={52} className={`fg-band ${band.key}`} fontSize="8">{band.label.toUpperCase()}</text>
-        </>
-      )}
+      ) : null}
     </svg>
   );
 }
@@ -132,6 +127,11 @@ export default function FearGreedGauge({ open, onOpenChange }: Props) {
         onClick={() => onOpenChange(!open)}
       >
         <Dial score={fg.score} />
+        {/* value + band as HTML beside the small dial, so the label is never clipped */}
+        <span className="fg-txt" aria-hidden="true">
+          <span className="fg-val">{Math.round(fg.score)}</span>
+          <span className={`fg-lbl ${band.key}`}>{band.label}</span>
+        </span>
       </button>
 
       {open && (

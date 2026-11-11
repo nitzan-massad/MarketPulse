@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { COLS, consClass, consLabel, fmtMc, fmtPx, isNew, scoreColor } from "../lib";
+import { COLS, consClass, consLabel, fmtMc, fmtPx, isNew } from "../lib";
 import type { Stock } from "../types";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
@@ -9,8 +9,8 @@ import { warmChart } from "../warmChart";
 // default column widths (px) — table-layout:fixed makes these authoritative so
 // resizing can both grow AND shrink a column. User overrides live in `widths`.
 const DEFAULT_W: Record<string, number> = {
-  _rank: 44, _tk: 168, sec: 104, px: 82, chg: 84, con: 130,
-  pt: 152, up: 128, ss: 128, ai: 100, mc: 92,
+  _rank: 50, _tk: 236, sec: 126, px: 80, chg: 128, con: 116,
+  pt: 90, up: 92, ss: 84, ai: 150, mc: 94,
 };
 
 interface StockTableProps {
@@ -33,15 +33,10 @@ interface StockTableProps {
   onMark: (t: string, v: Mark) => void;
 }
 
-export function Chip({ v, max }: { v: number | null; max: number }) {
+export function Chip({ v }: { v: number | null }) {
   if (v == null) return <span className="dash">—</span>;
-  const c = scoreColor(v, max)!;
   const text = v % 1 ? v : v | 0;
-  return (
-    <span className="chip" style={{ color: c, borderColor: c + "44", background: c + "14" }}>
-      {text}
-    </span>
-  );
+  return <span className="chip">{text}</span>;
 }
 
 // No consensus from the feed → the same neutral "—" the other missing values use
@@ -51,10 +46,55 @@ export function ConsPill({ con }: { con: string | null }) {
   return <span className={`pill ${consClass(con)}`}>{consLabel(con)}</span>;
 }
 
+/** Buy/hold/sell split as a thin bar (counts stay in the tooltip). */
+export function MiniSplit({ b, h, s }: { b: number; h: number; s: number }) {
+  return (
+    <div className="mini-split" role="img" aria-label={`${b} buy, ${h} hold, ${s} sell`} title={`${b} buy · ${h} hold · ${s} sell`}>
+      {b > 0 && <i className="b" style={{ flex: b }} />}
+      {h > 0 && <i className="h" style={{ flex: h }} />}
+      {s > 0 && <i className="s" style={{ flex: s }} />}
+    </div>
+  );
+}
+
+/** AI rating text -> tag tone (Outperform pos, Underperform neg, else mid). */
+export function aiTone(air: string | null | undefined): string {
+  const a = (air || "").toLowerCase();
+  if (/under|bear|sell/.test(a)) return "neg";
+  if (/out|bull|buy/.test(a)) return "pos";
+  return "mid";
+}
+
+/** 0–100 progress ring with the number in the middle (mockup ring()). */
+export function AiRing({ n, size = 32 }: { n: number; size?: number }) {
+  const r = size / 2 - 4;
+  const c = 2 * Math.PI * r;
+  const m = size / 2;
+  return (
+    <svg className="ai-ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+      <circle cx={m} cy={m} r={r} fill="none" stroke="var(--panel-2)" strokeWidth="4" />
+      <circle cx={m} cy={m} r={r} fill="none" stroke="var(--teal)" strokeWidth="4" strokeLinecap="round"
+        strokeDasharray={`${(c * Math.max(0, Math.min(100, n))) / 100} ${c}`} transform={`rotate(-90 ${m} ${m})`} />
+      <text x="50%" y="50%" dy=".35em" textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--ink)" fontFamily="var(--f-num)">{n}</text>
+    </svg>
+  );
+}
+
+/** AI score as ring + rating tag; "—" when unrated. */
+export function AiScore({ ai, air }: { ai: number | null; air?: string | null }) {
+  if (ai == null) return <span className="dash">—</span>;
+  return (
+    <div className="ai-cell">
+      <AiRing n={ai} />
+      {air ? <span className={`tag ${aiTone(air)}`}>{air}</span> : null}
+    </div>
+  );
+}
+
 export function UpBar({ up }: { up: number | null }) {
   if (up == null) return <span className="dash">—</span>;
   const neg = up < 0;
-  const val = (up > 0 ? "+" : "") + up.toFixed(up >= 100 ? 0 : 1) + "%";
+  const val = (up > 0 ? "+" : "") + up.toLocaleString("en-US", { maximumFractionDigits: Math.abs(up) >= 100 ? 0 : 1, minimumFractionDigits: Math.abs(up) >= 100 ? 0 : 1 }) + "%";
   return <span className={`up-val ${neg ? "neg" : "pos"}`}>{val}</span>;
 }
 
@@ -114,7 +154,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, tic
                 >
                   {c.l}
                   {c.sortable && (
-                    <span className="ar">{sorted ? (dir < 0 ? "▼" : "▲") : "▾"}</span>
+                    <span className="ar">{sorted ? (dir < 0 ? "↓" : "↑") : "▾"}</span>
                   )}
                   <span
                     className="col-resize"
@@ -145,7 +185,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, tic
                   {...warmChart(s.t)}
                   onClick={() => onOpen(s)}
                 >
-                  <td className="rank" data-label="Rank">{i + 1}</td>
+                  <td className="rank" data-label="Rank"><span className="rank-n">{i + 1}</span></td>
                   <td className="tk">
                     <div className="tk-inner">
                       <div className="tk-main">
@@ -172,7 +212,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, tic
                             <span className="newtag" title="Recently added to the lists">NEW</span>
                           )}
                         </span>
-                        <div className="co">{s.n || ""}</div>
+                        <div className="co" title={s.n || undefined}>{s.n || ""}</div>
                       </div>
                       <ThumbMark mark={marks[s.t]} onMark={(v) => onMark(s.t, v)} />
                     </div>
@@ -189,19 +229,16 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, tic
                         <span
                           className={`chg ${chg > 0 ? "up" : chg < 0 ? "dn" : "flat"}${isLive ? " is-live" : ""}`}
                         >
-                          {chg > 0 ? "+" : ""}
-                          {chg.toFixed(2)}%
+                          <span aria-hidden="true">{chg > 0 ? "▲ " : chg < 0 ? "▼ " : ""}</span>
+                          <span className="sr-only">{chg < 0 ? "−" : chg > 0 ? "+" : ""}</span>
+                          {Math.abs(chg).toFixed(2)}%
                         </span>
                       );
                     })()}
                   </td>
                   <td className="con-cell" data-label="Consensus">
                     <ConsPill con={s.con} />
-                    <div className="dist" title={`${s.b} buy · ${s.h} hold · ${s.s} sell`}>
-                      <span className="d-b">▲{s.b}</span>
-                      <span className="d-h">●{s.h}</span>
-                      <span className="d-s">▼{s.s}</span>
-                    </div>
+                    <MiniSplit b={s.b} h={s.h} s={s.s} />
                   </td>
                   <td className="pt" data-label="Predicted Price">
                     {s.pt == null ? <span className="dash">—</span> : fmtPx(s.pt)}
@@ -210,27 +247,10 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, tic
                     <UpBar up={s.up} />
                   </td>
                   <td data-label="Smart Score">
-                    <Chip v={s.ss} max={10} />
+                    <Chip v={s.ss} />
                   </td>
                   <td data-label="AI Score">
-                    <div className="ai-cell">
-                      {s.ai == null ? (
-                        <span className="dash">—</span>
-                      ) : (
-                        <>
-                          <span
-                            style={{
-                              color: scoreColor(s.ai, 100)!,
-                              fontFamily: "'JetBrains Mono',monospace",
-                              fontWeight: 700,
-                            }}
-                          >
-                            {s.ai}
-                          </span>
-                          <span className="ai-rating">{s.air || ""}</span>
-                        </>
-                      )}
-                    </div>
+                    <AiScore ai={s.ai} air={s.air} />
                   </td>
                   <td className="sec" data-label="Sector">{s.sec || "—"}</td>
                   <td className="num" data-label="Market Cap">{fmtMc(s.mc)}</td>

@@ -2,8 +2,8 @@ import type { User } from "firebase/auth";
 import { useMemo, useRef, useState } from "react";
 import { useStocks } from "../stocks";
 import type { Stock } from "../types";
-import { fmtMc, scoreColor, stubStock } from "../lib";
-import { Chip, ConsPill, UpBar } from "./StockTable";
+import { fmtMc, stubStock } from "../lib";
+import { aiTone, Chip, ConsPill, UpBar } from "./StockTable";
 import type { Mark, MarkEntry } from "../watchlist";
 import ThumbMark from "./ThumbMark";
 import { LivePx } from "../LivePx";
@@ -249,15 +249,15 @@ export default function Watchlist({
                     <ConsPill con={s.con} />
                   </td>
                   <td className="ctr">
-                    <Chip v={s.ss} max={10} />
+                    <Chip v={s.ss} />
                   </td>
                   <td className="num">
                     {s.ai == null ? (
                       <span className="dash">—</span>
                     ) : (
-                      <span className="na-ai" style={{ color: scoreColor(s.ai, 100)! }}>
+                      <span className="na-ai">
                         {s.ai}
-                        {s.air ? <small>{s.air}</small> : null}
+                        {s.air ? <span className={`tag ${aiTone(s.air)}`}>{s.air}</span> : null}
                       </span>
                     )}
                   </td>
