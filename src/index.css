@@ -971,7 +971,7 @@ thead th:hover .col-resize::after{opacity:.6}
 .mkm-baseln{stroke:var(--t-faint); stroke-width:1; stroke-dasharray:3 3; opacity:.55}
 .mkm-axtx{fill:var(--t-ink); font-family:var(--f-body); font-size:12.5px; font-weight:600; letter-spacing:.01em}
 .mkm-axtx.future{fill:var(--t-faint); font-weight:500}
-.mkm-remaining{fill:var(--t-line); opacity:.45}
+.mkm-remaining{fill:#fff}
 .mkm-basetag{fill:var(--t-faint); font-family:var(--f-body); font-size:9px; font-weight:600}
 .mkm-livering{transform-box:fill-box; transform-origin:center; animation:mkm-pulse 1.8s ease-out infinite}
 @keyframes mkm-pulse{0%{transform:scale(1); opacity:.55} 70%{transform:scale(2.6); opacity:0} 100%{opacity:0}}

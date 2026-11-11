@@ -1301,13 +1301,6 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                       <stop offset="1" style={{ stopColor: "var(--t-red)", stopOpacity: 0 }} />
                     </linearGradient>
                   </defs>
-                  {/* gridlines: horizontal at price ticks, vertical at date ticks */}
-                  {chart!.priceTicks.map((t, i) => (
-                    <line key={`h${i}`} className="mkm-gridln" x1="0" y1={t.y} x2={CW - C_R} y2={t.y} />
-                  ))}
-                  {chart!.dateTicks.map((t, i) => (
-                    <line key={`v${i}`} className="mkm-gridln" x1={t.x} y1={C_PAD} x2={t.x} y2={CH - C_B} />
-                  ))}
                   {/* 1D live: shade the part of the session not yet traded */}
                   {chart!.remaining && (
                     <rect
@@ -1318,6 +1311,13 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                       height={CH - C_B - C_PAD}
                     />
                   )}
+                  {/* gridlines: horizontal at price ticks, vertical at date ticks */}
+                  {chart!.priceTicks.map((t, i) => (
+                    <line key={`h${i}`} className="mkm-gridln" x1="0" y1={t.y} x2={CW - C_R} y2={t.y} />
+                  ))}
+                  {chart!.dateTicks.map((t, i) => (
+                    <line key={`v${i}`} className="mkm-gridln" x1={t.x} y1={C_PAD} x2={t.x} y2={CH - C_B} />
+                  ))}
                   {/* dashed reference line — 1D: prev close; other ranges: opening price */}
                   <line className="mkm-baseln" x1="0" y1={chart!.baseY} x2={CW - C_R} y2={chart!.baseY} />
                   {range === "1D" && chart!.nowLabel && (
