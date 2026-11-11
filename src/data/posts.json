@@ -1,5 +1,32 @@
 [
   {
+    "id": "SNDK-2026-11-11T17:48:54.338Z",
+    "ts": "2026-11-11T17:48:54.338Z",
+    "kind": "surprise",
+    "ticker": "SNDK",
+    "name": "SanDisk Corp",
+    "sector": "General",
+    "text": "~146% upside, triples its sector's median.",
+    "score": 36,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (38% word overlap)"
+    ],
+    "facts": {
+      "upside": 146.3,
+      "price": 859.99,
+      "priceTarget": 2118,
+      "consensus": "StrongBuy",
+      "analysts": 17,
+      "sector": "General",
+      "sectorMedianUpside": 40.2
+    },
+    "descriptor": "Flash Memory Maker",
+    "image": "SNDK-2026-11-11T17-48-54-338Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "ORLY-2026-11-11T07:03:33.797Z",
     "ts": "2026-11-11T07:03:33.797Z",
     "kind": "contrarian",
