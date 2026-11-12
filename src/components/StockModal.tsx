@@ -1099,7 +1099,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
           {!chromeOff && marketOpen() && <div className="mkm-live">LIVE</div>}
           {!chromeOff && <ShareButton what={stock.t} onShare={share.onShare} />}
           {/* every card draws its × so SHARE doesn't shift as a card lands; Escape is still bound
-              only by the active card. Styled under .mkm-titlebar .mp-close in index.css. */}
+              only by the active card. Styled as .mp-close in index.css. */}
           <CloseButton what={stock.t} onClose={cardUp ? () => setCardUp(false) : onClose} />
         </div>
 
@@ -1751,9 +1751,9 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
               {fcFromHighlight.current && <span className="mkm-fcgo" aria-hidden="true">›</span>}
             </button>
             <ShareButton what={`${stock.t} analyst forecasts`} onShare={fcShare.onShare} />
+            <CloseButton what={`${stock.t} analyst forecasts`} onClose={closeFc} />
           </div>
           {fcShare.copyFailed && <ShareFail url={fcShare.url} />}
-          <CloseButton what={`${stock.t} analyst forecasts`} onClose={closeFc} />
           <div className="mkm-scroll">
             <div className="mkm-fcfull mkm-fcfull-modal">
               <div className="mkm-fctable">

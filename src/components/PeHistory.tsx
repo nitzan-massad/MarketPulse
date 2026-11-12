@@ -147,9 +147,9 @@ export default function PeHistory({ ticker, eps, nowPe, peq, sectorPe, pending, 
         <div className="mkm-titlebar">
           <div className="mkm-path"><b>{ticker}</b> · P/E History</div>
           <ShareButton what={`${ticker} P/E history`} onShare={share.onShare} />
+          <CloseButton what={`${ticker} P/E history`} onClose={onClose} />
         </div>
         {share.copyFailed && <ShareFail url={share.url} />}
-        <CloseButton what={`${ticker} P/E history`} onClose={onClose} />
         <div className="mkm-scroll">
           <div className="mkm-pe">
             <div className="mkm-pe-cmd">

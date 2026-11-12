@@ -1560,31 +1560,25 @@ body:has(.nb-scrim){overflow:hidden}
 }
 @keyframes fg-in{from{opacity:0; transform:scale(.97) translateY(-4px)}to{opacity:1; transform:none}}
 
-/* The close rides its host's top-right corner, half outside it (mockup C3), so the
-   header row stays free for the title and Share. The host must be position:relative and
-   NOT overflow:hidden — both .fg-pop and .mkm-modal were changed to suit, each moving its
-   clipping to the moment a burst is running instead.
-   Position never transitions: during a burst the host DOES clip, and the × has to be
-   tucked back inside instantly rather than being sliced for the length of an animation. */
-.mp-close{position:absolute; top:-16px; right:-16px; z-index:56; width:39px; height:39px;
+/* The close sits in its host's header row, after Share, drawn like the thumb buttons.
+   (It used to hang off the host's top-right corner, and on phones the screen edge cut it
+   off.) margin-left:auto pushes it right when nothing else does; after Share it follows. */
+.mp-close{flex:none; margin-left:auto; width:27px; height:27px;
   display:flex; align-items:center; justify-content:center; cursor:pointer;
-  border-radius:var(--r-ctl); border:1px solid var(--line); background:var(--panel); color:var(--ink);
-  font-size:24px; line-height:1; font-family:var(--f-body); padding:0;
-  box-shadow:none; transition:color .15s, border-color .15s, background .15s}
-.mp-close:hover{color:var(--gold); border-color:var(--gold); background:var(--panel-2)}
+  border-radius:7px; border:1px solid var(--t-line); background:var(--t-panel); color:var(--t-muted);
+  line-height:1; font-family:var(--f-body); padding:0;
+  transition:color .15s, border-color .15s}
+.mp-close svg{width:15px; height:15px}
+.mp-close:hover{color:var(--t-gold); border-color:var(--t-gold)}
 .mp-close:focus-visible{outline:2px solid var(--gold); outline-offset:2px}
-[data-burst] .mp-close{top:8px; right:8px; box-shadow:none}
-/* sign-in / account modal: the close sits inside the panel's corner (mockup .icon-btn) */
-.si-modal .mp-close{top:12px; right:12px; width:36px; height:36px}
-/* Overlays that keep the corner × (Fear & Greed, forecasts, P/E history) run nearly
-   full-width on a phone, so an 11px overhang puts the button flush against the screen edge
-   (and under a rounded display corner). Pull it in. The stock card's × is in its title bar. */
-@media(max-width:640px){ .mp-close{top:-12px; right:-12px} .si-modal .mp-close{top:10px; right:10px} }
+.mp-share + .mp-close{margin-left:0}
+/* sign-in / account modal has no header row: the × sits alone inside the panel's corner */
+.si-modal .mp-close{position:absolute; top:12px; right:12px}
 
-/* The scroller is the BODY, not the panel: the panel has to stay overflow:visible for the
-   corner × to hang outside it, and pinning the × above the scroll area is better anyway —
-   it cannot scroll out of reach on a short window. */
-.fg-body{max-height:calc(100dvh - 150px); overflow:auto}
+/* The scroller is the BODY, not the panel, so the header (and its ×) stays pinned above
+   the scroll area and cannot scroll out of reach on a short window. */
+/* 150px + the ~40px header row, which now sits above the scroller */
+.fg-body{max-height:calc(100dvh - 190px); overflow:auto}
 
 .fg-head{display:flex; align-items:center; gap:10px; margin-bottom:10px}
 .fg-head .mp-share{margin-left:auto; flex:none}
@@ -1671,20 +1665,8 @@ body:has(.nb-scrim){overflow:hidden}
 .mp-share:active{transform:scale(.95)}
 .mp-share[disabled]{opacity:.55; cursor:default}
 /* LIVE already carries the margin-left:auto that right-pushes this group (SHARE, then the
-   stock card's ×, see .mkm-titlebar .mp-close below). */
+   ×). */
 .mkm-live ~ .mp-share{margin-left:12px}
-/* Hosts with a corner × (.mp-close): clear it, it reaches ~23px into the host (27px on
-   phones). The stock card's title bar resets this, its × sits in the row. */
-.mp-share{margin-right:12px}
-@media(max-width:640px){ .mp-share{margin-right:16px} }
-/* Stock modal: the × joins the title bar, drawn like the thumb buttons, at every width.
-   (The corner × hung past the screen edge on phones and got cut off.) */
-.mkm-titlebar .mp-share{margin-right:0}
-.mkm-titlebar .mp-close{position:static; flex:none; margin-left:auto; width:27px; height:27px;
-  border-radius:7px; border-color:var(--t-line); background:var(--t-panel); color:var(--t-muted)}
-.mkm-titlebar .mp-share + .mp-close{margin-left:0}
-.mkm-titlebar .mp-close svg{width:15px; height:15px}
-.mkm-titlebar .mp-close:hover{border-color:var(--t-gold); color:var(--t-gold)}
 /* Small phones (320px): ticker + star + thumbs + LIVE + SHARE + × overflow the row and push
    the × off the modal. Tighten the gap and make SHARE icon-only; the label stays readable to
    screen readers (visually hidden, not display:none). */
@@ -2103,8 +2085,8 @@ body:has(.nb-scrim){overflow:hidden}
 @media(max-width:640px){.mkm-pe-open{grid-column:1 / -1; grid-template-columns:1fr 1fr 1.5fr; gap:0 10px}}
 
 .mkm-pe{padding:16px 18px 18px}
-/* Share sits on the right of the titlebar, clear of the corner close button */
-.mkm-modal-fc .mkm-titlebar .mp-share{margin-left:auto; margin-right:28px; flex:none}
+/* Share sits on the right of the titlebar, followed by the close button */
+.mkm-modal-fc .mkm-titlebar .mp-share{margin-left:auto; flex:none}
 .mkm-pe-cmd{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:4px}
 .mkm-pe-legend{margin-left:auto; display:flex; gap:12px; font-size:10.5px; color:var(--t-faint)}
 .mkm-pe-legend i{display:inline-block; width:16px; vertical-align:middle; margin-right:5px; border-top:3px solid}

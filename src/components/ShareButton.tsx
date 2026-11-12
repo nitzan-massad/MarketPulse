@@ -2,8 +2,7 @@
 //
 // Styling lives on `.mp-share`, deliberately NOT `.mkm-` — that prefix is documented in
 // index.css as scoped to the stock modal, and this button is no longer modal-only. The
-// host supplies its own placement (the stock modal right-pushes it in the title bar; the
-// Fear & Greed panel pins it to the top-right corner).
+// host supplies its own placement (every header right-pushes it, with the close × after it).
 
 /** The bare 3-node share glyph (approved look: outlined-chip chrome, this icon). */
 export const ShareIcon = () => (
