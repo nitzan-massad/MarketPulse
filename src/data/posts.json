@@ -1,5 +1,32 @@
 [
   {
+    "id": "CIFR-2026-11-12T20:23:26.737Z",
+    "ts": "2026-11-12T20:23:26.737Z",
+    "kind": "surprise",
+    "ticker": "CIFR",
+    "name": "Cipher Digital Inc.",
+    "sector": "Technology",
+    "text": "~177% upside, quadruples its sector's median.",
+    "score": 32,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (43% word overlap)"
+    ],
+    "facts": {
+      "upside": 176.8,
+      "price": 7.11,
+      "priceTarget": 19.68,
+      "consensus": "StrongBuy",
+      "analysts": 12,
+      "sector": "Technology",
+      "sectorMedianUpside": 38.9
+    },
+    "descriptor": "Bitcoin Mining",
+    "image": "CIFR-2026-11-12T20-23-26-737Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "REAX-2026-11-12T11:48:45.375Z",
     "ts": "2026-11-12T11:48:45.375Z",
     "kind": "record",

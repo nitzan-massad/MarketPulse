@@ -313,5 +313,10 @@
     "name": "SanDisk",
     "descriptor": "Flash Memory Maker",
     "scene": "inspecting NAND flash wafer production on a cleanroom workstation"
+  },
+  "CIFR": {
+    "name": "Cipher Digital",
+    "descriptor": "Bitcoin Mining",
+    "scene": "tuning a bank of cryptocurrency servers with a screwdriver and cable"
   }
 }
