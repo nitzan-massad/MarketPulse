@@ -798,11 +798,11 @@ thead th:hover .col-resize::after{opacity:.6}
    both neighbours — so the browser owns the drag, the fling and the snap, and a swipe
    reveals a loaded modal rather than a spinner.
 
-   The track has to be an overflow container for any of that to work, and .mp-close rides
-   ~11px OUTSIDE the modal's top-right corner (see CloseButton.tsx), so a track sized to the
-   modal would slice the X in half. Instead it runs --ov larger on every side and is pulled
-   back by the same amount in margin: the clip edge lands outside the modal, the layout box
-   does not move, and the modal keeps exactly the width and height it has in production.
+   The track has to be an overflow container for any of that to work, and a track sized to
+   the modal would clip the modal's shadow and its pop-in animation. Instead it runs --ov
+   larger on every side and is pulled back by the same amount in margin: the clip edge lands
+   outside the modal, the layout box does not move, and the modal keeps exactly the width
+   and height it has in production.
 
    --mw mirrors production's modal width at each breakpoint. Slide pitch is --mw + gap,
    which is exactly clientWidth — that is what keeps round(scrollLeft/clientWidth) honest. */
@@ -1576,8 +1576,9 @@ body:has(.nb-scrim){overflow:hidden}
 [data-burst] .mp-close{top:8px; right:8px; box-shadow:none}
 /* sign-in / account modal: the close sits inside the panel's corner (mockup .icon-btn) */
 .si-modal .mp-close{top:12px; right:12px; width:36px; height:36px}
-/* On a phone the stock modal is calc(100vw - 32px), so an 11px overhang puts the button
-   flush against the screen edge (and under a rounded display corner). Pull it in. */
+/* Overlays that keep the corner × (Fear & Greed, forecasts, P/E history) run nearly
+   full-width on a phone, so an 11px overhang puts the button flush against the screen edge
+   (and under a rounded display corner). Pull it in. The stock card's × is in its title bar. */
 @media(max-width:640px){ .mp-close{top:-12px; right:-12px} .si-modal .mp-close{top:10px; right:10px} }
 
 /* The scroller is the BODY, not the panel: the panel has to stay overflow:visible for the
@@ -1669,12 +1670,29 @@ body:has(.nb-scrim){overflow:hidden}
 .mp-share:hover{background:var(--t-gold); color:#fff}
 .mp-share:active{transform:scale(.95)}
 .mp-share[disabled]{opacity:.55; cursor:default}
-/* LIVE already carries the margin-left:auto that right-pushes this group. The close used
-   to sit here too and fight for that space; it rides the modal's corner now (.mp-close). */
+/* LIVE already carries the margin-left:auto that right-pushes this group (SHARE, then the
+   stock card's ×, see .mkm-titlebar .mp-close below). */
 .mkm-live ~ .mp-share{margin-left:12px}
-/* Clear the corner × (.mp-close), which reaches ~23px into the host (27px on phones). */
+/* Hosts with a corner × (.mp-close): clear it, it reaches ~23px into the host (27px on
+   phones). The stock card's title bar resets this, its × sits in the row. */
 .mp-share{margin-right:12px}
 @media(max-width:640px){ .mp-share{margin-right:16px} }
+/* Stock modal: the × joins the title bar, drawn like the thumb buttons, at every width.
+   (The corner × hung past the screen edge on phones and got cut off.) */
+.mkm-titlebar .mp-share{margin-right:0}
+.mkm-titlebar .mp-close{position:static; flex:none; margin-left:auto; width:27px; height:27px;
+  border-radius:7px; border-color:var(--t-line); background:var(--t-panel); color:var(--t-muted)}
+.mkm-titlebar .mp-share + .mp-close{margin-left:0}
+.mkm-titlebar .mp-close svg{width:15px; height:15px}
+.mkm-titlebar .mp-close:hover{border-color:var(--t-gold); color:var(--t-gold)}
+/* Small phones (320px): ticker + star + thumbs + LIVE + SHARE + × overflow the row and push
+   the × off the modal. Tighten the gap and make SHARE icon-only; the label stays readable to
+   screen readers (visually hidden, not display:none). */
+@media(max-width:370px){
+  .mkm-modal:not(.mkm-modal-fc) .mkm-titlebar{gap:6px}
+  .mkm-live ~ .mp-share{margin-left:6px}
+  .mkm-modal:not(.mkm-modal-fc) .mkm-titlebar .mp-share span{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+}
 
 /* the copy-failed row — never dressed up as a success */
 .mp-copyfail{

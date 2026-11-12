@@ -1,6 +1,7 @@
-// The close control, shared by every overlay. Pair it with a host that is
-// `position:relative` and NOT `overflow:hidden` — the button rides the host's top-right
-// corner, half outside it, so a clipping host would cut it in half.
+// The close control, shared by every overlay. By default it rides the host's top-right
+// corner, half outside it, so pair it with a host that is `position:relative` and NOT
+// `overflow:hidden` (a clipping host would cut it in half). A host can instead put it in a
+// row of its own, as the stock card does: see `.mkm-titlebar .mp-close` in index.css.
 //
 // Styling is `.mp-close`, alongside `.mp-share`: both are overlay chrome now rather than
 // stock-modal chrome, so neither belongs in the `.mkm-` namespace.
