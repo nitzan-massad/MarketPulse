@@ -1,12 +1,12 @@
 {
- "score": 37,
+ "score": 37.5,
  "rating": "fear",
- "asOf": "2026-11-11T23:59:59",
+ "asOf": "2026-11-12T11:25:46",
  "previous": {
-  "close": 33.5,
-  "week": 34.2,
-  "month": 43.5,
-  "year": 30.5
+  "close": 37,
+  "week": 20,
+  "month": 45.2,
+  "year": 34.6
  },
  "components": [
   {
@@ -18,14 +18,14 @@
   {
    "key": "stock_price_strength",
    "label": "Stock price strength",
-   "score": 50.6,
+   "score": 51,
    "rating": "neutral"
   },
   {
    "key": "stock_price_breadth",
    "label": "Stock price breadth",
-   "score": 53.4,
-   "rating": "neutral"
+   "score": 56.6,
+   "rating": "greed"
   },
   {
    "key": "put_call_options",
@@ -42,7 +42,7 @@
   {
    "key": "junk_bond_demand",
    "label": "Junk bond demand",
-   "score": 51,
+   "score": 50.8,
    "rating": "neutral"
   },
   {
@@ -1051,7 +1051,11 @@
   },
   {
    "d": "2026-11-11",
-   "v": 37
+   "v": 37.5
+  },
+  {
+   "d": "2026-11-12",
+   "v": 37.5
   }
  ]
 }
