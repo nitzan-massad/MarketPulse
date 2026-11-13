@@ -1,5 +1,29 @@
 [
   {
+    "id": "REAX-2026-11-13T02:40:28.866Z",
+    "ts": "2026-11-13T02:40:28.866Z",
+    "kind": "list",
+    "ticker": "REAX",
+    "name": "Real Brokerage",
+    "sector": "RealEstate",
+    "text": "188% upside, tops a 5-name list.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "REAX appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Real Brokerage (188.1% to $32.5), Capricor Therapeutics (185.2% to $32), Cipher Digital (176.8% to $19.68), PepGen (166.2% to $14), Fervo Energy Company Class A (161.2% to $33.8)",
+      "count": 5,
+      "leader": "Real Brokerage",
+      "leaderUpside": 188.1
+    },
+    "descriptor": "Real Estate Brokerage",
+    "image": "REAX-2026-11-13T02-40-28-866Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "CIFR-2026-11-12T20:23:26.737Z",
     "ts": "2026-11-12T20:23:26.737Z",
     "kind": "surprise",
