@@ -1,5 +1,30 @@
 [
   {
+    "id": "FRVO-2026-11-14T10:57:15.500Z",
+    "ts": "2026-11-14T10:57:15.500Z",
+    "kind": "surprise",
+    "ticker": "FRVO",
+    "name": "Fervo Energy Company Class A",
+    "sector": "General",
+    "text": "~194% upside, 11 analysts, doubles sector median.",
+    "score": 40,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (38% word overlap)"
+    ],
+    "facts": {
+      "upside": 193.7,
+      "price": 11.51,
+      "priceTarget": 33.8,
+      "consensus": "StrongBuy",
+      "analysts": 11,
+      "sector": "General",
+      "sectorMedianUpside": 51.3
+    },
+    "descriptor": "Geothermal Energy Developer"
+  },
+  {
     "id": "ORLY-2026-11-14T02:11:52.761Z",
     "ts": "2026-11-14T02:11:52.761Z",
     "kind": "contrarian",
