@@ -1,5 +1,35 @@
 [
   {
+    "id": "ORLY-2026-11-14T02:11:52.761Z",
+    "ts": "2026-11-14T02:11:52.761Z",
+    "kind": "contrarian",
+    "ticker": "ORLY",
+    "name": "O'Reilly Auto",
+    "sector": "ConsumerCyclical",
+    "text": "~18% upside, AI says Outperform, Smart Score says 2.",
+    "score": 54,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "ORLY appeared in a recent post"
+    ],
+    "facts": {
+      "smartScore": 2,
+      "aiScore": 73,
+      "aiRating": "Outperform",
+      "consensus": "StrongBuy",
+      "upside": 18.2,
+      "price": 91.56,
+      "analysts": 16,
+      "bullish": "ai"
+    },
+    "descriptor": "Auto Parts Supplier",
+    "image": "ORLY-2026-11-14T02-11-52-761Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "CC BY 2.0",
+    "imageAttribution": "Greg Gjerdingen from Willmar, USA — Wikimedia Commons (CC BY 2.0)"
+  },
+  {
     "id": "SPCX-2026-11-13T20:20:40.826Z",
     "ts": "2026-11-13T20:20:40.826Z",
     "kind": "movement",

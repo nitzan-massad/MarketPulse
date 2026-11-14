@@ -1,7 +1,7 @@
 {
- "score": 38.4,
+ "score": 38.6,
  "rating": "fear",
- "asOf": "2026-11-13T20:11:12",
+ "asOf": "2026-11-13T23:59:56",
  "previous": {
   "close": 39.8,
   "week": 24.4,
@@ -12,19 +12,19 @@
   {
    "key": "market_momentum_sp500",
    "label": "Market momentum",
-   "score": 14,
+   "score": 14.6,
    "rating": "extreme fear"
   },
   {
    "key": "stock_price_strength",
    "label": "Stock price strength",
-   "score": 44.8,
+   "score": 44.2,
    "rating": "fear"
   },
   {
    "key": "stock_price_breadth",
    "label": "Stock price breadth",
-   "score": 51.2,
+   "score": 52.2,
    "rating": "neutral"
   },
   {
@@ -48,15 +48,11 @@
   {
    "key": "safe_haven_demand",
    "label": "Safe haven demand",
-   "score": 20.8,
+   "score": 21.2,
    "rating": "extreme fear"
   }
  ],
  "history": [
-  {
-   "d": "2025-11-13",
-   "v": 24.5
-  },
   {
    "d": "2025-11-14",
    "v": 22.1
@@ -1055,7 +1051,7 @@
   },
   {
    "d": "2026-11-13",
-   "v": 38.4
+   "v": 38.6
   }
  ]
 }
