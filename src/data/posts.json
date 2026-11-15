@@ -1,5 +1,33 @@
 [
   {
+    "id": "AJG-2026-11-15T16:54:34.277Z",
+    "ts": "2026-11-15T16:54:34.277Z",
+    "kind": "contrarian",
+    "ticker": "AJG",
+    "name": "Arthur J Gallagher & Co",
+    "sector": "Financial",
+    "text": "16 analysts say 6% upside, AI says 80.",
+    "score": 30,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (50% word overlap)"
+    ],
+    "facts": {
+      "smartScore": 2,
+      "aiScore": 80,
+      "aiRating": "Outperform",
+      "consensus": "Buy",
+      "upside": 5.8,
+      "price": 282.94,
+      "analysts": 16,
+      "bullish": "ai"
+    },
+    "descriptor": "where the money moves",
+    "image": "AJG-2026-11-15T16-54-34-277Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "FRVO-2026-11-14T10:57:15.500Z",
     "ts": "2026-11-14T10:57:15.500Z",
     "kind": "surprise",
