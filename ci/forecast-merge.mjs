@@ -95,8 +95,8 @@ export function mergeForecasts(ssr, json) {
     out.push(f);
   }
   out.sort((a, b) => (b.d || "").localeCompare(a.d || ""));
-  // Same analyst on two DIFFERENT dates = two ratings, both kept (product choice). Only a
-  // same-date repeat is a duplicate, and mergeKey (name|date) already collapses that.
+  // Same analyst on two dates stays two rows HERE; the scraper keeps only the newest
+  // (latestPerAnalyst) right before it writes, after carry-forward.
   return out;
 }
 
@@ -219,7 +219,10 @@ export function keepPrevTarget(rows, prev) {
  * expert can be a later reiteration than the row the page shows (Leerink 11-05 vs 10-12).
  */
 export function missingFirms(rows, data, now = Date.now(), days = 92) {
-  const have = new Set((rows || []).map(firmKey));
+  // firm -> our newest date for it. A firm counts as covered only up to that date: NVDA Mizuho
+  // 2026-11-15 ($250 -> $220) was hidden in getData and missed because the 11-11 row "covered" Mizuho.
+  const have = new Map();
+  for (const f of rows || []) if (!have.has(firmKey(f)) || have.get(firmKey(f)) < f.d) have.set(firmKey(f), f.d || "");
   const since = new Date(now - days * 864e5).toISOString().slice(0, 10);
   const out = new Map();
   // a NAMED ranked expert is already a JSON row (toForecasts); only hidden ones can be missing
@@ -229,18 +232,28 @@ export function missingFirms(rows, data, now = Date.now(), days = 92) {
     // eTypeId 3 = bloggers / StockTwits / news sites, which notRankedExperts mostly is; never a forecast row
     if (!e || e.aiModel || !e.firm || (e.eTypeId ?? 1) !== 1 || d < since) continue;
     const k = firmKey({ f: e.firm });
-    if (have.has(k) || /^tipranks\b/i.test(k)) continue;
+    if ((have.get(k) ?? "") >= d || /^tipranks\b/i.test(k)) continue;
     if (!out.has(k) || out.get(k).d < d) out.set(k, { firm: e.firm, d, key: `${k}|${d}` });
   }
-  return [...out.values()].map(({ firm, key }) => ({ firm, key }));
+  // `since` = our newest row for the firm ("" = none). Callers take only rows NEWER than it, so a
+  // covered firm's other analysts' history never rides in on a top-up or a carry.
+  return [...out.values()].map(({ firm, key }) => ({ firm, key, since: have.get(firmKey({ f: firm })) ?? "" }));
+}
+
+/** One row per analyst (name + firm; Unknown Analyst = per firm): the newest. Product choice
+ *  (2026-11-16) — a newer rating replaces the analyst's older one instead of sitting beside it. */
+export function latestPerAnalyst(rows) {
+  const seen = new Set();
+  return [...(rows || [])].sort((a, b) => (b.d || "").localeCompare(a.d || ""))
+    .filter((f) => { const k = `${analystKey(f)}|${firmKey(f)}`; if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
 /** Page rows for the top-up: only the missing firms' — the page also renders history the payload
  *  deliberately dropped, and adding that on just the tickers that trigger would flap it in and out
  *  of the file (and the bell) as the trigger comes and goes. */
 export function topUpRows(pageRows, missing) {
-  const want = new Set((missing || []).map((m) => firmKey({ f: m.firm })));
-  return (pageRows || []).filter((r) => want.has(firmKey(r)));
+  const want = new Map((missing || []).map((m) => [firmKey({ f: m.firm }), m.since ?? ""]));
+  return (pageRows || []).filter((r) => want.has(firmKey(r)) && (r.d || "") > want.get(firmKey(r)));
 }
 
 /**
@@ -252,13 +265,30 @@ export function topUpRows(pageRows, missing) {
 export function carryMissing(out, prev, data, now = Date.now()) {
   const rows = Array.isArray(out) ? out : [];
   if (!Array.isArray(prev) || !prev.length) return rows;
-  const want = new Set(missingFirms(rows, data, now).map((m) => firmKey({ f: m.firm })));
+  const want = new Map(missingFirms(rows, data, now).map((m) => [firmKey({ f: m.firm }), m.since]));
   if (!want.size) return rows;
   const who = (f) => (analystKey(f) === UNKNOWN ? `${UNKNOWN}|${firmKey(f)}` : analystKey(f)); // see UNKNOWN
   const newest = new Map();
   for (const f of rows) if (f?.n && (newest.get(who(f)) || "") < f.d) newest.set(who(f), f.d);
   const back = prev.filter((f) => f?.n && f.d && Number.isFinite(f.pt) && want.has(firmKey(f))
-    && !((newest.get(who(f)) || "") >= f.d));
+    && f.d > want.get(firmKey(f)) && !((newest.get(who(f)) || "") >= f.d));
+  if (!back.length) return rows;
+  return [...rows, ...back].sort((a, b) => (b.d || "").localeCompare(a.d || ""));
+}
+
+/**
+ * Keep last run's NEWER rating for an analyst this run still lists, but only at an older date.
+ * Without it, latestPerAnalyst would let a source regression (the page-recovered 11-15 row falls
+ * out, the payload still has 11-11) swap the old row back in — and the bell, which forgot 11-11
+ * when 11-15 replaced it, would ring for it as new. Never adds an analyst this run lacks.
+ */
+export function keepNewerPrev(out, prev) {
+  const rows = Array.isArray(out) ? out : [];
+  if (!Array.isArray(prev) || !prev.length) return rows;
+  const id = (f) => `${analystKey(f)}|${firmKey(f)}`;
+  const newest = new Map();
+  for (const f of rows) if (f?.n && (newest.get(id(f)) ?? "") < (f.d || "")) newest.set(id(f), f.d || "");
+  const back = prev.filter((f) => f?.n && f.d && Number.isFinite(f.pt) && newest.has(id(f)) && newest.get(id(f)) < f.d);
   if (!back.length) return rows;
   return [...rows, ...back].sort((a, b) => (b.d || "").localeCompare(a.d || ""));
 }

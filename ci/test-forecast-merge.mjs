@@ -3,7 +3,7 @@
 // import-safe precisely so this file does not have to mirror them the way
 // ci/test-forecast-gate.mjs had to mirror the old inline gate.
 import assert from "node:assert/strict";
-import { carryForward, forecastsFromPayload, carryMissing, keepPrevTarget, mergeForecasts, mergeKey, missingFirms, pickSource, topUpRows, shouldFetchPage } from "./forecast-merge.mjs";
+import { carryForward, forecastsFromPayload, carryMissing, keepNewerPrev, keepPrevTarget, latestPerAnalyst, mergeForecasts, mergeKey, missingFirms, pickSource, topUpRows, shouldFetchPage } from "./forecast-merge.mjs";
 
 const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", pt, opt: null, d, ...extra });
 
@@ -259,7 +259,7 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
       { name: "thor0810", firm: "StockTwits", eTypeId: 3, ratings: [{ date: "2026-11-01T00:00:00" }] }, // blogger: never a row
     ],
   };
-  assert.deepEqual(missingFirms(payload, data, now), [{ firm: "Leerink Partners", key: "leerink partners|2026-11-05" }],
+  assert.deepEqual(missingFirms(payload, data, now), [{ firm: "Leerink Partners", key: "leerink partners|2026-11-05", since: "" }],
     "an uncovered unranked firm triggers, keyed by getData's date; covered, AI, blogger (eTypeId 3) and >92-day-old ones do not");
   assert.deepEqual(missingFirms(payload, null, now), [], "no getData -> nothing to top up");
 
@@ -285,6 +285,38 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   const prevU = [{ n: "Unknown Analyst", f: "Argus", r: "Buy", pt: 325, d: "2026-10-29" }];
   const outU = [{ n: "Unknown Analyst", f: "DZ Bank", r: "Buy", pt: 300, d: "2026-11-02" }];
   assert.equal(carryMissing(outU, prevU, unk, now).length, 2, "Unknown Analyst identity is per firm");
+}
+
+/* ------------------------------- newer rating replaces the analyst's older one (NVDA Mizuho 2026-11-15) */
+{
+  const now = Date.UTC(2026, 10, 16);
+  const ours = [{ n: "Vijay Rakesh", f: "Mizuho Securities", r: "Buy", pt: 250, d: "2026-11-11" }];
+  const data = { experts: [{ name: null, firm: "Mizuho Securities", ratings: [{ date: "2026-11-15T00:00:00" }] }] };
+  assert.deepEqual(missingFirms(ours, data, now), [{ firm: "Mizuho Securities", key: "mizuho securities|2026-11-15", since: "2026-11-11" }],
+    "getData newer than our newest firm row -> fetch the page");
+  assert.deepEqual(missingFirms([{ ...ours[0], d: "2026-11-15" }], data, now), [], "same date -> covered");
+  const page = [{ n: "Vijay Rakesh", f: "Mizuho Securities", r: "Buy", pt: 220, opt: 250, d: "2026-11-15" }];
+  const out = latestPerAnalyst(mergeForecasts(ours, topUpRows(page, missingFirms(ours, data, now))));
+  assert.deepEqual(out.map((r) => [r.d, r.pt]), [["2026-11-15", 220]], "new row in, old row out");
+  const two = [{ n: "Ann", f: "A", d: "2026-11-01" }, { n: "Bob", f: "A", d: "2026-10-01" }, { n: "Unknown Analyst", f: "X", d: "2026-11-01" }, { n: "Unknown Analyst", f: "Y", d: "2026-10-01" }];
+  // review #1: another analyst's OLD page row at a covered firm must not ride in on the top-up
+  const page2 = [...page, { n: "Jordan Klein", f: "Mizuho Securities", r: "Buy", pt: 230, d: "2026-09-01" }];
+  assert.deepEqual(topUpRows(page2, missingFirms(ours, data, now)).map((r) => r.n), ["Vijay Rakesh"], "only rows newer than our newest firm row");
+  // review #2: carryMissing must not resurrect that old row when the top-up fails/skips
+  const prevJ = [...ours, { n: "Jordan Klein", f: "Mizuho Securities", r: "Buy", pt: 230, d: "2026-09-01" }];
+  assert.deepEqual(carryMissing(ours, prevJ, data, now).map((r) => r.n), ["Vijay Rakesh"], "partial firm coverage -> old rows stay gone");
+  // ...but a newer page row from last run still carries while getData keeps the firm wanted
+  const prevNew = [page[0], ...ours];
+  assert.deepEqual(carryMissing(ours, prevNew, data, now).map((r) => r.d), ["2026-11-15", "2026-11-11"], "newer recovered row carries");
+  // review #3: source regression (page row gone, payload still 11-11) keeps 11-15, not 11-11
+  const regressed = latestPerAnalyst(keepNewerPrev(ours, out));
+  assert.deepEqual(regressed.map((r) => [r.d, r.pt]), [["2026-11-15", 220]], "older row never swaps back in");
+  assert.deepEqual(keepNewerPrev([], out), [], "never adds an analyst this run lacks");
+  // analyst who moved firms: name + firm identity keeps both
+  assert.equal(latestPerAnalyst([{ n: "Ann", f: "A", d: "2026-11-01" }, { n: "Ann", f: "B", d: "2026-10-01" }]).length, 2, "firm change = two analysts");
+  // newer rating with NO target: page has no row for it -> nothing added, old row with a target stays
+  assert.deepEqual(latestPerAnalyst(mergeForecasts(ours, topUpRows([], missingFirms(ours, data, now)))).map((r) => r.pt), [250], "no-target reiteration stays hidden");
+  assert.equal(latestPerAnalyst(two).length, 4, "different analysts at one firm, and Unknown Analysts at different firms, all stay");
 }
 
 console.log("ok   forecast merge: gate, additive guarantee, union, dedup, precedence, anonymized rows, BIOA, payload, carry-forward, FX-stable targets, source choice, page top-up");
