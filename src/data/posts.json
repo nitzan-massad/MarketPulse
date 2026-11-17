@@ -1,5 +1,32 @@
 [
   {
+    "id": "ONDS-2026-11-17T04:32:48.046Z",
+    "ts": "2026-11-17T04:32:48.046Z",
+    "kind": "surprise",
+    "ticker": "ONDS",
+    "name": "Ondas",
+    "sector": "Technology",
+    "text": "~198% upside, nearly 5 times sector's median.",
+    "score": 38,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (38% word overlap)"
+    ],
+    "facts": {
+      "upside": 198.4,
+      "price": 5.16,
+      "priceTarget": 15.4,
+      "consensus": "StrongBuy",
+      "analysts": 8,
+      "sector": "Technology",
+      "sectorMedianUpside": 44.1
+    },
+    "descriptor": "Wireless Network Solutions",
+    "image": "ONDS-2026-11-17T04-32-48-046Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "CIFR-2026-11-16T20:15:35.891Z",
     "ts": "2026-11-16T20:15:35.891Z",
     "kind": "surprise",

@@ -1,38 +1,5 @@
 [
   {
-    "ts": "2026-09-25T10:05:44.190Z",
-    "date": "2026-09-25",
-    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-    "calls": {
-      "writer": 5,
-      "descriptor": 1,
-      "image": 1
-    },
-    "measuredNeurons": 179.61,
-    "estimatedNeurons": 57.6,
-    "totalNeurons": 237.21,
-    "publishedCount": 1,
-    "stageMs": {
-      "writer": 1718,
-      "descriptor": 1196,
-      "image": 1702,
-      "wikimedia": 0
-    },
-    "candidates": {
-      "generated": 5,
-      "used": 1,
-      "outscored": 4,
-      "rejected": 0
-    },
-    "rejectionReasons": {},
-    "hookOutcomes": {
-      "contrarian": {
-        "attempted": 1,
-        "published": 1
-      }
-    }
-  },
-  {
     "ts": "2026-09-25T15:01:25.501Z",
     "date": "2026-09-25",
     "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
@@ -9340,6 +9307,61 @@
       },
       "surprise": {
         "attempted": 2,
+        "published": 1
+      }
+    }
+  },
+  {
+    "ts": "2026-11-17T04:32:52.230Z",
+    "date": "2026-11-17",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "calls": {
+      "writer": 45,
+      "descriptor": 1,
+      "image": 1
+    },
+    "measuredNeurons": 1888.36,
+    "estimatedNeurons": 57.6,
+    "totalNeurons": 1945.96,
+    "publishedCount": 1,
+    "stageMs": {
+      "writer": 17807,
+      "descriptor": 639,
+      "image": 3271,
+      "wikimedia": 0
+    },
+    "candidates": {
+      "generated": 45,
+      "used": 1,
+      "outscored": 1,
+      "rejected": 43
+    },
+    "rejectionReasons": {
+      "duplicate of a recent post": 43
+    },
+    "hookOutcomes": {
+      "list": {
+        "attempted": 1,
+        "published": 0
+      },
+      "steady": {
+        "attempted": 2,
+        "published": 0
+      },
+      "record": {
+        "attempted": 2,
+        "published": 0
+      },
+      "newcomer": {
+        "attempted": 2,
+        "published": 0
+      },
+      "contrarian": {
+        "attempted": 1,
+        "published": 0
+      },
+      "surprise": {
+        "attempted": 1,
         "published": 1
       }
     }

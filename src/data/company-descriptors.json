@@ -318,5 +318,10 @@
     "name": "Cipher Digital",
     "descriptor": "Bitcoin Mining",
     "scene": "tuning a bank of cryptocurrency servers with a screwdriver and cable"
+  },
+  "ONDS": {
+    "name": "Ondas",
+    "descriptor": "Wireless Network Solutions",
+    "scene": "tuning a radio frequency module on a laboratory workbench"
   }
 }
