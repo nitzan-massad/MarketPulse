@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import { parseForecastHtml, withStars } from "./forecast-html.mjs";
-import { carryRecentPrev, carryStars, forecastsFromPayload, hiddenTargetKeys, pageNeeded, payloadOk, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, missingOf, topUpRows } from "./forecast-merge.mjs";
+import { carryPrevGuarded, carryStars, forecastsFromPayload, hiddenTargetKeys, pageNeeded, payloadOk, keepPrevRating, mergeForecasts, missingOf, prunedTried, topUpRows } from "./forecast-merge.mjs";
 
 /* ---------------------------------------------------------------- the mirror */
 // `fj` = the parsed payload, or null when the fetch failed. `page` = the page HTML, or null when the
@@ -27,7 +27,7 @@ function runTicker({ ticker, fj, page, out, now = Date.now(), tried = {} }) {
   let fc = carryStars(ok ? src : [], prev);
   const hidden = ok ? hiddenTargetKeys(fj, ticker, prev ?? []) : [];
   const needPage = pageNeeded({ srcOk: ok, hidden, tried: tried[ticker] });
-  tried[ticker] = (tried[ticker] || []).filter((k) => hidden.includes(k));
+  tried[ticker] = prunedTried(tried[ticker], hidden, ok);
   if (needPage && page != null) {
     const rows = parseForecastHtml(page);
     if (ok) fc = mergeForecasts(fc, topUpRows(withStars(rows), missingOf(fc, rows, now)));
@@ -37,9 +37,7 @@ function runTicker({ ticker, fj, page, out, now = Date.now(), tried = {} }) {
   if (!tried[ticker].length) delete tried[ticker];
   fc = carryStars(fc, prev);
   fc = keepPrevRating(fc, prev);
-  fc = carryRecentPrev(fc, prev, { now, all: !ok });
-  fc = keepNewerPrev(fc, prev);
-  fc = latestPerAnalyst(fc);
+  fc = carryPrevGuarded(fc, prev, { ok, now }).rows;
   let wrote = false;
   if (fc.length) { writeFileSync(file, JSON.stringify(fc)); wrote = true; }
   return { wrote, fetchedPage: needPage, rows: fc };
@@ -126,6 +124,10 @@ const rating = (d, pt) => ({ object: { ticker: "T" }, expert: { uid: "u1", id: "
   assert.deepEqual(tried, {}, "keys no longer hidden are pruned");
   // payload failure always fetches the page, tried or not
   assert.equal(runTicker({ ticker: "T", fj: null, page: "", out: OUT, now: NOW, tried: { T: ["real analyst|2026-07-05"] } }).fetchedPage, true);
+  // F2: payload AND page failed -> the _pageTried keys are not pruned (a failed payload lists no hidden targets)
+  const keepTried = { T: ["real analyst|2026-07-05"] };
+  runTicker({ ticker: "T", fj: null, page: null, out: OUT, now: NOW, tried: keepTried });
+  assert.deepEqual(keepTried, { T: ["real analyst|2026-07-05"] }, "failed payload keeps _pageTried");
 }
 
 /* ------------------- 6. a payload that parses to 0 rows over a non-empty file = payload failure */
@@ -151,7 +153,7 @@ const rating = (d, pt) => ({ object: { ticker: "T" }, expert: { uid: "u1", id: "
     "let fc = carryStars(ok ? src : [], prev);",
     "const hidden = ok ? hiddenTargetKeys(fj, t, prev ?? []) : [];",
     "const needPage = pageNeeded({ srcOk: ok, hidden, tried: tried[t] });",
-    "tried[t] = (tried[t] || []).filter((k) => hidden.includes(k));",
+    "tried[t] = prunedTried(tried[t], hidden, ok);",
     "if (needPage && !skipOpen(\"forecast page\", pageBreaker)) {",
     "plain: false, ok: (h) => usablePage(h, 1), breaker: pageBreaker",
     "fc = mergeForecasts(fc, topUpRows(withStars(page), missingOf(fc, page)));",
@@ -160,9 +162,8 @@ const rating = (d, pt) => ({ object: { ticker: "T" }, expert: { uid: "u1", id: "
     "if (!tried[t].length) delete tried[t];",
     "fc = carryStars(fc, prev);",
     "fc = keepPrevRating(fc, prev);",
-    "fc = carryRecentPrev(fc, prev, { all: !ok });",
-    "fc = keepNewerPrev(fc, prev);",
-    "fc = latestPerAnalyst(fc);",
+    "const g = carryPrevGuarded(fc, prev, { ok });",
+    "fc = g.rows;",
     "if (fc.length) {\n      writeFileSync(",
     "const PARALLEL = Math.max(1, ",
   ]) assert.ok(src.includes(line), `PIPELINE MOVED: scrape-forecasts.mjs no longer has \`${line}\` — update runTicker() in this file`);

@@ -4,7 +4,7 @@
 // ci/test-forecast-gate.mjs had to mirror the old inline gate.
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { carryRecentPrev, carryStars, forecastsFromPayload, hiddenTargetKeys, hiddenTargets, pageNeeded, payloadOk, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, mergeKey, missingOf, topUpRows } from "./forecast-merge.mjs";
+import { carryPrevGuarded, forecastsDegraded, prunedTried, carryRecentPrev, carryStars, forecastsFromPayload, hiddenTargetKeys, hiddenTargets, pageNeeded, payloadOk, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, mergeKey, missingOf, topUpRows } from "./forecast-merge.mjs";
 
 const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", pt, opt: null, d, ...extra });
 
@@ -298,4 +298,47 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   assert.equal(latestPerAnalyst(two).length, 4, "different analysts at one firm, and Unknown Analysts at different firms, all stay");
 }
 
-console.log("ok   forecast merge: page gate, carryStars, carryRecentPrev, additive guarantee, union, dedup, precedence, anonymized rows, BIOA, payload, uid lookup, FX-stable targets, page top-up");
+/* ------------------------------------------------------------- carryPrevGuarded */
+// I2b — the first rotation after the source swap: a file whose prev holds many 92-365 day rows
+// for analysts the payload no longer lists. The 92-day carry alone would shrink it past the data
+// gate's 20% rule (ci/data-loss.mjs, same counting rule), so it redoes the carry with all:true.
+{
+  const now = Date.parse("2026-11-18T00:00:00Z");
+  const day = (n) => new Date(now - n * 864e5).toISOString().slice(0, 10);
+  const prev = [row("Cur", day(5), 10), ...Array.from({ length: 9 }, (_, i) => row("Old" + i, day(150 + i), 10))];
+  const fresh = [row("Cur", day(5), 10), row("New", day(2), 11)];
+  const g = carryPrevGuarded(fresh, prev, { ok: true, now });
+  assert.equal(g.widened, true, "widened when the 92-day carry would shrink the file > 20%");
+  assert.equal(g.rows.length, 11, "every prev analyst carried + the new one");
+  assert.equal(g.carried, 9);
+  // a small loss (within 20%) keeps the 92-day window: old rows for vanished analysts still age out
+  const prev2 = [...Array.from({ length: 9 }, (_, i) => row("R" + i, day(10 + i), 10)), row("Gone", day(200), 10)];
+  const g2 = carryPrevGuarded(prev2.slice(0, 9), prev2, { ok: true, now });
+  assert.equal(g2.widened, false);
+  assert.equal(g2.rows.length, 9, "10 -> 9 is within the rule: the 200-day row ages out");
+  // >365-day and AI rows do not count toward the shrink rule (same as the gate)
+  const prev3 = [row("Cur", day(5), 10), ...Array.from({ length: 9 }, (_, i) => row("Ancient" + i, day(400 + i), 10))];
+  assert.equal(carryPrevGuarded([row("Cur", day(5), 10)], prev3, { ok: true, now }).widened, false, "rows past 365d are churn, not loss");
+  // below FORECAST_MIN_ROWS: no widening
+  const prev4 = [row("Cur", day(5), 10), ...Array.from({ length: 3 }, (_, i) => row("O" + i, day(150 + i), 10))];
+  assert.equal(carryPrevGuarded([row("Cur", day(5), 10)], prev4, { ok: true, now }).widened, false);
+  // payload failed: all:true from the start (unchanged behaviour), not counted as widened
+  const g5 = carryPrevGuarded([], prev, { ok: false, now });
+  assert.equal(g5.rows.length, 10);
+  assert.equal(g5.widened, false);
+  // no prev: rows pass through
+  assert.deepEqual(carryPrevGuarded(fresh, null, { ok: true, now }), { rows: latestPerAnalyst(fresh), carried: 0, widened: false });
+}
+
+/* -------------------------------------------- prunedTried (F2) + forecastsDegraded (F3) */
+{
+  assert.deepEqual(prunedTried(["a|1", "b|2"], ["b|2"], true), ["b|2"], "payload parsed: keys no longer hidden are pruned");
+  assert.deepEqual(prunedTried(["a|1", "b|2"], [], false), ["a|1", "b|2"], "payload failed: nothing is pruned");
+  assert.deepEqual(prunedTried(undefined, [], false), [], "no entry yet");
+  assert.equal(forecastsDegraded({ thrown: 0, unfetched: 0, targets: 0 }), null);
+  assert.equal(forecastsDegraded({ thrown: 0, unfetched: 9, targets: 90 }), null, "10% exactly is fine");
+  assert.match(forecastsDegraded({ thrown: 0, unfetched: 10, targets: 90 }), /10\/90 tickers failed \(10 payload\+page, 0 thrown\)/, "payload+page failures count, not only thrown");
+  assert.match(forecastsDegraded({ thrown: 4, unfetched: 6, targets: 90 }), /10\/90/);
+}
+
+console.log("ok   forecast merge: page gate, carryStars, carryRecentPrev, additive guarantee, union, dedup, precedence, anonymized rows, BIOA, payload, uid lookup, FX-stable targets, page top-up, shrink-guarded carry");

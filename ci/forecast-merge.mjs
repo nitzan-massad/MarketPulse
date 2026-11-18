@@ -18,6 +18,8 @@
 //   83% get FRESHER data            median +16 days, worst +349 (ANVS, stuck on 2025-09-03)
 //   0 tickers lose rows   0 malformed rows   0 target conflicts where both sources have it
 
+import { countRows, FORECAST_MIN_ROWS, FORECAST_SHRINK } from "./data-loss.mjs";
+
 /**
  * Identity of a rating across the two sources. Analyst + date: both sources name the analyst
  * for every row that survives to here, and one analyst does not issue two ratings on a stock
@@ -305,4 +307,36 @@ export function carryRecentPrev(rows, prev, { now = Date.now(), days = 92, all =
   });
   if (!back.length) return out;
   return [...out, ...back].sort((a, b) => (b.d || "").localeCompare(a.d || ""));
+}
+
+/**
+ * The carry tail of a forecast merge: carryRecentPrev (92 days, or everything when the payload
+ * failed) -> keepNewerPrev -> latestPerAnalyst. If, on a payload that parsed, that would leave the
+ * file below the data gate's shrink floor (ci/data-loss.mjs: countRows, FORECAST_MIN_ROWS,
+ * FORECAST_SHRINK — the same rule, so the two cannot disagree), redo it with all:true. That is the
+ * first-rotation case: files holding many 92-365 day rows for analysts the payload no longer lists
+ * would otherwise turn the gate red and freeze the deploy. Returns { rows, carried, widened }.
+ */
+export function carryPrevGuarded(rows, prev, { ok, now = Date.now() } = {}) {
+  const base = Array.isArray(rows) ? rows : [];
+  const tail = (all) => {
+    const c = keepNewerPrev(carryRecentPrev(base, prev, { now, all }), prev);
+    return { rows: latestPerAnalyst(c), carried: c.length - base.length };
+  };
+  const r = tail(!ok);
+  if (ok && Array.isArray(prev)) {
+    const was = countRows(prev, now);
+    if (was >= FORECAST_MIN_ROWS && countRows(r.rows, now) < was * (1 - FORECAST_SHRINK)) return { ...tail(true), widened: true };
+  }
+  return { ...r, widened: false };
+}
+
+/** `_pageTried` keys to keep for a ticker. Pruned to this run's hidden targets only when the payload
+ *  parsed (`ok`); a failed payload says nothing about which remain, so the keys stay as they were. */
+export const prunedTried = (keys, hidden, ok) => (ok ? (keys || []).filter((k) => (hidden || []).includes(k)) : [...(keys || [])]);
+
+/** Health line when more than 10% of targets got nothing new: thrown, or payload AND page failed. */
+export function forecastsDegraded({ thrown, unfetched, targets }) {
+  const n = thrown + unfetched;
+  return targets && n > targets * 0.1 ? `forecasts: ${n}/${targets} tickers failed (${unfetched} payload+page, ${thrown} thrown)` : null;
 }

@@ -12,7 +12,7 @@
 // between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { parseForecastHtml, usablePage, withStars } from "./forecast-html.mjs";
-import { carryRecentPrev, carryStars, forecastsFromPayload, hiddenTargetKeys, pageNeeded, payloadOk, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, missingOf, topUpRows } from "./forecast-merge.mjs";
+import { carryPrevGuarded, carryStars, forecastsDegraded, prunedTried, forecastsFromPayload, hiddenTargetKeys, pageNeeded, payloadOk, keepPrevRating, mergeForecasts, missingOf, topUpRows } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
 import { getText, makeBreaker, health } from "./tr-fetch.mjs";
 
@@ -79,7 +79,7 @@ const PARALLEL = Math.max(1, Math.floor(Number(process.env.PARALLEL)) || 1);
 mkdirSync(OUT, { recursive: true });
 console.log(`forecasts backfill: ${targets.length} ticker(s), ${hot.length} near earnings (LIMIT=${LIMIT}, ALL=${ALL}, PARALLEL=${PARALLEL})`);
 const now = new Date().toISOString();
-let written = 0, empty = 0, fail = 0, viaPage = 0, pages = 0, pageFails = 0, payloadFails = 0, carried = 0;
+let written = 0, empty = 0, fail = 0, viaPage = 0, pages = 0, pageFails = 0, payloadFails = 0, carried = 0, widened = 0, unfetched = 0;
 // ponytail: a fixed pool of PARALLEL workers over one shared FlareSolverr; each request is a
 // headless Chrome, so the ceiling is runner CPU, not TipRanks: 3 on the 4-vCPU runner
 // (90 tickers: P1 973s, P3 655s, P10 1378s). More needs more cores or more FlareSolverr instances.
@@ -117,7 +117,9 @@ async function scrape(t) {
     // 3. the page only when the payload failed, or once per target the payload withholds
     const hidden = ok ? hiddenTargetKeys(fj, t, prev ?? []) : [];
     const needPage = pageNeeded({ srcOk: ok, hidden, tried: tried[t] });
-    tried[t] = (tried[t] || []).filter((k) => hidden.includes(k)); // prune: the map can't grow forever
+    // prune: the map can't grow forever — but only on a payload that parsed; a failed one says
+    // nothing about which hidden targets remain, and pruning then would re-fetch the page for them
+    tried[t] = prunedTried(tried[t], hidden, ok);
     let source = ok ? "payload" : "page";
     let fresh = ok; // something this run actually fetched
     if (needPage && !skipOpen("forecast page", pageBreaker)) {
@@ -144,13 +146,15 @@ async function scrape(t) {
     fc = carryStars(fc, prev); // page-only rows: the analyst's star from last run
     // 4. last run's rows: a stored rating keeps its firm/target; analysts this run lacks stay while
     // recent (all of them when the payload failed, so a fetch failure never shrinks the file)
+    // keepNewerPrev: a source regression must not swap an analyst's older row back in; then the newest
+    // rating per analyst replaces the older one. Widens to all:true if the file would shrink past the gate.
     fc = keepPrevRating(fc, prev);
-    const before = fc.length;
-    fc = carryRecentPrev(fc, prev, { all: !ok });
-    fc = keepNewerPrev(fc, prev); // a source regression must not swap an analyst's older row back in
-    const back = fc.length - before;
+    const g = carryPrevGuarded(fc, prev, { ok });
+    fc = g.rows;
+    const back = g.carried;
     carried += back;
-    fc = latestPerAnalyst(fc); // newest rating per analyst replaces the older one
+    if (g.widened) { widened++; console.log(`  ${t}: 92-day carry would shrink the file past the data gate, carried every prev analyst`); }
+    if (!fresh) unfetched++; // payload AND page failed (or the page was skipped): last run's rows only
     if (fc.length) {
       writeFileSync(`${OUT}/${t}.json`, JSON.stringify(fc)); written++;
       console.log(`  ${t}: ${fc.length} ✓ (${source})${back ? ` (+${back} carried)` : ""}`);
@@ -173,5 +177,7 @@ saveAsOf();
 // tripwire: payload.json failing a lot = TipRanks moved or blocked it; every ticker is on the slow page path
 if (payloadFails) console.log(`${payloadFails > 10 ? "::warning::" : ""}forecasts: payload.json failed for ${payloadFails} ticker(s)`);
 if (pageFails) console.log(`${pageFails > 10 ? "::warning::" : ""}forecasts: ${pageFails} forecast page(s) failed`);
-if (targets.length && fail > targets.length * 0.1) health(`forecasts: ${fail}/${targets.length} tickers failed`);
-console.log(`done: ${written} written (${pages} page fetches, ${viaPage} gained rows from the page, ${pageFails} failed), ${carried} carried forward, ${empty} empty, ${fail} failed, ${payloadFails} payload failures`);
+// thrown + both-sources-failed: either way the ticker got nothing new this run
+const degraded = forecastsDegraded({ thrown: fail, unfetched, targets: targets.length });
+if (degraded) health(degraded);
+console.log(`done: ${written} written (${pages} page fetches, ${viaPage} gained rows from the page, ${pageFails} failed), ${carried} carried forward, ${empty} empty, ${fail} failed, ${unfetched} unfetched (payload+page), ${payloadFails} payload failures, ${widened} widened carries`);
