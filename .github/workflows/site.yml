@@ -320,3 +320,31 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node ci/track-requests.mjs clear
+
+      # LAST step, after the commit/deploy, so data ships even when a source degraded — but the run
+      # goes red so GitHub emails the owner. Trips on a line in $RUNNER_TEMP/health (breaker open,
+      # universe failure, >30% carried, >10% forecasts failed) or any scrape step whose OUTCOME is
+      # failure/cancelled (outcome, not conclusion: continue-on-error makes conclusion "success").
+      # 'skipped' is fine: push events skip every scrape step, dry_run still reaches this gate.
+      - name: Health gate
+        if: always()
+        env:
+          OUTCOMES: >-
+            snapshot=${{ steps.snapshot.outcome }}
+            backfill=${{ steps.backfill.outcome }}
+            sectors=${{ steps.sectors.outcome }}
+            feargreed=${{ steps.feargreed.outcome }}
+            earnings=${{ steps.earnings.outcome }}
+            post=${{ steps.post.outcome }}
+            themes=${{ steps.themes.outcome }}
+        run: |
+          bad=0
+          if [ -s "$RUNNER_TEMP/health" ]; then
+            echo "::error::degraded sources:"; cat "$RUNNER_TEMP/health"; bad=1
+          fi
+          for o in $OUTCOMES; do
+            case "${o#*=}" in
+              failure|cancelled) echo "::error::step ${o%%=*} ended ${o#*=}"; bad=1 ;;
+            esac
+          done
+          exit $bad

@@ -173,4 +173,5 @@ saveAsOf();
 // tripwire: payload.json failing a lot = TipRanks moved or blocked it; every ticker is on the slow page path
 if (payloadFails) console.log(`${payloadFails > 10 ? "::warning::" : ""}forecasts: payload.json failed for ${payloadFails} ticker(s)`);
 if (pageFails) console.log(`${pageFails > 10 ? "::warning::" : ""}forecasts: ${pageFails} forecast page(s) failed`);
+if (targets.length && fail > targets.length * 0.1) health(`forecasts: ${fail}/${targets.length} tickers failed`);
 console.log(`done: ${written} written (${pages} page fetches, ${viaPage} gained rows from the page, ${pageFails} failed), ${carried} carried forward, ${empty} empty, ${fail} failed, ${payloadFails} payload failures`);
