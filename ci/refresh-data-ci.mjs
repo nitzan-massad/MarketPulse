@@ -3,8 +3,8 @@
 // page body. We request the screener API through it and parse the JSON out.
 // (Local manual refresh uses scripts/refresh-data.mjs with Playwright instead.)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { computeKeep, rowFromGetData, forecastFields, applyForecast, enrichQueue, nextLastSeen, rowFromScreener, mergeRow, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
-import { saveGetData } from "./getdata-cache.mjs";
+import { computeKeep, forecastFields, applyForecast, enrichQueue, nextLastSeen, rowFromScreener, rowFromAiAnalyst, mergeRow, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
+import { UNIVERSE_URL, universeMap, planBackfill } from "./backfill-plan.mjs";
 import { getText, makeBreaker, health } from "./tr-fetch.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
@@ -15,11 +15,12 @@ const API =
 // firewall block fails at once (BlockedError) instead of being retried. One breaker per endpoint;
 // retries here also absorb FlareSolverr's ~30-60s cold start.
 const flareGet = (url, br, tries = 8) => getText(url, { flareUrl: FS_URL, tries, breaker: br });
-const screenerBreaker = makeBreaker(), getDataBreaker = makeBreaker(), payloadBreaker = makeBreaker();
+const screenerBreaker = makeBreaker(), universeBreaker = makeBreaker(), aiBreaker = makeBreaker(), payloadBreaker = makeBreaker();
 
 // FlareSolverr returns the rendered page; a JSON endpoint comes back wrapped in
 // <pre>…</pre> with HTML-escaped entities. Pull the JSON object out of it.
 function extractJson(html) {
+  try { return JSON.parse(html); } catch { /* wrapped in <pre> or HTML: fall through */ }
   const pre = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
   for (const cand of [pre && pre[1], html].filter(Boolean)) {
     const decoded = cand
@@ -84,37 +85,52 @@ const lsMs = (t) => Date.parse(prevSeen[t]?.ls || prevSeen[t]?.d || "") || 0;
 const baMs = (t) => Date.parse(prevSeen[t]?.ba || "") || lsMs(t);
 const missing = [...keep].filter((t) => !inPull.has(t)).sort((a, b) => baMs(a) - baMs(b));
 const backfillTried = new Set();
-let refreshed = 0, carried = 0;
-for (const t of missing) {
-  const prev = prevRows.get(t) || {};
-  if (getDataBreaker.open()) {
-    if (!getDataBreaker.reported) { getDataBreaker.reported = true; health("breaker open: getData"); console.log("  getData breaker open: skipping the rest, carrying last-known rows"); }
-  } else if (refreshed < BACKFILL_LIMIT) {
+// Off-pull rows come from the full-universe screener call (one request, ~14k items) where
+// possible; only tickers it lacks need a per-ticker stock-aianalyst payload. The raw response
+// is ~77 MB: parse once, keep only the map.
+let universe = new Map(), universeTotal = 0;
+if (missing.length) {
+  try {
+    let body = await getText(UNIVERSE_URL, { flareUrl: FS_URL, tries: 2, breaker: universeBreaker });
+    const items = extractJson(body).items;
+    body = null;
+    universe = universeMap(items);
+    universeTotal = Array.isArray(items) ? items.length : 0;
+  } catch (e) { health("universe pull failed"); console.log(`  universe pull failed (${e.message}): backfilling from payloads only`); }
+}
+const { fromUniverse, needPayload } = planBackfill(missing, universe);
+const today = new Date().toISOString();
+let fromUni = 0, fromPayload = 0, carried = 0;
+for (const t of fromUniverse) {
+  const row = mergeRow(prevRows.get(t), rowFromScreener(universe.get(t), { inPull: false }));
+  if (row?.t) { seen.set(t, row); fromUni++; backfillTried.add(t); } else needPayload.push(t);
+}
+const deadline = Date.now() + 10 * 60_000;
+for (const t of needPayload) {
+  const prev = prevRows.get(t);
+  if (Date.now() < deadline && fromPayload < BACKFILL_LIMIT && !aiBreaker.open()) {
     backfillTried.add(t); // attempt, not success — a permanently-dead ticker must not camp at the head
     try {
-      const body = await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`, getDataBreaker);
-      const row = rowFromGetData(extractJson(body), prev);
-      if (row.t) {
-        seen.set(t, row); refreshed++;
-        saveGetData(process.env.GETDATA_CACHE, t, body); // reused by scrape-forecasts this run
-        continue;
-      }
-    } catch (e) { console.log(`  keep ${t}: getData skip (${e.message})`); }
-  }
-  if (prev.t) { seen.set(t, prev); carried++; } // over cap or fetch failed — keep last-known row
+      const body = await getText(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`, { flareUrl: FS_URL, tries: 3, breaker: aiBreaker });
+      const row = mergeRow(prev, rowFromAiAnalyst(extractJson(body), t));
+      if (row?.t) { seen.set(t, row); fromPayload++; continue; }
+    } catch (e) { console.log(`  keep ${t}: aianalyst skip (${e.message})`); }
+  } else if (aiBreaker.open() && !aiBreaker.reported) { aiBreaker.reported = true; health("breaker open: stock-aianalyst"); console.log("  aianalyst breaker open: skipping the rest, carrying last-known rows"); }
+  if (prev?.t) { seen.set(t, prev); carried++; } // past the deadline/cap or fetch failed — keep last-known row
 }
+console.log(`backfill: ${fromUni} universe, ${fromPayload} payload, ${carried} carried (of ${missing.length} missing; universe ${universe.size}/${universeTotal} items)`);
+if (carried > missing.length * 0.3) health(`backfill carried ${carried}/${missing.length}`);
 for (const t of pinned) if (seen.has(t)) (membership[t] ??= new Set()).add("p");
-console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried, ${dropped.length} expired, cap ${BACKFILL_LIMIT})`);
-// The second cliff: past the cap, prices/consensus/ss go stale too, not just AI data.
-// Off-pull grew 3 -> 73 in 12 days, so this fires around Sept-Oct 2026 without a bump.
-if (missing.length > BACKFILL_LIMIT * 0.8) {
-  console.log(`  WARNING: ${missing.length} kept tickers are off-pull against a cap of ${BACKFILL_LIMIT}`
+console.log(`keep set: ${keep.size} (${fromUni + fromPayload} refreshed, ${carried} carried, ${dropped.length} expired, payload cap ${BACKFILL_LIMIT})`);
+// Only tickers the universe pull lacks cost a per-ticker request; past the cap they carry stale prices.
+if (needPayload.length > BACKFILL_LIMIT * 0.8) {
+  console.log(`  WARNING: ${needPayload.length} kept tickers need a per-ticker payload against a cap of ${BACKFILL_LIMIT}`
     + ` — at the cap, rows past it serve stale prices. Raise BACKFILL_LIMIT or lower KEEP_MAX_AGE_DAYS.`);
 }
 
 // Enrich from the per-ticker stock-forecast payload — the only per-ticker source for the
 // AI-analyst score/rating/target and the sector name. Two jobs: FILL blanks (off-list pins,
-// brand-new arrivals), and CORRECT the ai/air/aipt/chg that rowFromGetData carries verbatim
+// brand-new arrivals), and CORRECT the ai/air/aipt/chg that off-pull rows carry verbatim
 // for off-pull rows — nothing else ever re-checks those, so the AI trio OVERWRITES here
 // (atomically) while blanks fill normally. Why each of those is the way it is (the UNP
 // downgrade that stayed visible for 46 runs, the 0-100 scale this overwrite depends on, the
@@ -171,7 +187,7 @@ console.log(`wrote ${seen.size} rows; universe ${total}`);
 
 // maintain the seen tracker: freeze first-seen fields (d/ss/ai/con/l), stamp
 // brand-new tickers, and update `ls` (last-seen-in-dynamic-list) which drives expiry.
-const today = new Date().toISOString(); // full timestamp so New Arrivals can show hours-ago for fresh names
+// (`today` is declared above, before the backfill) full timestamp so New Arrivals can show hours-ago for fresh names
 const firstSeen = {};
 // AI "top 10%" flag — no screener sort exists for AI, so use the 90th-pct cut (as Best of the Best does)
 const aiArr = [...seen.values()].map((r) => r.ai).filter((x) => x != null).sort((a, b) => a - b);

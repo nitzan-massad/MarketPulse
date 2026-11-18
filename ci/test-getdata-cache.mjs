@@ -54,12 +54,10 @@ try {
 
 // both scripts are wired to the same env var, and the forecast step still fetches live on a miss
 const refresh = readFileSync(new URL("./refresh-data-ci.mjs", import.meta.url), "utf8");
+assert.ok(!/saveGetData/.test(refresh), "refresh no longer fetches getData, so it writes no cache (retired with Task 4)");
 const fc = readFileSync(new URL("./scrape-forecasts.mjs", import.meta.url), "utf8");
-assert.match(refresh, /saveGetData\(process\.env\.GETDATA_CACHE, t, body\)/, "refresh writes the raw body");
 assert.match(fc, /process\.env\.GETDATA_CACHE/, "forecasts reads the same env var");
 assert.match(fc, /takeGetData\(CACHE, t\)/, "forecasts consults the cache");
 assert.match(fc, /data \?\?= extractJson\(await flareGet\(`https:\/\/www\.tipranks\.com\/api\/stocks\/getData\/\?name=/,
   "a miss or unusable entry still fetches live");
-// the cache write must sit AFTER the row is kept, so a failed write cannot drop it
-assert.ok(refresh.indexOf("seen.set(t, row); refreshed++;") < refresh.indexOf("saveGetData("), "row kept before caching");
 console.log("getdata-cache: ok");

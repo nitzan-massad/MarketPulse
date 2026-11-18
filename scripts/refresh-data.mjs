@@ -3,7 +3,8 @@
 // does the same in-page fetch the app's data was originally pulled with.
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { computeKeep, rowFromGetData, rowFromScreener, mergeRow, forecastFields, applyForecast, enrichQueue, nextLastSeen, KEEP_MAX_AGE_DAYS } from "../ci/keep.mjs";
+import { UNIVERSE_URL, universeMap, planBackfill } from "../ci/backfill-plan.mjs";
+import { computeKeep, rowFromScreener, rowFromAiAnalyst, mergeRow, forecastFields, applyForecast, enrichQueue, nextLastSeen, KEEP_MAX_AGE_DAYS } from "../ci/keep.mjs";
 
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -37,13 +38,20 @@ async function pull(page) {
   }, API);
 }
 
-// in-page per-ticker fetches (need the page's Cloudflare clearance)
-async function fetchGetData(page, tickers) {
+// in-page fetches (need the page's Cloudflare clearance). The universe is one ~77 MB call whose
+// items come back raw; the per-ticker aianalyst payloads cover tickers it lacks.
+async function fetchUniverse(page) {
+  return page.evaluate(async (url) => {
+    const r = await fetch(url, { headers: { accept: "application/json" } });
+    return (await r.json()).items || [];
+  }, UNIVERSE_URL);
+}
+async function fetchAiAnalyst(page, tickers) {
   return page.evaluate(async (ts) => {
     const out = [];
     for (const t of ts) {
       try {
-        const r = await fetch(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`, { headers: { accept: "application/json" } });
+        const r = await fetch(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`, { headers: { accept: "application/json" } });
         out.push(await r.json());
       } catch { out.push(null); }
     }
@@ -89,7 +97,7 @@ if (!data || data.items.length < 50) {
   process.exit(1);
 }
 
-// --- keep set: pinned + non-expired previously-seen tickers, backfilled via getData
+// --- keep set: pinned + non-expired previously-seen tickers, backfilled via the universe pull
 // when they fall out of the top-120 sorts (capped, most-stale-first). See ci/keep.mjs.
 // last-known rows: the mapper's `undefined` ("can't see it") falls back to these
 const prevRows = new Map();
@@ -123,19 +131,29 @@ const lsMs = (t) => Date.parse(prevSeen[t]?.ls || prevSeen[t]?.d || "") || 0;
 // (backfilled-at) advances. Mirrors ci/refresh-data-ci.mjs.
 const baMs = (t) => Date.parse(prevSeen[t]?.ba || "") || lsMs(t);
 const missing = [...keep].filter((t) => !inPull.has(t)).sort((a, b) => baMs(a) - baMs(b));
-const toFetch = missing.slice(0, BACKFILL_LIMIT);
-const fetched = toFetch.length ? await fetchGetData(page, toFetch) : [];
-
-let refreshed = 0, carried = 0;
+let universe = new Map();
+if (missing.length) {
+  try { universe = universeMap(await fetchUniverse(page)); } catch (e) { console.error(`universe pull failed (${e.message}): backfilling from payloads only`); }
+}
+const { fromUniverse, needPayload } = planBackfill(missing, universe);
+const toFetch = [];
+let fromUni = 0, refreshed = 0, carried = 0;
 const carry = (t) => { const prev = prevRows.get(t); if (prev) { seen.set(t, prev); carried++; } };
-fetched.forEach((j, i) => {
-  const t = toFetch[i];
-  const row = j && rowFromGetData(j, prevRows.get(t) || {});
-  if (row && row.t) { seen.set(t, row); refreshed++; } else carry(t);
+for (const t of fromUniverse) {
+  const row = mergeRow(prevRows.get(t), rowFromScreener(universe.get(t), { inPull: false }));
+  if (row?.t) { seen.set(t, row); fromUni++; toFetch.push(t); } else needPayload.push(t);
+}
+const payloadList = needPayload.slice(0, BACKFILL_LIMIT);
+const fetched = payloadList.length ? await fetchAiAnalyst(page, payloadList) : [];
+payloadList.forEach((t, i) => {
+  toFetch.push(t); // attempt, not success — for the `ba` rotation stamp
+  const row = fetched[i] && mergeRow(prevRows.get(t), rowFromAiAnalyst(fetched[i], t));
+  if (row?.t) { seen.set(t, row); refreshed++; } else carry(t);
 });
-for (const t of missing.slice(BACKFILL_LIMIT)) carry(t); // over cap — keep last-known row
+for (const t of needPayload.slice(BACKFILL_LIMIT)) carry(t); // over cap — keep last-known row
 for (const t of pinned) if (seen.has(t) && !(membership[t] || []).includes("p")) (membership[t] ??= []).push("p");
-console.log(`keep set: ${keep.size} (${refreshed} refreshed, ${carried} carried, ${dropped.length} expired)`);
+console.log(`backfill: ${fromUni} universe, ${refreshed} payload, ${carried} carried (of ${missing.length} missing)`);
+console.log(`keep set: ${keep.size} (${fromUni + refreshed} refreshed, ${carried} carried, ${dropped.length} expired)`);
 
 // Enrich from the per-ticker stock-forecast payload. The selection, the cap and the
 // application rules are IMPORTED from ci/keep.mjs, not copied: this script once held its

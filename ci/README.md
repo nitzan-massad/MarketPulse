@@ -570,6 +570,18 @@ The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **ke
   `planUnrequest` would delete it — and `clear`s each entry after the deploy, only if its `asOf` is
   still the folded one. Rules: `trackedRows` public read, `trackedRevs` private; writes admin-only.
 
+> **Source swap (2026-11-18).** `getData` (`/api/stocks/getData/?name=<T>`) has been blocked by
+> Cloudflare since 2026-11-17 and is no longer fetched by the refresh. Off-pull kept tickers now come from:
+> 1. **Universe screener** `https://www.tipranks.com/api/apps/stock/screener?country=us&method=screener&page=1&pageSize=20000&sortDir=2`
+>    (~13.9k items, ~77 MB, same item shape as the sorted calls; `rowFromScreener(item, { inPull: false })`,
+>    duplicates resolved by `stockListingIsPrimaryMarket`; `ci/backfill-plan.mjs`).
+> 2. **`stock-aianalyst` payload** `https://www.tipranks.com/stocks/<t>/stock-aianalyst/payload.json`
+>    (`models.stocks[]` selected by `_id`; `rowFromAiAnalyst`) for tickers the universe lacks, capped by
+>    `BACKFILL_LIMIT` and a 10 minute deadline; past either, or on failure, the last-known row is carried.
+>
+> The log line `backfill: U universe, P payload, C carried` reports the split; C > 30% of missing raises a health note.
+> The older text below describes the retired getData path.
+
 Kept tickers missing from a run's screener pull are backfilled from the per-ticker
 `getData` feed (`ci/keep.mjs` → `rowFromGetData`), **merging fresh fields over the ticker's
 last-known row**. `getData` supplies price, targets, consensus, buy/hold/sell, smart score,
