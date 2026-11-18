@@ -19,6 +19,15 @@ export const LIMITS = Object.freeze({ pt: 15, up: 15, con: 5, ss: 10 });
 export const FORECAST_SHRINK = 0.2; // a file may lose at most 20% of its rows...
 export const FORECAST_MIN_ROWS = 5; // ...once it has at least this many
 
+export const FORECAST_MAX_AGE_DAYS = 365; // older rows age out of TipRanks' window: churn, not loss
+
+/** Rows that count toward the shrink rule: human analysts (firm not "TipRanks - <AI model>",
+ *  same test as ci/forecast-merge.mjs) rated within 365 days of `now` (ms; pure arg). */
+export function countRows(rows, now) {
+  const cutoff = now - FORECAST_MAX_AGE_DAYS * 864e5;
+  return rows.filter((r) => !/^TipRanks\b/i.test(r?.f || "") && !(Date.parse(r?.d) < cutoff)).length;
+}
+
 const has = (v) => v !== null && v !== undefined;
 
 /**
@@ -64,22 +73,22 @@ export function lossReport({ prevRows = [], nextRows = [], prevSeen = {}, nextSe
 // ---- loaders (shared by the test and the replay) ----
 const readJson = (f, dflt) => { try { return JSON.parse(readFileSync(f, "utf8")); } catch { return dflt; } };
 
-/** ticker -> row count for every per-ticker array file in a forecasts directory. */
-export function forecastCounts(dir) {
+/** ticker -> countRows() for every per-ticker array file in a forecasts directory. */
+export function forecastCounts(dir, now = Date.now()) {
   const o = {};
   if (!existsSync(dir)) return o;
   for (const f of readdirSync(dir)) {
     if (!f.endsWith(".json") || f.startsWith("_")) continue;
     const j = readJson(path.join(dir, f), null);
-    if (Array.isArray(j)) o[f.slice(0, -5)] = j.length;
+    if (Array.isArray(j)) o[f.slice(0, -5)] = countRows(j, now);
   }
   return o;
 }
 
 /** Snapshot from a directory holding prev-stocks.json / prev-seen.json / prev-forecasts/
  *  (what site.yml copies to $RUNNER_TEMP), or from the working tree when no dir is given. */
-export function loadSnapshot(dir) {
+export function loadSnapshot(dir, now = Date.now()) {
   return dir
-    ? { rows: readJson(path.join(dir, "prev-stocks.json"), []), seen: readJson(path.join(dir, "prev-seen.json"), {}), fc: forecastCounts(path.join(dir, "prev-forecasts")) }
-    : { rows: readJson("src/data/stocks.json", []), seen: readJson("src/data/seen.json", {}), fc: forecastCounts("public/forecasts") };
+    ? { rows: readJson(path.join(dir, "prev-stocks.json"), []), seen: readJson(path.join(dir, "prev-seen.json"), {}), fc: forecastCounts(path.join(dir, "prev-forecasts"), now) }
+    : { rows: readJson("src/data/stocks.json", []), seen: readJson("src/data/seen.json", {}), fc: forecastCounts("public/forecasts", now) };
 }

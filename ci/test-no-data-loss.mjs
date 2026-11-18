@@ -4,7 +4,7 @@
 // No network.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { lossReport, loadSnapshot } from "./data-loss.mjs";
+import { lossReport, loadSnapshot, countRows } from "./data-loss.mjs";
 
 const row = (t, o = {}) => ({ t, n: t + " Inc", sec: "Tech", px: 10, pt: 12, up: 5, con: "Buy", ss: 5, mc: 100, desc: "d", ...o });
 const base = () => ({ prevRows: [row("A"), row("B")], nextRows: [row("A"), row("B")], prevSeen: { A: { d: "2026-01-01" } }, nextSeen: { A: { d: "2026-01-01" } }, prevFc: { A: 10 }, nextFc: { A: 10 } });
@@ -35,6 +35,16 @@ ok("forecast file deleted but ticker expired", { nextFc: {}, dropped: ["A"] });
 bad("forecast 10 -> 7", { nextFc: { A: 7 } }, /shrank 10 -> 7/);
 ok("forecast 10 -> 9", { nextFc: { A: 9 } });
 ok("forecast 4 -> 1 (below min rows)", { prevFc: { A: 4 }, nextFc: { A: 1 } });
+// forecast row counting: AI-model rows and rows >365d old do not count (fixed "now", deterministic)
+const NOW = Date.parse("2026-11-18");
+const human = (n, d = "2026-11-01") => Array.from({ length: n }, (_, i) => ({ n: "H" + i, f: "Firm" + i, d }));
+const ai = (n) => Array.from({ length: n }, (_, i) => ({ n: "AI" + i, f: "TipRanks - Model" + i, d: "2026-11-01" }));
+const old = (n) => human(n, "2025-11-01");
+const fc = (rows) => ({ A: countRows(rows, NOW) });
+ok("10 -> 7 where 3 dropped are AI rows", { prevFc: fc([...human(7), ...ai(3)]), nextFc: fc(human(7)) });
+ok("10 -> 7 where 3 dropped are >365d old", { prevFc: fc([...human(7), ...old(3)]), nextFc: fc(human(7)) });
+bad("10 -> 7 recent human rows still a violation", { prevFc: fc(human(10)), nextFc: fc(human(7)) }, /shrank 10 -> 7/);
+assert.equal(countRows([{ f: "tipranks - X", d: "2026-11-01" }, { f: "Y" }, { f: "Z", d: "2025-11-17" }, { f: "W", d: "2025-11-19" }], NOW), 2); // no date counts; 365d boundary
 console.log(`unit cases: ${cases} passed`);
 
 // ---- live check ----
