@@ -56,6 +56,26 @@ try {
   };
   assert.equal(await getText("https://x/p", { flareUrl: "http://fs/v1" }), "via flare");
   assert.deepEqual(urls, ["https://x/p", "http://fs/v1"]);
+
+  // plain fetch blocked -> FlareSolverr is still tried; success there leaves the breaker closed
+  {
+    const seen = [];
+    const br3 = makeBreaker(1);
+    globalThis.fetch = async (u) => {
+      seen.push(u);
+      return u === "https://x/b" ? { status: 403, text: async () => "Sorry, you have been blocked" } : flareReply({ status: "ok", solution: { response: "ok body" } });
+    };
+    assert.equal(await getText("https://x/b", { flareUrl: "http://fs/v1", breaker: br3 }), "ok body");
+    assert.deepEqual(seen, ["https://x/b", "http://fs/v1"], "plain block falls through to FlareSolverr");
+    assert.equal(br3.open(), false, "a plain block is not recorded on the breaker");
+  }
+  // a block inside FlareSolverr's solution.response body is fatal
+  {
+    let n = 0;
+    globalThis.fetch = async () => { n++; return flareReply({ status: "ok", solution: { response: "<h1>Sorry, you have been blocked</h1>" } }); };
+    await assert.rejects(getText("https://x/y", { plain: false, sleepMs: 0 }), BlockedError);
+    assert.equal(n, 1, "no retry");
+  }
 } finally { globalThis.fetch = realFetch; }
 
 const dir = mkdtempSync(join(tmpdir(), "health-"));

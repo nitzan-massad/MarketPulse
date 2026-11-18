@@ -11,7 +11,7 @@
 // is ever refreshed, and only brand-new tickers get fetched. That's exactly what happened
 // between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { isChallenge, parseForecastHtml, usablePage, withStars } from "./forecast-html.mjs";
+import { parseForecastHtml, usablePage, withStars } from "./forecast-html.mjs";
 import { carryForward, carryMissing, cleanName, forecastsFromPayload, keepNewerPrev, keepPrevTarget, latestPerAnalyst, mergeForecasts, missingFirms, pickSource, topUpRows } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
 import { cachedFirst, isPayloadFor, takeGetData } from "./getdata-cache.mjs";

@@ -51,11 +51,12 @@ export async function getText(url, { flareUrl = FS_URL_DEFAULT, tries = 3, plain
   if (plain) {
     let r = null, body = "";
     try {
-      r = await fetch(url, { headers: { "user-agent": BROWSER_UA } });
+      r = await fetch(url, { headers: { "user-agent": BROWSER_UA }, signal: AbortSignal.timeout(30_000) });
       body = await r.text();
     } catch { r = null; } // network trouble: let FlareSolverr try
     if (r) {
-      if (isBlocked(body)) blocked("blocked (plain)");
+      // a plain-fetch block is NOT fatal: Node's TLS fingerprint draws WAF pages that FlareSolverr's
+      // real browser may pass, so it falls through like a 403. Only a FlareSolverr block is final.
       if (r.status === 200 && !isChallenge(body) && ok(body)) return good(body);
     }
   }
