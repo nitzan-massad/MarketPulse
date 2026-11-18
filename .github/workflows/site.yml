@@ -109,7 +109,6 @@ jobs:
         timeout-minutes: 15
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
-          GETDATA_CACHE: ${{ runner.temp }}/getdata # hand-off to the forecasts step (ci/getdata-cache.mjs)
           DROPPED: ${{ runner.temp }}/dropped.json # expired tickers, read by the data-loss gate
         run: node ci/refresh-data-ci.mjs
 
@@ -151,7 +150,6 @@ jobs:
         timeout-minutes: 150
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
-          GETDATA_CACHE: ${{ runner.temp }}/getdata # forecasts reuses the snapshot step's getData bodies (ci/getdata-cache.mjs)
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
           TWELVEDATA_KEY: ${{ secrets.TWELVEDATA_KEY }} # fallback only (CNBC first)
           TWELVEDATA_CI_KEY: ${{ secrets.TWELVEDATA_CI_KEY }} # optional; used first when set

@@ -123,17 +123,11 @@ export function parseForecastHtml(html) {
   return out;
 }
 
-// Stars survive anonymization in the API payload, so recover them by joining firm+date.
-// `opt` comes from the page itself (the "$old → $new" pair), so nothing is lost here.
-export function withStars(rows, data) {
-  const stars = new Map();
-  for (const e of data.experts || []) {
-    const r0 = (e.ratings || [])[0];
-    if (!e.firm || !r0?.date) continue;
-    const rk = (e.rankings || []).find((x) => x.stars != null);
-    if (rk) stars.set(`${cleanName(e.firm)}|${String(r0.date).slice(0, 10)}`, rk.stars);
-  }
-  return rows
-    .map((x) => ({ n: x.n, f: x.f, st: stars.get(`${cleanName(x.f)}|${x.d}`) ?? null, r: x.r, pt: x.pt, opt: x.opt ?? null, d: x.d }))
+// Page rows -> the app's Forecast shape, newest first. The page renders no stars: an `st` already on
+// a row is kept, otherwise null (the scraper fills it by analyst from the payload / last file).
+// `opt` comes from the page itself (the "$old -> $new" pair).
+export function withStars(rows) {
+  return (rows || [])
+    .map((x) => ({ n: x.n, f: x.f, st: x.st ?? null, r: x.r, pt: x.pt, opt: x.opt ?? null, d: x.d }))
     .sort((a, b) => (b.d || "").localeCompare(a.d || ""));
 }

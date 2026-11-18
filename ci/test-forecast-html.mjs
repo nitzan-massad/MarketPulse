@@ -252,84 +252,28 @@ assert.deepEqual(v.filter((r) => r.d === "2025-12-17").map((r) => r.n), ["Andrew
 }
 
 /* ================================================================= withStars
-   Joins stars from the API payload on `firm|date`, emits the app's Forecast shape
-   (n, f, st, r, pt, opt, d) newest-first. Stars survive anonymization in the JSON; opt
-   comes from the page's "$old → $new" pair. */
+   Normalises page rows to the app's Forecast shape (n, f, st, r, pt, opt, d) newest-first. The
+   page renders no stars: st is kept when a row already has one, else null (the scraper fills it
+   from the payload / last file by analyst). opt comes from the page's "$old -> $new" pair. */
 {
-  const withst = withStars(rows, {
-    experts: [
-      { firm: "RBC Capital", ratings: [{ date: "2026-07-07T00:00:00" }], rankings: [{ stars: 4.9 }] },
-      { firm: "Guggenheim", ratings: [{ date: "2026-06-30T00:00:00" }], rankings: [{ stars: 3.1 }] },
-    ],
-  });
-  assert.equal(withst[0].st, 4.9, "HIT: stars joined on firm+date");
-  assert.equal(withst[1].st, 3.1);
-  assert.equal(withst[2].st, null, "MISS: no matching API row -> null, never undefined");
-  assert.ok(withst.every((r) => r.st !== undefined), "st must never be undefined");
+  const withst = withStars(rows);
+  assert.ok(withst.every((r) => r.st === null), "no st on a page row -> null, never undefined");
   assert.deepEqual(withst.map((r) => r.d), ["2026-07-07", "2026-06-30", "2026-06-04"], "newest-first");
   for (const r of withst) {
     assert.deepEqual(Object.keys(r), ["n", "f", "st", "r", "pt", "opt", "d"], "app Forecast key order/shape");
     assert.equal(r.opt, null);
   }
-  // input must not be mutated (the scraper reuses `rows` on no other path, but a mutating
-  // join would be a landmine)
+  // input must not be mutated
   assert.deepEqual(Object.keys(rows[0]), ["n", "f", "r", "pt", "opt", "d"], "withStars must not mutate its input rows");
-
-  // FIRM-NAME MISMATCH: the join is an exact string match, so "RBC Capital Markets" in the
-  // API vs "RBC Capital" on the page yields no stars rather than a wrong join.
-  assert.equal(withStars(rows, {
-    experts: [{ firm: "RBC Capital Markets", ratings: [{ date: "2026-07-07" }], rankings: [{ stars: 5 }] }],
-  })[0].st, null, "a near-miss firm name must not join");
-  // DATE MISMATCH on a matching firm
-  assert.equal(withStars(rows, {
-    experts: [{ firm: "RBC Capital", ratings: [{ date: "2026-07-06" }], rankings: [{ stars: 5 }] }],
-  })[0].st, null, "right firm, wrong date must not join");
-
-  // stars: 0 is a legitimate value and must survive `?? null` as 0, not become null
-  assert.equal(withStars(rows, {
-    experts: [{ firm: "RBC Capital", ratings: [{ date: "2026-07-07T00:00:00" }], rankings: [{ stars: 0 }] }],
-  })[0].st, 0, "stars:0 must stay 0, not collapse to null");
-  // rankings entries with stars:null are skipped in favour of the first ranked one
-  assert.equal(withStars(rows, {
-    experts: [{ firm: "RBC Capital", ratings: [{ date: "2026-07-07" }], rankings: [{ stars: null }, { stars: 3.3 }] }],
-  })[0].st, 3.3, "first non-null stars ranking wins");
-
-  // COLLISION: two experts at the same firm on the same date. The map is keyed on
-  // firm|date only, so the LAST expert in payload order wins and both page rows get that
-  // same value. Documented, not fixed — stars are cosmetic and the API gives us no page
-  // row -> expert identity we could join on (names are nulled, which is why we're here).
-  const collided = withStars(rows, {
-    experts: [
-      { firm: "RBC Capital", ratings: [{ date: "2026-07-07" }], rankings: [{ stars: 1.1 }] },
-      { firm: "RBC Capital", ratings: [{ date: "2026-07-07" }], rankings: [{ stars: 2.2 }] },
-    ],
-  });
-  assert.equal(collided[0].st, 2.2, "documented: on a firm|date collision the LAST expert wins");
-
-  // degenerate payloads — all must yield st:null rather than throwing
-  for (const [label, data] of [
-    ["empty object", {}],
-    ["experts: []", { experts: [] }],
-    ["experts: null", { experts: null }],
-    ["expert with no firm", { experts: [{ ratings: [{ date: "2026-07-07" }], rankings: [{ stars: 5 }] }] }],
-    ["expert with no ratings", { experts: [{ firm: "RBC Capital", rankings: [{ stars: 5 }] }] }],
-    ["expert with no rankings", { experts: [{ firm: "RBC Capital", ratings: [{ date: "2026-07-07" }] }] }],
-    ["expert with all-null stars", { experts: [{ firm: "RBC Capital", ratings: [{ date: "2026-07-07" }], rankings: [{ stars: null }] }] }],
-    ["ratings[0].date missing", { experts: [{ firm: "RBC Capital", ratings: [{}], rankings: [{ stars: 5 }] }] }],
-  ]) {
-    const got = withStars(rows, data);
-    assert.equal(got.length, rows.length, `${label}: rows must pass through`);
-    for (const r of got) {
-      assert.equal(r.st, null, `${label}: st must be null, got ${r.st}`);
-      assert.deepEqual(Object.keys(r), ["n", "f", "st", "r", "pt", "opt", "d"], `${label}: shape`);
-    }
-  }
-  assert.deepEqual(withStars([], { experts: [{ firm: "X", ratings: [{ date: "2026-01-01" }], rankings: [{ stars: 1 }] }] }), [],
-    "no page rows -> no output, whatever the payload says");
+  // an st already on a row is kept — 0 included (a legitimate value, not "missing")
+  const kept = withStars([{ ...rows[0], st: 4.9 }, { ...rows[1], st: 0 }]);
+  assert.deepEqual(kept.map((r) => r.st), [4.9, 0], "existing st kept; 0 stays 0");
+  assert.deepEqual(withStars([]), [], "no page rows -> no output");
+  assert.deepEqual(withStars(null), [], "null rows -> no output, no throw");
 
   // `opt` is carried through untouched (it is unrecoverable from the JSON, so losing it
   // here would silently drop every "$old → $new" revision we went to the page to get)
-  const vs = withStars(v, {});
+  const vs = withStars(v);
   assert.equal(vs.find((r) => r.n === "Andrew Tsai").opt, 15, "withStars must carry opt through");
   assert.equal(vs.find((r) => r.n === "Elemer Piros").opt, 19);
   assert.equal(vs.find((r) => r.n === "Paul Matteis").opt, null, "an absent opt stays null, never undefined");
@@ -339,11 +283,11 @@ assert.deepEqual(v.filter((r) => r.d === "2025-12-17").map((r) => r.n), ["Andrew
   assert.deepEqual(vs.filter((r) => r.d === "2025-12-17").map((r) => r.n), ["Andrew Tsai", "Elemer Piros"],
     "equal dates keep parse order (stable sort)");
   // a row with no date sorts last rather than throwing on localeCompare
-  const nod = withStars([{ n: "a", f: "b", r: "Buy", pt: 1, opt: null, d: undefined }, ...rows], {});
+  const nod = withStars([{ n: "a", f: "b", r: "Buy", pt: 1, opt: null, d: undefined }, ...rows]);
   assert.equal(nod[nod.length - 1].n, "a", "a dateless row sorts last, not a crash");
   assert.equal(nod[nod.length - 1].d, undefined);
   // extra keys on an input row are dropped — the output is exactly the Forecast shape
-  assert.deepEqual(Object.keys(withStars([{ n: "a", f: "b", r: "Buy", pt: 1, d: "2026-01-01", junk: 1 }], {})[0]),
+  assert.deepEqual(Object.keys(withStars([{ n: "a", f: "b", r: "Buy", pt: 1, d: "2026-01-01", junk: 1 }])[0]),
     ["n", "f", "st", "r", "pt", "opt", "d"]);
 }
 
@@ -435,7 +379,7 @@ for (const name of [...REAL, ...SYNTH]) {
   assertWellFormed(got, name);
   assert.ok(got.length > 0, `${name}: fixture must produce at least one row or it proves nothing`);
   // withStars must accept every fixture's rows and preserve count + shape
-  const st = withStars(got, {});
+  const st = withStars(got);
   assert.equal(st.length, got.length, `${name}: withStars must not drop rows`);
   for (let i = 1; i < st.length; i++) assert.ok(st[i - 1].d >= st[i].d, `${name}: withStars must sort newest-first`);
   total += got.length;

@@ -4,25 +4,48 @@
 // ci/test-forecast-gate.mjs had to mirror the old inline gate.
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { carryForward, forecastsFromPayload, carryMissing, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, mergeKey, missingFirms, pickSource, topUpRows, shouldFetchPage } from "./forecast-merge.mjs";
+import { carryRecentPrev, carryStars, forecastsFromPayload, hiddenTargets, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, mergeKey, missingOf, topUpRows } from "./forecast-merge.mjs";
 
 const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", pt, opt: null, d, ...extra });
 
-/* ------------------------------------------------------------------ the gate */
+/* ------------------------------------- the page gate: hiddenTargets (payload rating, no target) */
 {
-  const some = [row("A", "2026-07-01", 10)];
-  // merge on: always fetch, whatever the JSON path returned
-  for (const fc of [[], some])
-    for (const filtered of [0, 4, 194, undefined, null])
-      assert.equal(shouldFetchPage(fc, { expertRatingsFilteredCount: filtered }, true), true,
-        `merge on must always fetch (rows=${fc.length}, filtered=${filtered})`);
+  // Samik's newest payload rating (11-15) carries no target; our file has his 10-01 row -> the page may name it.
+  const fj = { models: {
+    experts: [{ _id: "analyst|1", uid: "s1", name: "Samik Chatterjee", firm: "J.P. Morgan" }, { _id: "analyst|2", uid: "e2", name: "Erik Woodring", firm: "Morgan Stanley" }],
+    ratings: [
+      { object: { ticker: "AAPL" }, expert: { uid: "s1", id: "analyst|1" }, date: "2026-11-15T00:00:00.000Z", position: "buy", priceTarget: null },
+      { object: { ticker: "AAPL" }, expert: { uid: "s1", id: "analyst|1" }, date: "2026-10-01T00:00:00.000Z", position: "buy", priceTarget: { value: 300 } },
+      { object: { ticker: "AAPL" }, expert: { uid: "e2", id: "analyst|2" }, date: "2026-11-10T00:00:00.000Z", position: "buy", priceTarget: { value: 310 } },
+    ],
+  } };
+  const file = [row("Samik Chatterjee", "2026-10-01", 300), row("Erik Woodring", "2026-11-10", 310)];
+  assert.deepEqual(hiddenTargets(fj, "AAPL", file), ["Samik Chatterjee"], "newest payload rating has no target and is newer than the file row");
+  assert.deepEqual(hiddenTargets(fj, "AAPL", [...file, row("Samik Chatterjee", "2026-11-15", 305)]), [], "file already has that date -> no page");
+  assert.deepEqual(hiddenTargets(fj, "AAPL", []), [], "no file row -> not needed (no older target the page could add)");
+  assert.deepEqual(hiddenTargets(fj, "MSFT", file), [], "another ticker's ratings never count");
+  assert.deepEqual(hiddenTargets(null, "AAPL", file), [], "no payload -> nothing (the caller already fetches the page)");
+}
 
-  // merge off: the legacy fallback, byte-for-byte. SSR_MERGE=0 has to be a true rollback.
-  assert.equal(shouldFetchPage([], { expertRatingsFilteredCount: 4 }, false), true, "off: empty + withheld -> fetch");
-  assert.equal(shouldFetchPage([], { expertRatingsFilteredCount: 0 }, false), false, "off: empty + nothing withheld -> skip");
-  assert.equal(shouldFetchPage(some, { expertRatingsFilteredCount: 4 }, false), false, "off: JSON had rows -> skip");
-  assert.equal(shouldFetchPage([], {}, false), false, "off: absent filteredCount -> skip");
-  assert.equal(shouldFetchPage([], undefined, false), false, "off: absent payload must not throw");
+/* -------------------------------------------------------------- carryStars */
+{
+  const prev = [row("Ann", "2026-09-01", 10, { st: 1.3 }), row("Bob", "2026-09-01", 10, { st: 4 })];
+  const out = carryStars([row("ann ", "2026-11-01", 12), row("Bob", "2026-11-01", 12, { st: 2.2 }), row("Cy", "2026-11-01", 5)], prev);
+  assert.deepEqual(out.map((r) => r.st), [1.3, 2.2, null], "null st filled from prev by analystKey; a set st is left alone; unknown stays null");
+  assert.deepEqual(carryStars([row("Ann", "2026-11-01", 12)], null).map((r) => r.st), [null], "no prev -> unchanged");
+}
+
+/* -------------------------------------------------------------- carryRecentPrev */
+{
+  const now = Date.UTC(2026, 10, 18);
+  const prev = [row("Recent", "2026-10-19", 10), row("Old", "2026-08-10", 10), row("Present", "2026-10-01", 9)];
+  const rows = [row("Present", "2026-11-01", 11)];
+  assert.deepEqual(carryRecentPrev(rows, prev, { now }).map((r) => r.n), ["Present", "Recent"], "30-day row kept, 100-day row dropped");
+  assert.deepEqual(carryRecentPrev(rows, prev, { now, all: true }).map((r) => r.n), ["Present", "Recent", "Old"], "all:true keeps the 100-day row");
+  assert.equal(carryRecentPrev(rows, prev, { now, all: true }).filter((r) => r.n === "Present").length, 1, "never duplicates a present analyst");
+  const ua = [{ n: "Unknown Analyst", f: "Argus", r: "Buy", pt: 1, d: "2026-11-01" }];
+  assert.equal(carryRecentPrev(ua, [{ n: "Unknown Analyst", f: "DZ Bank", r: "Buy", pt: 2, d: "2026-11-01" }], { now }).length, 2, "Unknown Analyst identity is per firm");
+  assert.deepEqual(carryRecentPrev(rows, null, { now }), rows, "no prev -> unchanged");
 }
 
 /* ------------------------------------------------- THE GUARDRAIL: never subtract */
@@ -164,31 +187,6 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
     "named analysts still key on name|date only");
 }
 
-/* ------------------------------------------ carryForward: keep what we recovered */
-{
-  // AMD 2026-11-04: Mizuho's rating is anonymized in getData and fell below the page's ~15 rows.
-  const prev = [
-    { n: "Vijay Rakesh", f: "Mizuho", st: 4.2, r: "Buy", pt: 610, opt: 500, d: "2026-11-04" },
-    { n: "Old Rating", f: "Gone & Co", st: 3, r: "Buy", pt: 100, opt: null, d: "2026-08-01" },
-    { n: "Superseded", f: "Newer Co", st: 3, r: "Buy", pt: 90, opt: null, d: "2026-10-01" },
-  ];
-  const data = { experts: [
-    { name: null, firm: "Mizuho", ratings: [{ date: "2026-11-04T00:00:00" }] },
-    { name: null, firm: "Newer Co", ratings: [{ date: "2026-10-01T00:00:00" }] },
-    { name: null, aiModel: true, firm: "TipRanks - OpenAI", ratings: [{ date: "2026-11-04T00:00:00" }] },
-  ] };
-  const now = [{ n: "Superseded", f: "Newer Co", st: 3, r: "Buy", pt: 95, opt: 90, d: "2026-11-05" }];
-  const out = carryForward(now, prev, data);
-  assert.deepEqual(out.map((f) => `${f.n}|${f.d}`), ["Superseded|2026-11-05", "Vijay Rakesh|2026-11-04"],
-    "hidden-and-current row carried; expired and superseded rows stay gone; newest first");
-  assert.deepEqual(carryForward(now, prev, { experts: [] }), now, "nothing hidden -> nothing carried");
-  assert.deepEqual(carryForward(now, null, data), now, "no previous file -> unchanged");
-  // already covered (same firm+date in this run) -> not duplicated
-  const covered = [{ n: "V. Rakesh", f: "Mizuho ", st: null, r: "Buy", pt: 610, opt: null, d: "2026-11-04" }];
-  assert.equal(carryForward(covered, prev, data).filter((f) => f.f.trim() === "Mizuho").length, 1,
-    "a firm+date already in the output is not carried again");
-}
-
 /* ------------------------------------------------ FX-stable targets (review alerts) */
 {
   // SHOP: the payload converts at today's FX (128.9995); getData's convertedPriceTarget (127.537) is
@@ -238,17 +236,12 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   assert.equal(forecastsFromPayload(noRank, "T", null)[0].st, null, "no rank anywhere -> null");
   const uidOnly = { models: { experts: [{ _id: "u", name: "Uid Only", firm: "X", rank: { rank: 0.5 } }], ratings: noRank.models.ratings } };
   assert.equal(forecastsFromPayload(uidOnly, "T", null)[0].st, 2.5, "falls back to the uid record");
-}
-
-/* ----------------------------------------------------- source choice (pickSource) */
-{
-  const fc = [row("A", "2026-07-01", 10)];
-  assert.equal(pickSource([row("B", "2026-11-01", 5)], fc, { expertRatingsFilteredCount: 10 }, true), "payload", "payload rows -> payload");
-  assert.equal(pickSource([], fc, { expertRatingsFilteredCount: 0 }, true), "payload", "empty payload, nothing hidden -> payload (no coverage)");
-  assert.equal(pickSource([], fc, { expertRatingsFilteredCount: 3 }, true), "page", "empty payload but getData hid rows -> page");
-  assert.equal(pickSource(null, fc, { expertRatingsFilteredCount: 0 }, true), "page", "payload failed -> page");
-  assert.equal(pickSource([row("B", "2026-11-01", 5)], fc, { expertRatingsFilteredCount: 3 }, false), "none", "SSR_MERGE=0, JSON had rows -> legacy: nothing");
-  assert.equal(pickSource(null, [], { expertRatingsFilteredCount: 3 }, false), "page", "SSR_MERGE=0, empty + withheld -> legacy page fallback");
+  // uid regression (AAPL Jack Zhou): the live payload's expert record is `_id: "analyst|<n>"` with the
+  // sha in `uid`, and a rating names it by `expert.uid` — indexing experts on `_id` alone dropped him.
+  const jz = { models: { experts: [{ _id: "x", uid: "u1", name: "Jack Zhou", firm: "Barclays" }], ratings: [{ object: { ticker: "AAPL" }, expert: { uid: "u1" }, date: "2026-11-01", position: "buy", priceTarget: { value: 300 } }] } };
+  assert.deepEqual(forecastsFromPayload(jz, "AAPL", null).map((r) => r.n), ["Jack Zhou"], "expert found by uid");
+  const byId = { models: { experts: jz.models.experts, ratings: [{ ...jz.models.ratings[0], expert: { id: "x" } }] } };
+  assert.deepEqual(forecastsFromPayload(byId, "AAPL", null).map((r) => r.n), ["Jack Zhou"], "no uid on the rating -> expert.id");
 }
 
 { // invisible bidi marks in a name must not split one analyst into two keys
@@ -263,82 +256,29 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   assert.equal(m[0].st, 0.2, "star joins across the bidi mark");
 }
 
-/* ------------------------------------------- page top-up (missingFirms / topUpRows / carryMissing) */
-{
-  // QTTB 2026-11-08: getData files Leerink under notRankedExperts (reiterated 11-05); the payload has
-  // no Leerink rating; the page shows "Will Soghikian, Leerink, Initiated $40 10/12".
-  const now = Date.UTC(2026, 10, 8);
-  const payload = [{ n: "Derek Archila", f: "Wells Fargo", r: "Buy", pt: 59, d: "2026-11-05" }];
-  const data = {
-    experts: [
-      { name: "Derek Archila", firm: "Wells Fargo", ratings: [{ date: "2026-11-05T00:00:00" }] },
-      { name: null, firm: "Wells Fargo", ratings: [{ date: "2026-11-05T00:00:00" }] },
-      { name: null, firm: "TipRanks", aiModel: true, ratings: [{ date: "2026-11-06T00:00:00" }] },
-      { name: null, firm: "Old Bank", ratings: [{ date: "2026-05-01T00:00:00" }] },
-    ],
-    notRankedExperts: [
-      { name: null, firm: "Leerink Partners", eTypeId: 1, ratings: [{ date: "2026-11-05T00:00:00" }] },
-      { name: "thor0810", firm: "StockTwits", eTypeId: 3, ratings: [{ date: "2026-11-01T00:00:00" }] }, // blogger: never a row
-    ],
-  };
-  assert.deepEqual(missingFirms(payload, data, now), [{ firm: "Leerink Partners", key: "leerink partners|2026-11-05", since: "" }],
-    "an uncovered unranked firm triggers, keyed by getData's date; covered, AI, blogger (eTypeId 3) and >92-day-old ones do not");
-  assert.deepEqual(missingFirms(payload, null, now), [], "no getData -> nothing to top up");
-
-  // topUpRows: only the missing firm's page rows — never the page's extra history for covered firms
-  const page = [
-    { n: "Derek Archila", f: "Wells Fargo", r: "Buy", pt: 59.4, d: "2026-11-05" },
-    { n: "Derek Archila", f: "Wells Fargo", r: "Hold", pt: 45, d: "2026-06-01" }, // history the payload dropped
-    { n: "Will Soghikian", f: "Leerink Partners", r: "Buy", pt: 40, d: "2026-10-12" },
-  ];
-  const run1 = mergeForecasts(payload, topUpRows(page, missingFirms(payload, data, now)));
-  assert.deepEqual(run1.map((r) => [r.n, r.pt, r.d]), [["Derek Archila", 59, "2026-11-05"], ["Will Soghikian", 40, "2026-10-12"]],
-    "payload target kept, Leerink added, Wells Fargo's old page row NOT added");
-
-  // run 2: the page is not refetched (key already tried) or fails — carryMissing keeps Leerink
-  const run2 = carryMissing(payload, run1, data, now);
-  assert.deepEqual(run2.map((r) => r.n), ["Derek Archila", "Will Soghikian"], "recovered row survives a run without the page");
-  // ...and is NOT kept once getData stops listing the firm, or the analyst has a newer row
-  assert.deepEqual(carryMissing(payload, run1, { experts: data.experts }, now).map((r) => r.n), ["Derek Archila"], "firm gone from getData -> dropped");
-  const newer = [...payload, { n: "Will Soghikian", f: "Leerink Partners", r: "Buy", pt: 45, d: "2026-11-05" }];
-  assert.deepEqual(carryMissing(newer, run1, data, now), newer, "covered again -> nothing carried");
-  // Unknown Analyst: one firm's newer row must not block another firm's carried row
-  const unk = { notRankedExperts: [{ name: null, firm: "Argus", eTypeId: 1, ratings: [{ date: "2026-10-29T00:00:00" }] }] };
-  const prevU = [{ n: "Unknown Analyst", f: "Argus", r: "Buy", pt: 325, d: "2026-10-29" }];
-  const outU = [{ n: "Unknown Analyst", f: "DZ Bank", r: "Buy", pt: 300, d: "2026-11-02" }];
-  assert.equal(carryMissing(outU, prevU, unk, now).length, 2, "Unknown Analyst identity is per firm");
-}
-
-/* ------------------------------- newer rating replaces the analyst's older one (NVDA Mizuho 2026-11-15) */
+/* ------------------------------------------- page top-up (missingOf / topUpRows) */
 {
   const now = Date.UTC(2026, 10, 16);
-  const ours = [{ n: "Vijay Rakesh", f: "Mizuho Securities", r: "Buy", pt: 250, d: "2026-11-11" }];
-  const data = { experts: [{ name: null, firm: "Mizuho Securities", ratings: [{ date: "2026-11-15T00:00:00" }] }] };
-  assert.deepEqual(missingFirms(ours, data, now), [{ firm: "Mizuho Securities", key: "mizuho securities|2026-11-15", since: "2026-11-11" }],
-    "getData newer than our newest firm row -> fetch the page");
-  assert.deepEqual(missingFirms([{ ...ours[0], d: "2026-11-15" }], data, now), [], "same date -> covered");
-  const page = [{ n: "Vijay Rakesh", f: "Mizuho Securities", r: "Buy", pt: 220, opt: 250, d: "2026-11-15" }];
-  const out = latestPerAnalyst(mergeForecasts(ours, topUpRows(page, missingFirms(ours, data, now))));
-  assert.deepEqual(out.map((r) => [r.d, r.pt]), [["2026-11-15", 220]], "new row in, old row out");
-  const two = [{ n: "Ann", f: "A", d: "2026-11-01" }, { n: "Bob", f: "A", d: "2026-10-01" }, { n: "Unknown Analyst", f: "X", d: "2026-11-01" }, { n: "Unknown Analyst", f: "Y", d: "2026-10-01" }];
-  // review #1: another analyst's OLD page row at a covered firm must not ride in on the top-up
-  const page2 = [...page, { n: "Jordan Klein", f: "Mizuho Securities", r: "Buy", pt: 230, d: "2026-09-01" }];
-  assert.deepEqual(topUpRows(page2, missingFirms(ours, data, now)).map((r) => r.n), ["Vijay Rakesh"], "only rows newer than our newest firm row");
-  // review #2: carryMissing must not resurrect that old row when the top-up fails/skips
-  const prevJ = [...ours, { n: "Jordan Klein", f: "Mizuho Securities", r: "Buy", pt: 230, d: "2026-09-01" }];
-  assert.deepEqual(carryMissing(ours, prevJ, data, now).map((r) => r.n), ["Vijay Rakesh"], "partial firm coverage -> old rows stay gone");
-  // ...but a newer page row from last run still carries while getData keeps the firm wanted
-  const prevNew = [page[0], ...ours];
-  assert.deepEqual(carryMissing(ours, prevNew, data, now).map((r) => r.d), ["2026-11-15", "2026-11-11"], "newer recovered row carries");
-  // review #3: source regression (page row gone, payload still 11-11) keeps 11-15, not 11-11
-  const regressed = latestPerAnalyst(keepNewerPrev(ours, out));
+  const ours = [{ n: "Vijay Rakesh", f: "Mizuho Securities", st: 4.2, r: "Buy", pt: 250, d: "2026-11-11" }];
+  const page = [
+    { n: "Vijay Rakesh", f: "Mizuho Securities", st: null, r: "Buy", pt: 220, opt: 250, d: "2026-11-15" }, // the target the payload hid
+    { n: "Vijay Rakesh", f: "Mizuho Securities", st: null, r: "Buy", pt: 251, d: "2026-11-11" }, // same rating: payload wins
+    { n: "Will Soghikian", f: "Leerink Partners", st: null, r: "Buy", pt: 40, d: "2026-10-12" }, // analyst the payload lacks
+    { n: "Ancient", f: "Old Bank", st: null, r: "Hold", pt: 9, d: "2026-05-01" }, // history past the carry window: would flap
+  ];
+  const out = mergeForecasts(ours, topUpRows(page, missingOf(ours, page, now)));
+  assert.deepEqual(out.map((r) => [r.n, r.d, r.pt]), [["Vijay Rakesh", "2026-11-15", 220], ["Vijay Rakesh", "2026-11-11", 250], ["Will Soghikian", "2026-10-12", 40]],
+    "page adds the newer rating and the missing analyst; payload target kept; old history not added");
+  assert.equal(out[0].st, 4.2, "page row's st filled from the same analyst's payload row");
+  assert.deepEqual(latestPerAnalyst(out).map((r) => [r.n, r.pt]), [["Vijay Rakesh", 220], ["Will Soghikian", 40]], "new row in, old row out");
+  assert.deepEqual(missingOf(ours, [], now), [], "empty page -> nothing");
+  // source regression (page row gone, payload still 11-11) keeps 11-15, not 11-11
+  const regressed = latestPerAnalyst(keepNewerPrev(ours, latestPerAnalyst(out)));
   assert.deepEqual(regressed.map((r) => [r.d, r.pt]), [["2026-11-15", 220]], "older row never swaps back in");
   assert.deepEqual(keepNewerPrev([], out), [], "never adds an analyst this run lacks");
-  // analyst who moved firms: name + firm identity keeps both
   assert.equal(latestPerAnalyst([{ n: "Ann", f: "A", d: "2026-11-01" }, { n: "Ann", f: "B", d: "2026-10-01" }]).length, 2, "firm change = two analysts");
-  // newer rating with NO target: page has no row for it -> nothing added, old row with a target stays
-  assert.deepEqual(latestPerAnalyst(mergeForecasts(ours, topUpRows([], missingFirms(ours, data, now)))).map((r) => r.pt), [250], "no-target reiteration stays hidden");
+  const two = [{ n: "Ann", f: "A", d: "2026-11-01" }, { n: "Bob", f: "A", d: "2026-10-01" }, { n: "Unknown Analyst", f: "X", d: "2026-11-01" }, { n: "Unknown Analyst", f: "Y", d: "2026-10-01" }];
   assert.equal(latestPerAnalyst(two).length, 4, "different analysts at one firm, and Unknown Analysts at different firms, all stay");
 }
 
-console.log("ok   forecast merge: gate, additive guarantee, union, dedup, precedence, anonymized rows, BIOA, payload, carry-forward, FX-stable targets, source choice, page top-up");
+console.log("ok   forecast merge: page gate, carryStars, carryRecentPrev, additive guarantee, union, dedup, precedence, anonymized rows, BIOA, payload, uid lookup, FX-stable targets, page top-up");

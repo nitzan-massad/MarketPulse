@@ -694,13 +694,6 @@ the commit step also stages `public/forecasts`.
   `scrape-bullbear.mjs` runs beside it as a 4th FlareSolverr client (FlareSolverr's waitress
   serves 4 requests at once): measured on 4 CPUs, 12 tickers, forecasts went 118s → 125s.
 
-- **`GETDATA_CACHE`** (`site.yml` only, `runner.temp`): the snapshot step's keep-set backfill
-  saves each getData body that produced a row; this step reads it once instead of re-fetching
-  the same URL (31-40% of its tickers on 2026-11-04/05, ~13s each under `PARALLEL=3`). Cached
-  tickers are worked first so the JSON and the live SSR page stay minutes apart. Any miss or
-  unparseable entry fetches live; unset (local, track-requests lite run) = old behaviour.
-  `ci/getdata-cache.mjs`, guarded by `ci/test-getdata-cache.mjs`.
-
 - **⚠️ Age comes from `public/forecasts/_asOf.json`, never from a file's mtime.** Git stores
   no mtimes, so `actions/checkout` stamps every file with the checkout time — an mtime-based
   check makes all 300+ files look seconds old, so nothing is ever refreshed and only
@@ -768,6 +761,18 @@ the commit step also stages `public/forecasts`.
   `ci/test-forecast-gate.mjs`. Measured on 45 tickers: ~20 trigger on the first run, 7 gained a
   real rating (QTTB Leerink, MSFT/ORCL Phillip, NVDA Bernstein, EAT Baird, AMAT Citi, TVRD Chardan).
 
+  **Stage 4 — 2026-11-18: no getData.** getData is Cloudflare-blocked, so the scraper no longer
+  fetches it (and `ci/getdata-cache.mjs`, `_pageTried.json` writes, `pickSource`, `missingFirms`,
+  `carryForward`, `carryMissing` and `SSR_MERGE` are gone). Per ticker: payload.json →
+  `forecastsFromPayload` (stars = round(5 × rank, 1)) → `carryStars` from last run's file. The page
+  is fetched only when the payload failed or `hiddenTargets` names an analyst whose newest payload
+  rating has no target and is newer than our row; with a payload, the page adds only analysts or
+  newer ratings within 92 days (`missingOf` + `topUpRows`) and payload targets keep priority. Then
+  `keepPrevRating`, `carryRecentPrev` (last run's rows for absent analysts within 92 days — ALL of
+  them when the payload failed, so a fetch failure never shrinks a file), `keepNewerPrev`,
+  `latestPerAnalyst`. A ticker is stamped in `_asOf.json` only when something was fetched.
+  Pipeline lines are pinned by `ci/test-forecast-gate.mjs`.
+
   Measured over all 418 tickers before shipping (Phase 0, writes-nothing):
 
   | | |
@@ -778,10 +783,6 @@ the commit step also stages `public/forecasts`.
   | tickers losing rows | **0** |
   | malformed rows / target conflicts | **0 / 0** |
   | cost | **+474s, +34 MB** per 90-ticker rotation, measured serially at `PARALLEL=1` (the plan's "+100s floor" was ~5× optimistic) |
-
-  ⚠️ **`SSR_MERGE=0` is the rollback** — set it on the workflow step and the scraper reverts to
-  the exact old fallback, which is still covered by `node ci/test-forecast-gate.mjs` so it does
-  not rot into an untested incident-only path.
 
   ⚠️ **The plan's row-count guardrail was DROPPED, not implemented.** It proposed comparing
   parsed rows against the page's own "N Wall Street analysts" figure and skipping on mismatch.

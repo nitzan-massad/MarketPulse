@@ -40,19 +40,6 @@ const firmKey = (f) => cleanName(f.f).toLowerCase();
 export const mergeKey = (f) => `${analystKey(f)}|${f.d || ""}${analystKey(f) === UNKNOWN ? `|${firmKey(f)}` : ""}`;
 
 /**
- * Should we fetch the SSR page for this ticker?
- *
- * `merge` on  → always. The page is the only source of the freshest ratings, and Phase 0 found
- *               a gain on 85% of tickers, including ones whose JSON path returned plenty.
- * `merge` off → the legacy fallback: only when JSON gave us nothing AND the payload admits it
- *               withheld rows. Kept so SSR_MERGE=0 is an exact rollback, not a new code path.
- */
-export function shouldFetchPage(fc, data, merge) {
-  if (merge) return true;
-  return !fc.length && (data?.expertRatingsFilteredCount ?? 0) > 0;
-}
-
-/**
  * Union of the SSR rows and the JSON rows, newest first.
  *
  * Precedence, per PLAN-ssr-merge.md:
@@ -74,6 +61,8 @@ export function mergeForecasts(ssr, json) {
   const starFor = new Map();
   const starByName = new Map(); // stars belong to the analyst, not the rating
   for (const f of jsonRows) if (f?.n && f.st != null) { starFor.set(mergeKey(f), f.st); starByName.set(analystKey(f), f.st); }
+  // ...in both directions: a page top-up row (json side) takes its analyst's star from the payload row
+  for (const f of ssrRows) if (f?.n && f.st != null && !starByName.has(analystKey(f))) starByName.set(analystKey(f), f.st);
 
   const out = [];
   const seen = new Set();
@@ -92,7 +81,8 @@ export function mergeForecasts(ssr, json) {
     const k = mergeKey(f);
     if (seen.has(k)) continue;
     seen.add(k);
-    out.push(f);
+    const st = f.st ?? starByName.get(analystKey(f));
+    out.push(st != null && f.st == null ? { ...f, st } : f);
   }
   out.sort((a, b) => (b.d || "").localeCompare(a.d || ""));
   // Same analyst on two dates stays two rows HERE; the scraper keeps only the newest
@@ -104,7 +94,7 @@ const POSITION = { buy: "Buy", hold: "Hold", sell: "Sell" };
 
 /**
  * Every rating in TipRanks' consensus window, NAMED, from /stocks/<t>/stock-forecast/payload.json
- * (`models.ratings[]` joined to `models.experts[]` on expert.uid = _id). Unlike getData it does not
+ * (`models.ratings[]` joined to `models.experts[]` on expert.uid/id = _id or uid). Unlike getData it does not
  * anonymize the freshest ~10 brokers, and unlike the SSR page it is not cut at ~15 rows — on
  * 2026-11-07 MA had 46 ratings here, including Clear Street (anonymized in getData, below row 15 on
  * the page) and Deutsche Bank's "Unknown Analyst" row (getData files those under
@@ -124,7 +114,10 @@ const POSITION = { buy: "Buy", hold: "Hold", sell: "Sell" };
 export function forecastsFromPayload(fj, ticker, data) {
   const m = fj?.models;
   if (!Array.isArray(m?.ratings) || !Array.isArray(m?.experts)) return null;
-  const experts = new Map(m.experts.filter((e) => e?._id).map((e) => [e._id, e]));
+  // Indexed by BOTH ids: the live record is `_id: "analyst|<n>"` with the sha in `uid`, and a rating
+  // names it by `expert.uid` (sha) — an `_id`-only index dropped AAPL's Jack Zhou (2026-11-18).
+  const experts = new Map();
+  for (const e of m.experts) for (const id of [e?._id, e?.uid]) if (id != null && !experts.has(id)) experts.set(id, e);
   const firmOf = new Map();
   const gd = new Map(); // eUid -> getData's latest rating (one per expert)
   for (const e of [...(data?.experts || []), ...(data?.notRankedExperts || [])]) {
@@ -135,7 +128,7 @@ export function forecastsFromPayload(fj, ticker, data) {
   const out = [];
   for (const r of m.ratings) {
     if (ticker && r?.object?.ticker && r.object.ticker !== ticker) continue; // a peer's rating
-    const e = experts.get(r?.expert?.uid);
+    const e = experts.get(r?.expert?.uid ?? r?.expert?.id);
     const n = cleanName(e?.name);
     const f = firmOf.get(r?.expert?.uid) ?? (typeof e?.firm === "string" ? e.firm.trim() : "");
     if (!n || !f || /^TipRanks\b/i.test(f)) continue;
@@ -162,39 +155,6 @@ export function forecastsFromPayload(fj, ticker, data) {
   return out;
 }
 
-/**
- * Bring back a rating an EARLIER run recovered but this run's sources no longer show.
- *
- * Every run rebuilds the file from its own sources, so a rating that was only ever named on the
- * page vanished once newer ratings pushed it below the page's ~15-row cut (AMD Mizuho 2026-11-04,
- * NFLX Argus/Deutsche/Seaport 2026-10-21, MA Clear Street 2026-10-30 flapped in and out). A
- * previous row returns only while it is provably still current:
- *   - getData still lists an ANONYMIZED rating with the same firm and date (it exists, still the
- *     analyst's latest — getData keeps one rating per expert);
- *   - no output row already covers that firm on that date;
- *   - the analyst has no newer row in the output.
- * Anything else (a superseded or expired rating) stays gone.
- */
-export function carryForward(out, prev, data) {
-  const rows = Array.isArray(out) ? out : [];
-  if (!Array.isArray(prev) || !prev.length) return rows;
-  const hidden = new Set();
-  for (const e of data?.experts || []) {
-    const r0 = (e?.ratings || [])[0];
-    if (!e || e.name || e.aiModel || !e.firm || !r0?.date) continue;
-    hidden.add(`${firmKey({ f: e.firm })}|${String(r0.date).slice(0, 10)}`); // getData calls it `firm`
-  }
-  if (!hidden.size) return rows;
-  const covered = new Set(rows.map((f) => `${firmKey(f)}|${f.d}`));
-  const newest = new Map();
-  for (const f of rows) if (f?.n) newest.set(analystKey(f), (newest.get(analystKey(f)) || "") > f.d ? newest.get(analystKey(f)) : f.d);
-  const back = prev.filter((f) => f?.n && f.f && f.d && Number.isFinite(f.pt)
-    && hidden.has(`${firmKey(f)}|${f.d}`) && !covered.has(`${firmKey(f)}|${f.d}`)
-    && !((newest.get(analystKey(f)) || "") >= f.d));
-  if (!back.length) return rows;
-  return [...rows, ...back].sort((a, b) => (b.d || "").localeCompare(a.d || ""));
-}
-
 
 /**
  * A stored rating is final: when this run shows the same analyst (mergeKey: name + date, plus firm for
@@ -214,72 +174,12 @@ export function keepPrevRating(rows, prev) {
   });
 }
 
-/**
- * Firms getData lists with a hidden analyst rating (anonymized, or notRankedExperts eTypeId 1)
- * dated within `days` of `now` that no row in `rows` covers: [{ firm, key: "firm|date" }]. The
- * payload omits some of these — QTTB's unranked Leerink "Initiated $40 10/12" (2026-11-08) was on
- * the page and in notRankedExperts but not in payload.json — so the scraper fetches the page for
- * them. `key` carries getData's date: the scraper records the keys it already tried (sidecar), so a
- * firm the page cannot supply either (no target, below the ~15-row cut) costs ONE fetch per new
- * getData rating, not one per run. Firm-level coverage, because getData's date for an unranked
- * expert can be a later reiteration than the row the page shows (Leerink 11-05 vs 10-12).
- */
-export function missingFirms(rows, data, now = Date.now(), days = 92) {
-  // firm -> our newest date for it. A firm counts as covered only up to that date: NVDA Mizuho
-  // 2026-11-15 ($250 -> $220) was hidden in getData and missed because the 11-11 row "covered" Mizuho.
-  const have = new Map();
-  for (const f of rows || []) if (!have.has(firmKey(f)) || have.get(firmKey(f)) < f.d) have.set(firmKey(f), f.d || "");
-  const since = new Date(now - days * 864e5).toISOString().slice(0, 10);
-  const out = new Map();
-  // a NAMED ranked expert is already a JSON row (toForecasts); only hidden ones can be missing
-  const hidden = [...(data?.experts || []).filter((e) => !e?.name), ...(data?.notRankedExperts || [])];
-  for (const e of hidden) {
-    const d = String((e?.ratings || [])[0]?.date || "").slice(0, 10);
-    // eTypeId 3 = bloggers / StockTwits / news sites, which notRankedExperts mostly is; never a forecast row
-    if (!e || e.aiModel || !e.firm || (e.eTypeId ?? 1) !== 1 || d < since) continue;
-    const k = firmKey({ f: e.firm });
-    if ((have.get(k) ?? "") >= d || /^tipranks\b/i.test(k)) continue;
-    if (!out.has(k) || out.get(k).d < d) out.set(k, { firm: e.firm, d, key: `${k}|${d}` });
-  }
-  // `since` = our newest row for the firm ("" = none). Callers take only rows NEWER than it, so a
-  // covered firm's other analysts' history never rides in on a top-up or a carry.
-  return [...out.values()].map(({ firm, key }) => ({ firm, key, since: have.get(firmKey({ f: firm })) ?? "" }));
-}
-
 /** One row per analyst (name + firm; Unknown Analyst = per firm): the newest. Product choice
  *  (2026-11-16) — a newer rating replaces the analyst's older one instead of sitting beside it. */
 export function latestPerAnalyst(rows) {
   const seen = new Set();
   return [...(rows || [])].sort((a, b) => (b.d || "").localeCompare(a.d || ""))
     .filter((f) => { const k = `${analystKey(f)}|${firmKey(f)}`; if (seen.has(k)) return false; seen.add(k); return true; });
-}
-
-/** Page rows for the top-up: only the missing firms' — the page also renders history the payload
- *  deliberately dropped, and adding that on just the tickers that trigger would flap it in and out
- *  of the file (and the bell) as the trigger comes and goes. */
-export function topUpRows(pageRows, missing) {
-  const want = new Map((missing || []).map((m) => [firmKey({ f: m.firm }), m.since ?? ""]));
-  return (pageRows || []).filter((r) => want.has(firmKey(r)) && (r.d || "") > want.get(firmKey(r)));
-}
-
-/**
- * Keep last run's rows for firms getData still lists as hidden and this run lacks — the rows the
- * page top-up recovered. Without it one failed/truncated page (or a skipped refetch, see
- * missingFirms) drops them and the next good run re-rings the bell for an old rating. Firm-level,
- * like missingFirms; never brings back a rating the analyst has since superseded in `out`.
- */
-export function carryMissing(out, prev, data, now = Date.now()) {
-  const rows = Array.isArray(out) ? out : [];
-  if (!Array.isArray(prev) || !prev.length) return rows;
-  const want = new Map(missingFirms(rows, data, now).map((m) => [firmKey({ f: m.firm }), m.since]));
-  if (!want.size) return rows;
-  const who = (f) => (analystKey(f) === UNKNOWN ? `${UNKNOWN}|${firmKey(f)}` : analystKey(f)); // see UNKNOWN
-  const newest = new Map();
-  for (const f of rows) if (f?.n && (newest.get(who(f)) || "") < f.d) newest.set(who(f), f.d);
-  const back = prev.filter((f) => f?.n && f.d && Number.isFinite(f.pt) && want.has(firmKey(f))
-    && f.d > want.get(firmKey(f)) && !((newest.get(who(f)) || "") >= f.d));
-  if (!back.length) return rows;
-  return [...rows, ...back].sort((a, b) => (b.d || "").localeCompare(a.d || ""));
 }
 
 /**
@@ -299,13 +199,94 @@ export function keepNewerPrev(out, prev) {
   return [...rows, ...back].sort((a, b) => (b.d || "").localeCompare(a.d || ""));
 }
 
+// One analyst's identity for the carry/top-up joins: the name, or the firm for "Unknown Analyst".
+const who = (f) => (analystKey(f) === UNKNOWN ? `${UNKNOWN}|${firmKey(f)}` : analystKey(f));
+const newestBy = (rows) => {
+  const m = new Map();
+  for (const f of rows || []) if (f?.n && (m.get(who(f)) ?? "") < (f.d || "")) m.set(who(f), f.d || "");
+  return m;
+};
+const sinceDay = (now, days) => new Date(now - days * 864e5).toISOString().slice(0, 10);
+const realRow = (f) => f?.n && f.d && Number.isFinite(f.pt);
+
+/** Fill `st == null` from `prev` by analystKey: stars belong to the analyst, not the rating, so a
+ *  page-only row (the page renders none) keeps the star the analyst had last run. */
+export function carryStars(rows, prev) {
+  if (!Array.isArray(prev) || !prev.length) return rows;
+  const star = new Map();
+  for (const p of prev) if (p?.n && p.st != null && !star.has(analystKey(p))) star.set(analystKey(p), p.st);
+  return rows.map((f) => (f.st == null && star.has(analystKey(f)) ? { ...f, st: star.get(analystKey(f)) } : f));
+}
+
 /**
- * Which second source to use next to getData: "payload" | "page" | "none". The payload when it
- * parsed — unless it came back empty while getData admits it hid rows (then the page can still
- * name them). Otherwise the legacy page rule (shouldFetchPage). `src` is forecastsFromPayload's
- * result: null = failed / reshaped / not fetched.
+ * Analysts (names) whose NEWEST payload rating has no price target and is newer than their row in
+ * `fileRows`. The payload names the rating but withholds the target; the forecast page may render
+ * it, so these — and only these, on a payload that parsed — are worth the ~11s page fetch.
+ * An analyst with NO file row never counts: the payload keeps one rating per analyst, so there is
+ * no older target the page could add, and live (2026-11-18) 13 of 16 target-less newest ratings on
+ * AAPL/TWLO/UBER were such analysts — counting them fetched the page on every ticker, every run.
  */
-export function pickSource(src, fc, data, merge) {
-  if (merge && Array.isArray(src) && (src.length || !((data?.expertRatingsFilteredCount ?? 0) > 0))) return "payload";
-  return shouldFetchPage(fc, data, merge) ? "page" : "none";
+export function hiddenTargets(fj, ticker, fileRows) {
+  const m = fj?.models;
+  if (!Array.isArray(m?.ratings) || !Array.isArray(m?.experts)) return [];
+  const experts = new Map();
+  for (const e of m.experts) for (const id of [e?._id, e?.uid]) if (id != null && !experts.has(id)) experts.set(id, e);
+  const latest = new Map(); // who -> { n, d, pt }
+  for (const r of m.ratings) {
+    if (ticker && r?.object?.ticker && r.object.ticker !== ticker) continue;
+    const e = experts.get(r?.expert?.uid ?? r?.expert?.id);
+    const n = cleanName(e?.name), f = typeof e?.firm === "string" ? e.firm.trim() : "";
+    const d = String(r?.date || "").slice(0, 10);
+    if (!n || !f || /^TipRanks\b/i.test(f) || !/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    const k = who({ n, f });
+    if ((latest.get(k)?.d ?? "") < d) latest.set(k, { n, d, pt: Number(r.priceTarget?.value) });
+  }
+  const have = newestBy(fileRows);
+  return [...latest.entries()]
+    .filter(([k, x]) => !(Number.isFinite(x.pt) && x.pt > 0) && have.has(k) && have.get(k) < x.d)
+    .map(([, x]) => x.n);
+}
+
+/**
+ * Page rows worth adding next to the payload's: per analyst, those newer than our newest row for
+ * them ("" = analyst absent), dated within `days` — older page history would only flap in on the
+ * runs that fetch the page and out on the rest (carryRecentPrev keeps the same window).
+ * Returns [{ who, since }] for topUpRows.
+ */
+export function missingOf(rows, pageRows, now = Date.now(), days = 92) {
+  const have = newestBy(rows);
+  const since = sinceDay(now, days);
+  const out = new Map();
+  for (const p of pageRows || []) {
+    if (!p?.n || !p.d || p.d < since) continue;
+    const k = who(p);
+    if (p.d > (have.get(k) ?? "")) out.set(k, have.get(k) ?? "");
+  }
+  return [...out].map(([k, s]) => ({ who: k, since: s }));
+}
+
+/** The page rows missingOf asked for: that analyst's, newer than our newest row for them. */
+export function topUpRows(pageRows, missing) {
+  const want = new Map((missing || []).map((m) => [m.who, m.since ?? ""]));
+  return (pageRows || []).filter((r) => want.has(who(r)) && (r.d || "") > want.get(who(r)));
+}
+
+/**
+ * Last run's rows for analysts this run lacks, rated within `days` of `now` — or all of them with
+ * `all` (the payload failed: never let a fetch failure shrink the file). Covers the page-recovered
+ * rows on runs that skip the page, and an analyst a payload transiently omits. Never duplicates an
+ * analyst already in `rows`.
+ */
+export function carryRecentPrev(rows, prev, { now = Date.now(), days = 92, all = false } = {}) {
+  const out = Array.isArray(rows) ? rows : [];
+  if (!Array.isArray(prev) || !prev.length) return out;
+  const since = sinceDay(now, days);
+  const present = new Set(out.filter((f) => f?.n).map(who));
+  const seen = new Set();
+  const back = prev.filter((f) => {
+    if (!realRow(f) || present.has(who(f)) || (!all && f.d < since)) return false;
+    const k = `${who(f)}|${f.d}`; if (seen.has(k)) return false; seen.add(k); return true;
+  });
+  if (!back.length) return out;
+  return [...out, ...back].sort((a, b) => (b.d || "").localeCompare(a.d || ""));
 }
