@@ -10,6 +10,7 @@ import type { Stock } from "../types";
 import { tickerTarget, type TickerView } from "../share";
 import { useShare } from "../useShare";
 import { useTrackRequest, type Mark, type MarkEntry } from "../watchlist";
+import { noAnalystCoverage } from "../trackState";
 import type { User } from "firebase/auth";
 import ShareBurst from "./ShareBurst";
 import CloseButton from "./CloseButton";
@@ -1132,7 +1133,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                 <svg className="mkm-lim-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" aria-hidden="true">
                   <path d="M5 12l5 5L19 7" />
                 </svg>
-              ) : trackReq === "none" ? (
+              ) : trackReq === "none" || trackReq === "failed" ? (
                 <svg className="mkm-lim-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden="true">
                   <circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" />
                 </svg>
@@ -1141,14 +1142,16 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
               )}
               <div className="mkm-lim-txt">
                 <div className="mkm-lim-t">
-                  {trackReq === "none" ? "Live price only" : trackReq === "pending" ? "Loading analyst data" : "Analyst data ready"}
+                  {trackReq === "none" ? "Live price only" : trackReq === "pending" ? "Loading analyst data" : trackReq === "failed" ? `Couldn't fetch data for ${stock.t} yet — we'll keep trying` : "Analyst data ready"}
                 </div>
                 <div className="mkm-lim-s">
                   {trackReq === "none"
                     ? "No price targets, ratings or scores yet"
                     : trackReq === "pending"
                       ? "Collecting targets, ratings and scores…"
-                      : "Reload to see it"}
+                      : trackReq === "failed"
+                        ? "No price targets, ratings or scores yet"
+                        : "Reload to see it"}
                 </div>
               </div>
               {trackReq === "tracked" && (
@@ -1161,6 +1164,17 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                   Get analyst data
                 </button>
               )}
+            </div>
+          )}
+          {/* a covered row the analysts have nothing on (e.g. just tracked, NNNN): say so, instead of a wall of dashes */}
+          {covered && noAnalystCoverage(stock) && (
+            <div className="mkm-lim" role="status">
+              <svg className="mkm-lim-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth={2.2} aria-hidden="true">
+                <circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" />
+              </svg>
+              <div className="mkm-lim-txt">
+                <div className="mkm-lim-t">No analyst coverage yet</div>
+              </div>
             </div>
           )}
           {/* head line — ticker now lives in the title bar; company + price here */}

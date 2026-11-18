@@ -11,8 +11,14 @@
 //                                      and clears requests whose stock has since been dropped so
 //                                      the ticker can be requested again
 //   node ci/track-requests.mjs fetch   lite run only (track-requests.yml): tracked requests with
-//                                      no stocks.json row get one now (getData + forecast payload)
-//                                      and their tickers go to $GITHUB_OUTPUT for the scrapers' ONLY
+//                                      no stocks.json row get one now (stock-aianalyst payload; a
+//                                      null row, or one with no name or price, is a failure). The
+//                                      fetched tickers go to $GITHUB_OUTPUT (`tickers`, the scrapers'
+//                                      ONLY) and the failed ones too (`failed`)
+//   node ci/track-requests.mjs fail    lite run, last step (always): stamps `err` on the pending
+//                                      requests that failed ($FAILED) or never reached trackedRows
+//                                      ($TICKERS fetched but not uploaded, e.g. a red data gate),
+//                                      so the app says so; exits 1 when any did
 //   node ci/track-requests.mjs upload  lite run only, after its data gate: each $TICKERS row +
 //                                      payloads → `trackedRows/<KEY>` (what the app reads live) and
 //                                      `trackedRevs/<KEY>/<ms>` (history, never deleted)
@@ -37,7 +43,7 @@
 import { createSign } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { fillNulls, forecastFields, rowFromGetData } from "./keep.mjs";
+import { mergeRow, rowFromAiAnalyst } from "./keep.mjs";
 import { getText, makeBreaker, health } from "./tr-fetch.mjs";
 
 const DB = "https://marketpulse-df5d9-default-rtdb.europe-west1.firebasedatabase.app";
@@ -50,7 +56,7 @@ const FC_ASOF = "public/forecasts/_asOf.json";
 const PE_INDEX = "public/pe/_asOf.json";
 const FOLDED = `${process.env.RUNNER_TEMP || tmpdir()}/tracked-folded.json`; // fold → clear, same job
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
-// ponytail: flat cap against request spam — every pin costs a getData call every run, forever.
+// ponytail: flat cap against request spam — every pin costs a payload fetch every run, forever.
 // Per-user quotas if one account ever floods it.
 const MAX_NEW_PER_RUN = 20;
 
@@ -123,12 +129,17 @@ export function planTracks(requests, pinned, tracked = {}, cap = MAX_NEW_PER_RUN
     .slice(0, cap);
 }
 
-/** Done requests whose ticker has no row any more (it expired) → RTDB patch deleting them,
- *  so the ticker can be requested again (the rules only allow creating a request). */
-export function planUnrequest(requests, rowTickers) {
+const ERR_TTL_MS = 24 * 3_600_000;
+
+/** Requests to delete (→ null patch under trackRequests), so the ticker can be requested again (the
+ *  rules only allow creating a request): done ones whose ticker has no row any more (it expired),
+ *  and pending ones whose fetch has been failing for over 24h (`err.at`; every 3h run retries
+ *  until then). */
+export function planUnrequest(requests, rowTickers, now = Date.now()) {
   const rows = new Set(rowTickers);
   return Object.fromEntries(Object.entries(requests || {})
-    .filter(([k, r]) => r?.tracked === true && !rows.has(keyToTicker(k)))
+    .filter(([k, r]) => (r?.tracked === true && !rows.has(keyToTicker(k)))
+      || (r?.tracked === false && typeof r.err?.at === "number" && now - r.err.at > ERR_TTL_MS))
     .map(([k]) => [k, null]));
 }
 
@@ -137,7 +148,7 @@ export function planKeepalive(watchlists, views) {
   const watched = new Set();
   for (const l of Object.values(watchlists || {})) {
     for (const t of Array.isArray(l) ? l : Object.keys(l || {})) {
-      // watched tickers are ADDED to the keep set, so junk must not reach a getData call
+      // watched tickers are ADDED to the keep set, so junk must not reach a payload fetch
       if (typeof t === "string" && /^[A-Z0-9._-]{1,12}$/.test(t)) watched.add(keyToTicker(t));
     }
   }
@@ -146,15 +157,28 @@ export function planKeepalive(watchlists, views) {
   return { watched: [...watched].sort(), viewed };
 }
 
-/** Pending request keys whose ticker now has a stocks.json row → the RTDB patch that marks them. */
+/** Pending request keys whose ticker now has a stocks.json row → the RTDB patch (root-relative
+ *  paths) that marks them, and clears any `err` an earlier run left (tracked wins in the app too). */
 export function planMarks(requests, rowTickers, now = Date.now()) {
   const rows = new Set(rowTickers);
   const patch = {};
   for (const [k, r] of Object.entries(requests || {})) {
     if (r?.tracked === false && rows.has(keyToTicker(k))) {
-      patch[`${k}/tracked`] = true;
-      patch[`${k}/trackedAt`] = now;
+      patch[`trackRequests/${k}/tracked`] = true;
+      patch[`trackRequests/${k}/trackedAt`] = now;
+      patch[`trackRequests/${k}/err`] = null;
     }
+  }
+  return patch;
+}
+
+/** Tickers this run could not deliver → the root-relative RTDB patch stamping `err` on their PENDING
+ *  requests (the app shows "couldn't fetch yet"). Admin write: the rules only let users create. */
+export function planFail(failed, requests, now = Date.now()) {
+  const patch = {};
+  for (const t of failed) {
+    const k = tickerToKey(t);
+    if (requests?.[k]?.tracked === false) patch[`trackRequests/${k}/err`] = { at: now, msg: "fetch failed" };
   }
   return patch;
 }
@@ -174,9 +198,9 @@ function readJson(path, fallback) {
 }
 
 // Transport is ci/tr-fetch.mjs (shared with the other scrapers): a Cloudflare firewall block fails
-// at once instead of being retried. getData has a breaker: after 3 blocks the lite run stops
+// at once instead of being retried. The aianalyst pull has a breaker: after 3 blocks the lite run stops
 // asking and the pending requests stay pending for the next run.
-const getDataBreaker = makeBreaker();
+const aiBreaker = makeBreaker();
 function parseJson(html) {
   const pre = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
   const body = (pre ? pre[1] : html)
@@ -337,39 +361,48 @@ async function main(mode) {
     const stocks = JSON.parse(readFileSync(STOCKS, "utf8"));
     const seen = JSON.parse(readFileSync(SEEN, "utf8"));
     const now = new Date().toISOString();
-    const got = [];
+    const got = [], failed = [];
     const want = planFetch(pending, Object.keys(tracked), stocks.map((r) => r.t));
     if (want.length) await waitForFlare();
     let reported = false;
     for (const t of want) {
-      if (getDataBreaker.open()) {
-        if (!reported) { reported = true; health("breaker open: getData"); console.log("  getData breaker open: leaving the remaining requests pending"); }
+      if (aiBreaker.open()) {
+        if (!reported) { reported = true; health("breaker open: stock-aianalyst"); console.log("  aianalyst breaker open: leaving the remaining requests pending"); }
+        failed.push(t);
         continue;
       }
       try {
-        const row = rowFromGetData(await flareJson(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`, 6, getDataBreaker));
-        if (!row.t) throw new Error("no ticker in getData");
-        try {
-          fillNulls(row, forecastFields(await flareJson(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`, 2), t)); // optional: don't burn 36s+ retrying it
-        } catch (e) { console.log(`  ${t}: forecast payload skip (${e.message}) — the 5h run's enrich fills it`); }
+        const row = mergeRow(undefined, rowFromAiAnalyst(await flareJson(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`, 3, aiBreaker), t));
+        if (!row?.n || row.px == null) throw new Error("no name or price in the payload");
         stocks.push(row);
         seen[t] = seenFor(row, now);
         got.push(t);
-      } catch (e) { console.log(`  ${t}: getData skip (${e.message})`); }
+      } catch (e) { console.log(`  ${t}: aianalyst skip (${e.message})`); failed.push(t); }
     }
     if (got.length) {
       writeFileSync(STOCKS, JSON.stringify(stocks));
       writeFileSync(SEEN, JSON.stringify(seen));
     }
     console.log(`  fetched rows: ${got.length}${got.length ? `: ${got.join(", ")}` : ""}`);
-    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `tickers=${got.join(",")}\n`);
+    if (failed.length) console.log(`  failed: ${failed.join(", ")}`);
+    if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `tickers=${got.join(",")}\nfailed=${failed.join(",")}\n`);
   } else if (mode === "mark") {
     const rows = JSON.parse(readFileSync(STOCKS, "utf8")).map((r) => r.t);
     const patch = planMarks(pending, rows);
-    if (Object.keys(patch).length) await rtdb(token, "PATCH", "trackRequests.json", patch);
-    console.log(`  marked tracked: ${Object.keys(patch).length / 2}`);
+    if (Object.keys(patch).length) await rtdb(token, "PATCH", ".json", patch);
+    console.log(`  marked tracked: ${Object.keys(patch).length / 3}`);
+  } else if (mode === "fail") {
+    // fetch's failures, plus anything it fetched that never reached trackedRows (a red data gate or
+    // a failed upload skips the steps in between)
+    const live = (await rtdb(token, "GET", "trackedRows.json?shallow=true")) || {};
+    const lost = (process.env.TICKERS || "").split(",").filter(Boolean).filter((t) => !(tickerToKey(t) in live));
+    const bad = [...new Set([...(process.env.FAILED || "").split(",").filter(Boolean), ...lost])];
+    const patch = planFail(bad, pending);
+    if (Object.keys(patch).length) await rtdb(token, "PATCH", ".json", patch);
+    console.log(`  failed requests: ${bad.length ? bad.join(", ") : "none"}`);
+    if (bad.length) process.exitCode = 1;
   } else {
-    throw new Error(`usage: track-requests.mjs fold|pin|fetch|upload|mark|clear (got ${mode})`);
+    throw new Error(`usage: track-requests.mjs fold|pin|fetch|upload|mark|fail|clear (got ${mode})`);
   }
 }
 

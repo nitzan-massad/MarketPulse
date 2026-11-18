@@ -118,3 +118,15 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node ci/track-requests.mjs mark
+
+      # Last, whatever happened above: a request that failed to fetch (`failed`), or whose ticker was
+      # fetched but never reached trackedRows (a red data gate, a failed upload), gets `err` stamped
+      # so the app says "couldn't fetch yet" instead of spinning. It stays pending: every run retries
+      # it, and planUnrequest clears it after 24h. Fails the run, so a broken source is visible here too.
+      - name: Report failed requests
+        if: always()
+        env:
+          FAILED: ${{ steps.fetch.outputs.failed }}
+          TICKERS: ${{ steps.fetch.outputs.tickers }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node ci/track-requests.mjs fail

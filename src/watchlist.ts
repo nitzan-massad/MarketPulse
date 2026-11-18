@@ -435,16 +435,18 @@ export function useWatchlist(): WatchlistApi {
 // ---------------------------------------------------------------------------
 // "Track this stock" — a signed-in user asks CI to add an off-universe ticker.
 // RTDB `trackRequests/<KEY>` = { uid, ts, tracked:false }; ci/track-requests.mjs pins it
-// and flips tracked=true once its row ships. Keys can't hold ".", so BRK.B is BRK_B.
+// and flips tracked=true once its row ships (or stamps err:{at,msg} when a fetch fails: "failed"). Keys can't hold ".", so BRK.B is BRK_B.
 // `trackreq/<uid>/<KEY>` is the requester's own copy: useNotifications watches it and
 // posts the one-time "now tracked" notification, then deletes it.
 // ---------------------------------------------------------------------------
-export type TrackRequestState = "none" | "pending" | "tracked";
+import { trackStateOf, type TrackRequestState } from "./trackState";
+export type { TrackRequestState };
 export const trackKey = (t: string) => t.replace(/\./g, "_");
 // Dev: no backend, so requests live in localStorage and the card listens for this event.
 const DEV_REQ_LS = "mp_dev_trackreq";
 const devRequests = new Set<string>(DEV_AUTH ? (() => { try { return JSON.parse(localStorage.getItem(DEV_REQ_LS) || "[]"); } catch { return []; } })() : []);
 const DEV_REQ_EVENT = "mp-trackreq";
+const devErrKeys = (): string[] => { try { return JSON.parse(localStorage.getItem("mp_dev_trackerr") || "[]"); } catch { return []; } };
 
 // "Last viewed" per ticker, by ANY visitor (signed in or not): `views/<KEY>` = server time.
 // ci/track-requests.mjs snapshots it into keepalive.json, and computeKeep won't drop a stock
@@ -481,14 +483,15 @@ export function useTrackRequest(ticker: string, user: User | null): TrackRequest
     setState("none");
     if (!user) return;
     if (DEV_AUTH || !f) {
-      const sync = () => setState(devRequests.has(key) ? "pending" : "none");
+      // dev: localStorage `mp_dev_trackerr` = JSON array of keys to show as failed (no CI to stamp err)
+      const sync = () => setState(devRequests.has(key) ? (devErrKeys().includes(key) ? "failed" : "pending") : "none");
       sync();
       window.addEventListener(DEV_REQ_EVENT, sync);
       return () => window.removeEventListener(DEV_REQ_EVENT, sync);
     }
     return f.onValue(
       f.ref(f.db, `trackRequests/${key}`),
-      (s) => setState(!s.exists() ? "none" : s.val().tracked ? "tracked" : "pending"),
+      (s) => setState(trackStateOf(s.exists() ? s.val() : null)),
       () => setState("none"),
     );
   }, [f, key, user]);

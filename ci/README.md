@@ -580,7 +580,11 @@ The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **ke
 >    `BACKFILL_LIMIT` and a 10 minute deadline; past either, or on failure, the last-known row is carried.
 >
 > The log line `backfill: U universe, P payload, C carried` reports the split; C > 30% of missing raises a health note.
-> The older text below describes the retired getData path.
+> `rowFromGetData` / `ssFromGetData` were deleted 2026-11-17 (getData retired); the text below is history.
+> **Track requests** use the same payload: `ci/track-requests.mjs fetch` maps it with `rowFromAiAnalyst`; a null
+> row or one with no name/price is a failure. The lite run's last step (`fail`) stamps `trackRequests/<KEY>/err`
+> on pending requests that failed (or that never reached `trackedRows`), the app shows "Couldn't fetch data
+> for T yet", every run retries, and `planUnrequest` clears the request after 24h so it can be re-requested.
 
 Kept tickers missing from a run's screener pull are backfilled from the per-ticker
 `getData` feed (`ci/keep.mjs` → `rowFromGetData`), **merging fresh fields over the ticker's

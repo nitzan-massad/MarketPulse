@@ -6,11 +6,10 @@
 //      (src/data/keepalive.json, written from RTDB by ci/track-requests.mjs), or
 //   3. seen in the dynamic list, or requested via "Track this stock" (src/data/tracked.json),
 //      within the last KEEP_MAX_AGE_DAYS.
-// Kept-but-missing tickers are backfilled from the per-ticker getData feed
-// (the same endpoint scrape-forecasts uses); rowFromGetData maps that feed to a
-// stocks.json row, merging fresh fields over the ticker's last-known row so the
-// fields getData doesn't expose (sector name, AI-analyst score/rating/target,
-// daily change) carry over instead of going blank.
+// Kept-but-missing tickers are backfilled from the per-ticker stock-aianalyst payload
+// (rowFromAiAnalyst below), merged over the ticker's last-known row (mergeRow) so the fields
+// that payload can't see (e.g. daily change) carry over instead of going blank. The old getData
+// feed was retired 2026-11-17 (Cloudflare-blocked).
 import assert from "node:assert";
 
 export const KEEP_MAX_AGE_DAYS = 365;
@@ -91,65 +90,6 @@ export const airName = (slug) => {
   const words = String(slug).trim().split(/[\s_-]+/).filter(Boolean);
   return words.length ? words.map((w) => w[0].toUpperCase() + w.slice(1)).join(" ") : null;
 };
-
-// --- `ss` (Smart Score) from getData ------------------------------------------
-// The KEY's presence, not the value's nullness, separates the two cases:
-//   `score` present (even null) → TipRanks answered; null propagates → UI renders "—"
-//   object or key absent        → payload reshaped/renamed → carry prev.ss
-// A plain `?? prev.ss` collapses both, resurrecting a stale number as if freshly read.
-// Visible "—" on a real null, carry only on a real reshape — the trade-off that choice
-// makes, and the live evidence for it, are in ci/README.md → Smart Score.
-function ssFromGetData(j, prev) {
-  const s = j.tipranksStockScore;
-  // `typeof s === "object"` is not redundant: `in` THROWS on a truthy primitive, and
-  // scripts/refresh-data.mjs calls rowFromGetData outside any try/catch, so a scalar here
-  // would abort the local refresh rather than carry. Same branch as absent.
-  if (!(s && typeof s === "object" && "score" in s)) return prev.ss ?? null;
-  if (s.score == null) return null; // explicit null IS the answer
-  // ss was the ONE numeric field bypassing rnd(), so {score:"7"} wrote the STRING "7" into
-  // stocks.json, which then hit sortRows' string branch and localeCompared against numbers.
-  // A non-numeric score is a reshaped payload, not a value: carry rather than launder.
-  const n = Number(s.score);
-  return Number.isFinite(n) ? n : prev.ss ?? null;
-}
-
-// Build a stocks.json row from a getData JSON blob, carrying over fields getData
-// can't supply (sec/ai/air/aipt/chg) from the ticker's previous row.
-export function rowFromGetData(j, prev = {}) {
-  const prices = j.prices || [];
-  // A null/!object last element used to throw here, and scripts/refresh-data.mjs calls
-  // rowFromGetData outside any try/catch — so one malformed price row aborted the whole
-  // local refresh. Same failure class the ssFromGetData typeof guard exists for.
-  const lastPx = prices.length ? prices[prices.length - 1] : null;
-  const px = lastPx && typeof lastPx === "object" ? rndPx(lastPx.p) : null;
-  const ptc = j.ptConsensus || [];
-  const ptE = ptc.find((p) => p.bench === 1) || ptc.find((p) => p.period === 0) || ptc[0]; // "best analysts" target
-  const pt = ptE ? ptE.priceTarget : null;
-  const up = pt != null && px ? ((pt - px) / px) * 100 : null;
-  const con = (j.consensuses || []).find((c) => c.isLatest && c.mStars === 1)
-    || (j.consensuses || []).find((c) => c.isLatest)
-    || (j.consensuses || [])[0];
-  const mc = j.marketCapUSD ?? j.marketCap;
-  return {
-    t: j.ticker,
-    n: j.companyName ?? prev.n ?? null,
-    sec: prev.sec ?? null,                       // getData exposes only a numeric sectorID — carry the name
-    px,                                          // already rndPx'd above (the upside calc uses it)
-    chg: prev.chg ?? null,                       // no daily-change field in getData — carry
-    pt: rndPx(pt),                              // a target is a price too — 2dp zeroed a sub-dollar one
-    up: rnd(up, 1),
-    con: con ? CON_NAME[con.rating] ?? prev.con ?? null : prev.con ?? null,
-    b: con ? con.nB || 0 : prev.b || 0,
-    h: con ? con.nH || 0 : prev.h || 0,
-    s: con ? con.nS || 0 : prev.s || 0,
-    ss: ssFromGetData(j, prev),                  // explicit `score: null` = "no Smart Score" — see above
-    ai: prev.ai ?? null,                         // AI-analyst data not in getData — carry
-    air: prev.air ?? null,
-    aipt: prev.aipt ?? null,
-    mc: mc != null ? Math.round(mc / 1e6) : prev.mc ?? null,
-    desc: j.description ?? prev.desc ?? null,
-  };
-}
 
 // --- shared row mappers + keep-last-known merge --------------------------------
 // ROW CONTRACT: a mapper returns `undefined` for a field its source cannot see ("unknown ->
@@ -253,7 +193,7 @@ export function mergeRow(prev, next) {
 
 // Fields from the per-ticker stock-forecast payload (www.tipranks.com/stocks/<t>/
 // stock-forecast/payload.json) — this is the ONLY per-ticker source for the AI-analyst
-// score/rating/target and sector name (getData exposes neither). Select the requested
+// score/rating/target and sector name (the screener exposes neither). Select the requested
 // ticker by `_id` (peers in the bundle are stubs). Returns nulls for fields it lacks
 // (ss/mc) so fillNulls leaves those alone.
 export function forecastFields(fj, ticker) {
@@ -420,7 +360,7 @@ export function aiScaleError(rows, floor = AI_SCALE_FLOOR) {
 }
 
 // ponytail: self-check — run `node ci/keep.mjs`. Fails loudly if the keep/expiry
-// or getData mapping breaks. No test framework on purpose.
+// or the row mapping breaks. No test framework on purpose.
 if (import.meta.url === `file://${process.argv[1]}`) {
   const now = Date.parse("2026-07-21T00:00:00Z");
   const prevSeen = {
@@ -439,44 +379,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   assert(nextLastSeen({ ls: "2026-01-01T00:00:00Z" }, false, today) === "2026-01-01T00:00:00Z", "absent → carry parseable ls");
   assert(nextLastSeen({ d: "baseline" }, false, today) === today, "legacy baseline absent → start clock now");
   assert(nextLastSeen(undefined, false, today) === today, "no prior → today");
-
-  const row = rowFromGetData(
-    {
-      ticker: "X", companyName: "XCo", prices: [{ p: 10 }],
-      ptConsensus: [{ bench: 1, priceTarget: 15 }],
-      consensuses: [{ isLatest: 1, mStars: 1, rating: 5, nB: 3, nH: 1, nS: 0 }],
-      tipranksStockScore: { score: 8 }, marketCapUSD: 2e9, description: "d",
-    },
-    { sec: "Tech", ai: 91, air: "Outperform", aipt: 14, chg: 1.2 },
-  );
-  assert(row.up === 50, "upside = (15-10)/10 = 50%");
-  // pt/aipt are DOLLARS, not scores: a sub-dollar target at 2dp rendered "$0.00" next to a
-  // live sub-cent price and a non-zero upside computed from the raw value — self-refuting.
-  {
-    const sub = rowFromGetData({ ticker: "P", prices: [{ p: 0.0034 }], ptConsensus: [{ bench: 1, priceTarget: 0.004 }] }, {});
-    assert(sub.px === 0.0034 && sub.pt === 0.004, "a sub-cent price AND its target both survive at 4dp");
-    assert(sub.up === 17.6, "upside still comes from the raw values, so it must agree with what is shown");
-  }
-  assert(row.con === "StrongBuy", "rating 5 → StrongBuy (compact, matches app vocab)");
-  assert(row.b === 3 && row.h === 1 && row.s === 0, "buy/hold/sell from latest all-analyst consensus");
-  assert(row.sec === "Tech" && row.ai === 91 && row.aipt === 14 && row.chg === 1.2, "carries sec/ai/aipt/chg from prev");
-  assert(row.ss === 8 && row.mc === 2000, "smart score + market cap in millions");
-
-  // ss — an explicit `score: null` is DATA ("TipRanks has no Smart Score for this
-  // stock", live on ASTI/BCDA); a MISSING field is a reshaped payload. Only the second
-  // may fall back to prev. See ssFromGetData above for the trade-off.
-  const ssOf = (j, prev) => rowFromGetData({ ticker: "X", ...j }, prev).ss;
-  assert(ssOf({ tipranksStockScore: { score: null } }, { ss: 7 }) === null, "explicit score:null beats prev.ss — no score means '—', not a stale 7");
-  assert(ssOf({}, { ss: 7 }) === 7, "no tipranksStockScore at all → payload reshaped, carry prev.ss");
-  assert(ssOf({ tipranksStockScore: {} }, { ss: 7 }) === 7, "object present but no `score` key → carry prev.ss");
-  assert(ssOf({ tipranksStockScore: { score: 4 } }, { ss: 7 }) === 4, "a real score still wins over prev.ss");
-  assert(ssOf({ tipranksStockScore: { score: 0 } }, { ss: 7 }) === 0, "score 0 is a value, not a blank (nullish test, not falsy)");
-  assert(ssOf({ tipranksStockScore: { score: null } }, {}) === null && ssOf({}, {}) === null, "no prev to carry → null either way");
-  // a truthy PRIMITIVE must carry, not throw: `in` throws on one, and scripts/refresh-data.mjs
-  // calls rowFromGetData outside any try/catch, so a scalar reshape would abort the local refresh
-  for (const junk of [7, "x", true, [], 0, null, undefined]) {
-    assert(ssOf({ tipranksStockScore: junk }, { ss: 7 }) === 7, `tipranksStockScore=${JSON.stringify(junk)} → carry prev.ss, never throw`);
-  }
 
   // forecastFields — real TER shape from the HAR
   const fj = { models: { stocks: [

@@ -1,6 +1,6 @@
 // Guards ci/track-requests.mjs: which requests get tracked, fetched, marked, cleared, and kept alive.
 import assert from "node:assert/strict";
-import { planFetch, planFold, planKeepalive, planMarks, planTracks, planUnrequest, seenFor, trackedEntry } from "./track-requests.mjs";
+import { planFail, planFetch, planFold, planKeepalive, planMarks, planTracks, planUnrequest, seenFor, trackedEntry } from "./track-requests.mjs";
 
 const req = (ts, tracked = false) => ({ uid: "u", ts, tracked });
 const iso = (ms) => new Date(ms).toISOString();
@@ -18,9 +18,12 @@ assert.equal(planTracks(Object.fromEntries([...Array(30)].map((_, i) => [`T${i}`
 assert.deepEqual(planTracks(null, [], {}), []);
 
 // only pending requests whose ticker now has a row get marked
+// (root-relative paths, like planFail, so one PATCH at the DB root can carry both) — and it also
+// clears a stale `err`, so a request that failed earlier doesn't show "couldn't fetch" once tracked
 assert.deepEqual(planMarks({ BRK_B: req(1), NVDA: req(2), OLD: req(0, true) }, ["BRK.B", "OLD"], 99), {
-  "BRK_B/tracked": true,
-  "BRK_B/trackedAt": 99,
+  "trackRequests/BRK_B/tracked": true,
+  "trackRequests/BRK_B/trackedAt": 99,
+  "trackRequests/BRK_B/err": null,
 });
 
 // fetch only tracked, pending, row-less tickers
@@ -29,6 +32,19 @@ assert.deepEqual(planFetch({ BRK_B: req(1), NVDA: req(2), AAPL: req(3), OLD: req
 // a done request whose row is gone (expired) is deleted so it can be requested again;
 // pending ones and live ones are left alone
 assert.deepEqual(planUnrequest({ GONE: req(1, true), LIVE: req(1, true), WAIT: req(1) }, ["LIVE"]), { GONE: null });
+
+// a request that has been failing for more than 24h is cleared too, so it can be requested again;
+// a fresher failure keeps being retried by every run
+const H = 3_600_000;
+const failed = (ageH) => ({ ...req(1), err: { at: 100 * H - ageH * H, msg: "fetch failed" } });
+assert.deepEqual(planUnrequest({ OLDERR: failed(25), NEWERR: failed(1) }, [], 100 * H), { OLDERR: null });
+
+// planFail: pending requests only get an err stamp (full RTDB paths); tracked / unknown ones don't
+assert.deepEqual(planFail(["NNNN"], { NNNN: { tracked: false } }, 1), { "trackRequests/NNNN/err": { at: 1, msg: "fetch failed" } });
+assert.deepEqual(planFail(["NNNN"], { NNNN: { tracked: true } }, 1), {});
+assert.deepEqual(planFail(["NOPE"], { NNNN: { tracked: false } }, 1), {});
+assert.deepEqual(planFail(["BRK.B", "OK"], { BRK_B: req(1), OK: req(1) }, 5), { "trackRequests/BRK_B/err": { at: 5, msg: "fetch failed" }, "trackRequests/OK/err": { at: 5, msg: "fetch failed" } });
+assert.deepEqual(planFail([], { NNNN: req(1) }, 1), {});
 
 // watchlists (object or legacy array) are merged, de-duplicated, sorted, uid-free
 assert.deepEqual(

@@ -1,12 +1,10 @@
-// Full-coverage tests for the getData keep/mapping layer in ci/keep.mjs.
+// Full-coverage tests for the keep/mapping layer in ci/keep.mjs (the getData mapper was retired 2026-11-17; row mappers: test-row-mappers.mjs).
 // Run: node ci/test-keep.mjs      (no network, no file reads — payloads are built here)
 //
 // SCOPE. ci/keep.mjs already carries an inline self-check (`node ci/keep.mjs`) that covers
-// the happy paths and the `ss` doctrine. This file is the coverage that one does NOT have:
-//   * every field of `rowFromGetData` across present / absent / explicitly-null / wrong-type,
-//     and the load-bearing partition of which fields are read live vs carried from `prev`;
+// the happy paths. This file is the coverage that one does NOT have:
 //   * the exact consensus vocabulary (the app substring-matches "strongbuy" — see src/lib.ts),
-//     for all five enum values plus unknown / missing / prev-fallback;
+//     for all five enum values plus unknown / missing;
 //   * `forecastFields` degradation: missing `report`, `report: null`, `report: {}`,
 //     non-numeric `score` (rnd yields NaN, not null), `score: 0`, bundle mismatch;
 //   * `airName` / `sectorName` slug vocabularies including malformed input;
@@ -15,7 +13,7 @@
 //     column at exactly half) and the `floor` parameter's direction;
 //   * keep/expiry: the off-pull `ls` freeze, the KEEP_MAX_AGE_DAYS boundary, pins.
 //
-// THREE SHIPPED BUGS have named regression tests below; grep "REGRESSION #".
+// A SHIPPED BUG (the ai rescale; the two ss ones went with the retired getData mapper) has a named regression test below; grep "REGRESSION #".
 //
 // KEEP_MODULE exists so the three regressions can be proven non-vacuous: point it at a
 // scratchpad copy of keep.mjs with one line reverted and the matching assertion must fail.
@@ -25,7 +23,7 @@ const MODULE = process.env.KEEP_MODULE || new URL("./keep.mjs", import.meta.url)
 const K = await import(MODULE);
 const {
   KEEP_MAX_AGE_DAYS, VIEW_KEEP_DAYS, AI_SCALE_FLOOR, lastSeenMs, computeKeep, nextLastSeen,
-  sectorName, airName, rowFromGetData, forecastFields, fillNulls, aiScaleError, rndPx,
+  sectorName, airName, forecastFields, fillNulls, aiScaleError, rndPx,
 } = K;
 
 // --- harness -------------------------------------------------------------------
@@ -47,7 +45,7 @@ const truthy = (msg, fn) => check(msg, () => assert.ok(fn()));
 const EXPECTED_EXPORTS = {
   KEEP_MAX_AGE_DAYS: "number", VIEW_KEEP_DAYS: "number", AI_SCALE_FLOOR: "number", lastSeenMs: "function",
   computeKeep: "function", nextLastSeen: "function", sectorName: "function",
-  airName: "function", rowFromGetData: "function", forecastFields: "function",
+  airName: "function", forecastFields: "function",
   fillNulls: "function", aiScaleError: "function", rndPx: "function",
   // the enrich pass, shared by ci/refresh-data-ci.mjs and scripts/refresh-data.mjs so the
   // two cannot drift apart again — covered in section L below
@@ -60,8 +58,8 @@ for (const [name, type] of Object.entries(EXPECTED_EXPORTS)) {
   eq(`export ${name} is a ${type}`, () => typeof K[name], type);
 }
 // A tripwire, not decoration: new public surface must arrive with coverage in this file.
-// NOTE `CON_NAME`, `ssFromGetData` and `AI_SCALE_MIN_SAMPLE` are deliberately module-private
-// — they are exercised through rowFromGetData / forecastFields / aiScaleError below.
+// NOTE `CON_NAME` and `AI_SCALE_MIN_SAMPLE` are deliberately module-private
+// — they are exercised through forecastFields / aiScaleError below.
 eq("keep.mjs exports exactly the covered names", () => Object.keys(K).sort(), Object.keys(EXPECTED_EXPORTS).sort());
 eq("CON_NAME is private — the vocabulary is asserted through the two mappers", () => K.CON_NAME, undefined);
 eq("KEEP_MAX_AGE_DAYS is 365 (the expiry contract seen.json is written against)", () => KEEP_MAX_AGE_DAYS, 365);
@@ -168,221 +166,11 @@ truthy("the freeze composes with computeKeep: a frozen ls eventually expires",
           return computeKeep([], { A: { ls: frozen } }, NOW).dropped.includes("A"); });
 
 // =====================================================================================
-// E. rowFromGetData — the field-by-field mapping
-// =====================================================================================
-// A complete getData payload. Values are chosen so nothing can collide with the `prev`
-// sentinels below — any leak in either direction is visible.
-const payload = (over = {}) => ({
-  ticker: "GOOGL",
-  companyName: "Alphabet Inc",
-  prices: [{ p: 100 }, { p: 200.456 }],                                     // LAST price wins
-  ptConsensus: [{ period: 0, priceTarget: 111 }, { bench: 1, priceTarget: 250 }],
-  consensuses: [
-    { isLatest: 1, rating: 2, nB: 90, nH: 91, nS: 92 },                     // latest but not mStars 1
-    { isLatest: 1, mStars: 1, rating: 5, nB: 30, nH: 4, nS: 1 },            // must win
-  ],
-  tipranksStockScore: { score: 9 },
-  marketCapUSD: 2_400_000_000,
-  marketCap: 999_000_000_000,                                               // must lose to marketCapUSD
-  description: "search and ads",
-  // DECOYS. Every plausible name a future edit might reach for to source a CARRIED field
-  // from the payload instead of from `prev`. They are all mapped to values that could not
-  // come from PREV_FULL, so the CARRIED assertions below fail the moment one is read.
-  // (getData really does ship only a numeric sectorID and no change/AI fields at all.)
-  sectorID: 3,
-  sector: "technology", sectorName: "Technology",
-  changePercent: 1.5, priceChangePct: 0.015, dailyChange: 1.5, gain: 0.015,
-  aiScore: 88, aiRating: "outperform", aiPriceTarget: 300,
-  aiAnalystData: { overallScore: 88, overallRating: "Outperform", priceTarget: 300 },
-  ...over,
-});
-// `prev` with a DISTINCT sentinel in every field.
-const PREV_FULL = Object.freeze({
-  t: "OLD", n: "Old Name", sec: "Energy", px: 1.11, chg: -9.9, pt: 2.22, up: 3.33,
-  con: "Sell", b: 7, h: 8, s: 9, ss: 2, ai: 44, air: "Underperform", aipt: 5.55,
-  mc: 123, desc: "old desc",
-});
-const PREV_ALL_NULL = Object.freeze(Object.fromEntries(Object.keys(PREV_FULL).map((k) => [k, null])));
-
-// --- E1. the row shape and the provenance partition ---------------------------------
-// THIS PARTITION IS LOAD-BEARING. Moving a field between these groups changes what the
-// app shows on a keep-path row, so each group is asserted separately and by name.
-//   PAYLOAD_ONLY  — read live, NO prev fallback: a payload without them BLANKS the row.
-//                   px/pt/up are recomputed every run by design (a stale target is worse
-//                   than a blank one), and `t` gates the whole row at the call site.
-//   PAYLOAD_FIRST — payload wins, prev is the fallback when the payload lacks the field.
-//   CARRIED       — getData genuinely has none of these, so they ALWAYS come from prev.
-//                   refresh-data-ci.mjs then overwrites ai/air/aipt/chg from the forecast
-//                   payload (CARRIED_FIELDS there); `sec` is filled, not overwritten.
-const PAYLOAD_ONLY = ["t", "px", "pt", "up"];
-const PAYLOAD_FIRST = ["n", "con", "b", "h", "s", "ss", "mc", "desc"];
-const CARRIED = ["ai", "air", "aipt", "chg", "sec"];
-
-const full = rowFromGetData(payload(), PREV_FULL);
-eq("the mapped row has exactly the 17 stocks.json keys",
-  () => Object.keys(full).sort(), [...PAYLOAD_ONLY, ...PAYLOAD_FIRST, ...CARRIED].sort());
-for (const f of CARRIED) {
-  eq(`CARRIED: \`${f}\` comes from prev even when the payload is complete`, () => full[f], PREV_FULL[f]);
-}
-for (const f of [...PAYLOAD_ONLY, ...PAYLOAD_FIRST]) {
-  truthy(`LIVE: \`${f}\` is read from the payload, not carried from prev`, () => full[f] !== PREV_FULL[f]);
-}
-eq("`sec` is carried even though the payload ships a numeric sectorID", () => full.sec, "Energy");
-
-// prev-fallback behaviour on a payload that maps nothing but the ticker
-const bare = rowFromGetData({ ticker: "GOOGL" }, PREV_FULL);
-for (const f of PAYLOAD_FIRST) {
-  eq(`PAYLOAD_FIRST: \`${f}\` falls back to prev when the payload lacks it`, () => bare[f], PREV_FULL[f]);
-}
-for (const f of PAYLOAD_ONLY.filter((x) => x !== "t")) {
-  eq(`PAYLOAD_ONLY: \`${f}\` BLANKS to null when the payload lacks it (no prev fallback)`, () => bare[f], null);
-}
-eq("`t` always comes from the payload, never from prev", () => rowFromGetData({}, PREV_FULL).t, undefined);
-truthy("rowFromGetData does not mutate `prev`",
-  () => { const p = { ...PREV_FULL }; rowFromGetData(payload(), p); return JSON.stringify(p) === JSON.stringify(PREV_FULL); });
-
-// --- E2. an empty prev, and a prev whose every field is null ------------------------
-eq("prev {} → every carried/fallback field is null except b/h/s, which are 0",
-  () => rowFromGetData({ ticker: "X" }, {}),
-  { t: "X", n: null, sec: null, px: null, chg: null, pt: null, up: null, con: null,
-    b: 0, h: 0, s: 0, ss: null, ai: null, air: null, aipt: null, mc: null, desc: null });
-eq("prev omitted entirely (default arg) behaves like prev {}",
-  () => rowFromGetData({ ticker: "X" }), rowFromGetData({ ticker: "X" }, {}));
-eq("prev with every field null → the same all-null row (nulls do not leak as strings)",
-  () => rowFromGetData({ ticker: "X" }, PREV_ALL_NULL), rowFromGetData({ ticker: "X" }, {}));
-eq("prev.b === null becomes 0, not null (b/h/s use `|| 0`, so the app never sees a null count)",
-  () => [bareNulls().b, bareNulls().h, bareNulls().s], [0, 0, 0]);
-function bareNulls() { return rowFromGetData({ ticker: "X" }, PREV_ALL_NULL); }
-eq("prev.b === 0 survives as 0", () => rowFromGetData({ ticker: "X" }, { b: 0, h: 0, s: 0 }).b, 0);
-
-// --- E3. a payload that maps to a FALSY `t` — the caller's `if (row.t)` gate ---------
-// refresh-data-ci.mjs:110 and scripts/refresh-data.mjs accept the row only `if (row.t)`,
-// otherwise the whole previous row is carried. A garbage response must reach that gate
-// as a falsy `t` WITHOUT throwing on the way.
-for (const [label, j] of [["missing ticker", {}], ["ticker ''", { ticker: "" }], ["ticker 0", { ticker: 0 }],
-  ["ticker null", { ticker: null }], ["empty object payload", {}]]) {
-  truthy(`falsy-t gate: ${label} maps to a falsy \`t\` so the caller rejects the row`,
-    () => !rowFromGetData(j, PREV_FULL).t);
-}
-truthy("a falsy-t row is still fully built (the gate, not an exception, is what rejects it)",
-  () => Object.keys(rowFromGetData({}, PREV_FULL)).length === 17);
-eq("a non-string ticker is NOT laundered — it passes through as-is", () => rowFromGetData({ ticker: 123 }).t, 123);
-
-// --- E4. px: last price in the array ------------------------------------------------
-eq("px is the LAST entry of prices, rounded to 2dp", () => rowFromGetData({ ticker: "X", prices: [{ p: 100 }, { p: 200.456 }] }).px, 200.46);
-eq("px with a single price", () => rowFromGetData({ ticker: "X", prices: [{ p: 12.5 }] }).px, 12.5);
-eq("px on an EMPTY prices array → null (no prev fallback)", () => rowFromGetData({ ticker: "X", prices: [] }, { px: 99 }).px, null);
-eq("px when prices is absent → null", () => rowFromGetData({ ticker: "X" }, { px: 99 }).px, null);
-eq("px when prices is explicitly null → null (|| [] guard)", () => rowFromGetData({ ticker: "X", prices: null }, { px: 99 }).px, null);
-eq("px when the last entry has no `p` → null", () => rowFromGetData({ ticker: "X", prices: [{ p: 1 }, {}] }).px, null);
-eq("px when p is explicitly null → null", () => rowFromGetData({ ticker: "X", prices: [{ p: null }] }).px, null);
-eq("px 0 is preserved as 0, not blanked", () => rowFromGetData({ ticker: "X", prices: [{ p: 0 }] }).px, 0);
-eq('px LAUNDERS a numeric string: "10.126" → 10.13', () => rowFromGetData({ ticker: "X", prices: [{ p: "10.126" }] }).px, 10.13);
-truthy("px on a non-numeric p → NaN (rnd does not validate; JSON.stringify writes it as null)",
-  () => Number.isNaN(rowFromGetData({ ticker: "X", prices: [{ p: "abc" }] }).px));
-eq("px when prices is a non-array object → null, no throw", () => rowFromGetData({ ticker: "X", prices: {} }).px, null);
-// FIXED: a null element in the price series used to be an unguarded read that THREW.
-// scripts/refresh-data.mjs calls rowFromGetData outside any try/catch, so one malformed
-// price row aborted the whole local refresh instead of degrading to null.
-eq("px when the last prices element is null → null, no throw",
-  () => rowFromGetData({ ticker: "X", prices: [{ p: 1 }, null] }).px, null);
-eq("px when the last prices element is a primitive → null, no throw",
-  () => rowFromGetData({ ticker: "X", prices: [{ p: 1 }, 7] }).px, null);
-
-// --- E5. pt: the "best analysts" target, and its selection precedence ---------------
-eq("pt prefers bench === 1 over period === 0 and over index 0",
-  () => rowFromGetData({ ticker: "X", ptConsensus: [{ period: 0, priceTarget: 111 }, { bench: 1, priceTarget: 250 }] }).pt, 250);
-eq("pt falls back to period === 0 when no bench 1 exists",
-  () => rowFromGetData({ ticker: "X", ptConsensus: [{ priceTarget: 111 }, { period: 0, priceTarget: 222 }] }).pt, 222);
-eq("pt falls back to the first entry when neither marker exists",
-  () => rowFromGetData({ ticker: "X", ptConsensus: [{ priceTarget: 333 }, { priceTarget: 444 }] }).pt, 333);
-eq("pt on an empty ptConsensus → null", () => rowFromGetData({ ticker: "X", ptConsensus: [] }, { pt: 9 }).pt, null);
-eq("pt when ptConsensus is explicitly null → null", () => rowFromGetData({ ticker: "X", ptConsensus: null }, { pt: 9 }).pt, null);
-eq("pt when the selected entry's priceTarget is null → null", () => rowFromGetData({ ticker: "X", ptConsensus: [{ bench: 1, priceTarget: null }] }, { pt: 9 }).pt, null);
-eq("pt is rounded to 2dp", () => rowFromGetData({ ticker: "X", ptConsensus: [{ bench: 1, priceTarget: 448.8199 }] }).pt, 448.82);
-eq("pt 0 is preserved", () => rowFromGetData({ ticker: "X", ptConsensus: [{ bench: 1, priceTarget: 0 }] }).pt, 0);
-
-// --- E6. up: upside %, 1dp -----------------------------------------------------------
-const upOf = (p, target) => rowFromGetData({ ticker: "X", prices: [{ p }], ptConsensus: [{ bench: 1, priceTarget: target }] }).up;
-eq("up = (pt - px) / px * 100, 1dp", () => upOf(10, 15), 50);
-eq("up is negative when the target is below the price", () => upOf(200, 150), -25);
-eq("up rounds to 1dp", () => upOf(333.76, 448.82), 34.5);
-eq("up on a pt of 0 → -100 (0 is a target, not a blank)", () => upOf(10, 0), -100);
-eq("up when px is 0 → null (guards the division, does not emit Infinity)", () => upOf(0, 5), null);
-eq("up when px is missing → null", () => rowFromGetData({ ticker: "X", ptConsensus: [{ bench: 1, priceTarget: 5 }] }, { up: 9 }).up, null);
-eq("up when pt is missing → null", () => rowFromGetData({ ticker: "X", prices: [{ p: 5 }] }, { up: 9 }).up, null);
-eq("up when both are missing → null, never carried from prev", () => rowFromGetData({ ticker: "X" }, { up: 9 }).up, null);
-
-// --- E7. mc: market cap in millions --------------------------------------------------
-eq("mc prefers marketCapUSD over marketCap", () => rowFromGetData({ ticker: "X", marketCapUSD: 2e9, marketCap: 9e12 }).mc, 2000);
-eq("mc falls back to marketCap when marketCapUSD is null", () => rowFromGetData({ ticker: "X", marketCapUSD: null, marketCap: 2e9 }).mc, 2000);
-eq("mc falls back to marketCap when marketCapUSD is absent", () => rowFromGetData({ ticker: "X", marketCap: 2e9 }).mc, 2000);
-eq("mc rounds to the nearest million", () => rowFromGetData({ ticker: "X", marketCapUSD: 2_499_999 }).mc, 2);
-eq("mc 0 is a value, not a blank — it does NOT fall back to prev", () => rowFromGetData({ ticker: "X", marketCapUSD: 0 }, { mc: 5 }).mc, 0);
-eq("mc absent from both fields → carried from prev", () => rowFromGetData({ ticker: "X" }, { mc: 5 }).mc, 5);
-eq("mc absent with no prev → null", () => rowFromGetData({ ticker: "X" }).mc, null);
-eq("mc both fields null → carried from prev", () => rowFromGetData({ ticker: "X", marketCapUSD: null, marketCap: null }, { mc: 5 }).mc, 5);
-eq('mc LAUNDERS a numeric string: "2000000000" → 2000', () => rowFromGetData({ ticker: "X", marketCapUSD: "2000000000" }).mc, 2000);
-
-// --- E8. n / desc: plain payload-first strings ---------------------------------------
-eq("n comes from companyName", () => rowFromGetData({ ticker: "X", companyName: "XCo" }, { n: "Prev" }).n, "XCo");
-eq("n null → prev.n", () => rowFromGetData({ ticker: "X", companyName: null }, { n: "Prev" }).n, "Prev");
-eq("n absent → prev.n", () => rowFromGetData({ ticker: "X" }, { n: "Prev" }).n, "Prev");
-eq("n absent with no prev → null", () => rowFromGetData({ ticker: "X" }).n, null);
-eq('n "" is a value, not a blank — `??` does not fall back on empty string', () => rowFromGetData({ ticker: "X", companyName: "" }, { n: "Prev" }).n, "");
-eq("n of the wrong type passes through unvalidated", () => rowFromGetData({ ticker: "X", companyName: { a: 1 } }).n, { a: 1 });
-eq("desc comes from description", () => rowFromGetData({ ticker: "X", description: "d" }, { desc: "D" }).desc, "d");
-eq("desc null → prev.desc", () => rowFromGetData({ ticker: "X", description: null }, { desc: "D" }).desc, "D");
-eq("desc absent → prev.desc", () => rowFromGetData({ ticker: "X" }, { desc: "D" }).desc, "D");
-eq('desc "" is a value, not a blank', () => rowFromGetData({ ticker: "X", description: "" }, { desc: "D" }).desc, "");
-eq("desc absent with no prev → null", () => rowFromGetData({ ticker: "X" }).desc, null);
-
-// --- E9. REGRESSION #2 / #3 — `ss` (Smart Score) -------------------------------------
-// #2: `j.tipranksStockScore?.score ?? prev.ss` could not tell "TipRanks says no Smart
-//     Score" (an explicitly present `score: null`, real on ASTI/BCDA) from "the payload
-//     reshaped". A real null resurrected a stale number: ASTI stayed frozen at ss 2.
-// #3: the fix `"score" in s` THROWS on a truthy primitive — a robustness regression
-//     against the `?.score` it replaced, and rowFromGetData is called outside any
-//     try/catch in scripts/refresh-data.mjs, so it aborts the whole local refresh.
-const ssOf = (ts, prev) => rowFromGetData(ts === undefined ? { ticker: "X" } : { ticker: "X", tipranksStockScore: ts }, prev).ss;
-eq("REGRESSION #2: explicit `score: null` beats prev.ss — no score renders '—', not a stale 2", () => ssOf({ score: null }, { ss: 2 }), null);
-eq("REGRESSION #2: `score: null` with a prev.ss of 0 still yields null", () => ssOf({ score: null }, { ss: 0 }), null);
-eq("REGRESSION #2: `score: null` and no prev → null", () => ssOf({ score: null }, {}), null);
-eq("a real score wins over prev.ss", () => ssOf({ score: 4 }, { ss: 2 }), 4);
-eq("score 0 is a value, not a blank (nullish test, not falsy)", () => ssOf({ score: 0 }, { ss: 7 }), 0);
-eq("score 10 (the TipRanks maximum) passes through", () => ssOf({ score: 10 }, { ss: 2 }), 10);
-eq("a reshaped payload — no tipranksStockScore at all → carry prev.ss", () => ssOf(undefined, { ss: 7 }), 7);
-eq("an object with no `score` key → carry prev.ss", () => ssOf({ momentum: 1 }, { ss: 7 }), 7);
-eq("an explicitly null tipranksStockScore is lumped in with absent → carry", () => ssOf(null, { ss: 7 }), 7);
-eq("an explicitly `undefined` score is treated as data (the KEY is present) → null, not carry", () => ssOf({ score: undefined }, { ss: 7 }), null);
-eq("no tipranksStockScore and no prev → null", () => ssOf(undefined, {}), null);
-// #3 — every truthy primitive must CARRY, never throw. `in` throws on all of these.
-for (const junk of [7, -1, 1.5, "x", "score", true, 1e308]) {
-  eq(`REGRESSION #3: truthy primitive tipranksStockScore=${String(junk)} carries prev.ss instead of throwing`, () => ssOf(junk, { ss: 7 }), 7);
-}
-for (const junk of [0, "", false, null, undefined, NaN]) {
-  eq(`falsy tipranksStockScore=${String(junk)} carries prev.ss`, () => ssOf(junk, { ss: 7 }), 7);
-}
-eq("an ARRAY tipranksStockScore has no `score` key → carry, no throw", () => ssOf([], { ss: 7 }), 7);
-eq("an array WITH a score-like index still carries", () => ssOf([1, 2, 3], { ss: 7 }), 7);
-// FIXED: `ss` was the ONE numeric field bypassing rnd(), so a string score reached
-// stocks.json as a STRING and then hit sortRows' string branch, localeCompare-ing against
-// numbers. A non-numeric score is a reshaped payload, not a value — carry, don't launder.
-eq('a numeric STRING score "7" is coerced to the number 7', () => ssOf({ score: "7" }, { ss: 2 }), 7);
-eq("an object score is a reshape → carry prev.ss, never write an object", () => ssOf({ score: { v: 1 } }, { ss: 2 }), 2);
-eq("a NaN score is a reshape → carry prev.ss, never write NaN", () => ssOf({ score: NaN }, { ss: 2 }), 2);
-eq("a non-numeric string score → carry prev.ss", () => ssOf({ score: "n/a" }, { ss: 2 }), 2);
-eq("a reshaped score with NO prev → null, not NaN", () => ssOf({ score: "n/a" }, {}), null);
-eq("score 0 still wins over prev (0 is a value)", () => ssOf({ score: 0 }, { ss: 7 }), 0);
-
-// =====================================================================================
 // F. consensus mapping — the exact vocabulary. src/lib.ts lowercases and SUBSTRING-matches
 //    "strongbuy"/"strongsell", so a space or a spelling change silently breaks filtering.
 // =====================================================================================
 const CON_VOCAB = { 1: "StrongSell", 2: "Sell", 3: "Neutral", 4: "Buy", 5: "StrongBuy" };
-const conOf = (rating) => rowFromGetData({ ticker: "X", consensuses: [{ isLatest: 1, mStars: 1, rating }] }).con;
 for (const [rating, name] of Object.entries(CON_VOCAB)) {
-  eq(`rowFromGetData: rating ${rating} → "${name}"`, () => conOf(Number(rating)), name);
   eq(`forecastFields: enumId ${rating} → "${name}"`, () => forecastFields({ models: { stocks: [{ _id: "T", analystRatings: { best: { enumId: Number(rating) } } }] } }, "T").con, name);
   truthy(`"${name}" contains no whitespace (the app substring-matches, so a space breaks it)`, () => !/\s/.test(name));
 }
@@ -392,39 +180,6 @@ truthy('"Buy" must NOT contain "strongbuy" or the filters would over-match', () 
 truthy('"Sell" must NOT contain "strongsell"', () => !"sell".includes("strongsell"));
 eq("the vocabulary is exactly 5 values, keyed 1–5", () => Object.keys(CON_VOCAB), ["1", "2", "3", "4", "5"]);
 
-// selection precedence: latest best-analyst consensus > any latest > first
-eq("con prefers isLatest && mStars === 1", () => rowFromGetData({ ticker: "X", consensuses: [
-  { isLatest: 1, rating: 2 }, { isLatest: 1, mStars: 1, rating: 5 }] }).con, "StrongBuy");
-eq("con falls back to any isLatest entry", () => rowFromGetData({ ticker: "X", consensuses: [
-  { rating: 1 }, { isLatest: true, rating: 4 }] }).con, "Buy");
-eq("con falls back to the first entry when none is marked latest", () => rowFromGetData({ ticker: "X", consensuses: [
-  { rating: 3 }, { rating: 5 }] }).con, "Neutral");
-
-// unknown / missing / prev fallback
-eq("an UNKNOWN rating enum falls back to prev.con", () => rowFromGetData({ ticker: "X", consensuses: [{ isLatest: 1, mStars: 1, rating: 9 }] }, { con: "Buy" }).con, "Buy");
-eq("an unknown rating enum with no prev → null", () => conOf(9), null);
-eq("rating 0 is not in the vocabulary → null", () => conOf(0), null);
-eq("rating null falls back to prev.con", () => rowFromGetData({ ticker: "X", consensuses: [{ isLatest: 1, mStars: 1, rating: null }] }, { con: "Buy" }).con, "Buy");
-eq("a MISSING consensuses array falls back to prev.con", () => rowFromGetData({ ticker: "X" }, { con: "Buy" }).con, "Buy");
-eq("an EMPTY consensuses array falls back to prev.con", () => rowFromGetData({ ticker: "X", consensuses: [] }, { con: "Buy" }).con, "Buy");
-eq("consensuses explicitly null falls back to prev.con", () => rowFromGetData({ ticker: "X", consensuses: null }, { con: "Buy" }).con, "Buy");
-eq("no consensus and no prev.con → null", () => rowFromGetData({ ticker: "X" }).con, null);
-eq('TYPE LAUNDERING: a string rating "5" still maps (object keys are strings)', () => conOf("5"), "StrongBuy");
-// b/h/s ride along with the selected consensus
-eq("b/h/s come from the SELECTED consensus, not the first one", () => {
-  const r = rowFromGetData(payload(), PREV_FULL); return [r.b, r.h, r.s];
-}, [30, 4, 1]);
-eq("b/h/s default to 0 when the selected consensus omits the counts", () => {
-  const r = rowFromGetData({ ticker: "X", consensuses: [{ isLatest: 1, mStars: 1, rating: 4 }] }, { b: 7, h: 8, s: 9 });
-  return [r.b, r.h, r.s];
-}, [0, 0, 0]);
-eq("b/h/s fall back to prev when there is NO consensus at all", () => {
-  const r = rowFromGetData({ ticker: "X" }, { b: 7, h: 8, s: 9 }); return [r.b, r.h, r.s];
-}, [7, 8, 9]);
-eq("a consensus count of 0 stays 0", () => {
-  const r = rowFromGetData({ ticker: "X", consensuses: [{ isLatest: 1, mStars: 1, rating: 3, nB: 0, nH: 0, nS: 0 }] }, { b: 7 });
-  return [r.b, r.h, r.s];
-}, [0, 0, 0]);
 eq("forecastFields: enumId absent → con null (NO prev fallback on this path)",
   () => forecastFields({ models: { stocks: [{ _id: "T", analystRatings: { best: {} } }] } }, "T").con, null);
 eq("forecastFields: enumId null → con null", () => forecastFields({ models: { stocks: [{ _id: "T", analystRatings: { best: { enumId: null } } }] } }, "T").con, null);
@@ -590,8 +345,6 @@ eq("just under $1 keeps 4dp", () => rndPx(0.9999), 0.9999);
 const SUB = { models: { stocks: [{ _id: "P", analystRatings: { best: { priceTarget: { value: 0.004 } } }, report: { rating: { priceTarget: { value: 0.0072 } } } }] } };
 eq("a sub-dollar analyst target keeps 4dp", () => forecastFields(SUB, "P").pt, 0.004);
 eq("a sub-dollar AI target keeps 4dp", () => forecastFields(SUB, "P").aipt, 0.0072);
-eq("the getData mapper agrees — one rule for every dollar field",
-  () => rowFromGetData({ ticker: "P", prices: [{ p: 0.0034 }], ptConsensus: [{ bench: 1, priceTarget: 0.004 }] }, {}).pt, 0.004);
 eq("below $1, the 5th decimal still rounds", () => rndPx(0.00005), 0.0001);
 // at and above $1 it must stay 2dp — cents are the right precision for a real quote, and
 // widening it here would churn every price in stocks.json on the next run
@@ -610,8 +363,6 @@ eq("a negative price takes the 4dp branch, not a throw", () => rndPx(-0.5), -0.5
 eq('the string "0.0034" coerces and keeps 4dp', () => rndPx("0.0034"), 0.0034);
 eq('the string "367.6912" coerces to cents', () => rndPx("367.6912"), 367.69);
 // and the mappers must actually USE it — this is the regression that motivated the export
-eq("rowFromGetData rounds a sub-penny last price at 4dp",
-  () => rowFromGetData({ ticker: "PENNY", prices: [{ p: 0.0034 }] }, {}).px, 0.0034);
 eq("forecastFields rounds a sub-penny daily price at 4dp",
   () => forecastFields({ models: { stocks: [{ _id: "P", prices: { daily: { priceUSD: 0.0034 } } }] } }, "P").px, 0.0034);
 
@@ -672,13 +423,13 @@ truthy("fillNulls does not mutate `extra`",
 eq("a mixed row: blanks filled, real values kept, extra's nulls ignored",
   () => fillNulls({ ai: null, sec: "Energy", ss: 6, chg: 0 }, { ai: 78, sec: "Technology", ss: null, chg: 9.9, mc: 500 }),
   { ai: 78, sec: "Energy", ss: 6, chg: 0, mc: 500 });
-eq("the real enrich composition: fillNulls(rowFromGetData(...), forecastFields(...))", () => {
-  const row = rowFromGetData({ ticker: "TER", prices: [{ p: 367.69 }] }, {});   // keep-path row: no ai/sec
+eq("the real enrich composition: fillNulls(keep-path row, forecastFields(...))", () => {
+  const row = { t: "TER", px: 367.69, sec: null, ai: null, air: null };   // keep-path row: no ai/sec
   fillNulls(row, ff({ company: { sector: "technology" }, report: { score: 71, ratingId: "outperform" } }, "TER"));
   return [row.t, row.px, row.sec, row.ai, row.air];
 }, ["TER", 367.69, "Technology", 71, "Outperform"]);
 eq("fillNulls cannot repair a CARRIED stale ai — only the explicit overwrite can", () => {
-  const row = rowFromGetData({ ticker: "TER" }, { ai: 44, air: "Underperform" });  // carried, non-null
+  const row = { t: "TER", ai: 44, air: "Underperform" };  // carried, non-null
   fillNulls(row, ff({ report: { score: 71, ratingId: "outperform" } }, "TER"));
   return [row.ai, row.air];                                                        // still stale
 }, [44, "Underperform"]);
@@ -781,7 +532,7 @@ eq("the floor is reported in the message so a non-default is visible", () => aiS
 // mirrored copy is structurally unable to check.
 const { applyForecast, enrichQueue, needsFill, AI_TRIO, ENRICH_MAX, ENRICH_TARGET_RUNS } = K;
 
-eq("AI_TRIO is exactly the three fields getData cannot supply", () => [...AI_TRIO].sort(), ["ai", "aipt", "air"]);
+eq("AI_TRIO is exactly the three fields the screener cannot supply", () => [...AI_TRIO].sort(), ["ai", "aipt", "air"]);
 eq("needsFill is about ai and sec only", () => [
   needsFill({ ai: null, sec: "Tech" }), needsFill({ ai: 70, sec: null }),
   needsFill({ ai: 70, sec: "Tech" }), needsFill({ ai: 70, sec: "Tech", air: null }),
