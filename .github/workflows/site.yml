@@ -80,6 +80,15 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node ci/track-requests.mjs fold
 
+      # What the data-loss gate (ci/test-no-data-loss.mjs, inside THE DATA GATE below) compares the
+      # refreshed data against. After the fold, before pin/refresh/backfills rewrite anything.
+      - name: Snapshot previous data (for the data-loss gate)
+        if: github.event_name != 'push'
+        run: |
+          cp src/data/stocks.json "$RUNNER_TEMP/prev-stocks.json"
+          cp src/data/seen.json "$RUNNER_TEMP/prev-seen.json"
+          cp -r public/forecasts "$RUNNER_TEMP/prev-forecasts"
+
       # User "Track this stock" requests (RTDB trackRequests) join src/data/tracked.json, and
       # watchlists + views go to keepalive.json, so the refresh below keeps/backfills them via the
       # keep set. See ci/track-requests.mjs.
@@ -101,6 +110,7 @@ jobs:
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
           GETDATA_CACHE: ${{ runner.temp }}/getdata # hand-off to the forecasts step (ci/getdata-cache.mjs)
+          DROPPED: ${{ runner.temp }}/dropped.json # expired tickers, read by the data-loss gate
         run: node ci/refresh-data-ci.mjs
 
       # Three backfills, run side by side (the track-requests.yml pattern) instead of one after
@@ -247,6 +257,9 @@ jobs:
       # separate "which checks are the data ones" list is one more thing to get wrong.
       - name: Re-check the refreshed data (THE DATA GATE)
         if: github.event_name != 'push'
+        env:
+          PREV_DIR: ${{ runner.temp }} # ci/test-no-data-loss.mjs: previous snapshot to compare against
+          DROPPED: ${{ runner.temp }}/dropped.json
         run: npm test
 
       # dry_run (manual runs only; empty -> falsy on schedule/push) stops here: scrape + gates ran,

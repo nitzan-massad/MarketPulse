@@ -73,6 +73,8 @@ try { prevSeen = JSON.parse(readFileSync("src/data/seen.json", "utf8")); } catch
 
 const BACKFILL_LIMIT = Number(process.env.BACKFILL_LIMIT || 300);
 const { keep, dropped } = computeKeep(pinned, prevSeen, Date.now(), KEEP_MAX_AGE_DAYS, alive);
+// the expired tickers, for the data-loss gate (ci/test-no-data-loss.mjs): their removal is expected
+if (process.env.DROPPED) writeFileSync(process.env.DROPPED, JSON.stringify(dropped));
 const lsMs = (t) => Date.parse(prevSeen[t]?.ls || prevSeen[t]?.d || "") || 0;
 // #6 — DO NOT sort this queue on lsMs. `ls` is frozen while a ticker is off-pull (that is
 // what nextLastSeen does), and every ticker in `missing` is BY DEFINITION off-pull — so the
