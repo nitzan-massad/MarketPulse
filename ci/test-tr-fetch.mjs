@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BlockedError, getText, health, isBlocked, makeBreaker } from "./tr-fetch.mjs";
+import { BlockedError, FLARE_TIMEOUT_MS, getText, health, isBlocked, makeBreaker, stepDeadline } from "./tr-fetch.mjs";
 
 const BLOCK_MSG = "Error solving the challenge. Cloudflare has blocked this request. Probably your IP is banned for this site";
 assert.equal(isBlocked(BLOCK_MSG), true);
@@ -86,7 +86,36 @@ try {
     await assert.rejects(getText("https://x/y", { plain: false, sleepMs: 0 }), BlockedError);
     assert.equal(n, 1, "no retry");
   }
+  // deadline: a FlareSolverr retry never starts past it; a deadline already passed makes no FlareSolverr call
+  {
+    let n = 0;
+    globalThis.fetch = async () => { n++; return flareReply({ status: "error", message: "timeout" }); };
+    await assert.rejects(getText("https://x/d", { plain: false, tries: 5, sleepMs: 0, deadline: Date.now() - 1 }), /deadline/);
+    assert.equal(n, 0, "past the deadline: no FlareSolverr call");
+    globalThis.fetch = async () => { n++; await new Promise((r) => setTimeout(r, 30)); return flareReply({ status: "error", message: "slow" }); };
+    await assert.rejects(getText("https://x/d", { plain: false, tries: 8, sleepMs: 0, deadline: Date.now() + 10 }), /slow/);
+    assert.equal(n, 1, "the in-flight try finishes, no retry starts after the deadline");
+  }
+  // the FlareSolverr POST carries an AbortSignal timeout longer than its 60s maxTimeout
+  {
+    let sig;
+    globalThis.fetch = async (u, o) => { sig = o?.signal; return flareReply({ status: "ok", solution: { response: "b" } }); };
+    const realTimeout = AbortSignal.timeout, asked = [];
+    AbortSignal.timeout = (ms) => { asked.push(ms); return realTimeout.call(AbortSignal, ms); };
+    try { assert.equal(await getText("https://x/f", { plain: false }), "b"); } finally { AbortSignal.timeout = realTimeout; }
+    assert.ok(sig instanceof AbortSignal, "FlareSolverr POST has a signal");
+    assert.deepEqual(asked, [FLARE_TIMEOUT_MS]);
+    assert.ok(FLARE_TIMEOUT_MS > 60_000);
+  }
 } finally { globalThis.fetch = realFetch; }
+
+// stepDeadline: pure clock arithmetic
+{
+  const d = stepDeadline(1000, 5000);
+  assert.equal(d.at, 6000);
+  assert.equal(d.passed(5999), false);
+  assert.equal(d.passed(6000), true);
+}
 
 const dir = mkdtempSync(join(tmpdir(), "health-"));
 const prev = process.env.RUNNER_TEMP;

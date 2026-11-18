@@ -5,7 +5,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { computeKeep, forecastFields, applyForecast, enrichQueue, nextLastSeen, rowFromScreener, rowFromAiAnalyst, mergeRow, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
 import { UNIVERSE_URL, universeMap, planBackfill } from "./backfill-plan.mjs";
-import { getText, makeBreaker, health } from "./tr-fetch.mjs";
+import { getText, makeBreaker, health, stepDeadline } from "./tr-fetch.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const API =
@@ -14,7 +14,14 @@ const API =
 // Transport lives in ci/tr-fetch.mjs: plain fetch, FlareSolverr on a challenge, and a Cloudflare
 // firewall block fails at once (BlockedError) instead of being retried. One breaker per endpoint;
 // retries here also absorb FlareSolverr's ~30-60s cold start.
-const flareGet = (url, br, tries = 8) => getText(url, { flareUrl: FS_URL, tries, breaker: br });
+// ONE step-wide deadline, counted from script start: the payload backfill and the enrich loop both
+// stop at it (un-tried tickers keep their queue position — they are not stamped), and no fetch
+// starts a retry past it, so stocks.json/seen.json are always written before site.yml's 15-min
+// `timeout-minutes` kills the step. Worst case past it: one in-flight request (30s plain + 90s FlareSolverr).
+const STEP = stepDeadline(Number(process.env.STEP_DEADLINE_MS) || 12 * 60_000);
+// `ok`: a body with no parseable JSON (an error page served as 200) falls back to FlareSolverr / retries.
+const parses = (h) => { try { extractJson(h); return true; } catch { return false; } };
+const flareGet = (url, br, tries = 8) => getText(url, { flareUrl: FS_URL, tries, ok: parses, breaker: br, deadline: STEP.at });
 const screenerBreaker = makeBreaker(), universeBreaker = makeBreaker(), aiBreaker = makeBreaker(), payloadBreaker = makeBreaker();
 
 // FlareSolverr returns the rendered page; a JSON endpoint comes back wrapped in
@@ -61,8 +68,9 @@ if (seen.size < 50) {
 const inPull = new Set(seen.keys()); // tickers the dynamic screener returned THIS run
 
 // --- keep set: pinned + non-expired previously-seen tickers, refreshed even when
-// they fall out of the top-120 sorts. Missing ones are backfilled via getData
-// (capped, most-stale-first); the rest carry their last-known row. See ci/keep.mjs.
+// they fall out of the top-120 sorts. Missing ones are backfilled from the universe screener
+// pull, else the per-ticker stock-aianalyst payload (capped, least-recently-tried first); the
+// rest carry their last-known row. See ci/keep.mjs and ci/backfill-plan.mjs.
 let pinned = [];
 try { pinned = JSON.parse(readFileSync("src/data/pinned.json", "utf8")); } catch { /* none */ }
 // watchlists + recent views (keepalive) and "Track this stock" requests (tracked) — see computeKeep
@@ -91,11 +99,12 @@ const backfillTried = new Set();
 let universe = new Map(), universeTotal = 0;
 if (missing.length) {
   try {
-    let body = await getText(UNIVERSE_URL, { flareUrl: FS_URL, tries: 2, timeoutMs: 120_000, breaker: universeBreaker });
+    let body = await getText(UNIVERSE_URL, { flareUrl: FS_URL, tries: 2, timeoutMs: 120_000, breaker: universeBreaker, deadline: STEP.at });
     const items = extractJson(body).items;
     body = null;
+    if (!Array.isArray(items)) throw new Error("no items"); // parsed but reshaped: must reach health(), not pass as an empty map
     universe = universeMap(items);
-    universeTotal = Array.isArray(items) ? items.length : 0;
+    universeTotal = items.length;
   } catch (e) { health("universe pull failed"); console.log(`  universe pull failed (${e.message}): backfilling from payloads only`); }
 }
 const { fromUniverse, needPayload } = planBackfill(missing, universe);
@@ -105,20 +114,24 @@ for (const t of fromUniverse) {
   const row = mergeRow(prevRows.get(t), rowFromScreener(universe.get(t), { inPull: false }));
   if (row?.t) { seen.set(t, row); fromUni++; backfillTried.add(t); } else needPayload.push(t);
 }
-const deadline = Date.now() + 10 * 60_000;
+let backfillCut = 0; // payload fetches skipped at the step deadline (rows carried, not stamped)
 for (const t of needPayload) {
   const prev = prevRows.get(t);
-  if (Date.now() < deadline && fromPayload < BACKFILL_LIMIT && !aiBreaker.open()) {
+  if (!STEP.passed() && fromPayload < BACKFILL_LIMIT && !aiBreaker.open()) {
     backfillTried.add(t); // attempt, not success — a permanently-dead ticker must not camp at the head
     try {
-      const body = await getText(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`, { flareUrl: FS_URL, tries: 3, breaker: aiBreaker });
+      const body = await getText(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`, { flareUrl: FS_URL, tries: 3, ok: parses, breaker: aiBreaker, deadline: STEP.at });
       const row = mergeRow(prev, rowFromAiAnalyst(extractJson(body), t));
       if (row?.t) { seen.set(t, row); fromPayload++; continue; }
     } catch (e) { console.log(`  keep ${t}: aianalyst skip (${e.message})`); }
-  } else if (aiBreaker.open() && !aiBreaker.reported) { aiBreaker.reported = true; health("breaker open: stock-aianalyst"); console.log("  aianalyst breaker open: skipping the rest, carrying last-known rows"); }
+  } else if (STEP.passed()) backfillCut++;
+  else if (aiBreaker.open() && !aiBreaker.reported) { aiBreaker.reported = true; health("breaker open: stock-aianalyst"); console.log("  aianalyst breaker open: skipping the rest, carrying last-known rows"); }
   if (prev?.t) { seen.set(t, prev); carried++; } // past the deadline/cap or fetch failed — keep last-known row
 }
 console.log(`backfill: ${fromUni} universe, ${fromPayload} payload, ${carried} carried (of ${missing.length} missing; universe ${universe.size}/${universeTotal} items)`);
+// log, not health(): like the old 10-min payload deadline, a cut is the designed bound (rows carry,
+// queues keep their place); the carried>30% rule below and the enrich WARNING flag a chronic shortfall
+if (backfillCut) console.log(`  step deadline reached: ${backfillCut} backfill payload(s) skipped, rows carried`);
 if (carried > missing.length * 0.3) health(`backfill carried ${carried}/${missing.length}`);
 for (const t of pinned) if (seen.has(t)) (membership[t] ??= new Set()).add("p");
 console.log(`keep set: ${keep.size} (${fromUni + fromPayload} refreshed, ${carried} carried, ${dropped.length} expired, payload cap ${BACKFILL_LIMIT})`);
@@ -128,10 +141,11 @@ if (needPayload.length > BACKFILL_LIMIT * 0.8) {
     + ` — at the cap, rows past it serve stale prices. Raise BACKFILL_LIMIT or lower KEEP_MAX_AGE_DAYS.`);
 }
 
-// Enrich from the per-ticker stock-forecast payload — the only per-ticker source for the
-// AI-analyst score/rating/target and the sector name. Two jobs: FILL blanks (off-list pins,
-// brand-new arrivals), and CORRECT the ai/air/aipt/chg that off-pull rows carry verbatim
-// for off-pull rows — nothing else ever re-checks those, so the AI trio OVERWRITES here
+// Enrich from the per-ticker stock-forecast payload — the per-ticker source for the AI-analyst
+// score/rating/target and the sector name on rows this run's pull did not refresh (carried rows,
+// a backfill source with no AI report or a "General" sector). Two jobs: FILL blanks (off-list pins,
+// brand-new arrivals), and CORRECT the ai/air/aipt/chg that carried off-pull rows hold verbatim
+// — nothing else re-checks those, so the AI trio OVERWRITES here
 // (atomically) while blanks fill normally. Why each of those is the way it is (the UNP
 // downgrade that stayed visible for 46 runs, the 0-100 scale this overwrite depends on, the
 // queue rotation and its cost bound): ci/README.md → Enrich.
@@ -145,6 +159,10 @@ const { list: enrichList, eligible: enrichEligible, cap: ENRICH_LIMIT } =
 let enriched = 0, noReport = 0;
 const enrichTried = new Set();
 for (const t of enrichList) {
+  if (STEP.passed()) {
+    console.log(`  step deadline reached: ${enrichList.length - enrichTried.size} enrich ticker(s) left for next run`);
+    break; // not attempted -> not stamped, so these keep their place in the queue
+  }
   if (payloadBreaker.open()) {
     if (!payloadBreaker.reported) { payloadBreaker.reported = true; health("breaker open: stock-forecast payload"); console.log("  payload breaker open: skipping the rest of the enrich queue"); }
     break; // not attempted -> not stamped, so these keep their place in the queue

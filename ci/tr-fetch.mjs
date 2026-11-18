@@ -11,6 +11,7 @@ import { BROWSER_UA } from "../worker/cnbc.js";
 import { isChallenge } from "./forecast-html.mjs";
 
 const FS_URL_DEFAULT = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
+export const FLARE_TIMEOUT_MS = 90_000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** A firewall block (not a challenge): FlareSolverr's own verdict, or Cloudflare's block page. */
@@ -36,14 +37,23 @@ export function health(msg) {
   try { appendFileSync(`${process.env.RUNNER_TEMP}/health`, `${msg}\n`); } catch { /* best-effort */ }
 }
 
+/** One step-wide wall-clock budget: `passed()` once `ms` have elapsed since `start`. Pass `at` as
+ *  getText's `deadline` so an in-flight fetch stops retrying too, and the step still writes its files
+ *  before the workflow's `timeout-minutes` kills it. */
+export function stepDeadline(ms, start = Date.now()) {
+  const at = start + ms;
+  return { at, passed: (now = Date.now()) => now >= at };
+}
+
 /**
  * GET `url` and return the body text (FlareSolverr JSON endpoints come back wrapped in <pre>;
  * keep using extractJson on the result).
  * - plain fetch first (once), FlareSolverr when it is a challenge, 403, or fails `ok`;
  * - a blocked response records on the breaker and throws BlockedError immediately;
- * - a challenge page, a FlareSolverr error or `!ok(body)` retries up to `tries`, `sleepMs` apart.
+ * - a challenge page, a FlareSolverr error or `!ok(body)` retries up to `tries`, `sleepMs` apart;
+ * - `deadline` (epoch ms): no FlareSolverr try starts past it (the last error is thrown instead).
  */
-export async function getText(url, { flareUrl = FS_URL_DEFAULT, tries = 3, plain = true, ok = () => true, breaker, sleepMs = 8000, timeoutMs = 30_000 } = {}) {
+export async function getText(url, { flareUrl = FS_URL_DEFAULT, tries = 3, plain = true, ok = () => true, breaker, sleepMs = 8000, timeoutMs = 30_000, deadline = Infinity } = {}) {
   const blocked = (what) => { breaker?.record(true); throw new BlockedError(what); };
   const good = (body) => { breaker?.record(false); return body; };
   if (breaker?.open()) throw new BlockedError("breaker open");
@@ -61,13 +71,16 @@ export async function getText(url, { flareUrl = FS_URL_DEFAULT, tries = 3, plain
     }
   }
 
-  let lastErr;
+  let lastErr = new Error("step deadline passed");
   for (let i = 1; i <= tries; i++) {
+    if (Date.now() >= deadline) break;
     try {
       const r = await fetch(flareUrl, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ cmd: "request.get", url, maxTimeout: 60000 }),
+        // longer than maxTimeout (60s): a FlareSolverr that never answers must not hang the step
+        signal: AbortSignal.timeout(FLARE_TIMEOUT_MS),
       });
       const j = await r.json();
       const html = j.solution?.response || "";
@@ -81,7 +94,7 @@ export async function getText(url, { flareUrl = FS_URL_DEFAULT, tries = 3, plain
     } catch (e) {
       if (e instanceof BlockedError) throw e;
       lastErr = e;
-      if (i < tries) await sleep(sleepMs); // also absorbs FlareSolverr's cold start
+      if (i < tries && Date.now() < deadline) await sleep(sleepMs); // also absorbs FlareSolverr's cold start
     }
   }
   throw lastErr;
