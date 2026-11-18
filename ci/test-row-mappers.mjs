@@ -123,4 +123,30 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
     assert.notEqual(full[k], undefined, k);
   }
 }
+// I2a — the data-loss gate's STRICT fields (n, px, mc, desc, sec) never come out of a mapper as
+// null: an empty/null/"" there is "can't see it" (undefined -> carry), or every run with one such
+// row would trip the gate and freeze the deploy.
+{
+  const STRICT = ["n", "px", "mc", "desc", "sec"];
+  const prev = { t: "X", n: "X Corp", px: 9, mc: 100, desc: "d", sec: "Technology" };
+  const blankItem = (v) => ({ tradingInformationData: { ticker: "X", companyName: v, lastClose: v, marketCap: v, description: v, sector: v === "" ? { name: "" } : v } });
+  for (const v of [null, ""]) {
+    for (const inPull of [true, false]) {
+      const r = rowFromScreener(blankItem(v), { inPull });
+      for (const k of STRICT) assert.equal(r[k], undefined, `screener ${k}=${JSON.stringify(v)} inPull=${inPull}`);
+      const m = mergeRow(prev, r);
+      for (const k of STRICT) assert.equal(m[k], prev[k], `screener merge keeps ${k}`);
+    }
+  }
+  const blankAi = (v) => ({ models: { stocks: [{ _id: "X", company: { companyName: v, name: v, description: v, sector: v }, prices: { daily: { priceUSD: v, gain: 0.01 } }, marketCap: { daily: { marketCap: v } } }] } });
+  for (const v of [null, ""]) {
+    const r = rowFromAiAnalyst(blankAi(v), "X");
+    for (const k of STRICT) assert.equal(r[k], undefined, `aianalyst ${k}=${JSON.stringify(v)}`);
+    const m = mergeRow(prev, r);
+    for (const k of STRICT) assert.equal(m[k], prev[k], `aianalyst merge keeps ${k}`);
+  }
+  // a real value still lands
+  const real = rowFromScreener({ tradingInformationData: { ticker: "X", companyName: "New", lastClose: 2, marketCap: 3e6, description: "nd", sector: { name: "Energy" } } }, { inPull: true });
+  assert.deepEqual([real.n, real.px, real.mc, real.desc, real.sec], ["New", 2, 3, "nd", "Energy"]);
+}
 console.log("row-mappers OK");

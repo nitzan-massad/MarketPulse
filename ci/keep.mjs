@@ -99,6 +99,9 @@ export const ROW_KEYS = Object.freeze(["t", "n", "sec", "px", "chg", "pt", "up",
 
 // undefined stays undefined (unknown); anything else, null included, goes through f.
 const unk = (x, f) => (x === undefined ? undefined : f(x));
+// The data-loss gate's STRICT fields (ci/data-loss.mjs: n, px, mc, desc, sec) may never go value ->
+// null, so for them an empty answer (null / "" / NaN) is "can't see it" -> undefined -> carry prev.
+const known = (x) => (x == null || x === "" || (typeof x === "number" && Number.isNaN(x)) ? undefined : x);
 const EMPTY_CONSENSUS = { con: null, b: 0, h: 0, s: 0 };
 // getData parity (decision D1, "keep today's behaviour exactly"): rowFromGetData wrote
 // con "Neutral", b/h/s 0 for a ticker with no all-analyst coverage. The non-in-pull paths
@@ -124,9 +127,9 @@ export function rowFromScreener(item, { inPull }) {
   const ssd = e?.tipRanksSmartScoreData;
   return {
     t: t?.ticker,
-    n: t?.companyName,
-    sec: t && t.sector?.name !== "General" ? t.sector?.name || null : undefined, // "General" = the screener's don't-know; enrich fills it
-    px: unk(t?.lastClose, rndPx),
+    n: known(t?.companyName),
+    sec: t?.sector?.name !== "General" ? known(t?.sector?.name) : undefined, // "General" = the screener's don't-know; enrich fills it
+    px: unk(known(t?.lastClose), rndPx),
     chg: unk(t?.priceChangePct, (x) => (x === null ? null : rnd(x * 100, 2))),
     pt: unk(ptd, (p) => rndPx(p?.convertedPriceTarget)),
     up: unk(ptd, (p) => (p?.upside != null ? rnd(p.upside * 100, 1) : null)),
@@ -135,8 +138,8 @@ export function rowFromScreener(item, { inPull }) {
     ai: unk(ai, (a) => rnd(a.overallScore, 1)),
     air: unk(ai, (a) => (typeof a.overallRating === "object" ? a.overallRating?.name : a.overallRating) ?? null),
     aipt: unk(ai, (a) => rndPx(a.priceTarget)),
-    mc: unk(t && (t.marketCap ?? t.marketCapUSD), (m) => (m === null ? null : Math.round(m / 1e6))),
-    desc: unk(t?.description, (x) => x || null),
+    mc: unk(known(t?.marketCap ?? t?.marketCapUSD), (m) => Math.round(m / 1e6)),
+    desc: known(t?.description),
   };
 }
 
@@ -162,9 +165,9 @@ export function rowFromAiAnalyst(fj, ticker) {
   const mcap = s.marketCap?.daily?.marketCap;
   return {
     t: ticker,
-    n: c ? c.companyName ?? c.name : undefined,
+    n: known(c?.companyName) ?? known(c?.name),
     sec: sec && sec !== "General" ? sec : undefined, // unknown slug / "General" -> keep prev (enrich fills real sectors)
-    px: unk(daily?.priceUSD, rndPx),
+    px: unk(known(daily?.priceUSD), rndPx),
     chg: unk(daily?.gain, (g) => (g === null ? null : rnd(g * 100, 2))),
     pt: ar ? rndPx(ptd?.value) : undefined,
     up: ar ? (ptd?.upside != null ? rnd(ptd.upside * 100, 1) : null) : undefined,
@@ -173,8 +176,8 @@ export function rowFromAiAnalyst(fj, ticker) {
     ai: rep ? rnd(rep.score, 1) : undefined,
     air: rep ? airName(rep.ratingId) : undefined,
     aipt: rep ? rndPx(rep.rating?.priceTarget?.value) : undefined,
-    mc: unk(mcap, (m) => (m === null ? null : Math.round(m / 1e6))),
-    desc: unk(c?.description, (x) => x || null),
+    mc: unk(known(mcap), (m) => Math.round(m / 1e6)),
+    desc: known(c?.description),
   };
 }
 
