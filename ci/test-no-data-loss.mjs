@@ -51,6 +51,9 @@ console.log(`unit cases: ${cases} passed`);
 const dir = process.env.PREV_DIR || "";
 const prev = loadSnapshot(dir || undefined);
 const next = loadSnapshot();
+// PREV_DIR set but no previous rows (site.yml's copy failed, wrong dir): every comparison below
+// would pass vacuously while the gate reads green. Fail loudly instead.
+assert.ok(!dir || prev.rows.length > 0, `PREV_DIR=${dir} holds no prev-stocks.json rows — the gate would compare against nothing`);
 let dropped = [];
 if (process.env.DROPPED) { try { dropped = JSON.parse(readFileSync(process.env.DROPPED, "utf8")); } catch { /* none written */ } }
 console.log(dir

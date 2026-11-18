@@ -577,10 +577,10 @@ The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **ke
 >    duplicates resolved by `stockListingIsPrimaryMarket`; `ci/backfill-plan.mjs`).
 > 2. **`stock-aianalyst` payload** `https://www.tipranks.com/stocks/<t>/stock-aianalyst/payload.json`
 >    (`models.stocks[]` selected by `_id`; `rowFromAiAnalyst`) for tickers the universe lacks, capped by
->    `BACKFILL_LIMIT` and a 10 minute deadline; past either, or on failure, the last-known row is carried.
+>    `BACKFILL_LIMIT` and the snapshot step's deadline (`STEP_DEADLINE_MS`, default 12 min from script start, shared with enrich); past either, or on failure, the last-known row is carried.
 >
 > The log line `backfill: U universe, P payload, C carried` reports the split; C > 30% of missing raises a health note.
-> `rowFromGetData` / `ssFromGetData` were deleted 2026-11-17 (getData retired); the text below is history.
+> `rowFromGetData` / `ssFromGetData` were deleted 2026-11-18 (getData has been Cloudflare-blocked since 2026-11-17); the text below is history.
 > **Track requests** use the same payload: `ci/track-requests.mjs fetch` maps it with `rowFromAiAnalyst`; a null
 > row or one with no name/price is a failure. The lite run's last step (`fail`) stamps `trackRequests/<KEY>/err`
 > on pending requests that failed (or that never reached `trackedRows`), the app shows "Couldn't fetch data

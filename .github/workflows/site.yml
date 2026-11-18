@@ -208,8 +208,9 @@ jobs:
         run: node ci/scrape-earnings.mjs
 
       # Generate one social post from the snapshot just refreshed. Scrape-class step:
-      # `continue-on-error` like every other one above the data gate, because a rate-limited
-      # model or a field of unpublishable candidates must never block the data deploy.
+      # `continue-on-error` like every other one above the data gate, so a rate-limited model or
+      # a field of unpublishable candidates never stops the data from shipping (the health gate
+      # at the end still turns the run red when this step fails).
       # Runs BEFORE the gate so the post ships in the same commit as the data it describes.
       # Cadence is entirely in the env below — POSTS_PER_RUN is the knob.
       - name: Generate social post

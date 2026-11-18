@@ -19,7 +19,10 @@ const OUT = "public/bullbear";
 // rest of the run after 3 in a row (no file written, so the tickers keep their place in the queue).
 // The lite run (ONLY) has a user waiting: 3 tries, not 6 x (up to 60s) per URL.
 const pageBreaker = makeBreaker();
-const flareGet = (url, tries = ONLY ? 3 : 6) => getText(url, { flareUrl: FS_URL, tries, breaker: pageBreaker });
+// `ok`: a plain 200 without the section (a stripped/bot variant of the page) falls back to FlareSolverr
+// instead of being parsed as "no thesis".
+const hasSection = (h) => h.includes("Bulls Say, Bears Say");
+const flareGet = (url, tries = ONLY ? 3 : 6) => getText(url, { flareUrl: FS_URL, tries, ok: hasSection, breaker: pageBreaker });
 
 // the page carries no content date, so stamp when WE refreshed it
 const ASOF = new Date().toISOString().slice(0, 10);
