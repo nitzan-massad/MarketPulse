@@ -5,34 +5,18 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { computeKeep, rowFromGetData, forecastFields, applyForecast, enrichQueue, nextLastSeen, rndPx, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
 import { saveGetData } from "./getdata-cache.mjs";
+import { getText, makeBreaker, health } from "./tr-fetch.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const API =
   "https://www.tipranks.com/api/apps/stock/screener?country=us&method=screener&isPrimaryMarket=true&exchange=xnas&exchange=xnys&exchange=arcx&exchange=xase&exchange=bats&page=1&pageSize=120&sortDir=2";
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rnd = (x, p = 2) => (x == null ? null : +Number(x).toFixed(p));
 
-// POST to FlareSolverr; retries also absorb the service's ~30-60s cold start.
-async function flareGet(url, tries = 8) {
-  let lastErr;
-  for (let i = 1; i <= tries; i++) {
-    try {
-      const r = await fetch(FS_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cmd: "request.get", url, maxTimeout: 60000 }),
-      });
-      const j = await r.json();
-      if (j.status === "ok" && j.solution) return j.solution;
-      throw new Error(j.message || "status != ok");
-    } catch (e) {
-      lastErr = e;
-      console.log(`flaresolverr try ${i}/${tries}: ${e.message}`);
-      await sleep(8000);
-    }
-  }
-  throw lastErr;
-}
+// Transport lives in ci/tr-fetch.mjs: plain fetch, FlareSolverr on a challenge, and a Cloudflare
+// firewall block fails at once (BlockedError) instead of being retried. One breaker per endpoint;
+// retries here also absorb FlareSolverr's ~30-60s cold start.
+const flareGet = (url, br, tries = 8) => getText(url, { flareUrl: FS_URL, tries, breaker: br });
+const screenerBreaker = makeBreaker(), getDataBreaker = makeBreaker(), payloadBreaker = makeBreaker();
 
 // FlareSolverr returns the rendered page; a JSON endpoint comes back wrapped in
 // <pre>…</pre> with HTML-escaped entities. Pull the JSON object out of it.
@@ -54,8 +38,7 @@ const SORT_KEY = { 5: "u", 2: "s" }; // upside / smart score (sortBy 3 = mkt cap
 const membership = {}; // ticker -> Set of ranking(s) it appears in
 let total = null;
 for (const sb of [5, 2, 3]) {
-  const sol = await flareGet(API + "&sortBy=" + sb);
-  const j = extractJson(sol.response);
+  const j = extractJson(await flareGet(API + "&sortBy=" + sb, screenerBreaker));
   if (total == null) total = j.totalCount ?? null;
   for (const it of j.items || []) {
     const t = it.tradingInformationData || {};
@@ -115,14 +98,16 @@ const backfillTried = new Set();
 let refreshed = 0, carried = 0;
 for (const t of missing) {
   const prev = prevRows.get(t) || {};
-  if (refreshed < BACKFILL_LIMIT) {
+  if (getDataBreaker.open()) {
+    if (!getDataBreaker.reported) { getDataBreaker.reported = true; health("breaker open: getData"); console.log("  getData breaker open: skipping the rest, carrying last-known rows"); }
+  } else if (refreshed < BACKFILL_LIMIT) {
     backfillTried.add(t); // attempt, not success — a permanently-dead ticker must not camp at the head
     try {
-      const sol = await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`);
-      const row = rowFromGetData(extractJson(sol.response), prev);
+      const body = await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`, getDataBreaker);
+      const row = rowFromGetData(extractJson(body), prev);
       if (row.t) {
         seen.set(t, row); refreshed++;
-        saveGetData(process.env.GETDATA_CACHE, t, sol.response); // reused by scrape-forecasts this run
+        saveGetData(process.env.GETDATA_CACHE, t, body); // reused by scrape-forecasts this run
         continue;
       }
     } catch (e) { console.log(`  keep ${t}: getData skip (${e.message})`); }
@@ -155,10 +140,13 @@ const { list: enrichList, eligible: enrichEligible, cap: ENRICH_LIMIT } =
 let enriched = 0, noReport = 0;
 const enrichTried = new Set();
 for (const t of enrichList) {
+  if (payloadBreaker.open()) {
+    if (!payloadBreaker.reported) { payloadBreaker.reported = true; health("breaker open: stock-forecast payload"); console.log("  payload breaker open: skipping the rest of the enrich queue"); }
+    break; // not attempted -> not stamped, so these keep their place in the queue
+  }
   enrichTried.add(t); // stamp the attempt, not the success: a ticker with no forecast payload must not block the queue head forever
   try {
-    const sol = await flareGet(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`);
-    const f = forecastFields(extractJson(sol.response), t);
+    const f = forecastFields(extractJson(await flareGet(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`, payloadBreaker)), t);
     // #9 — an empty result was a SILENT no-op that still counted as enriched and still
     // stamped `ea`, so the row rotated to the back with no signal and could never re-queue
     // as prio-1. Usually a bundle/_id mismatch, i.e. our bug, not missing data.

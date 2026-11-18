@@ -55,7 +55,7 @@ try {
 // both scripts are wired to the same env var, and the forecast step still fetches live on a miss
 const refresh = readFileSync(new URL("./refresh-data-ci.mjs", import.meta.url), "utf8");
 const fc = readFileSync(new URL("./scrape-forecasts.mjs", import.meta.url), "utf8");
-assert.match(refresh, /saveGetData\(process\.env\.GETDATA_CACHE, t, sol\.response\)/, "refresh writes the raw body");
+assert.match(refresh, /saveGetData\(process\.env\.GETDATA_CACHE, t, body\)/, "refresh writes the raw body");
 assert.match(fc, /process\.env\.GETDATA_CACHE/, "forecasts reads the same env var");
 assert.match(fc, /takeGetData\(CACHE, t\)/, "forecasts consults the cache");
 assert.match(fc, /data \?\?= extractJson\(await flareGet\(`https:\/\/www\.tipranks\.com\/api\/stocks\/getData\/\?name=/,

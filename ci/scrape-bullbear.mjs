@@ -3,12 +3,10 @@
 // forecast scrape uses. Fills tickers MISSING a file or older than STALE_DAYS, stalest
 // first so LIMIT rotates through the whole universe (pass ALL=1 to force everyone).
 // Strictly additive + per-ticker failure-tolerant: a bad ticker is skipped, never fatal.
-// ponytail: flareGet is duplicated from scrape-forecasts.mjs on purpose —
-// two ~15-line copies beat a shared module that would touch the known-good forecast
-// script; factor into ci/flare.mjs if a third consumer appears.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
 import { parseBullBearHtml } from "./bullbear-html.mjs";
+import { getText, makeBreaker, health } from "./tr-fetch.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -16,28 +14,12 @@ const STALE_DAYS = Number(process.env.STALE_DAYS || 3);
 const ALL = process.env.ALL === "1";
 const ONLY = process.env.ONLY ? process.env.ONLY.split(",") : null; // just these tickers (ci/track-requests)
 const OUT = "public/bullbear";
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// the lite run (ONLY) has a user waiting: 3 tries, not 6 x (up to 60s + 6s) per URL
-async function flareGet(url, tries = ONLY ? 3 : 6) {
-  let lastErr;
-  for (let i = 1; i <= tries; i++) {
-    try {
-      const r = await fetch(FS_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cmd: "request.get", url, maxTimeout: 60000 }),
-      });
-      const j = await r.json();
-      if (j.status === "ok" && j.solution) return j.solution.response || "";
-      throw new Error(j.message || "status != ok");
-    } catch (e) {
-      lastErr = e;
-      await sleep(6000);
-    }
-  }
-  throw lastErr;
-}
+// Transport is ci/tr-fetch.mjs: a Cloudflare firewall block fails at once; the breaker skips the
+// rest of the run after 3 in a row (no file written, so the tickers keep their place in the queue).
+// The lite run (ONLY) has a user waiting: 3 tries, not 6 x (up to 60s) per URL.
+const pageBreaker = makeBreaker();
+const flareGet = (url, tries = ONLY ? 3 : 6) => getText(url, { flareUrl: FS_URL, tries, breaker: pageBreaker });
 
 // the page carries no content date, so stamp when WE refreshed it
 const ASOF = new Date().toISOString().slice(0, 10);
@@ -67,7 +49,12 @@ const targets = [...hot, ...stocks
 mkdirSync(OUT, { recursive: true });
 console.log(`bullbear backfill: ${targets.length} ticker(s), ${hot.length} near earnings (LIMIT=${LIMIT}, ALL=${ALL})`);
 let ok = 0, empty = 0, fail = 0;
+let skipped = 0;
 for (const t of targets) {
+  if (pageBreaker.open()) {
+    if (!skipped) { health("breaker open: bullbear page"); console.log("  bullbear page breaker open: skipping the rest of the run"); }
+    skipped++; continue;
+  }
   try {
     const url = `https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}`;
     const bb = parseBullBearHtml(await flareGet(url));
@@ -89,7 +76,7 @@ for (const t of targets) {
     console.log(`  ${t}: skip (${e.message})`);
   }
 }
-console.log(`done: ${ok} written, ${empty} empty, ${fail} failed`);
+console.log(`done: ${ok} written, ${empty} empty, ${fail} failed, ${skipped} skipped (breaker open)`);
 // Tripwire: a big run that wrote NOTHING means the source moved again (payload.json died exactly
 // this way, silently, as "N empty"). Warn loudly; the step is continue-on-error so it never blocks
 // the deploy. Off for ONLY runs: track-requests.yml fails the lite run on any non-zero exit.

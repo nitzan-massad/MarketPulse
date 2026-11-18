@@ -38,6 +38,7 @@ import { createSign } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fillNulls, forecastFields, rowFromGetData } from "./keep.mjs";
+import { getText, makeBreaker, health } from "./tr-fetch.mjs";
 
 const DB = "https://marketpulse-df5d9-default-rtdb.europe-west1.firebasedatabase.app";
 const PINNED = "src/data/pinned.json";
@@ -172,31 +173,21 @@ function readJson(path, fallback) {
   try { return JSON.parse(readFileSync(path, "utf8")); } catch { return fallback; }
 }
 
-// ponytail: same FlareSolverr transport as refresh-data-ci / scrape-forecasts / scrape-bullbear,
-// each holding a copy. Hoist to one module if a fifth caller appears.
-async function flareJson(url, tries = 6) {
-  let lastErr;
-  for (let i = 1; i <= tries; i++) {
-    try {
-      const r = await fetch(FS_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cmd: "request.get", url, maxTimeout: 60000 }),
-      });
-      const j = await r.json();
-      if (j.status !== "ok" || !j.solution) throw new Error(j.message || "status != ok");
-      const html = j.solution.response || "";
-      const pre = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
-      const body = (pre ? pre[1] : html)
-        .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"').replace(/&#39;/g, "'");
-      return JSON.parse(body.match(/\{[\s\S]*\}/)[0]);
-    } catch (e) {
-      lastErr = e;
-      await new Promise((res) => setTimeout(res, 6000)); // also absorbs FlareSolverr's cold start
-    }
-  }
-  throw lastErr;
+// Transport is ci/tr-fetch.mjs (shared with the other scrapers): a Cloudflare firewall block fails
+// at once instead of being retried. getData has a breaker: after 3 blocks the lite run stops
+// asking and the pending requests stay pending for the next run.
+const getDataBreaker = makeBreaker();
+function parseJson(html) {
+  const pre = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+  const body = (pre ? pre[1] : html)
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  return JSON.parse(body.match(/\{[\s\S]*\}/)[0]);
+}
+const parses = (h) => { try { parseJson(h); return true; } catch { return false; } };
+// unparseable body = retried, as before; retries also absorb FlareSolverr's cold start
+async function flareJson(url, tries = 6, breaker) {
+  return parseJson(await getText(url, { flareUrl: FS_URL, tries, ok: parses, breaker }));
 }
 
 /** The lite run starts FlareSolverr in the background (track-requests.yml) so an empty run never
@@ -349,9 +340,14 @@ async function main(mode) {
     const got = [];
     const want = planFetch(pending, Object.keys(tracked), stocks.map((r) => r.t));
     if (want.length) await waitForFlare();
+    let reported = false;
     for (const t of want) {
+      if (getDataBreaker.open()) {
+        if (!reported) { reported = true; health("breaker open: getData"); console.log("  getData breaker open: leaving the remaining requests pending"); }
+        continue;
+      }
       try {
-        const row = rowFromGetData(await flareJson(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`));
+        const row = rowFromGetData(await flareJson(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`, 6, getDataBreaker));
         if (!row.t) throw new Error("no ticker in getData");
         try {
           fillNulls(row, forecastFields(await flareJson(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`, 2), t)); // optional: don't burn 36s+ retrying it

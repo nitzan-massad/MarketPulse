@@ -15,6 +15,7 @@ import { isChallenge, parseForecastHtml, usablePage, withStars } from "./forecas
 import { carryForward, carryMissing, cleanName, forecastsFromPayload, keepNewerPrev, keepPrevTarget, latestPerAnalyst, mergeForecasts, missingFirms, pickSource, topUpRows } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
 import { cachedFirst, isPayloadFor, takeGetData } from "./getdata-cache.mjs";
+import { getText, makeBreaker, health } from "./tr-fetch.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -36,37 +37,23 @@ const ASOF = `${OUT}/_asOf.json`; // { ticker: ISO } — build-reviews-recent sk
 // { ticker: ["firm|getData date", ...] } — page top-ups already tried (see missingFirms). Same
 // "not an array, not a ticker name" property keeps it out of the reviews feed and the data gate.
 const TRIED = `${OUT}/_pageTried.json`;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const RATING = { 1: "Buy", 2: "Hold", 3: "Sell" };
 
-// the lite run (ONLY) has a user waiting: 3 tries, not 6 x (up to 60s + 6s) per URL
-// A Cloudflare page is always retried like an error; `ok` adds a per-URL check (e.g. "is JSON").
+// Transport is ci/tr-fetch.mjs: plain fetch, FlareSolverr on a challenge/403, and a Cloudflare
+// firewall block throws BlockedError at once (never retried). One breaker per endpoint: after 3
+// blocks in a row the endpoint is skipped for the rest of the run and no file is touched.
+// The lite run (ONLY) has a user waiting: 3 tries, not 6 x (up to 60s) per URL.
+// A Cloudflare page is always retried like an error (getText); `ok` adds a per-URL check (e.g. "is JSON").
 // Never fold the Cloudflare test into `ok`: a challenge's inline `_cf_chl_opt={}` parses as JSON
 // `{}`, which read as "no experts" and shrank MA to its page rows in the E2E fault run.
-async function flareGet(url, ok = () => true, tries = ONLY ? 3 : 6) {
-  let lastErr;
-  for (let i = 1; i <= tries; i++) {
-    try {
-      const r = await fetch(FS_URL, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ cmd: "request.get", url, maxTimeout: 60000 }),
-      });
-      const j = await r.json();
-      if (j.status === "ok" && j.solution) {
-        const html = j.solution.response || "";
-        if (isChallenge(html)) throw new Error("Cloudflare page");
-        if (!ok(html)) throw new Error("unusable response");
-        return html;
-      }
-      throw new Error(j.message || "status != ok");
-    } catch (e) {
-      lastErr = e;
-      await sleep(6000);
-    }
-  }
-  throw lastErr;
-}
+const flareGet = (url, breaker, ok = () => true, tries = ONLY ? 3 : 6) => getText(url, { flareUrl: FS_URL, tries, ok, breaker });
+const getDataBreaker = makeBreaker(), payloadBreaker = makeBreaker(), pageBreaker = makeBreaker();
+const tripped = new Set();
+const skipOpen = (name, br) => {
+  if (!br.open()) return false;
+  if (!tripped.has(name)) { tripped.add(name); health(`breaker open: ${name}`); console.log(`  ${name} breaker open: skipping it for the rest of the run`); }
+  return true;
+};
 
 // getData comes back as JSON, sometimes wrapped in <pre> with HTML entities
 function extractJson(html) {
@@ -126,7 +113,7 @@ const PARALLEL = Math.max(1, Math.floor(Number(process.env.PARALLEL)) || 1);
 mkdirSync(OUT, { recursive: true });
 console.log(`forecasts backfill: ${targets.length} ticker(s), ${hot.length} near earnings (LIMIT=${LIMIT}, ALL=${ALL}, SSR_MERGE=${MERGE ? 1 : 0}, PARALLEL=${PARALLEL})`);
 const now = new Date().toISOString();
-let ok = 0, empty = 0, fail = 0, viaHtml = 0, viaPayload = 0, pageTopUps = 0, topUpFails = 0, topUpStreak = 0, carried = 0, gained = 0, fromCache = 0, tableless = 0;
+let ok = 0, empty = 0, fail = 0, skipped = 0, viaHtml = 0, viaPayload = 0, pageTopUps = 0, topUpFails = 0, topUpStreak = 0, carried = 0, gained = 0, fromCache = 0, tableless = 0;
 // payload circuit breaker: after PAYLOAD_TRIP failures in a row, stop asking for the rest of the run
 // (each failure costs 2 tries + 6s sleeps; a site-wide break would add ~30-40 min to the step).
 const PAYLOAD_TRIP = 10;
@@ -152,7 +139,8 @@ async function scrape(t) {
     const cached = takeGetData(CACHE, t);
     // same test the writer applied (a real row for THIS ticker); anything else -> fetch live
     if (cached && isPayloadFor(extractJson, cached, t)) { data = extractJson(cached); fromCache++; } // else fetch live
-    data ??= extractJson(await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`, (h) => isPayloadFor(extractJson, h, t)));
+    if (!data && skipOpen("getData", getDataBreaker)) { skipped++; return; } // no stamp, no write: the file keeps its last content
+    data ??= extractJson(await flareGet(`https://www.tipranks.com/api/stocks/getData/?name=${encodeURIComponent(t)}`, getDataBreaker, (h) => isPayloadFor(extractJson, h, t)));
     let fc = toForecasts(data);
     const jsonCount = fc.length;
     // getData paywall-anonymizes its FRESHEST ~10 brokers and files unranked analysts under
@@ -161,11 +149,11 @@ async function scrape(t) {
     // is the primary second source; the SSR page is the fallback when the payload fails or comes
     // back empty while getData admits it hid rows. See ci/forecast-merge.mjs.
     let src = null;
-    if (MERGE && payloadStreak < PAYLOAD_TRIP) {
+    if (MERGE && payloadStreak < PAYLOAD_TRIP && !skipOpen("payload.json", payloadBreaker)) {
       try {
         const okPayload = (h) => { try { return forecastsFromPayload(extractJson(h), t) !== null; } catch { return false; } };
         // ponytail: 2 tries, not 6 — the page fallback below covers a payload that will not load.
-        src = forecastsFromPayload(extractJson(await flareGet(`https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/stock-forecast/payload.json`, okPayload, 2)), t, data);
+        src = forecastsFromPayload(extractJson(await flareGet(`https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/stock-forecast/payload.json`, payloadBreaker, okPayload, 2)), t, data);
       } catch { src = null; }
       if (src) payloadStreak = 0; else { payloadFails++; payloadStreak++; }
     }
@@ -180,7 +168,7 @@ async function scrape(t) {
       const fresh = missing.filter((m) => !(tried[t] || []).includes(m.key));
       if (!missing.length) delete tried[t];
       else if (!fresh.length) tried[t] = missing.map((m) => m.key); // drop keys getData moved past
-      else if (topUpStreak < TOPUP_TRIP) {
+      else if (topUpStreak < TOPUP_TRIP && !skipOpen("forecast page", pageBreaker)) {
         pageTopUps++;
         try {
           const url = `https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/forecast`;
@@ -188,7 +176,7 @@ async function scrape(t) {
           // usablePage(h, 1), not jsonCount: getData says a hidden analyst exists, so the table must be
           // there (parseForecastHtml needs the same marker). With jsonCount 0 (all-anonymized
           // micro-caps) an error/empty page would pass, parse to [] and be recorded as tried.
-          const page = await flareGet(url, (h) => usablePage(h, 1), 2);
+          const page = await flareGet(url, pageBreaker, (h) => usablePage(h, 1), 2);
           // payload rows win (FX-stable targets — the page's would re-ring the bell); the page only adds
           const merged = mergeForecasts(fc, topUpRows(withStars(parseForecastHtml(page), data), missing));
           if (merged.length > fc.length) { viaHtml++; source = "payload+page"; }
@@ -203,10 +191,10 @@ async function scrape(t) {
     }
     if (source === "page") {
       const url = `https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/forecast`;
-      let page = await flareGet(url);
+      let page = await flareGet(url, pageBreaker);
       // ponytail: one refetch for a table-less page, then merge it anyway (JSON rows only). A full
       // retry loop here would turn a TipRanks redesign into a frozen run past the step timeout.
-      if (!usablePage(page, jsonCount)) page = await flareGet(url);
+      if (!usablePage(page, jsonCount)) page = await flareGet(url, pageBreaker);
       if (!usablePage(page, jsonCount)) tableless++;
       const rows = withStars(parseForecastHtml(page), data);
       if (MERGE) {
@@ -256,4 +244,4 @@ if (payloadFails) console.log(`${payloadFails > PAYLOAD_TRIP || payloadStreak >=
 // tripwire: many table-less pages while the JSON has rows = TipRanks changed the page markup
 if (topUpFails) console.log(`${topUpStreak >= TOPUP_TRIP || topUpFails > 10 ? "::warning::" : ""}forecasts: ${topUpFails} page top-up(s) failed${topUpStreak >= TOPUP_TRIP ? ` — tripped after ${TOPUP_TRIP} in a row, no more top-ups this run` : ""}`);
 if (tableless) console.log(`${tableless > 10 ? "::warning::" : ""}forecasts: ${tableless} page(s) had no analyst table despite JSON rows${tableless > 10 ? " — did the TipRanks forecast page markup change?" : ""}`);
-console.log(`done: ${ok} written (${viaPayload} gained rows from the payload, ${viaHtml} from the page (${pageTopUps} page top-ups for firms the payload missed, ${topUpFails} failed), ${carried} carried forward, +${gained} rows total), ${empty} empty, ${fail} failed, ${fromCache} getData reused from the snapshot step`);
+console.log(`done: ${ok} written (${viaPayload} gained rows from the payload, ${viaHtml} from the page (${pageTopUps} page top-ups for firms the payload missed, ${topUpFails} failed), ${carried} carried forward, +${gained} rows total), ${empty} empty, ${fail} failed, ${skipped} skipped (breaker open), ${fromCache} getData reused from the snapshot step`);

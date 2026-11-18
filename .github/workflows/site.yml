@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "17 */3 * * *"  # every 3 hours, off the top of the hour (GitHub delays/drops :00 runs)
   workflow_dispatch:         # manual run button
+    inputs:
+      dry_run:
+        description: "Scrape and run the gates, but do not commit, deploy or mark requests tracked"
+        type: boolean
+        default: false
   push:
     branches: [main]         # redeploy on code changes
 
@@ -19,6 +24,8 @@ concurrency:
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
+    # a blocked run used to retry to GitHub's 6h job limit; the longest healthy run is ~2h
+    timeout-minutes: 220
     services:
       flaresolverr:
         image: ghcr.io/flaresolverr/flaresolverr:latest
@@ -87,8 +94,10 @@ jobs:
       # the runner's datacenter IP). Skipped on plain code pushes. A blocked
       # fetch fails this step but NOT the run — the site still deploys last data.
       - name: Refresh TipRanks snapshot (via FlareSolverr)
+        id: snapshot
         if: github.event_name != 'push'
         continue-on-error: true
+        timeout-minutes: 15
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
           GETDATA_CACHE: ${{ runner.temp }}/getdata # hand-off to the forecasts step (ci/getdata-cache.mjs)
@@ -124,6 +133,7 @@ jobs:
       # Forecasts streams live; the other two buffer to files and print in groups afterwards, so
       # the log isn't interleaved and bullbear's `::warning::` tripwire still starts a line.
       - name: Backfill forecasts + bulls/bears + P/E (in parallel)
+        id: backfill
         if: github.event_name != 'push'
         continue-on-error: true
         # forecasts' worst recent run was ~102 min; a hung scraper now ends only this step
@@ -159,6 +169,7 @@ jobs:
       # Sector average P/E (trailing + forward) from Finviz — one GET, no key.
       # Via FlareSolverr because Finviz is Cloudflare-fronted and the runner IP may be challenged.
       - name: Refresh sector P/E averages
+        id: sectors
         if: github.event_name != 'push'
         continue-on-error: true
         env:
@@ -171,6 +182,7 @@ jobs:
       # app reads the committed file. continue-on-error like every other scrape: a 418
       # leaves yesterday's reading in place rather than failing the deploy.
       - name: Refresh Fear & Greed index
+        id: feargreed
         if: github.event_name != 'push'
         continue-on-error: true
         run: node ci/scrape-feargreed.mjs
@@ -179,8 +191,10 @@ jobs:
       # the stock modal's "Earnings Thu · after close" line. Same failure-tolerant pattern:
       # a bad run keeps the previous file, whose dates are still mostly right.
       - name: Refresh earnings calendar
+        id: earnings
         if: github.event_name != 'push'
         continue-on-error: true
+        timeout-minutes: 10
         env:
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
         run: node ci/scrape-earnings.mjs
@@ -191,6 +205,7 @@ jobs:
       # Runs BEFORE the gate so the post ships in the same commit as the data it describes.
       # Cadence is entirely in the env below — POSTS_PER_RUN is the knob.
       - name: Generate social post
+        id: post
         if: github.event_name != 'push'
         continue-on-error: true
         env:
@@ -210,6 +225,7 @@ jobs:
       # Cloudflare model, after the post so the post keeps first claim on the daily neurons.
       # New arrivals cost 0-5 calls a run; a backfill is capped at 150 calls a run.
       - name: Classify sector themes
+        id: themes
         if: github.event_name != 'push'
         continue-on-error: true
         env:
@@ -233,8 +249,10 @@ jobs:
         if: github.event_name != 'push'
         run: npm test
 
+      # dry_run (manual runs only; empty -> falsy on schedule/push) stops here: scrape + gates ran,
+      # nothing is committed, deployed or marked.
       - name: Commit refreshed data
-        if: github.event_name != 'push'
+        if: ${{ github.event_name != 'push' && !inputs.dry_run }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -256,6 +274,7 @@ jobs:
         run: npm run build
 
       - name: Deploy to Firebase Hosting
+        if: ${{ !inputs.dry_run }}
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: npx --yes firebase-tools deploy --only hosting --project marketpulse-df5d9 --non-interactive
@@ -264,16 +283,18 @@ jobs:
       # to the Firebase site. 404.html catches every deep path.
       - run: cp redirect/index.html redirect/404.html
       - uses: actions/upload-pages-artifact@v3
+        if: ${{ !inputs.dry_run }}
         with:
           path: redirect
 
       - id: deployment
+        if: ${{ !inputs.dry_run }}
         uses: actions/deploy-pages@v4
 
       # After the deploy: tracked=true fires the requester's "now tracked" notification, so it
       # must mean the row is live. See ci/track-requests.mjs.
       - name: Mark requests tracked
-        if: github.event_name != 'push'
+        if: ${{ github.event_name != 'push' && !inputs.dry_run }}
         continue-on-error: true
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -283,7 +304,7 @@ jobs:
       # only if its asOf is still the one folded (a lite run may have rewritten it meanwhile).
       # trackedRevs is kept. See ci/track-requests.mjs.
       - name: Clear folded tracked rows
-        if: github.event_name != 'push'
+        if: ${{ github.event_name != 'push' && !inputs.dry_run }}
         continue-on-error: true
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
