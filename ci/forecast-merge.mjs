@@ -197,8 +197,8 @@ export function carryForward(out, prev, data) {
 
 
 /**
- * A stored rating is final: when this run shows the same analyst (analystKey) on the same date
- * as a previous row, keep the previous row's firm, target and old target and take everything else
+ * A stored rating is final: when this run shows the same analyst (mergeKey: name + date, plus firm for
+ * "Unknown Analyst") and the same rating as a previous row, keep the previous row's firm, target and old target and take everything else
  * (rating, stars, ...) from the new row. The payload re-converts non-USD targets at today's FX and
  * its profile firm drifts when an analyst moves, so without this the same rating would re-alert in
  * the bell on every wobble (this subsumes the old keepPrevTarget sub-1% drift rule). A new date is
@@ -206,10 +206,11 @@ export function carryForward(out, prev, data) {
  */
 export function keepPrevRating(rows, prev) {
   if (!Array.isArray(prev) || !prev.length) return rows;
-  const old = new Map(prev.filter((p) => p?.n && p.d).map((p) => [`${analystKey(p)}|${p.d}`, p]));
+  const old = new Map(prev.filter((p) => p?.n && p.d).map((p) => [mergeKey(p), p]));
   return rows.map((f) => {
-    const p = old.get(`${analystKey(f)}|${f.d}`);
-    return p ? { ...f, f: p.f, pt: p.pt, opt: p.opt } : f;
+    const p = old.get(mergeKey(f));
+    // a changed rating on the same date is a correction, i.e. a new review: pass it through whole
+    return p && p.r === f.r ? { ...f, f: p.f, pt: p.pt, opt: p.opt ?? f.opt } : f;
   });
 }
 

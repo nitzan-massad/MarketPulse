@@ -218,6 +218,11 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   assert.deepEqual([kept.pt, kept.opt], [149.5, 140], "same analyst+date, FX drift -> previous target kept");
   assert.equal(keepPrevRating([{ ...prev[0], pt: 160 }], prev)[0].pt, 149.5, "same date -> stored rating wins even on a big move");
   assert.equal(keepPrevRating([{ ...prev[0], d: "2026-11-10", pt: 160 }], prev)[0].pt, 160, "a new date is a new review");
+  const ua = (f, pt, r = "Buy") => ({ n: "Unknown Analyst", f, r, pt, opt: pt - 1, d: "2026-10-15" });
+  const uaOut = keepPrevRating([ua("Deutsche Bank", 700), ua("Argus", 650)], [ua("Argus", 600), ua("Deutsche Bank", 668)]);
+  assert.deepEqual(uaOut.map((r) => [r.f, r.pt, r.opt]), [["Deutsche Bank", 668, 667], ["Argus", 600, 599]], "same-date Unknown Analysts match by firm");
+  const flip = keepPrevRating([{ ...prev[0], r: "Hold", f: "RBC2", pt: 150, opt: 160 }], [{ ...prev[0], r: "Buy", pt: 160 }])[0];
+  assert.deepEqual([flip.r, flip.f, flip.pt, flip.opt], ["Hold", "RBC2", 150, 160], "same-date Buy->Hold flip passes through whole");
   assert.deepEqual(keepPrevRating(rows, null), rows, "no previous file -> unchanged");
   assert.deepEqual(keepPrevRating([{ n: "Ives", d: "2026-11-01", f: "Wedbush", pt: 300 }], [{ n: "Ives", d: "2026-11-01", f: "Yorkville", pt: 310 }]).map((r) => [r.f, r.pt]), [["Yorkville", 310]], "same date keeps prev firm and target");
   assert.deepEqual(keepPrevRating([{ n: "Ives", d: "2026-11-10", f: "Wedbush", pt: 300 }], [{ n: "Ives", d: "2026-11-01", f: "Yorkville", pt: 310 }]).map((r) => [r.f, r.pt]), [["Wedbush", 300]], "new date keeps the new row");
