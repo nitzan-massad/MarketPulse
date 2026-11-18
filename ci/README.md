@@ -762,11 +762,13 @@ the commit step also stages `public/forecasts`.
   real rating (QTTB Leerink, MSFT/ORCL Phillip, NVDA Bernstein, EAT Baird, AMAT Citi, TVRD Chardan).
 
   **Stage 4 — 2026-11-18: no getData.** getData is Cloudflare-blocked, so the scraper no longer
-  fetches it (and `ci/getdata-cache.mjs`, `_pageTried.json` writes, `pickSource`, `missingFirms`,
+  fetches it (and `ci/getdata-cache.mjs`, `pickSource`, `missingFirms`,
   `carryForward`, `carryMissing` and `SSR_MERGE` are gone). Per ticker: payload.json →
   `forecastsFromPayload` (stars = round(5 × rank, 1)) → `carryStars` from last run's file. The page
   is fetched only when the payload failed or `hiddenTargets` names an analyst whose newest payload
-  rating has no target and is newer than our row; with a payload, the page adds only analysts or
+  rating has no target and is newer than our row — once per such rating: its `analystKey|date` is
+  recorded in `_pageTried.json` after the fetch and pruned when no longer hidden (`pageNeeded`). A
+  payload that parses to 0 rows over a non-empty file counts as failed (`payloadOk`). With a payload, the page adds only analysts or
   newer ratings within 92 days (`missingOf` + `topUpRows`) and payload targets keep priority. Then
   `keepPrevRating`, `carryRecentPrev` (last run's rows for absent analysts within 92 days — ALL of
   them when the payload failed, so a fetch failure never shrinks a file), `keepNewerPrev`,

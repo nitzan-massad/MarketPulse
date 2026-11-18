@@ -13,26 +13,31 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import { parseForecastHtml, withStars } from "./forecast-html.mjs";
-import { carryRecentPrev, carryStars, forecastsFromPayload, hiddenTargets, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, missingOf, topUpRows } from "./forecast-merge.mjs";
+import { carryRecentPrev, carryStars, forecastsFromPayload, hiddenTargetKeys, pageNeeded, payloadOk, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, missingOf, topUpRows } from "./forecast-merge.mjs";
 
 /* ---------------------------------------------------------------- the mirror */
 // `fj` = the parsed payload, or null when the fetch failed. `page` = the page HTML, or null when the
 // page fetch failed. Returns what the scraper would write, and whether it fetched the page.
-function runTicker({ ticker, fj, page, out, now = Date.now() }) {
+function runTicker({ ticker, fj, page, out, now = Date.now(), tried = {} }) {
   const file = join(out, `${ticker}.json`);
   let prev = null;
   try { prev = JSON.parse(readFileSync(file, "utf8")); } catch { /* first fetch */ }
   const src = fj ? forecastsFromPayload(fj, ticker, null) : null;
-  let fc = carryStars(src ?? [], prev);
-  const needPage = src === null || hiddenTargets(fj, ticker, prev ?? []).length > 0;
+  const ok = payloadOk(src, prev);
+  let fc = carryStars(ok ? src : [], prev);
+  const hidden = ok ? hiddenTargetKeys(fj, ticker, prev ?? []) : [];
+  const needPage = pageNeeded({ srcOk: ok, hidden, tried: tried[ticker] });
+  tried[ticker] = (tried[ticker] || []).filter((k) => hidden.includes(k));
   if (needPage && page != null) {
     const rows = parseForecastHtml(page);
-    if (src !== null) fc = mergeForecasts(fc, topUpRows(withStars(rows), missingOf(fc, rows, now)));
+    if (ok) fc = mergeForecasts(fc, topUpRows(withStars(rows), missingOf(fc, rows, now)));
     else fc = withStars(rows);
+    tried[ticker] = hidden;
   }
+  if (!tried[ticker].length) delete tried[ticker];
   fc = carryStars(fc, prev);
   fc = keepPrevRating(fc, prev);
-  fc = carryRecentPrev(fc, prev, { now, all: src === null });
+  fc = carryRecentPrev(fc, prev, { now, all: !ok });
   fc = keepNewerPrev(fc, prev);
   fc = latestPerAnalyst(fc);
   let wrote = false;
@@ -108,6 +113,33 @@ const rating = (d, pt) => ({ object: { ticker: "T" }, expert: { uid: "u1", id: "
   assert.equal(nocov.wrote, false);
 }
 
+/* ------------------------- 5. a hidden target costs ONE page fetch, not one per run (_pageTried) */
+{
+  writeFileSync(join(OUT, "T.json"), JSON.stringify([{ n: "Real Analyst", f: "Real Firm", st: 4, r: "Buy", pt: 12, opt: null, d: "2026-07-01" }]));
+  const fj = payload([rating("2026-07-05", null), rating("2026-07-01", 12)], [EXPERT]);
+  const tried = {};
+  assert.equal(runTicker({ ticker: "T", fj, page: "", out: OUT, now: NOW, tried }).fetchedPage, true, "run 1: new hidden target -> page");
+  assert.deepEqual(tried, { T: ["real analyst|2026-07-05"] }, "the key is recorded");
+  assert.equal(runTicker({ ticker: "T", fj, page: "", out: OUT, now: NOW, tried }).fetchedPage, false, "run 2: already tried -> no page");
+  // the analyst re-rates with a target: the hidden key disappears and is pruned
+  runTicker({ ticker: "T", fj: payload([rating("2026-07-08", 14)], [EXPERT]), page: "", out: OUT, now: NOW, tried });
+  assert.deepEqual(tried, {}, "keys no longer hidden are pruned");
+  // payload failure always fetches the page, tried or not
+  assert.equal(runTicker({ ticker: "T", fj: null, page: "", out: OUT, now: NOW, tried: { T: ["real analyst|2026-07-05"] } }).fetchedPage, true);
+}
+
+/* ------------------- 6. a payload that parses to 0 rows over a non-empty file = payload failure */
+{
+  const GOOD = [
+    { n: "Kept Analyst", f: "Kept Firm", st: 3, r: "Buy", pt: 9, opt: null, d: "2026-06-01" },
+    { n: "Older Analyst", f: "Older Firm", st: 1, r: "Sell", pt: 4, opt: null, d: "2025-01-01" },
+  ];
+  writeFileSync(join(OUT, "ZERO.json"), JSON.stringify(GOOD));
+  const r = runTicker({ ticker: "ZERO", fj: payload([], []), page: null, out: OUT, now: NOW });
+  assert.equal(r.fetchedPage, true, "0-row payload over a non-empty file -> page fallback");
+  assert.deepEqual(r.rows, GOOD, "...and every previous row kept (all:true), even the year-old one");
+}
+
 /* --------------------------------------------------------------- SOURCE FIDELITY
    runTicker() above restates the scraper's per-ticker flow, so pin the load-bearing source lines.
    If one of these fails the scraper changed — update BOTH. */
@@ -115,15 +147,20 @@ const rating = (d, pt) => ({ object: { ticker: "T" }, expert: { uid: "u1", id: "
   const src = readFileSync(new URL("./scrape-forecasts.mjs", import.meta.url), "utf8");
   for (const line of [
     "src = forecastsFromPayload(fj, t, null);",
-    "fc = carryStars(src ?? [], prev);",
-    "const needPage = src === null || hiddenTargets(fj, t, prev ?? []).length > 0;",
+    "const ok = payloadOk(src, prev);",
+    "let fc = carryStars(ok ? src : [], prev);",
+    "const hidden = ok ? hiddenTargetKeys(fj, t, prev ?? []) : [];",
+    "const needPage = pageNeeded({ srcOk: ok, hidden, tried: tried[t] });",
+    "tried[t] = (tried[t] || []).filter((k) => hidden.includes(k));",
     "if (needPage && !skipOpen(\"forecast page\", pageBreaker)) {",
     "plain: false, ok: (h) => usablePage(h, 1), breaker: pageBreaker",
     "fc = mergeForecasts(fc, topUpRows(withStars(page), missingOf(fc, page)));",
     "fc = withStars(page);",
+    "tried[t] = hidden;",
+    "if (!tried[t].length) delete tried[t];",
     "fc = carryStars(fc, prev);",
     "fc = keepPrevRating(fc, prev);",
-    "fc = carryRecentPrev(fc, prev, { all: src === null });",
+    "fc = carryRecentPrev(fc, prev, { all: !ok });",
     "fc = keepNewerPrev(fc, prev);",
     "fc = latestPerAnalyst(fc);",
     "if (fc.length) {\n      writeFileSync(",
@@ -136,4 +173,4 @@ const rating = (d, pt) => ({ object: { ticker: "T" }, expert: { uid: "u1", id: "
 
 rmSync(OUT, { recursive: true, force: true }); // only on success — a failure leaves the evidence
 
-console.log("forecast pipeline gate: ok (page gate, payload-failed keep-all, never-shrink on bad pages, source fidelity)");
+console.log("forecast pipeline gate: ok (page gate, payload-failed keep-all, never-shrink on bad pages, one fetch per hidden target, 0-row payload, source fidelity)");

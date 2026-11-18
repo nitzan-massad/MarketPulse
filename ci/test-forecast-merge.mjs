@@ -4,7 +4,7 @@
 // ci/test-forecast-gate.mjs had to mirror the old inline gate.
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { carryRecentPrev, carryStars, forecastsFromPayload, hiddenTargets, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, mergeKey, missingOf, topUpRows } from "./forecast-merge.mjs";
+import { carryRecentPrev, carryStars, forecastsFromPayload, hiddenTargetKeys, hiddenTargets, pageNeeded, payloadOk, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, mergeKey, missingOf, topUpRows } from "./forecast-merge.mjs";
 
 const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", pt, opt: null, d, ...extra });
 
@@ -25,6 +25,23 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   assert.deepEqual(hiddenTargets(fj, "AAPL", []), [], "no file row -> not needed (no older target the page could add)");
   assert.deepEqual(hiddenTargets(fj, "MSFT", file), [], "another ticker's ratings never count");
   assert.deepEqual(hiddenTargets(null, "AAPL", file), [], "no payload -> nothing (the caller already fetches the page)");
+  assert.deepEqual(hiddenTargetKeys(fj, "AAPL", file), ["samik chatterjee|2026-11-15"], "keys for the _pageTried sidecar: analystKey|date");
+
+  // pageNeeded: one page fetch per hidden rating, not one per run (_pageTried.json)
+  const k = "samik chatterjee|2026-11-15";
+  assert.equal(pageNeeded({ srcOk: false, hidden: [], tried: [k] }), true, "payload failed -> always the page");
+  assert.equal(pageNeeded({ srcOk: true, hidden: [], tried: [] }), false, "nothing hidden -> no page");
+  assert.equal(pageNeeded({ srcOk: true, hidden: [k], tried: [] }), true, "new hidden target -> page");
+  assert.equal(pageNeeded({ srcOk: true, hidden: [k], tried: [k] }), false, "already tried -> no page");
+  assert.equal(pageNeeded({ srcOk: true, hidden: [k, "x|2026-11-16"], tried: [k] }), true, "one untried key -> page");
+  assert.equal(pageNeeded({ srcOk: true, hidden: [k], tried: undefined }), true, "no sidecar entry -> page");
+
+  // payloadOk: a payload that parses to 0 rows while the file has rows is a failure (no shrink)
+  assert.equal(payloadOk(null, file), false, "fetch failed");
+  assert.equal(payloadOk([], file), false, "0 rows vs a non-empty file -> treat as failed");
+  assert.equal(payloadOk([], null), true, "0 rows, no file -> genuinely uncovered");
+  assert.equal(payloadOk([], []), true);
+  assert.equal(payloadOk([row("A", "2026-11-01", 1)], file), true);
 }
 
 /* -------------------------------------------------------------- carryStars */

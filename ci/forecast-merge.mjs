@@ -226,7 +226,7 @@ export function carryStars(rows, prev) {
  * no older target the page could add, and live (2026-11-18) 13 of 16 target-less newest ratings on
  * AAPL/TWLO/UBER were such analysts — counting them fetched the page on every ticker, every run.
  */
-export function hiddenTargets(fj, ticker, fileRows) {
+function hiddenEntries(fj, ticker, fileRows) {
   const m = fj?.models;
   if (!Array.isArray(m?.ratings) || !Array.isArray(m?.experts)) return [];
   const experts = new Map();
@@ -244,8 +244,24 @@ export function hiddenTargets(fj, ticker, fileRows) {
   const have = newestBy(fileRows);
   return [...latest.entries()]
     .filter(([k, x]) => !(Number.isFinite(x.pt) && x.pt > 0) && have.has(k) && have.get(k) < x.d)
-    .map(([, x]) => x.n);
+    .map(([k, x]) => ({ n: x.n, key: `${k}|${x.d}` }));
 }
+export const hiddenTargets = (fj, ticker, fileRows) => hiddenEntries(fj, ticker, fileRows).map((x) => x.n);
+/** hiddenTargets as `analystKey|date` keys (Unknown Analyst: `unknown analyst|firm|date`), the
+ *  identity recorded in `_pageTried.json` so one hidden rating costs one page fetch, not one per run. */
+export const hiddenTargetKeys = (fj, ticker, fileRows) => hiddenEntries(fj, ticker, fileRows).map((x) => x.key);
+
+/** Fetch the page? Always when the payload failed; else only for a hidden target not tried yet. */
+export function pageNeeded({ srcOk, hidden, tried }) {
+  if (!srcOk) return true;
+  const done = new Set(tried || []);
+  return (hidden || []).some((k) => !done.has(k));
+}
+
+/** Did the payload work? A fetch/parse failure (null) did not — and neither did 0 rows while last
+ *  run's file has some: that is a reshape or an id-scheme change, not every analyst vanishing, and
+ *  treating it as success would shrink the file to its last 92 days. */
+export const payloadOk = (src, prev) => src !== null && (src.length > 0 || !(Array.isArray(prev) && prev.length));
 
 /**
  * Page rows worth adding next to the payload's: per analyst, those newer than our newest row for
