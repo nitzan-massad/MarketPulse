@@ -160,6 +160,11 @@ export const ROW_KEYS = Object.freeze(["t", "n", "sec", "px", "chg", "pt", "up",
 // undefined stays undefined (unknown); anything else, null included, goes through f.
 const unk = (x, f) => (x === undefined ? undefined : f(x));
 const EMPTY_CONSENSUS = { con: null, b: 0, h: 0, s: 0 };
+// getData parity (decision D1, "keep today's behaviour exactly"): rowFromGetData wrote
+// con "Neutral", b/h/s 0 for a ticker with no all-analyst coverage. The non-in-pull paths
+// (universe screener rows, aianalyst payloads) replace getData, so they do the same; the
+// in-pull path keeps EMPTY_CONSENSUS (con null). pt/up stay null either way.
+const NO_COVERAGE_GETDATA = { con: "Neutral", b: 0, h: 0, s: 0 };
 
 // Screener item -> row. `inPull` rows keep today's basis (best analysts only, no fallback).
 // Every other row (kept-but-off-pull, rows read from the screener by other means) follows D1:
@@ -174,7 +179,7 @@ export function rowFromScreener(item, { inPull }) {
     ptd = inPull ? e.bestPriceTargetData : e.bestPriceTargetData ?? e.priceTargetData;
   }
   const d = cons?.distribution || {};
-  const consRow = cons === undefined ? {} : cons === null ? EMPTY_CONSENSUS
+  const consRow = cons === undefined ? {} : cons === null ? (inPull ? EMPTY_CONSENSUS : NO_COVERAGE_GETDATA)
     : { con: cons.analystConsensus?.name || null, b: d.buy || 0, h: d.hold || 0, s: d.sell || 0 };
   const ssd = e?.tipRanksSmartScoreData;
   return {
@@ -209,7 +214,7 @@ export function rowFromAiAnalyst(fj, ticker) {
   let consRow = {}, ptd;
   if (ar) {
     const all = ar.all;
-    consRow = all ? { con: CON_NAME[all.enumId] ?? null, b: all.buy || 0, h: all.hold || 0, s: all.sell || 0 } : EMPTY_CONSENSUS;
+    consRow = all ? { con: CON_NAME[all.enumId] ?? null, b: all.buy || 0, h: all.hold || 0, s: all.sell || 0 } : NO_COVERAGE_GETDATA;
     ptd = (ar.best ?? ar.all)?.priceTarget ?? null;
   }
   const rep = s.report;

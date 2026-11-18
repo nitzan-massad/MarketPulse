@@ -44,6 +44,16 @@ try {
   assert.equal(out, "x");
   assert.equal(calls, 2);
 
+  // timeoutMs sets the plain-fetch AbortSignal timeout (default 30s)
+  const realTimeout = AbortSignal.timeout, timeouts = [];
+  AbortSignal.timeout = (ms) => { timeouts.push(ms); return realTimeout.call(AbortSignal, ms); };
+  try {
+    globalThis.fetch = async () => ({ status: 200, text: async () => "ok" });
+    await getText("https://x/t");
+    await getText("https://x/t", { timeoutMs: 120_000 });
+  } finally { AbortSignal.timeout = realTimeout; }
+  assert.deepEqual(timeouts, [30_000, 120_000], "default 30s, custom value honoured");
+
   // plain 200 wins without touching FlareSolverr; plain 403 falls through to it
   const urls = [];
   globalThis.fetch = async (u) => { urls.push(u); return { status: 200, text: async () => "plain" }; };

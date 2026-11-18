@@ -36,7 +36,7 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   const r = rowFromScreener(S.nocov, { inPull: true });
   assert.deepEqual([r.con, r.b, r.h, r.s, r.pt, r.up], [null, 0, 0, 0, null, null]);
   const o = rowFromScreener(S.nocov, { inPull: false });
-  assert.deepEqual([o.con, o.b, o.h, o.s, o.pt, o.up], [null, 0, 0, 0, null, null]);
+  assert.deepEqual([o.con, o.b, o.h, o.s, o.pt, o.up], ["Neutral", 0, 0, 0, null, null]); // getData parity (D1): no coverage off-pull = Neutral 0/0/0
 }
 // Only best is null: in pull = no fallback (as today); off pull = all-analyst counts + target.
 {
@@ -97,7 +97,7 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   const r = rowFromAiAnalyst(nnnn, "NNNN");
   assert.ok(r.n);
   assert.equal(r.px, 3.65);
-  assert.equal(r.con, null);
+  assert.equal(r.con, "Neutral"); // getData parity (D1): no all-analyst coverage = Neutral 0/0/0
   assert.equal(r.b + r.h + r.s, 0);
   assert.equal(r.pt, null);
   assert.equal(r.ai, undefined);

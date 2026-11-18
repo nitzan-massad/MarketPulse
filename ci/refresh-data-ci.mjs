@@ -91,7 +91,7 @@ const backfillTried = new Set();
 let universe = new Map(), universeTotal = 0;
 if (missing.length) {
   try {
-    let body = await getText(UNIVERSE_URL, { flareUrl: FS_URL, tries: 2, breaker: universeBreaker });
+    let body = await getText(UNIVERSE_URL, { flareUrl: FS_URL, tries: 2, timeoutMs: 120_000, breaker: universeBreaker });
     const items = extractJson(body).items;
     body = null;
     universe = universeMap(items);

@@ -43,7 +43,7 @@ export function health(msg) {
  * - a blocked response records on the breaker and throws BlockedError immediately;
  * - a challenge page, a FlareSolverr error or `!ok(body)` retries up to `tries`, `sleepMs` apart.
  */
-export async function getText(url, { flareUrl = FS_URL_DEFAULT, tries = 3, plain = true, ok = () => true, breaker, sleepMs = 8000 } = {}) {
+export async function getText(url, { flareUrl = FS_URL_DEFAULT, tries = 3, plain = true, ok = () => true, breaker, sleepMs = 8000, timeoutMs = 30_000 } = {}) {
   const blocked = (what) => { breaker?.record(true); throw new BlockedError(what); };
   const good = (body) => { breaker?.record(false); return body; };
   if (breaker?.open()) throw new BlockedError("breaker open");
@@ -51,7 +51,7 @@ export async function getText(url, { flareUrl = FS_URL_DEFAULT, tries = 3, plain
   if (plain) {
     let r = null, body = "";
     try {
-      r = await fetch(url, { headers: { "user-agent": BROWSER_UA }, signal: AbortSignal.timeout(30_000) });
+      r = await fetch(url, { headers: { "user-agent": BROWSER_UA }, signal: AbortSignal.timeout(timeoutMs) });
       body = await r.text();
     } catch { r = null; } // network trouble: let FlareSolverr try
     if (r) {
