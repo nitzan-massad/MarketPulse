@@ -1,5 +1,6 @@
 import type { AuthProvider, User } from "firebase/auth";
 import { WORKER_URL } from "./workerUrl";
+import { trackStateOf, type TrackRequestState } from "./trackState";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   keyForAppend,
@@ -439,7 +440,6 @@ export function useWatchlist(): WatchlistApi {
 // `trackreq/<uid>/<KEY>` is the requester's own copy: useNotifications watches it and
 // posts the one-time "now tracked" notification, then deletes it.
 // ---------------------------------------------------------------------------
-import { trackStateOf, type TrackRequestState } from "./trackState";
 export type { TrackRequestState };
 export const trackKey = (t: string) => t.replace(/\./g, "_");
 // Dev: no backend, so requests live in localStorage and the card listens for this event.

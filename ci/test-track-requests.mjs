@@ -44,6 +44,11 @@ assert.deepEqual(planFail(["NNNN"], { NNNN: { tracked: false } }, 1), { "trackRe
 assert.deepEqual(planFail(["NNNN"], { NNNN: { tracked: true } }, 1), {});
 assert.deepEqual(planFail(["NOPE"], { NNNN: { tracked: false } }, 1), {});
 assert.deepEqual(planFail(["BRK.B", "OK"], { BRK_B: req(1), OK: req(1) }, 5), { "trackRequests/BRK_B/err": { at: 5, msg: "fetch failed" }, "trackRequests/OK/err": { at: 5, msg: "fetch failed" } });
+assert.deepEqual(planFail(["NNNN"], { NNNN: { tracked: false, err: { at: 7, msg: "fetch failed" } } }, 99), { "trackRequests/NNNN/err": { at: 7, msg: "fetch failed" } }); // re-failing keeps the first time
+{ const T0 = 100 * H - 25 * H; // failed again at 'now', still clears once 24h have passed since T0
+  const again = planFail(["NNNN"], { NNNN: { ...req(1), err: { at: T0, msg: "x" } } }, 100 * H);
+  assert.equal(again["trackRequests/NNNN/err"].at, T0);
+  assert.deepEqual(planUnrequest({ NNNN: { ...req(1), err: again["trackRequests/NNNN/err"] } }, [], 100 * H), { NNNN: null }); }
 assert.deepEqual(planFail([], { NNNN: req(1) }, 1), {});
 
 // watchlists (object or legacy array) are merged, de-duplicated, sorted, uid-free

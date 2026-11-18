@@ -178,7 +178,7 @@ export function planFail(failed, requests, now = Date.now()) {
   const patch = {};
   for (const t of failed) {
     const k = tickerToKey(t);
-    if (requests?.[k]?.tracked === false) patch[`trackRequests/${k}/err`] = { at: now, msg: "fetch failed" };
+    if (requests?.[k]?.tracked === false) patch[`trackRequests/${k}/err`] = { at: requests[k].err?.at ?? now, msg: "fetch failed" }; // keep the first failure time, or the 24h clear never comes
   }
   return patch;
 }
