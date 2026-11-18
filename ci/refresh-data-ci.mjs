@@ -3,14 +3,13 @@
 // page body. We request the screener API through it and parse the JSON out.
 // (Local manual refresh uses scripts/refresh-data.mjs with Playwright instead.)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { computeKeep, rowFromGetData, forecastFields, applyForecast, enrichQueue, nextLastSeen, rndPx, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
+import { computeKeep, rowFromGetData, forecastFields, applyForecast, enrichQueue, nextLastSeen, rowFromScreener, mergeRow, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
 import { saveGetData } from "./getdata-cache.mjs";
 import { getText, makeBreaker, health } from "./tr-fetch.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const API =
   "https://www.tipranks.com/api/apps/stock/screener?country=us&method=screener&isPrimaryMarket=true&exchange=xnas&exchange=xnys&exchange=arcx&exchange=xase&exchange=bats&page=1&pageSize=120&sortDir=2";
-const rnd = (x, p = 2) => (x == null ? null : +Number(x).toFixed(p));
 
 // Transport lives in ci/tr-fetch.mjs: plain fetch, FlareSolverr on a challenge, and a Cloudflare
 // firewall block fails at once (BlockedError) instead of being retried. One breaker per endpoint;
@@ -33,6 +32,9 @@ function extractJson(html) {
   throw new Error("could not extract JSON from FlareSolverr response");
 }
 
+// last-known rows: the screener mapper's `undefined` ("can't see it") falls back to these
+const prevRows = new Map();
+try { for (const r of JSON.parse(readFileSync("src/data/stocks.json", "utf8"))) prevRows.set(r.t, r); } catch { /* first run */ }
 const seen = new Map();
 const SORT_KEY = { 5: "u", 2: "s" }; // upside / smart score (sortBy 3 = mkt cap still fetched for the universe, but not tagged as a list)
 const membership = {}; // ticker -> Set of ranking(s) it appears in
@@ -45,21 +47,8 @@ for (const sb of [5, 2, 3]) {
     const e = it.tipRanksEssentialData || {};
     if (t.ticker && SORT_KEY[sb]) (membership[t.ticker] ??= new Set()).add(SORT_KEY[sb]);
     if (seen.has(t.ticker)) continue;
-    const bpt = e.bestPriceTargetData || {};
-    const bc = e.bestAnalystsConsensusData || {};
-    const d = bc.distribution || {};
-    const ai = it.aiAnalystData || {};
-    seen.set(t.ticker, {
-      t: t.ticker, n: t.companyName, sec: t.sector?.name || null,
-      px: rndPx(t.lastClose), chg: rnd(t.priceChangePct != null ? t.priceChangePct * 100 : null, 2),
-      pt: rndPx(bpt.convertedPriceTarget), up: rnd(bpt.upside != null ? bpt.upside * 100 : null, 1),
-      con: bc.analystConsensus?.name || null, b: d.buy || 0, h: d.hold || 0, s: d.sell || 0,
-      ss: e.tipRanksSmartScoreData?.tipRanksSmartScore ?? null,
-      ai: rnd(ai.overallScore, 1),
-      air: (typeof ai.overallRating === "object" ? ai.overallRating?.name : ai.overallRating) ?? null,
-      aipt: rndPx(ai.priceTarget), mc: t.marketCap != null ? Math.round(t.marketCap / 1e6) : null,
-      desc: t.description || null,
-    });
+    // every row goes through the shared mappers: undefined fields keep the last-known value
+    seen.set(t.ticker, mergeRow(prevRows.get(t.ticker), rowFromScreener(it, { inPull: true })));
   }
   console.log(`sortBy=${sb}: ${seen.size} unique rows so far`);
 }
@@ -81,8 +70,6 @@ try { alive.tracked = JSON.parse(readFileSync("src/data/tracked.json", "utf8"));
 try { Object.assign(alive, JSON.parse(readFileSync("src/data/keepalive.json", "utf8"))); } catch { /* none */ }
 let prevSeen = {};
 try { prevSeen = JSON.parse(readFileSync("src/data/seen.json", "utf8")); } catch { /* first run */ }
-const prevRows = new Map();
-try { for (const r of JSON.parse(readFileSync("src/data/stocks.json", "utf8"))) prevRows.set(r.t, r); } catch { /* first run */ }
 
 const BACKFILL_LIMIT = Number(process.env.BACKFILL_LIMIT || 300);
 const { keep, dropped } = computeKeep(pinned, prevSeen, Date.now(), KEEP_MAX_AGE_DAYS, alive);

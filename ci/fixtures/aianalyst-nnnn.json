@@ -1,0 +1,35 @@
+{
+ "models": {
+  "stocks": [
+   {
+    "_id": "NNNN",
+    "analystRatings": {
+     "all": null,
+     "best": null
+    },
+    "company": {
+     "name": "Anbio Biotechnology Class A",
+     "companyName": "Anbio Biotechnology Class A",
+     "sector": "general",
+     "description": "Anbio Biotechnology, established in 2021 and based in Frankfurt am Main, Germany"
+    },
+    "prices": {
+     "daily": {
+      "gain": -0.05927835051546392,
+      "price": 3.65,
+      "priceUSD": 3.65
+     }
+    },
+    "smartScore": {
+     "update": "2026-11-18T00:00:00.000Z",
+     "value": 4
+    },
+    "marketCap": {
+     "daily": {
+      "marketCap": 160202880
+     }
+    }
+   }
+  ]
+ }
+}

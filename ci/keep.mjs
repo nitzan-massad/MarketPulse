@@ -151,6 +151,101 @@ export function rowFromGetData(j, prev = {}) {
   };
 }
 
+// --- shared row mappers + keep-last-known merge --------------------------------
+// ROW CONTRACT: a mapper returns `undefined` for a field its source cannot see ("unknown ->
+// keep the previous value") and `null` only when the source explicitly says "empty". mergeRow
+// is the one place that turns that into a stored row, so no refresh script re-inlines it.
+export const ROW_KEYS = Object.freeze(["t", "n", "sec", "px", "chg", "pt", "up", "con", "b", "h", "s", "ss", "ai", "air", "aipt", "mc", "desc"]);
+
+// undefined stays undefined (unknown); anything else, null included, goes through f.
+const unk = (x, f) => (x === undefined ? undefined : f(x));
+const EMPTY_CONSENSUS = { con: null, b: 0, h: 0, s: 0 };
+
+// Screener item -> row. `inPull` rows keep today's basis (best analysts only, no fallback).
+// Every other row (kept-but-off-pull, rows read from the screener by other means) follows D1:
+// con/b/h/s from ALL analysts, pt/up from the best target falling back to all.
+export function rowFromScreener(item, { inPull }) {
+  const t = item?.tradingInformationData ?? undefined;
+  const e = item?.tipRanksEssentialData ?? undefined;
+  const ai = item?.aiAnalystData ?? undefined;
+  let cons, ptd;
+  if (e) {
+    cons = inPull ? e.bestAnalystsConsensusData : e.analystsConsensusData;
+    ptd = inPull ? e.bestPriceTargetData : e.bestPriceTargetData ?? e.priceTargetData;
+  }
+  const d = cons?.distribution || {};
+  const consRow = cons === undefined ? {} : cons === null ? EMPTY_CONSENSUS
+    : { con: cons.analystConsensus?.name || null, b: d.buy || 0, h: d.hold || 0, s: d.sell || 0 };
+  const ssd = e?.tipRanksSmartScoreData;
+  return {
+    t: t?.ticker,
+    n: t?.companyName,
+    sec: t && t.sector?.name !== "General" ? t.sector?.name || null : undefined, // "General" = the screener's don't-know; enrich fills it
+    px: unk(t?.lastClose, rndPx),
+    chg: unk(t?.priceChangePct, (x) => (x === null ? null : rnd(x * 100, 2))),
+    pt: unk(ptd, (p) => rndPx(p?.convertedPriceTarget)),
+    up: unk(ptd, (p) => (p?.upside != null ? rnd(p.upside * 100, 1) : null)),
+    con: consRow.con, b: consRow.b, h: consRow.h, s: consRow.s,
+    ss: ssd == null ? undefined : ssd.tipRanksSmartScore ?? null,
+    ai: unk(ai, (a) => rnd(a.overallScore, 1)),
+    air: unk(ai, (a) => (typeof a.overallRating === "object" ? a.overallRating?.name : a.overallRating) ?? null),
+    aipt: unk(ai, (a) => rndPx(a.priceTarget)),
+    mc: unk(t && (t.marketCap ?? t.marketCapUSD), (m) => (m === null ? null : Math.round(m / 1e6))),
+    desc: unk(t?.description, (x) => x || null),
+  };
+}
+
+// Per-ticker stock-aianalyst payload (www.tipranks.com/stocks/<t>/stock-aianalyst/payload.json)
+// -> row, or null when the bundle has no row for `ticker`. Same D1 basis as getData had:
+// counts from ALL analysts, target from best falling back to all.
+export function rowFromAiAnalyst(fj, ticker) {
+  const list = fj?.models?.stocks;
+  const matches = ticker && Array.isArray(list) ? list.filter((x) => x && x._id === ticker) : [];
+  const s = matches.find((x) => x.company || x.analystRatings) ?? matches[0]; // skip null-filled peer stubs
+  if (!s) return null;
+  const c = s.company;
+  const daily = s.prices?.daily;
+  const ar = s.analystRatings;
+  let consRow = {}, ptd;
+  if (ar) {
+    const all = ar.all;
+    consRow = all ? { con: CON_NAME[all.enumId] ?? null, b: all.buy || 0, h: all.hold || 0, s: all.sell || 0 } : EMPTY_CONSENSUS;
+    ptd = (ar.best ?? ar.all)?.priceTarget ?? null;
+  }
+  const rep = s.report;
+  const sec = c ? sectorName(c.sector) : null;
+  const mcap = s.marketCap?.daily?.marketCap;
+  return {
+    t: ticker,
+    n: c ? c.companyName ?? c.name : undefined,
+    sec: sec && sec !== "General" ? sec : undefined, // unknown slug / "General" -> keep prev (enrich fills real sectors)
+    px: unk(daily?.priceUSD, rndPx),
+    chg: unk(daily?.gain, (g) => (g === null ? null : rnd(g * 100, 2))),
+    pt: ar ? rndPx(ptd?.value) : undefined,
+    up: ar ? (ptd?.upside != null ? rnd(ptd.upside * 100, 1) : null) : undefined,
+    con: consRow.con, b: consRow.b, h: consRow.h, s: consRow.s,
+    ss: s.smartScore ? s.smartScore.value ?? null : undefined,
+    ai: rep ? rnd(rep.score, 1) : undefined,
+    air: rep ? airName(rep.ratingId) : undefined,
+    aipt: rep ? rndPx(rep.rating?.priceTarget?.value) : undefined,
+    mc: unk(mcap, (m) => (m === null ? null : Math.round(m / 1e6))),
+    desc: unk(c?.description, (x) => x || null),
+  };
+}
+
+// Keep-last-known merge. `next == null` -> the source had nothing for this ticker, prev stays
+// as is. Otherwise each ROW_KEY takes next's value unless it is undefined/NaN ("unknown"), in
+// which case it falls back to prev, then to null. The result never contains undefined.
+export function mergeRow(prev, next) {
+  if (next == null) return prev;
+  const row = {};
+  for (const k of ROW_KEYS) {
+    const v = next[k];
+    row[k] = v === undefined || (typeof v === "number" && Number.isNaN(v)) ? prev?.[k] ?? null : v;
+  }
+  return row;
+}
+
 // Fields from the per-ticker stock-forecast payload (www.tipranks.com/stocks/<t>/
 // stock-forecast/payload.json) — this is the ONLY per-ticker source for the AI-analyst
 // score/rating/target and sector name (getData exposes neither). Select the requested

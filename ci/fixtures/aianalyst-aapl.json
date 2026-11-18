@@ -1,0 +1,120 @@
+{
+ "models": {
+  "stocks": [
+   {
+    "_id": "AAPL",
+    "analystRatings": {
+     "all": {
+      "buy": 15,
+      "hold": 8,
+      "sell": 6,
+      "total": 29,
+      "id": "moderateBuy",
+      "enumId": 4,
+      "currency": "USD",
+      "priceTarget": {
+       "value": 343.2008695652174,
+       "upside": -0.02474817548459265
+      },
+      "highPriceTarget": 425,
+      "lowPriceTarget": 261
+     },
+     "best": {
+      "buy": 11,
+      "hold": 6,
+      "sell": 5,
+      "total": 22,
+      "id": "moderateBuy",
+      "enumId": 4,
+      "currency": "USD",
+      "priceTarget": {
+       "value": 339.97625,
+       "upside": -0.03391136938421756
+      },
+      "highPriceTarget": 400,
+      "lowPriceTarget": 261
+     },
+     "lastRating": {
+      "date": "2026-11-16T00:00:00.000Z"
+     },
+     "threeDaysConsensus": {
+      "buy": 2,
+      "hold": 0,
+      "sell": 0,
+      "total": 2,
+      "id": "moderateBuy",
+      "enumId": 4,
+      "currency": "USD",
+      "priceTarget": {
+       "value": 380,
+       "upside": 0.079821545281464
+      },
+      "highPriceTarget": 380,
+      "lowPriceTarget": 380
+     },
+     "sevenDaysConsensus": {
+      "buy": 3,
+      "hold": 0,
+      "sell": 1,
+      "total": 4,
+      "id": "moderateBuy",
+      "enumId": 4,
+      "currency": "USD",
+      "priceTarget": {
+       "value": 402.5,
+       "upside": 0.1437583473047086
+      },
+      "highPriceTarget": 425,
+      "lowPriceTarget": 380
+     },
+     "thirtyDaysConsensus": {
+      "buy": 14,
+      "hold": 5,
+      "sell": 6,
+      "total": 25,
+      "id": "moderateBuy",
+      "enumId": 4,
+      "currency": "USD",
+      "priceTarget": {
+       "value": 346.031,
+       "upside": -0.016705975959762438
+      },
+      "highPriceTarget": 425,
+      "lowPriceTarget": 261
+     }
+    },
+    "company": {
+     "name": "Apple",
+     "companyName": "Apple Inc",
+     "sector": "technology",
+     "description": "Apple Inc. is a global technology corporation that specializes in the conceptual"
+    },
+    "prices": {
+     "daily": {
+      "gain": -0.0024661261976302515,
+      "price": 351.91,
+      "priceUSD": 351.91
+     }
+    },
+    "smartScore": {
+     "update": "2026-11-15T00:00:00.000Z",
+     "value": 7
+    },
+    "marketCap": {
+     "daily": {
+      "marketCap": 5114026502000
+     }
+    },
+    "report": {
+     "ratingId": "outperform",
+     "score": 75,
+     "rating": {
+      "priceTarget": {
+       "value": 381
+      }
+     }
+    }
+   }
+  ]
+ }
+}

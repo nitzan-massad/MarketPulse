@@ -1,0 +1,430 @@
+{
+ "aapl": {
+  "tradingInformationData": {
+   "ticker": "AAPL",
+   "companyName": "Apple Inc",
+   "lastClose": 351.91,
+   "priceChangePct": -0.0024661261976302515,
+   "marketCap": 5114020094371,
+   "marketCapUSD": 5114020094371,
+   "sector": {
+    "id": 7,
+    "name": "Technology"
+   },
+   "description": "Apple Inc. is a global technology corporation that specializes in the conceptual"
+  },
+  "tipRanksEssentialData": {
+   "priceTargetData": {
+    "convertedPriceTarget": 343.2008695652174,
+    "upside": -0.02474817548459265,
+    "upsideGroup": {
+     "id": 4,
+     "name": "AboveMinus5"
+    },
+    "listingPriceTargetCurrency": {
+     "id": 1,
+     "name": "USD"
+    }
+   },
+   "bestPriceTargetData": {
+    "convertedPriceTarget": 339.97625,
+    "upside": -0.03391136938421756,
+    "upsideGroup": {
+     "id": 4,
+     "name": "AboveMinus5"
+    },
+    "listingPriceTargetCurrency": {
+     "id": 1,
+     "name": "USD"
+    }
+   },
+   "analystsConsensusData": {
+    "analystConsensus": {
+     "id": 4,
+     "name": "Buy"
+    },
+    "distribution": {
+     "buy": 15,
+     "hold": 8,
+     "sell": 6
+    }
+   },
+   "bestAnalystsConsensusData": {
+    "analystConsensus": {
+     "id": 4,
+     "name": "Buy"
+    },
+    "distribution": {
+     "buy": 11,
+     "hold": 6,
+     "sell": 5
+    }
+   },
+   "tipRanksSmartScoreData": {
+    "tipRanksSmartScore": 7,
+    "tipRanksSmartScoreGroup": {
+     "id": 3,
+     "name": "Neutral"
+    },
+    "tipRanksSmartScoreUpdateDate": "2026-11-15T00:00:00Z"
+   }
+  },
+  "aiAnalystData": {
+   "overallScore": 75,
+   "overallRating": {
+    "id": 1,
+    "name": "Outperform"
+   },
+   "financialScore": 87,
+   "financialIncomeStatementScore": 92,
+   "financialBalanceSheetScore": 84,
+   "financialCashFlowScore": 81,
+   "earningsCallScore": 86,
+   "recommendationDate": "2026-11-03T09:00:32.787Z",
+   "priceTarget": 381
+  }
+ },
+ "nocov": {
+  "tradingInformationData": {
+   "ticker": "IDCBY",
+   "companyName": "Industrial And Commercial Bank Of China",
+   "lastClose": 20.404,
+   "priceChangePct": -0.01061921155990884,
+   "marketCap": 455076607122,
+   "marketCapUSD": 455076607122,
+   "sector": {
+    "id": 0,
+    "name": "Financial"
+   },
+   "description": "Industrial and Commercial Bank of China Limited (ICBC), alongside its affiliated"
+  },
+  "tipRanksEssentialData": {
+   "priceTargetData": null,
+   "bestPriceTargetData": null,
+   "analystsConsensusData": null,
+   "bestAnalystsConsensusData": null,
+   "tipRanksSmartScoreData": {
+    "tipRanksSmartScore": 5,
+    "tipRanksSmartScoreGroup": {
+     "id": 3,
+     "name": "Neutral"
+    },
+    "tipRanksSmartScoreUpdateDate": "2026-11-12T00:00:00Z"
+   }
+  },
+  "aiAnalystData": {
+   "overallScore": 76,
+   "overallRating": {
+    "id": 1,
+    "name": "Outperform"
+   },
+   "financialScore": 71,
+   "financialIncomeStatementScore": 74,
+   "financialBalanceSheetScore": 63,
+   "financialCashFlowScore": 70,
+   "earningsCallScore": 76,
+   "recommendationDate": "2026-11-06T14:26:21.563Z",
+   "priceTarget": 23
+  }
+ },
+ "bestnull": {
+  "tradingInformationData": {
+   "ticker": "TCEHY",
+   "companyName": "Tencent Hldgs",
+   "lastClose": 47.92,
+   "priceChangePct": -0.03695813822625053,
+   "marketCap": 431806125282,
+   "marketCapUSD": 431806125282,
+   "sector": {
+    "id": 32,
+    "name": "CommunicationServices"
+   },
+   "description": "Tencent Holdings Limited is an investment holding company that specializes in pr"
+  },
+  "tipRanksEssentialData": {
+   "priceTargetData": {
+    "convertedPriceTarget": 88,
+    "upside": 0.8363939899833056,
+    "upsideGroup": {
+     "id": 8,
+     "name": "Above20"
+    },
+    "listingPriceTargetCurrency": {
+     "id": 1,
+     "name": "USD"
+    }
+   },
+   "bestPriceTargetData": null,
+   "analystsConsensusData": {
+    "analystConsensus": {
+     "id": 4,
+     "name": "Buy"
+    },
+    "distribution": {
+     "buy": 1,
+     "hold": 0,
+     "sell": 0
+    }
+   },
+   "bestAnalystsConsensusData": null,
+   "tipRanksSmartScoreData": {
+    "tipRanksSmartScore": 6,
+    "tipRanksSmartScoreGroup": {
+     "id": 3,
+     "name": "Neutral"
+    },
+    "tipRanksSmartScoreUpdateDate": "2026-11-12T00:00:00Z"
+   }
+  },
+  "aiAnalystData": {
+   "overallScore": 73,
+   "overallRating": {
+    "id": 1,
+    "name": "Outperform"
+   },
+   "financialScore": 79,
+   "financialIncomeStatementScore": 86,
+   "financialBalanceSheetScore": 78,
+   "financialCashFlowScore": 69,
+   "earningsCallScore": 70,
+   "recommendationDate": "2026-11-17T18:07:09.77Z",
+   "priceTarget": 55
+  }
+ },
+ "noai": {
+  "tradingInformationData": {
+   "ticker": "SSNLF",
+   "companyName": "Samsung Electronics Co. Ltd.",
+   "lastClose": 140,
+   "priceChangePct": 0,
+   "marketCap": 915159844128,
+   "marketCapUSD": 915159844128,
+   "sector": {
+    "id": 7,
+    "name": "Technology"
+   },
+   "description": "Samsung Electronics Co., Ltd. is a global technology leader operating across con"
+  },
+  "tipRanksEssentialData": {
+   "priceTargetData": {
+    "convertedPriceTarget": 329.2036,
+    "upside": 1.3514542857142857,
+    "upsideGroup": {
+     "id": 8,
+     "name": "Above20"
+    },
+    "listingPriceTargetCurrency": {
+     "id": 1,
+     "name": "USD"
+    }
+   },
+   "bestPriceTargetData": {
+    "convertedPriceTarget": 329.2036,
+    "upside": 1.3514542857142857,
+    "upsideGroup": {
+     "id": 8,
+     "name": "Above20"
+    },
+    "listingPriceTargetCurrency": {
+     "id": 1,
+     "name": "USD"
+    }
+   },
+   "analystsConsensusData": {
+    "analystConsensus": {
+     "id": 4,
+     "name": "Buy"
+    },
+    "distribution": {
+     "buy": 2,
+     "hold": 0,
+     "sell": 0
+    }
+   },
+   "bestAnalystsConsensusData": {
+    "analystConsensus": {
+     "id": 4,
+     "name": "Buy"
+    },
+    "distribution": {
+     "buy": 1,
+     "hold": 0,
+     "sell": 0
+    }
+   },
+   "tipRanksSmartScoreData": {
+    "tipRanksSmartScore": null,
+    "tipRanksSmartScoreGroup": null,
+    "tipRanksSmartScoreUpdateDate": "1970-01-01T00:00:00Z"
+   }
+  },
+  "aiAnalystData": null
+ },
+ "general": {
+  "tradingInformationData": {
+   "ticker": "MU",
+   "companyName": "Micron Technology",
+   "lastClose": 712.42,
+   "priceChangePct": -0.009179160524046619,
+   "marketCap": 806048509470,
+   "marketCapUSD": 806048509470,
+   "sector": {
+    "id": 9,
+    "name": "General"
+   },
+   "description": "Micron Technology, Inc. is a global leader specializing in the development, manu"
+  },
+  "tipRanksEssentialData": {
+   "priceTargetData": {
+    "convertedPriceTarget": 1624.423076923077,
+    "upside": 1.280148054410432,
+    "upsideGroup": {
+     "id": 8,
+     "name": "Above20"
+    },
+    "listingPriceTargetCurrency": {
+     "id": 1,
+     "name": "USD"
+    }
+   },
+   "bestPriceTargetData": {
+    "convertedPriceTarget": 1629.4,
+    "upside": 1.2871339939923079,
+    "upsideGroup": {
+     "id": 8,
+     "name": "Above20"
+    },
+    "listingPriceTargetCurrency": {
+     "id": 1,
+     "name": "USD"
+    }
+   },
+   "analystsConsensusData": {
+    "analystConsensus": {
+     "id": 5,
+     "name": "StrongBuy"
+    },
+    "distribution": {
+     "buy": 28,
+     "hold": 1,
+     "sell": 0
+    }
+   },
+   "bestAnalystsConsensusData": {
+    "analystConsensus": {
+     "id": 5,
+     "name": "StrongBuy"
+    },
+    "distribution": {
+     "buy": 26,
+     "hold": 1,
+     "sell": 0
+    }
+   },
+   "tipRanksSmartScoreData": {
+    "tipRanksSmartScore": 8,
+    "tipRanksSmartScoreGroup": {
+     "id": 4,
+     "name": "Buy"
+    },
+    "tipRanksSmartScoreUpdateDate": "2026-11-17T00:00:00Z"
+   }
+  },
+  "aiAnalystData": {
+   "overallScore": 72,
+   "overallRating": {
+    "id": 1,
+    "name": "Outperform"
+   },
+   "financialScore": 82,
+   "financialIncomeStatementScore": 78,
+   "financialBalanceSheetScore": 88,
+   "financialCashFlowScore": 72,
+   "earningsCallScore": 84,
+   "recommendationDate": "2026-11-06T04:10:27.735Z",
+   "priceTarget": 864
+  }
+ },
+ "ssnull": {
+  "tradingInformationData": {
+   "ticker": "TTE",
+   "companyName": "TotalEnergies SE",
+   "lastClose": 90.4,
+   "priceChangePct": 0.005114520791638871,
+   "marketCap": 201192672543,
+   "marketCapUSD": 201192672543,
+   "sector": {
+    "id": 12,
+    "name": "Energy"
+   },
+   "description": "TotalEnergies SE operates as a major global integrated energy corporation. Its d"
+  },
+  "tipRanksEssentialData": {
+   "priceTargetData": {
+    "convertedPriceTarget": 99.3589584375,
+    "upside": 0.09910352253871682,
+    "upsideGroup": {
+     "id": 6,
+     "name": "Above5"
+    },
+    "listingPriceTargetCurrency": {
+     "id": 1,
+     "name": "USD"
+    }
+   },
+   "bestPriceTargetData": {
+    "convertedPriceTarget": 101.38104727272729,
+    "upside": 0.12147176186644913,
+    "upsideGroup": {
+     "id": 7,
+     "name": "Above10"
+    },
+    "listingPriceTargetCurrency": {
+     "id": 1,
+     "name": "USD"
+    }
+   },
+   "analystsConsensusData": {
+    "analystConsensus": {
+     "id": 4,
+     "name": "Buy"
+    },
+    "distribution": {
+     "buy": 12,
+     "hold": 5,
+     "sell": 0
+    }
+   },
+   "bestAnalystsConsensusData": {
+    "analystConsensus": {
+     "id": 5,
+     "name": "StrongBuy"
+    },
+    "distribution": {
+     "buy": 10,
+     "hold": 2,
+     "sell": 0
+    }
+   },
+   "tipRanksSmartScoreData": {
+    "tipRanksSmartScore": null,
+    "tipRanksSmartScoreGroup": null,
+    "tipRanksSmartScoreUpdateDate": "1970-01-01T00:00:00Z"
+   }
+  },
+  "aiAnalystData": {
+   "overallScore": 77,
+   "overallRating": {
+    "id": 1,
+    "name": "Outperform"
+   },
+   "financialScore": null,
+   "financialIncomeStatementScore": null,
+   "financialBalanceSheetScore": null,
+   "financialCashFlowScore": null,
+   "earningsCallScore": null,
+   "recommendationDate": "2025-11-13T18:01:27.069Z",
+   "priceTarget": 73
+  }
+ }
+}
