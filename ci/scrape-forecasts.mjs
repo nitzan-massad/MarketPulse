@@ -12,7 +12,7 @@
 // between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { parseForecastHtml, usablePage, withStars } from "./forecast-html.mjs";
-import { carryForward, carryMissing, cleanName, forecastsFromPayload, keepNewerPrev, keepPrevTarget, latestPerAnalyst, mergeForecasts, missingFirms, pickSource, topUpRows } from "./forecast-merge.mjs";
+import { carryForward, carryMissing, cleanName, forecastsFromPayload, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, missingFirms, pickSource, topUpRows } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
 import { cachedFirst, isPayloadFor, takeGetData } from "./getdata-cache.mjs";
 import { getText, makeBreaker, health } from "./tr-fetch.mjs";
@@ -211,7 +211,7 @@ async function scrape(t) {
     if (MERGE) {
       let prev = null;
       try { prev = JSON.parse(readFileSync(`${OUT}/${t}.json`, "utf8")); } catch { /* first fetch */ }
-      fc = keepPrevTarget(fc, prev);
+      fc = keepPrevRating(fc, prev);
       const before = fc.length;
       fc = carryMissing(carryForward(fc, prev, data), prev, data);
       fc = keepNewerPrev(fc, prev); // a source regression must not swap an analyst's older row back in

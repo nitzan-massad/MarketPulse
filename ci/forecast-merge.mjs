@@ -150,9 +150,13 @@ export function forecastsFromPayload(fj, ticker, data) {
     const g = gd.get(r?.expert?.uid);
     const same = g && String(g.date || "").slice(0, 10) === d && Number.isFinite(g.convertedPriceTarget) && g.convertedPriceTarget > 0;
     const opt = same ? Number(g.convertedOldPriceTarget) : Number(r.oldPriceTarget);
+    // STARS: TipRanks' own CSV formula, round(5 * rank.rank, 1). The `analyst|<n>` record (rating.expert.id)
+    // is the live one; the sha record (expert.uid) is an older snapshot, kept as the fallback.
+    const rk = experts.get(r?.expert?.id)?.rank?.rank ?? e?.rank?.rank;
+    const st = Number.isFinite(rk) ? Math.round(5 * rk * 10) / 10 : null;
     out.push({
       n, f, r: POSITION[String(r.position || "").toLowerCase()] ?? null,
-      pt: +(same ? g.convertedPriceTarget : pt).toFixed(2), opt: Number.isFinite(opt) && opt > 0 ? opt : null, d,
+      pt: +(same ? g.convertedPriceTarget : pt).toFixed(2), opt: Number.isFinite(opt) && opt > 0 ? opt : null, d, st,
     });
   }
   return out;
@@ -193,18 +197,19 @@ export function carryForward(out, prev, data) {
 
 
 /**
- * Keep last run's target when this run's differs only by FX drift: same rating (mergeKey and
- * position) within 1%. Covers the rows getData anonymizes, which have no stable converted target
- * of their own (see forecastsFromPayload) — without it each would re-alert in the bell whenever
- * the exchange rate moved. A real revision (> 1%, or a changed rating) passes straight through.
+ * A stored rating is final: when this run shows the same analyst (analystKey) on the same date
+ * as a previous row, keep the previous row's firm, target and old target and take everything else
+ * (rating, stars, ...) from the new row. The payload re-converts non-USD targets at today's FX and
+ * its profile firm drifts when an analyst moves, so without this the same rating would re-alert in
+ * the bell on every wobble (this subsumes the old keepPrevTarget sub-1% drift rule). A new date is
+ * a new review and passes through.
  */
-export function keepPrevTarget(rows, prev) {
+export function keepPrevRating(rows, prev) {
   if (!Array.isArray(prev) || !prev.length) return rows;
-  const old = new Map(prev.filter((p) => p?.n && Number.isFinite(p.pt)).map((p) => [mergeKey(p), p]));
+  const old = new Map(prev.filter((p) => p?.n && p.d).map((p) => [`${analystKey(p)}|${p.d}`, p]));
   return rows.map((f) => {
-    const p = old.get(mergeKey(f));
-    if (!p || p.r !== f.r || p.pt === f.pt || Math.abs(f.pt - p.pt) / p.pt >= 0.01) return f;
-    return { ...f, pt: p.pt, opt: p.opt ?? f.opt };
+    const p = old.get(`${analystKey(f)}|${f.d}`);
+    return p ? { ...f, f: p.f, pt: p.pt, opt: p.opt } : f;
   });
 }
 

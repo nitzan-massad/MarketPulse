@@ -1,0 +1,177 @@
+{
+ "_note": "Trimmed from AAPL stock-forecast/payload.json (2026-11-18). Martin Yang priceTarget (null upstream) set to 250 so the row survives the mapper.",
+ "models": {
+  "experts": [
+   {
+    "_id": "analyst|312261",
+    "uid": "d6da49c708caad76f9a546c019f8fd3d14ffc8f3",
+    "name": "Bhavtosh Vajpayee",
+    "firm": "CLSA",
+    "rank": {
+     "rank": 0.10529664386829962,
+     "position": 11250
+    }
+   },
+   {
+    "_id": "d6da49c708caad76f9a546c019f8fd3d14ffc8f3",
+    "name": "Bhavtosh Vajpayee",
+    "firm": "CLSA",
+    "rank": {
+     "rank": 0.09370988446726572,
+     "value": 11296
+    }
+   },
+   {
+    "_id": "analyst|4893",
+    "uid": "e6abfabcd2d08fe1f25677756319299c3170bf9c",
+    "name": "Angelo Zino",
+    "firm": "CFRA",
+    "rank": {
+     "rank": 0.9703356131700334,
+     "position": 373
+    }
+   },
+   {
+    "_id": "e6abfabcd2d08fe1f25677756319299c3170bf9c",
+    "name": "Angelo Zino",
+    "firm": "CFRA",
+    "rank": {
+     "rank": 0.9623538895606611,
+     "value": 467
+    }
+   },
+   {
+    "_id": "analyst|35270",
+    "uid": "86f0b8c5491fa7bd1ba680992b5783ae1290473c",
+    "name": "Ivan Feinseth",
+    "firm": "Tigress Financial",
+    "rank": {
+     "rank": 0.8937490058851598,
+     "position": 1336
+    }
+   },
+   {
+    "_id": "86f0b8c5491fa7bd1ba680992b5783ae1290473c",
+    "name": "Ivan Feinseth",
+    "firm": "Tigress Financial",
+    "rank": {
+     "rank": 0.9276489933424241,
+     "value": 902
+    }
+   },
+   {
+    "_id": "analyst|13660212",
+    "uid": "948ddf160486abb6706dd0b096798f1217ab2310",
+    "name": "Rob Chang CFA",
+    "firm": "KGI Securities",
+    "rank": {
+     "rank": 0.2712740575791316,
+     "position": 9163
+    }
+   },
+   {
+    "_id": "948ddf160486abb6706dd0b096798f1217ab2310",
+    "name": "Rob Chang CFA",
+    "firm": "KGI Securities",
+    "rank": {
+     "rank": 0.5188709677419354,
+     "value": 5966
+    }
+   },
+   {
+    "_id": "analyst|15040",
+    "uid": "162ec01e92be3676f887d41f5b37bacbb12f64b4",
+    "name": "Martin Yang",
+    "firm": "Oppenheimer",
+    "rank": {
+     "rank": 0.9405121679656434,
+     "position": 748
+    }
+   },
+   {
+    "_id": "162ec01e92be3676f887d41f5b37bacbb12f64b4",
+    "name": "Martin Yang",
+    "firm": "Oppenheimer",
+    "rank": {
+     "rank": 0.9334945586457074,
+     "value": 825
+    }
+   }
+  ],
+  "ratings": [
+   {
+    "object": {
+     "ticker": "AAPL"
+    },
+    "expert": {
+     "uid": "d6da49c708caad76f9a546c019f8fd3d14ffc8f3",
+     "id": "analyst|312261"
+    },
+    "date": "2025-12-05T00:00:00.000Z",
+    "position": "buy",
+    "priceTarget": {
+     "value": 330
+    },
+    "oldPriceTarget": 265
+   },
+   {
+    "object": {
+     "ticker": "AAPL"
+    },
+    "expert": {
+     "uid": "e6abfabcd2d08fe1f25677756319299c3170bf9c",
+     "id": "analyst|4893"
+    },
+    "date": "2026-04-20T00:00:00.000Z",
+    "position": "buy",
+    "priceTarget": {
+     "value": 310
+    },
+    "oldPriceTarget": 270
+   },
+   {
+    "object": {
+     "ticker": "AAPL"
+    },
+    "expert": {
+     "uid": "86f0b8c5491fa7bd1ba680992b5783ae1290473c",
+     "id": "analyst|35270"
+    },
+    "date": "2026-05-14T00:00:00.000Z",
+    "position": "buy",
+    "priceTarget": {
+     "value": 375
+    },
+    "oldPriceTarget": 305
+   },
+   {
+    "object": {
+     "ticker": "AAPL"
+    },
+    "expert": {
+     "uid": "948ddf160486abb6706dd0b096798f1217ab2310",
+     "id": "analyst|13660212"
+    },
+    "date": "2026-06-22T00:00:00.000Z",
+    "position": "hold",
+    "priceTarget": {
+     "value": 315
+    }
+   },
+   {
+    "object": {
+     "ticker": "AAPL"
+    },
+    "expert": {
+     "uid": "162ec01e92be3676f887d41f5b37bacbb12f64b4",
+     "id": "analyst|15040"
+    },
+    "date": "2026-09-10T00:00:00.000Z",
+    "position": "hold",
+    "priceTarget": {
+     "value": 250
+    }
+   }
+  ]
+ }
+}

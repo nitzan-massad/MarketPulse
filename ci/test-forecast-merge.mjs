@@ -1,9 +1,10 @@
 // Self-check for the SSR/JSON merge. Run: node ci/test-forecast-merge.mjs
-// No network, no filesystem. Imports the real functions — ci/forecast-merge.mjs is pure and
+// No network; reads fixtures only. Imports the real functions — ci/forecast-merge.mjs is pure and
 // import-safe precisely so this file does not have to mirror them the way
 // ci/test-forecast-gate.mjs had to mirror the old inline gate.
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { carryForward, forecastsFromPayload, carryMissing, keepNewerPrev, keepPrevTarget, latestPerAnalyst, mergeForecasts, mergeKey, missingFirms, pickSource, topUpRows, shouldFetchPage } from "./forecast-merge.mjs";
+import { carryForward, forecastsFromPayload, carryMissing, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, mergeKey, missingFirms, pickSource, topUpRows, shouldFetchPage } from "./forecast-merge.mjs";
 
 const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", pt, opt: null, d, ...extra });
 
@@ -137,9 +138,9 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   } };
   const rows = forecastsFromPayload(fj, "MA");
   assert.deepEqual(rows, [
-    { n: "Owen Lau", f: "Clear Street", r: "Buy", pt: 732, opt: 729, d: "2026-10-30" },
-    { n: "Unknown Analyst", f: "Deutsche Bank", r: "Buy", pt: 668, opt: null, d: "2026-10-15" },
-    { n: "Unknown Analyst", f: "Argus", r: "Hold", pt: 600, opt: null, d: "2026-10-15" },
+    { n: "Owen Lau", f: "Clear Street", r: "Buy", pt: 732, opt: 729, d: "2026-10-30", st: null },
+    { n: "Unknown Analyst", f: "Deutsche Bank", r: "Buy", pt: 668, opt: null, d: "2026-10-15", st: null },
+    { n: "Unknown Analyst", f: "Argus", r: "Hold", pt: 600, opt: null, d: "2026-10-15", st: null },
   ], "named + unranked rows kept; AI, no-target, orphan and peer-ticker rows dropped; firm trimmed");
   assert.equal(forecastsFromPayload({}, "MA"), null, "reshaped payload -> null (caller falls back to the page)");
   // AMD 2026-11-04: the payload's PROFILE firm is where the analyst works now; getData's per-rating
@@ -210,12 +211,28 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   const stale = { experts: [{ name: "Doug Taylor", firm: "Canaccord", eUid: "dt", ratings: [{ date: "2026-08-01T00:00:00", convertedPriceTarget: 99 }] }] };
   assert.equal(forecastsFromPayload(fj, "SHOP", stale)[0].pt, 129, "another date's target is never borrowed");
 
-  // keepPrevTarget: FX drift under 1% keeps last run's number; a real revision passes through
+  // keepPrevRating: the same analyst + date is the same rating, so last run's firm/target stand
+  // (this subsumes the old keepPrevTarget FX-drift case: same date, 0.4% different target)
   const prev = [{ n: "Hidden One", f: "RBC", r: "Buy", pt: 149.5, opt: 140, d: "2026-11-05" }];
-  assert.equal(keepPrevTarget([{ ...prev[0], pt: 150.12, opt: null }], prev)[0].pt, 149.5, "0.4% drift -> previous target kept");
-  assert.equal(keepPrevTarget([{ ...prev[0], pt: 160 }], prev)[0].pt, 160, "a 7% move is a real revision");
-  assert.equal(keepPrevTarget([{ ...prev[0], pt: 150.12, r: "Hold" }], prev)[0].pt, 150.12, "a changed rating is a new review");
-  assert.deepEqual(keepPrevTarget(rows, null), rows, "no previous file -> unchanged");
+  const kept = keepPrevRating([{ ...prev[0], pt: 150.12, opt: null }], prev)[0];
+  assert.deepEqual([kept.pt, kept.opt], [149.5, 140], "same analyst+date, FX drift -> previous target kept");
+  assert.equal(keepPrevRating([{ ...prev[0], pt: 160 }], prev)[0].pt, 149.5, "same date -> stored rating wins even on a big move");
+  assert.equal(keepPrevRating([{ ...prev[0], d: "2026-11-10", pt: 160 }], prev)[0].pt, 160, "a new date is a new review");
+  assert.deepEqual(keepPrevRating(rows, null), rows, "no previous file -> unchanged");
+  assert.deepEqual(keepPrevRating([{ n: "Ives", d: "2026-11-01", f: "Wedbush", pt: 300 }], [{ n: "Ives", d: "2026-11-01", f: "Yorkville", pt: 310 }]).map((r) => [r.f, r.pt]), [["Yorkville", 310]], "same date keeps prev firm and target");
+  assert.deepEqual(keepPrevRating([{ n: "Ives", d: "2026-11-10", f: "Wedbush", pt: 300 }], [{ n: "Ives", d: "2026-11-01", f: "Yorkville", pt: 310 }]).map((r) => [r.f, r.pt]), [["Wedbush", 300]], "new date keeps the new row");
+  assert.equal(keepPrevRating([{ n: "Ives", d: "2026-11-01", f: "W", pt: 300, st: 4.1 }], [{ n: "Ives", d: "2026-11-01", f: "Y", pt: 310, st: 3 }])[0].st, 4.1, "other fields come from the new row");
+
+  // stars: round(5 * rank.rank, 1) from the analyst| record (rating.expert.id), not the sha one
+  const aapl = JSON.parse(readFileSync(new URL("./fixtures/stock-forecast-aapl.json", import.meta.url), "utf8"));
+  const stRows = forecastsFromPayload(aapl, "AAPL", null);
+  const my = stRows.find((r) => r.n === "Martin Yang");
+  assert.equal(my.st, Math.round(5 * 0.9405121679656434 * 10) / 10, "Martin Yang stars from his analyst|1504 record");
+  assert.ok(stRows.length >= 5 && stRows.every((r) => r.st >= 0 && r.st <= 5), "every st in [0,5]");
+  const noRank = { models: { experts: [{ _id: "u", name: "No Rank", firm: "X" }], ratings: [{ object: { ticker: "T" }, expert: { uid: "u", id: "analyst|9" }, date: "2026-10-01", position: "buy", priceTarget: { value: 10 } }] } };
+  assert.equal(forecastsFromPayload(noRank, "T", null)[0].st, null, "no rank anywhere -> null");
+  const uidOnly = { models: { experts: [{ _id: "u", name: "Uid Only", firm: "X", rank: { rank: 0.5 } }], ratings: noRank.models.ratings } };
+  assert.equal(forecastsFromPayload(uidOnly, "T", null)[0].st, 2.5, "falls back to the uid record");
 }
 
 /* ----------------------------------------------------- source choice (pickSource) */
