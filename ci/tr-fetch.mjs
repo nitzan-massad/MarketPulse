@@ -51,17 +51,22 @@ export function stepDeadline(ms, start = Date.now()) {
  * - plain fetch first (once), FlareSolverr when it is a challenge, 403, or fails `ok`;
  * - a blocked response records on the breaker and throws BlockedError immediately;
  * - a challenge page, a FlareSolverr error or `!ok(body)` retries up to `tries`, `sleepMs` apart;
- * - `deadline` (epoch ms): no FlareSolverr try starts past it (the last error is thrown instead).
+ * - `deadline` (epoch ms): a hard wall-clock bound on the whole call. No request starts past it
+ *   (plain included), each attempt's AbortSignal is cut to the time left (body read included), and a
+ *   retry sleep never runs past it. Per attempt: plain <= timeoutMs, FlareSolverr <= FLARE_TIMEOUT_MS.
  */
 export async function getText(url, { flareUrl = FS_URL_DEFAULT, tries = 3, plain = true, ok = () => true, breaker, sleepMs = 8000, timeoutMs = 30_000, deadline = Infinity } = {}) {
   const blocked = (what) => { breaker?.record(true); throw new BlockedError(what); };
   const good = (body) => { breaker?.record(false); return body; };
   if (breaker?.open()) throw new BlockedError("breaker open");
+  // the fetch signal also aborts the body read (r.text()/r.json()), so this bounds the whole attempt
+  const left = () => deadline - Date.now();
+  const signal = (ms) => AbortSignal.timeout(Math.max(0, Math.min(ms, left())));
 
-  if (plain) {
+  if (plain && left() > 0) {
     let r = null, body = "";
     try {
-      r = await fetch(url, { headers: { "user-agent": BROWSER_UA }, signal: AbortSignal.timeout(timeoutMs) });
+      r = await fetch(url, { headers: { "user-agent": BROWSER_UA }, signal: signal(timeoutMs) });
       body = await r.text();
     } catch { r = null; } // network trouble: let FlareSolverr try
     if (r) {
@@ -73,14 +78,14 @@ export async function getText(url, { flareUrl = FS_URL_DEFAULT, tries = 3, plain
 
   let lastErr = new Error("step deadline passed");
   for (let i = 1; i <= tries; i++) {
-    if (Date.now() >= deadline) break;
+    if (left() <= 0) break;
     try {
       const r = await fetch(flareUrl, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ cmd: "request.get", url, maxTimeout: 60000 }),
         // longer than maxTimeout (60s): a FlareSolverr that never answers must not hang the step
-        signal: AbortSignal.timeout(FLARE_TIMEOUT_MS),
+        signal: signal(FLARE_TIMEOUT_MS),
       });
       const j = await r.json();
       const html = j.solution?.response || "";
@@ -94,7 +99,7 @@ export async function getText(url, { flareUrl = FS_URL_DEFAULT, tries = 3, plain
     } catch (e) {
       if (e instanceof BlockedError) throw e;
       lastErr = e;
-      if (i < tries && Date.now() < deadline) await sleep(sleepMs); // also absorbs FlareSolverr's cold start
+      if (i < tries && left() > 0) await sleep(Math.min(sleepMs, left())); // also absorbs FlareSolverr's cold start
     }
   }
   throw lastErr;

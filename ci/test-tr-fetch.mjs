@@ -109,6 +109,58 @@ try {
   }
 } finally { globalThis.fetch = realFetch; }
 
+// Wall-clock bounds against a real local server (node:http, real fetch, no external network).
+// /stall and /v1 send headers plus part of a body, then never finish it; /v1-err answers at once.
+{
+  const http = await import("node:http");
+  const srv = http.createServer((req, res) => {
+    if (req.url === "/v1-err") { res.writeHead(200, { "content-type": "application/json" }); res.end('{"status":"error","message":"fs down"}'); return; }
+    res.writeHead(200, { "content-type": "application/json" });
+    res.write(req.url === "/v1" ? '{"status":"ok","solution":{"response":"' : "x".repeat(1000)); // then stall
+  });
+  await new Promise((r) => srv.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${srv.address().port}`;
+  // settle within `ms` or report how long it was still running (a regression must not hang the suite)
+  const timed = async (p, ms) => {
+    const t0 = Date.now();
+    let t;
+    const guard = new Promise((r) => { t = setTimeout(() => r({ hung: true }), ms); });
+    const out = await Promise.race([p.then((v) => ({ v }), (e) => ({ e })), guard]);
+    clearTimeout(t);
+    return { ...out, ms: Date.now() - t0 };
+  };
+  try {
+    // plain body stalls mid-read: timeoutMs covers the body, then FlareSolverr gets its turn
+    let r = await timed(getText(`${base}/stall`, { flareUrl: `${base}/v1-err`, tries: 1, timeoutMs: 300 }), 3000);
+    assert.ok(!r.hung, `stalled plain body must give up near timeoutMs, still running after ${r.ms}ms`);
+    assert.match(String(r.e?.message), /fs down/);
+    assert.ok(r.ms < 1500, `plain stall bounded by timeoutMs (took ${r.ms}ms)`);
+
+    // deadline bounds the whole call: an in-flight plain read (timeoutMs 30s) and an in-flight
+    // FlareSolverr read (90s) are both cut at the deadline, body included
+    r = await timed(getText(`${base}/stall`, { flareUrl: `${base}/v1`, tries: 3, sleepMs: 0, deadline: Date.now() + 400 }), 5000);
+    assert.ok(!r.hung, `deadline must cut in-flight reads, still running after ${r.ms}ms`);
+    assert.ok(r.e, "a stalled call past the deadline throws");
+    assert.ok(r.ms < 1500, `whole call bounded by deadline (took ${r.ms}ms)`);
+
+    // plain answers fine, FlareSolverr is never needed — FlareSolverr body stall alone, cut at the deadline
+    r = await timed(getText("https://unused.invalid/", { plain: false, flareUrl: `${base}/v1`, tries: 2, sleepMs: 0, deadline: Date.now() + 300 }), 5000);
+    assert.ok(!r.hung && r.ms < 1500, `FlareSolverr body stall bounded by deadline (took ${r.ms}ms, hung=${!!r.hung})`);
+
+    // a retry sleep does not run past the deadline either
+    r = await timed(getText("https://unused.invalid/", { plain: false, flareUrl: `${base}/v1-err`, tries: 3, sleepMs: 5000, deadline: Date.now() + 300 }), 8000);
+    assert.ok(r.ms < 1500, `retry sleep capped at the deadline (took ${r.ms}ms)`);
+    assert.match(String(r.e?.message), /fs down/);
+
+    // past the deadline: no request at all, not even the plain one
+    let hits = 0;
+    srv.on("request", () => { hits++; });
+    r = await timed(getText(`${base}/stall`, { flareUrl: `${base}/v1`, deadline: Date.now() - 1 }), 3000);
+    assert.match(String(r.e?.message), /deadline/);
+    assert.equal(hits, 0, "past the deadline: no plain fetch either");
+  } finally { srv.closeAllConnections(); srv.close(); }
+}
+
 // stepDeadline: pure clock arithmetic
 {
   const d = stepDeadline(1000, 5000);
