@@ -58,13 +58,17 @@ assert.equal(countRows([{ f: "tipranks - X", d: "2026-11-01" }, { f: "Y" }, { f:
 // accept_data_loss (site.yml workflow_dispatch input -> ACCEPT_DATA_LOSS=1, one run only): the
 // owner's escape hatch from a self-reinforcing freeze. A clean report never needs it; an accepted
 // one ships but leaves a health line (the run still goes red); only the exact string "1" accepts.
-assert.deepEqual(gateVerdict([], undefined), { fail: false, health: null }); cases++;
-assert.deepEqual(gateVerdict([], "1"), { fail: false, health: null }); cases++;
-assert.deepEqual(gateVerdict(["x", "y"], undefined), { fail: true, health: null }); cases++;
+// N1: ci/run-tests.mjs prints a check's output only when it FAILS, so on an accepted run the
+// DATA LOSS lines must travel in the health file (the Health gate cats it into the log) or they are
+// lost. `health` is the list of lines to write: the count, then every violation.
+assert.deepEqual(gateVerdict([], undefined), { fail: false, health: [] }); cases++;
+assert.deepEqual(gateVerdict([], "1"), { fail: false, health: [] }); cases++;
+assert.deepEqual(gateVerdict(["x", "y"], undefined), { fail: true, health: [] }); cases++;
 for (const v of ["", "0", "true", "false", "yes"]) { assert.equal(gateVerdict(["x"], v).fail, true, `ACCEPT_DATA_LOSS=${JSON.stringify(v)} must not accept`); cases++; }
-{ const v = gateVerdict(["x", "y"], "1"); cases++;
+{ const v = gateVerdict(["T1 vanished", "3 rows lost ss"], "1"); cases++;
   assert.equal(v.fail, false, "accepted -> ships");
-  assert.match(v.health, /data-loss gate overridden.*accept_data_loss.*2 violation/, "accepted -> one health line naming the count"); }
+  assert.match(v.health[0], /data-loss gate overridden.*accept_data_loss.*2 violation/, "accepted -> a count line first");
+  assert.deepEqual(v.health.slice(1), ["DATA LOSS: T1 vanished", "DATA LOSS: 3 rows lost ss"], "then every violation, so the Health gate lists what shipped"); }
 console.log(`unit cases: ${cases} passed`);
 
 // ---- live check ----
@@ -82,10 +86,9 @@ console.log(dir
 const report = lossReport({ prevRows: prev.rows, nextRows: next.rows, prevSeen: prev.seen, nextSeen: next.seen, prevFc: prev.fc, nextFc: next.fc, dropped });
 for (const l of report) console.log("  DATA LOSS: " + l);
 const verdict = gateVerdict(report, process.env.ACCEPT_DATA_LOSS);
-if (verdict.health) {
-  // the snapshot ships; the Health gate (last step) still turns the run red, so the owner is emailed
-  health(verdict.health);
-  console.log(`::warning::${verdict.health}`);
-}
+// the snapshot ships; the Health gate (last step) cats the health file, so it turns the run red AND
+// lists every accepted violation — this file's own stdout is hidden by ci/run-tests.mjs on a pass
+for (const l of verdict.health) health(l);
+if (verdict.health.length) console.log(`::warning::${verdict.health[0]}`);
 assert.equal(verdict.fail, false, `the refresh lost data (${report.length} violation(s), see above). Recovery: ci/README.md -> Gates -> "Recovering from a data-loss freeze"`);
 console.log(report.length ? `live: ${report.length} violation(s) ACCEPTED for this run (accept_data_loss)` : "live: no data lost");

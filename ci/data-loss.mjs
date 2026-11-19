@@ -79,13 +79,15 @@ export function lossReport({ prevRows = [], nextRows = [], prevSeen = {}, nextSe
  * site.yml's `accept_data_loss` workflow_dispatch input (scheduled runs never set it): the owner has
  * read the DATA LOSS lines and decided this run's snapshot ships anyway. That is the one way out of
  * a freeze: the gate compares against HEAD, so while it blocks the commit the violations only grow.
- * Accepted -> no failure, one health line (the Health gate still turns the run red).
- * @returns {{fail: boolean, health: string|null}}
+ * Accepted -> no failure; `health` = the lines for $RUNNER_TEMP/health: a count, then every
+ * violation as "DATA LOSS: …". They must go there, not only to stdout: ci/run-tests.mjs shows a
+ * passing check's output nowhere, and the Health gate (which turns the run red) cats that file.
+ * @returns {{fail: boolean, health: string[]}}
  */
 export function gateVerdict(report, accept) {
-  if (!report.length) return { fail: false, health: null };
-  if (accept !== "1") return { fail: true, health: null };
-  return { fail: false, health: `data-loss gate overridden (accept_data_loss): ${report.length} violation(s) shipped` };
+  if (!report.length) return { fail: false, health: [] };
+  if (accept !== "1") return { fail: true, health: [] };
+  return { fail: false, health: [`data-loss gate overridden (accept_data_loss): ${report.length} violation(s) shipped`, ...report.map((l) => `DATA LOSS: ${l}`)] };
 }
 
 // ---- loaders (shared by the test and the replay) ----

@@ -597,18 +597,24 @@ violation set only grows. Limits tuned on consecutive single-run pairs are tight
 2. Decide. A real upstream change (TipRanks withdrew Smart Scores, a ticker delisted, a forecast
    file legitimately shrank) → ship it. A mapping bug or a reshaped payload → fix the code instead;
    the freeze is the gate doing its job.
-3. Optional: **Actions → Refresh data & deploy → Run workflow** with `dry_run` **and**
-   `accept_data_loss` ticked. Nothing is committed, and the log shows what would ship.
-4. **Run workflow** once with `accept_data_loss` ticked (`dry_run` off). The gate prints the same
-   lines, writes `data-loss gate overridden (accept_data_loss): N violation(s) shipped` to the health
-   file, and passes; the snapshot is committed and deployed; the Health gate turns the run red so the
-   override is on record.
+3. Optional preview: **Actions → Refresh data & deploy → Run workflow** with `dry_run` **and**
+   `accept_data_loss` ticked. Nothing is committed; the **Health gate** step lists what would ship
+   (see step 4). (A `dry_run` *without* accept also works: the gate fails and the runner prints the
+   lines under the failing check.)
+4. **Run workflow** once with `accept_data_loss` ticked (`dry_run` off). The data-loss check passes,
+   so `ci/run-tests.mjs` does **not** print its output (it shows a check's output only on failure).
+   Instead every violation goes to the health file: `data-loss gate overridden (accept_data_loss): N
+   violation(s) shipped`, then one `DATA LOSS: …` line per violation. The snapshot is committed and
+   deployed, and the **Health gate** step prints those lines and turns the run red, so the override
+   and exactly what it shipped are on record in that step's log.
 5. The next scheduled run compares against the new HEAD and is green again.
 
 Scope of the override: the input exists only on `workflow_dispatch` (default `false`), reaches only
 the DATA GATE step as `ACCEPT_DATA_LOSS=1` (the expression also checks the event name), and relaxes
 only `test-no-data-loss.mjs` (`gateVerdict` accepts the exact string `"1"`). Every other data check
-still blocks. Scheduled and push runs never set it. `ci/test-workflow-dry-run.mjs` pins all of that.
+still blocks. Scheduled and push runs never set it. `ci/test-workflow-dry-run.mjs` pins all of that;
+`ci/test-data-loss-accept.mjs` runs an accepted and a refused loss through `ci/run-tests.mjs` itself
+and asserts the `DATA LOSS:` lines reach the health file (accepted) or the runner output (refused).
 
 ### The Health gate
 
@@ -619,7 +625,7 @@ shipped. It goes red when:
   `universe: N ambiguous duplicate ticker(s) carried` (only when they also ended up carried — one the
   payload covered is logged only, or a permanent duplicate would turn every run red); `backfill
   carried C/M` (C > 30% of the missing set); `forecasts: N/T tickers failed` (> 10%); and the
-  data-loss override above;
+  data-loss override above (its count line plus one `DATA LOSS:` line per violation shipped);
 - any of `snapshot`, `backfill`, `sectors`, `feargreed`, `earnings`, `post`, `themes` has outcome
   `failure` or `cancelled` (outcome, not conclusion: `continue-on-error` makes the conclusion
   "success"). `skipped` is fine — push events skip them all, and `dry_run` skips post/themes.
