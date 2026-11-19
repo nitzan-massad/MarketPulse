@@ -110,10 +110,13 @@ const EMPTY_CONSENSUS = { con: null, b: 0, h: 0, s: 0 };
 // `ln` from a source's legal name and the `n` it wrote: absent/empty -> undefined (carry); same
 // company name once case, punctuation and legal suffixes are ignored ("Apple" / "Apple Inc.") -> null.
 const legalName = (legal, n) => { const l = known(legal); return l === undefined ? undefined : normName(l) === normName(n) ? null : l; };
-// getData parity (decision D1, "keep today's behaviour exactly"): rowFromGetData wrote
-// con "Neutral", b/h/s 0 for a ticker with no all-analyst coverage. The non-in-pull paths
-// (universe screener rows, aianalyst payloads) replace getData, so they do the same; the
-// in-pull path keeps EMPTY_CONSENSUS (con null). pt/up stay null either way.
+// DELIBERATE exception to "con: null = no coverage" (CLAUDE.md -> Non-obvious rules; owner ruling,
+// plan Global Constraints). getData parity (decision D1, "keep today's behaviour exactly"): the
+// retired rowFromGetData wrote con "Neutral", b/h/s 0 for a ticker with no all-analyst coverage
+// (23 such rows at T0). The off-pull paths (universe screener rows, aianalyst payloads) replace
+// getData, so they do the same; the in-pull path keeps EMPTY_CONSENSUS (con null). pt/up stay null
+// either way. The UI's noAnalystCoverage (src/trackState.ts) recognises both shapes. Do not "fix"
+// this to EMPTY_CONSENSUS without the owner.
 const NO_COVERAGE_GETDATA = { con: "Neutral", b: 0, h: 0, s: 0 };
 
 // D1 "best target, falling back to all" for non-in-pull rows. The fallback keys on the target VALUE,

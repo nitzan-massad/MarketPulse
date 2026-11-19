@@ -11,12 +11,23 @@ uses whatever is on `main`.
 — GitHub requirement — but all the logic it calls lives here in `ci/`):
 
 - **Trigger:** every 3h at :17 (`cron`; off the hour because GitHub delays/drops :00 schedules — the old `0 */5` delivered ~3 runs/day), the "Run workflow" button (`workflow_dispatch`), and every push to `main`.
-- **FlareSolverr** service starts (solves Cloudflare from the runner's IP).
-- **`ci/refresh-data-ci.mjs`** pulls the TipRanks screener API through FlareSolverr and writes
-  `src/data/stocks.json`, `src/data/seen.json`, `src/data/meta.json` (skipped on plain pushes;
-  a blocked fetch fails the step but not the run — the site still deploys the last data).
+- **FlareSolverr** service starts (solves Cloudflare from the runner's IP). Every TipRanks fetch
+  goes through `ci/tr-fetch.mjs`: plain fetch first, FlareSolverr only on a challenge/403/unusable
+  body, fail-fast on a firewall block, per-endpoint breakers (see *Gates* → *The fetch layer*).
+- **`ci/refresh-data-ci.mjs`** pulls the three sorted TipRanks screener calls, then backfills kept
+  tickers that fell out of them from the full-universe screener call, else the per-ticker
+  `stock-aianalyst` payload (else carries the last row), then enriches the AI trio/sector from the
+  `stock-forecast` payload — all under one 12-min step deadline. Writes `src/data/stocks.json`,
+  `src/data/seen.json`, `src/data/meta.json` (skipped on plain pushes; a blocked fetch fails the
+  step but not the run — the site still deploys the last data). Details: *Pinned & sticky tickers*.
+- Backfills (forecasts, bulls/bears, P/E), reviews feed, sectors, Fear & Greed, earnings, the post
+  and themes: all `continue-on-error`, each with its own `timeout-minutes`.
+- **THE DATA GATE** (`npm test` again) vets the snapshot this run produced, including the
+  **data-loss gate** against the previous commit; red blocks the commit and the deploy. See *Gates*.
 - **Commit step** stages the refreshed data and commits `chore: refresh TipRanks snapshot [skip ci]`.
-- **Build** (`npm run build`) with the Finnhub/TwelveData/FMP keys from repo secrets, then deploy to GitHub Pages.
+- **Build** (`npm run build`) with the Finnhub/TwelveData/FMP keys from repo secrets, then deploy to
+  Firebase Hosting (GitHub Pages serves only the `redirect/` stub).
+- **Health gate** (last): red when a source degraded, after the data shipped. See *Gates*.
 - **`ci/generate-posts.mjs`** turns the fresh snapshot into one social post for the in-app feed.
   `loadWindow()` (in `generate-posts.mjs`, **not** in `hooks.mjs`) reads the last `POST_WINDOW`
   snapshots out of git history — `git log -30 --format=%H -- src/data/stocks.json`, then
@@ -534,6 +545,143 @@ uses whatever is on `main`.
 `scripts/refresh-data.mjs` is the **local** manual equivalent (uses Playwright instead of
 FlareSolverr) — a dev tool, not part of CI.
 
+## Gates — what blocks a run, what only turns it red
+
+Three gates in `site.yml`, plus the `dry_run` contract and the fetch layer's own fail-fast rules.
+**Blocking** means the commit and the deploy do not happen. **Red** means the data shipped anyway
+and GitHub emails the owner.
+
+| Gate | Step | Blocks? | Trips on |
+|---|---|---|---|
+| Logic gate | "Run all checks (npm test)", before the scrape | yes — the job stops | broken *code* (it can only vet the previous commit's data) |
+| DATA GATE | "Re-check the refreshed data (THE DATA GATE)", after every scrape step | yes — **every** data file stays uncommitted | broken *data*: the ÷10 AI-scale class (`test-ai-scale.mjs`), consensus direction, payload/P-E file shape, and **data loss** vs the previous commit (`test-no-data-loss.mjs`) |
+| Health gate | last step, `if: always()` | no — after the commit and deploy | a degraded source (below) |
+
+### The data-loss gate (`ci/data-loss.mjs`, `ci/test-no-data-loss.mjs`)
+
+**What it compares.** "Snapshot previous data" copies `src/data/stocks.json`, `src/data/seen.json`
+and `public/forecasts/` to `$RUNNER_TEMP` right after the fold and before pin, the refresh or any
+backfill rewrites them. The DATA GATE sets `PREV_DIR=$RUNNER_TEMP` and compares that snapshot with
+the working tree. `DROPPED` (`$RUNNER_TEMP/dropped.json`, written by `refresh-data-ci.mjs`) lists the
+tickers `computeKeep` expired this run; their removal is expected. Without `PREV_DIR` (the pre-scrape
+`npm test`, local runs) it compares HEAD with itself and passes. With `PREV_DIR` set but no previous
+rows it **fails** rather than compare against nothing.
+
+**What counts as loss** (`lossReport`, one line per violation):
+- a ticker that vanished from `stocks.json` without being in `DROPPED`;
+- **STRICT** fields (`n`, `px`, `mc`, `desc`, `sec`) going value → null — one row is a violation.
+  The mappers turn an empty answer for these into "unknown → carry", so this only fires on a bug;
+- **LIMITS** fields going value → null on **more than** N rows in one run: `pt` 15, `up` 15, `con` 5,
+  `ss` 10, `ai`/`air`/`aipt` 10 each. These legitimately go null sometimes (coverage dropped, a score
+  withdrawn); the limits are ~2× the replayed maximum (see the comment on `LIMITS`);
+- `seen.json`: a first-seen `d` that changed, or a key gone without expiry;
+- `public/forecasts/<T>.json`: deleted without expiry, or shrunk by more than 20% once it has ≥ 5
+  counted rows. Only human-analyst rows rated within 365 days count (`countRows`): TipRanks' AI-model
+  rows and rows ageing out of the 365-day window are churn, not loss.
+
+Not gated: `ln`, `chg`, `b`/`h`/`s`, and any value → different value. The gate is about
+*losing* data, not about data changing.
+
+**Re-tuning.** `node ci/replay-data-loss.mjs [N=60]` walks the last N data-commit pairs in git and
+prints, per field, the most rows that went value → null in one run, plus every pair the current
+rules would have failed. Change `LIMITS` only on that evidence, and note the numbers in the comment.
+
+**Why it needs an escape hatch.** It blocks *all* data, and it compares against HEAD — so while it
+blocks, HEAD stays frozen and the next run sees the same loss **plus** another 3h of churn. The
+violation set only grows. Limits tuned on consecutive single-run pairs are tighter than a two-run gap.
+
+#### Recovering from a data-loss freeze (runbook)
+
+1. Open the red run → "Re-check the refreshed data (THE DATA GATE)" → `ci/test-no-data-loss.mjs`.
+   Read every `DATA LOSS:` line.
+2. Decide. A real upstream change (TipRanks withdrew Smart Scores, a ticker delisted, a forecast
+   file legitimately shrank) → ship it. A mapping bug or a reshaped payload → fix the code instead;
+   the freeze is the gate doing its job.
+3. Optional: **Actions → Refresh data & deploy → Run workflow** with `dry_run` **and**
+   `accept_data_loss` ticked. Nothing is committed, and the log shows what would ship.
+4. **Run workflow** once with `accept_data_loss` ticked (`dry_run` off). The gate prints the same
+   lines, writes `data-loss gate overridden (accept_data_loss): N violation(s) shipped` to the health
+   file, and passes; the snapshot is committed and deployed; the Health gate turns the run red so the
+   override is on record.
+5. The next scheduled run compares against the new HEAD and is green again.
+
+Scope of the override: the input exists only on `workflow_dispatch` (default `false`), reaches only
+the DATA GATE step as `ACCEPT_DATA_LOSS=1` (the expression also checks the event name), and relaxes
+only `test-no-data-loss.mjs` (`gateVerdict` accepts the exact string `"1"`). Every other data check
+still blocks. Scheduled and push runs never set it. `ci/test-workflow-dry-run.mjs` pins all of that.
+
+### The Health gate
+
+The last step, `if: always()`, so it runs after the commit and deploy and the data has already
+shipped. It goes red when:
+- `$RUNNER_TEMP/health` has any line. Writers (`health()` in `ci/tr-fetch.mjs`, no-op outside
+  Actions): `breaker open: <endpoint>` (refresh, forecasts, bulls/bears); `universe pull failed`;
+  `universe: N ambiguous duplicate ticker(s) carried` (only when they also ended up carried — one the
+  payload covered is logged only, or a permanent duplicate would turn every run red); `backfill
+  carried C/M` (C > 30% of the missing set); `forecasts: N/T tickers failed` (> 10%); and the
+  data-loss override above;
+- any of `snapshot`, `backfill`, `sectors`, `feargreed`, `earnings`, `post`, `themes` has outcome
+  `failure` or `cancelled` (outcome, not conclusion: `continue-on-error` makes the conclusion
+  "success"). `skipped` is fine — push events skip them all, and `dry_run` skips post/themes.
+
+A red Health gate means "look at the log", not "the site is broken".
+
+### `dry_run`
+
+`workflow_dispatch` input: "scrape and run the gates, but do not commit, deploy or mark requests
+tracked". Skipped on a dry run: every step that writes outside the runner — pin (RTDB PATCH),
+the commit, Firebase Hosting, the Pages upload + deploy, mark and clear (RTDB) — plus the two
+Cloudflare-model steps, post and themes, because a dry run commits nothing and whatever it spends
+the next scheduled run spends again (an exhausted daily tier would turn that run red). Still run:
+fold (it only GETs RTDB), the previous-data snapshot, the refresh, the backfills, both test gates and
+the Health gate. `ci/test-workflow-dry-run.mjs` asserts this list, and that fold's branch in
+`ci/track-requests.mjs` never writes RTDB.
+
+### Step timeouts
+
+Every `continue-on-error` step has its own `timeout-minutes` (fold 5, pin 5, snapshot 15, backfill
+150, reviews 5, sectors 5, feargreed 3, earnings 10, post 15, themes 15; mark/clear 5). Those before
+the commit add up to 228, and the job's 245 covers that plus a margin, so a hang in any one of them
+ends that step, never the job before "Commit refreshed data". `ci/test-workflow-dry-run.mjs`
+enforces the sum: add a step, give it a timeout, and raise the job limit if the sum needs it.
+
+### The fetch layer (`ci/tr-fetch.mjs`)
+
+`getText(url, opts)` is the one transport for the TipRanks/Finviz scrapers:
+- **plain fetch first** (once, `timeoutMs` 30 s): a 200 that is not a Cloudflare challenge and
+  passes `ok(body)` is returned. A plain-fetch block page is *not* final — Node's TLS fingerprint
+  draws WAF pages a real browser may pass — so it falls through like a 403;
+- **FlareSolverr** on a challenge, a non-200 or a failed `ok`: up to `tries` attempts, 8 s apart,
+  each bounded by `FLARE_TIMEOUT_MS` (90 s; FlareSolverr's own `maxTimeout` is 60 s);
+- **block vs challenge:** a *challenge* ("Just a moment…") is retried; a *firewall block*
+  (FlareSolverr's "Cloudflare has blocked this request", "Sorry, you have been blocked", error 1020)
+  is a verdict on the runner IP and throws `BlockedError` at once. Retrying blocks is what once
+  stretched a run to the 6h job limit;
+- **breakers** (`makeBreaker`, one per endpoint): open after 3 blocks in a row; the caller then skips
+  the rest of that endpoint (rows carry, queues keep their place) and writes one `breaker open:`
+  health line;
+- **deadlines:** `deadline` (epoch ms) bounds the whole call — no attempt starts past it and each
+  attempt's signal is cut to the time left. `refresh-data-ci.mjs` uses one step-wide deadline,
+  `STEP_DEADLINE_MS` (default 12 min from script start, inside the step's 15-min timeout), for the
+  payload backfill and enrich, so `stocks.json`/`seen.json` are always written; un-tried tickers are
+  not stamped and keep their queue place. The lite `track-requests.mjs fetch` uses 5 min (its job
+  is killed at 10).
+- `ok` predicates: JSON endpoints pass "parses"; the ~77 MB universe passes the cheap `universeOk`
+  (looks like JSON and names `items`), so an HTML error page served as 200 still reaches FlareSolverr.
+
+### Track requests: `err` and the "failed" state
+
+A "Track this stock" request is `trackRequests/<KEY> = {uid, ts, tracked: false}`. The lite run
+(`track-requests.yml`) `fetch`es its row; a ticker lands in `failed` when the payload fetch throws,
+the row has no name or price, the aianalyst breaker is open, or the 5-min fetch deadline passed before
+it was tried. The last step, `fail` (`if: always()`), stamps `trackRequests/<KEY>/err = {at, msg}` on
+every `failed` ticker and on every fetched one that never reached `trackedRows` (red data gate,
+failed upload), keeping the first `at`, and fails the run. The app (`trackStateOf`) shows "Couldn't
+fetch data for T yet" for pending + `err`. Every later run retries it. `mark` (lite run or
+`site.yml`) sets `tracked: true` and clears `err` — tracked always wins in the app — and
+`planUnrequest` (in `site.yml`'s pin) deletes a still-failing request 24h after its first `err`, so
+it can be requested again.
+
 ## How to change the pipeline (for humans and agents)
 
 1. Edit the files in `ci/` and/or `.github/workflows/site.yml` **in the repo**.
@@ -575,16 +723,24 @@ The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **ke
 > 1. **Universe screener** `https://www.tipranks.com/api/apps/stock/screener?country=us&method=screener&page=1&pageSize=20000&sortDir=2`
 >    (~13.9k items, ~77 MB, same item shape as the sorted calls; `rowFromScreener(item, { inPull: false })`,
 >    duplicates resolved by `stockListingIsPrimaryMarket`, then by name match against last run's row;
->    still ambiguous -> skipped (payload, then carry; health line `universe: N ambiguous duplicate
->    ticker(s) skipped`), never "first item wins" — that could be another company; `ci/backfill-plan.mjs`).
+>    still ambiguous -> skipped (payload, then carry; logged, and a health line `universe: N ambiguous
+>    duplicate ticker(s) carried` only when it also ended up carried), never "first item wins" — that
+>    could be another company; `ci/backfill-plan.mjs`). Only the missing tickers' items are kept
+>    (`itemsFor`; the local script filters inside the page so ~14k items never cross CDP).
 > 2. **`stock-aianalyst` payload** `https://www.tipranks.com/stocks/<t>/stock-aianalyst/payload.json`
 >    (`models.stocks[]` selected by `_id`; `rowFromAiAnalyst`) for tickers the universe lacks, capped by
 >    `BACKFILL_LIMIT` and the snapshot step's deadline (`STEP_DEADLINE_MS`, default 12 min from script start, shared with enrich); past either, or on failure, the last-known row is carried.
 >
 > The log line `backfill: U universe, P payload, C carried` reports the split; C > 30% of missing raises a health note.
+> A source with no row for the ticker (not in `models.stocks`, a reshaped payload) is a **carry**, not a
+> refresh: both scripts go through `refreshedRow` (`ci/keep.mjs`), never `mergeRow(prev, null)`, which
+> returned `prev` and hid exactly the reshape that rule exists to catch.
 > **Null vs absent in the mappers** (`rowFromScreener`, `rowFromAiAnalyst`): an explicit `null` is TipRanks'
 > answer, an absent key is a reshape (carry). `tipRanksSmartScoreData: null` / `smartScore: null` -> `ss: null`;
 > `analystRatings: null` / `all: null` -> no coverage (Neutral 0/0/0); `analystRatings.all` absent -> counts carry.
+> **No coverage is `con: "Neutral"` 0/0/0 off-pull but `con: null` in-pull — deliberately** (getData parity, owner
+> ruling; getData wrote Neutral 0/0/0 and 23 rows had it at T0): `NO_COVERAGE_GETDATA` vs `EMPTY_CONSENSUS` in
+> `ci/keep.mjs`; `noAnalystCoverage` (`src/trackState.ts`) treats both as "no analysts".
 > In-pull rows never carry consensus/target: an absent `bestAnalystsConsensusData` / `bestPriceTargetData`
 > (or `tipRanksEssentialData`) writes `con: null, 0/0/0, pt/up null`, exactly the old in-pull mapper — carrying
 > prev there mixed an off-pull run's all-analyst basis into a best-analyst row (D1).
@@ -598,21 +754,24 @@ The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **ke
 > **Company name** (`n`) is the DISPLAY name on every path (owner decision 2026-11-19, e2e R3): screener
 > `tradingInformationData.companyDisplayName` ("IonQ", "TSMC"), aianalyst `company.name`; the legal
 > `companyName` only when the display field is absent/empty. The universe duplicate tie-break
-> (`ci/backfill-plan.mjs`) matches the stored name against either field.
+> (`ci/backfill-plan.mjs`) matches the stored name against either field. The legal name stays
+> **searchable**: both mappers write `ln` = the legal `companyName` when it differs from `n` after
+> case/punctuation/legal-suffix normalisation (null when they agree, carried when absent); `src/lib.ts`
+> `nameMatches` (table filter + header search) matches `t`, `n` and `ln`, and nothing displays `ln`.
 > `rowFromGetData` / `ssFromGetData` were deleted 2026-11-18 (getData has been Cloudflare-blocked since 2026-11-17); the text below is history.
 > **Track requests** use the same payload: `ci/track-requests.mjs fetch` maps it with `rowFromAiAnalyst`; a null
 > row or one with no name/price is a failure. The lite run's last step (`fail`) stamps `trackRequests/<KEY>/err`
 > on pending requests that failed (or that never reached `trackedRows`), the app shows "Couldn't fetch data
 > for T yet", every run retries, and `planUnrequest` clears the request after 24h so it can be re-requested.
 
-Kept tickers missing from a run's screener pull are backfilled from the per-ticker
+**(history, pre-2026-11-18 — current sources are in the note above.)** Kept tickers missing from a run's screener pull were backfilled from the per-ticker
 `getData` feed (`ci/keep.mjs` → `rowFromGetData`), **merging fresh fields over the ticker's
 last-known row**. `getData` supplies price, targets, consensus, buy/hold/sell, smart score,
 market cap and description — but **not** the AI-analyst score/rating/target or the sector name.
 Backfill is capped per run (`BACKFILL_LIMIT`, default 300, most-stale-first) and per-ticker
 failure-tolerant, so it can't blow the runtime or break the main refresh.
 
-⚠️ **`ss: null` from TipRanks is an answer, not a gap.** `getData` returns the full
+⚠️ **(history, pre-2026-11-18; the current rule is in *Smart Score* below.) `ss: null` from TipRanks is an answer, not a gap.** `getData` returned the full
 `tipranksStockScore` object with `"score": null` for a stock that simply **has no Smart
 Score** (verified live on **ASTI** and **BCDA**; GOOGL comes back 10 and DNLI 6 from the
 identical shape). `rowFromGetData` used to write `j.tipranksStockScore?.score ?? prev.ss`,
@@ -640,8 +799,8 @@ Ordered stale-pins → blanks → stalest carry, failure-tolerant. `ENRICH_LIMIT
 a fixed 40 let the bound decay from ~15h to ~50h within six weeks. An explicit env var wins.
 
 `sec` and the rest are fill-only, but **the AI trio (`ai`/`air`/`aipt`) OVERWRITES** — and must,
-because `getData` carries no AI-analyst data (`ci/keep.mjs` carries the trio from the previous
-row), and `fillNulls` can never correct a stale non-null. Before this, an off-pull ticker's AI
+because a carried off-pull row holds its trio verbatim (and getData, the old backfill source, had
+no AI-analyst data at all), and `fillNulls` can never correct a stale non-null. Before this, an off-pull ticker's AI
 score/rating was frozen indefinitely: **UNP displayed "Outperform"/74 for ~10 days / ~46 runs**
 after TipRanks downgraded it to Neutral/69. Only a value actually present in the payload
 overwrites — a null never blanks a good one.
@@ -697,7 +856,8 @@ scripts) and has a built-in self-check: `node ci/keep.mjs`.
 ## Analyst forecasts — automated ✅
 
 `ci/scrape-forecasts.mjs` refreshes `public/forecasts/<TICKER>.json` from TipRanks'
-`getData` feed via FlareSolverr. `site.yml` runs it right after the data refresh, side by
+per-ticker `stock-forecast/payload.json`, topped up from the SSR forecast page (Stage 4 below; it
+read the `getData` feed until 2026-11-18). `site.yml` runs it right after the data refresh, side by
 side with the bulls/bears and P/E scrapes (one step; each writes only its own files), and
 the commit step also stages `public/forecasts`.
 
@@ -726,14 +886,15 @@ the commit step also stages `public/forecasts`.
   `ci/build-reviews-recent.mjs` skips it — it's an object, not an array.
   Guarded by `node ci/test-staleness.mjs`.
 
-- **Source (verified):** `https://www.tipranks.com/api/stocks/getData/?name=<T>` → `experts[]`.
+- **(history, pre-2026-11-18 — today's source is Stage 4 below.) Source (verified):** `https://www.tipranks.com/api/stocks/getData/?name=<T>` → `experts[]`.
   Mapping: `name`, `firm`, `rankings[].stars` (0–5), newest `ratings[0]` → `ratingId` 1/2/3 =
   Buy/Hold/Sell, `convertedPriceTarget` (→ `pt`), `convertedOldPriceTarget` (→ `opt`), `date` (→ `d`).
 - **Output:** `[{ "n": analyst, "f": firm, "st": stars, "r": "Buy|Hold|Sell", "pt": target, "opt": prior|null, "d": "YYYY-MM-DD" }, …]`
 - **Failure-tolerant:** per-ticker try/catch, only writes valid non-empty results, `continue-on-error`
   in CI — it can never break the main refresh. Tiny tickers with no ranked analysts simply get no file.
 
-- **⚠️ Paywall fallback — `ci/forecast-html.mjs`.** The `getData` API anonymizes a fixed teaser
+- **⚠️ Paywall fallback — `ci/forecast-html.mjs`** (history: Stages 1–3 describe the getData era;
+  Stage 4 is current). The `getData` API anonymized a fixed teaser
   window of rows: 6 AI-model rows plus **up to 4 real brokers**. An anonymized row keeps `firm`,
   `date`, `ratingId` and `stars` but has `name: null` and every price-target field nulled, so
   `toForecasts()` drops it on the `!e.name` guard. On AAPL (194 experts) losing 4 is noise. On a
@@ -1063,7 +1224,8 @@ belt-and-braces; skip either one and something real gets through.
 |---|---|---|
 | `tests.yml` | every branch + PR (`main` excluded) | logic regressions, as a red X on the commit — the only coverage branches and PRs get, since `site.yml` only triggers on pushes to `main` |
 | `site.yml` → "Run all checks (npm test)" | after `npm ci`, **before** the scrapes | broken *code*, before it is allowed to touch the network |
-| `site.yml` → "Re-check the refreshed data (THE DATA GATE)" | after the scrapes, **before** the commit and the deploy | broken *data* — the snapshot this run just produced |
+| `site.yml` → "Re-check the refreshed data (THE DATA GATE)" | after the scrapes, **before** the commit and the deploy | broken *data* — the snapshot this run just produced — **and data LOST vs the previous commit** (`test-no-data-loss.mjs`, the data-loss gate) |
+| `site.yml` → "Health gate" | last, `if: always()`, **after** the commit and the deploy | a degraded source (health lines, failed scrape steps); red, but the data already shipped |
 
 The ordering is the whole point. The data checks (`test-ai-scale.mjs`,
 `test-consensus-direction.mjs`) read `src/data/*.json` **off disk**, so in the pre-scrape run
@@ -1074,7 +1236,10 @@ carries `[skip ci]`, so `tests.yml` never sees it either.
 
 Neither `npm test` step has `continue-on-error`, unlike the refresh steps above, which are
 deliberately failure-tolerant. Failing the data gate aborts before the commit and before the
-Pages deploy, so nothing is written and the last good deploy stays up.
+deploy, so nothing is written and the last good deploy stays up. Since 2026-11-18 that includes a
+data-**loss** finding, which changes the risk profile: a legitimate upstream loss now freezes every
+data file until someone acts, and the freeze reinforces itself. The way out is the one-run
+`accept_data_loss` input — see *Gates* → *Recovering from a data-loss freeze*.
 
 `main` is excluded from `tests.yml` because `site.yml` runs the identical command on every
 push to it — that exclusion is a duplicate-job saving, not a coverage gap.
@@ -1085,12 +1250,14 @@ push to it — that exclusion is a duplicate-job saving, not a coverage gap.
 
 Where `ci/refresh-data-ci.mjs` and `scripts/refresh-data.mjs` top up rows
 from the per-ticker `stock-forecast` payload. This is the only per-ticker source for the
-AI-analyst score/rating/target and the sector name — `getData` exposes neither.
+AI-analyst score/rating/target and the sector name on a row the screener did not refresh.
 
-**Why the AI trio overwrites instead of filling.** Rows outside a run's screener pull are
-built by `rowFromGetData`, which carries `ai`/`air`/`aipt`/`chg` verbatim from the previous
-row (`getData` genuinely has no AI-analyst fields, so carrying beats blanking). Nothing else
-ever re-checks them. Selecting only rows that "need a null filled" made that permanent: a
+**Why the AI trio overwrites instead of filling.** Rows outside a run's screener pull come from
+the universe screener (`rowFromScreener`, which has `aiAnalystData`), the `stock-aianalyst`
+payload (`rowFromAiAnalyst`, `report`), or are **carried** whole from the previous row when
+neither answered — and a carried row holds `ai`/`air`/`aipt`/`chg` verbatim. (History: until
+2026-11-18 they were built by `rowFromGetData`, and getData had no AI-analyst fields at all, so
+every off-pull trio was a carry.) Nothing else ever re-checks them. Selecting only rows that "need a null filled" made that permanent: a
 carried row has both non-null, so it could never be picked, and `fillNulls` cannot overwrite
 a non-null anyway. UNP showed "Outperform"/74 for ~10 days (~46 runs) after TipRanks
 downgraded it to Neutral/69. Hence `|| !inPull.has(t)` in the eligibility filter.
@@ -1142,11 +1309,17 @@ ceiling it fires above 360 eligible rows, i.e. when rotation really has slipped 
 
 ## Smart Score — why an explicit `null` is data, not a miss
 
-TipRanks emits `score: null` as a **real value** meaning "this stock has no Smart Score".
-Verified live: ASTI and BCDA both return the full `tipranksStockScore` object
-(`returnOnAssets`, `momentum`, `assetGrowth`, …) with `"score": null`, while GOOGL comes back
-10 and DNLI 6 from the very same shape. So `ssFromGetData` keys off the **presence of the
-key**, not the nullness of the value.
+TipRanks emits a null score as a **real value** meaning "this stock has no Smart Score".
+Verified live (getData era): ASTI and BCDA both returned the full score object with
+`"score": null`, while GOOGL came back 10 and DNLI 6 from the very same shape. So the mappers key
+off the **presence of the key**, not the nullness of the value. Today's rule, in `ci/keep.mjs`:
+
+| Source | Explicit "no score" → `ss: null` | Reshaped → `undefined` (carry `prev.ss`) |
+|---|---|---|
+| screener / universe (`rowFromScreener`) | `tipRanksSmartScoreData: null`, or the object with `tipRanksSmartScore: null` | object absent, not an object, or without the `tipRanksSmartScore` key |
+| `stock-aianalyst` payload (`rowFromAiAnalyst`) | `smartScore: null`, or the object with `value: null` | `smartScore` absent, not an object, or without `value` |
+
+(`ssFromGetData` implemented this for getData until it was deleted on 2026-11-18.)
 
 A plain `?? prev.ss` collapses "no score" and "payload reshaped" into a single "carry", which
 resurrects the last known number and serves it as if freshly read. ASTI stayed frozen at
@@ -1157,15 +1330,15 @@ stayed off the screener list.
 or renames `score`, every keep-path ticker silently holds its previous `ss`. That is the safe
 side of the line: a vanished field is a *scraper bug*, not a data change, and freezing beats
 blanking 350 rows on our own parse error. An explicit null is the opposite — it *is* the data,
-so we fail visibly and render "—". An explicitly `null` *object* is lumped in with absent
-(unobserved in the wild; carrying is the conservative reading).
+so we fail visibly and render "—". An explicitly `null` *object* is "no score" too (`ss: null`),
+on both sources — the old in-pull mapper always wrote it that way.
 
-This is also what makes the two write paths agree rather than disagree: the screener path uses
-`?? null`, which is why on-list no-score tickers like BCDA already render "—". A wholesale
-screener failure cannot quietly blank the file either — the row-count guard in
+A wholesale screener failure cannot quietly blank the file either — the row-count guard in
 `refresh-data-ci.mjs` aborts before anything is written — and a garbage per-ticker response
-cannot reach the mapper, since both callers accept the mapped row only `if (row.t)` and
-otherwise carry the whole previous row.
+cannot reach the row, since both refresh scripts accept a backfill row only through
+`refreshedRow` (null when the source had no row for the ticker) and otherwise carry the whole
+previous row. Mass withdrawals are bounded by the data-loss gate (`ss`: more than 10 rows
+value → null in one run fails the DATA GATE).
 
 ## AI score scale
 

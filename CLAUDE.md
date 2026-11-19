@@ -40,8 +40,9 @@ live quotes and per-user state. No backend of our own.
 
 **Three layers, and the boundary between them matters:**
 
-1. **Pipeline (`ci/`, Node ESM, effectively no deps)** — scrapes TipRanks/Finviz through
-   FlareSolverr and writes the data files. Runs in `.github/workflows/site.yml` every 3h (at :17).
+1. **Pipeline (`ci/`, Node ESM, effectively no deps)** — scrapes TipRanks/Finviz (plain fetch
+   first, FlareSolverr only on a Cloudflare challenge, fail-fast on a firewall block:
+   `ci/tr-fetch.mjs`) and writes the data files. Runs in `.github/workflows/site.yml` every 3h (at :17).
    `ci/keep.mjs` is the shared brain (keep-set expiry, row mapping, enrich queue, scale
    guards); `scripts/refresh-data.mjs` is the *local* Playwright equivalent and **must stay in
    step** — the two held copies of this logic once, drifted, and silently re-introduced a
@@ -105,11 +106,21 @@ and localStorage — no real auth, no Firebase writes.
 - **An explicit `null` from TipRanks is data, not a gap.** `ss: null` means "no Smart Score" and
   must render `—`; only an *absent* key means "payload reshaped, carry the previous value".
   Same shape of rule for `con: null` — such a row is kept by the filter and painted with no
-  rating class, never as a Hold.
+  rating class, never as a Hold. **One deliberate exception (getData parity, owner ruling):** an
+  *off-pull* row whose source explicitly says "no coverage" is written `con: "Neutral"`, 0/0/0, as
+  getData wrote it (`NO_COVERAGE_GETDATA` in `ci/keep.mjs`); in-pull no-coverage stays `con: null`.
+  Don't "fix" it; `noAnalystCoverage` (`src/trackState.ts`) recognises both.
 - **`site.yml` runs `npm test` twice on purpose.** The pre-scrape run gates the *code*; the
   post-scrape "DATA GATE" gates the snapshot this run just produced (the data checks read
   `src/data/*.json` off disk, so before the scrape they only vet the previous commit). Neither is
-  `continue-on-error`; every scrape step above them is.
+  `continue-on-error`; every scrape step above them is. The last step, the **Health gate**, turns
+  a run red on a degraded source *after* the data shipped. See `ci/README.md` → Gates.
+- **The DATA GATE also blocks on data LOSS vs the previous commit** (`ci/test-no-data-loss.mjs`:
+  a vanished ticker, a STRICT field going null, too many rows losing pt/up/con/ss/AI, a shrunk
+  forecast file) — and it blocks *every* data file, not just the bad one. A legitimate loss would
+  freeze the site, so recovery is: read the `DATA LOSS:` lines, then dispatch `site.yml` once with
+  `accept_data_loss=true` (manual only; scheduled runs never accept). Prefer that to editing
+  `LIMITS`, which changes every future run; re-tune `LIMITS` only on `ci/replay-data-loss.mjs` evidence.
 - **Tests are discovered by pattern** (`ci/test-*.mjs`, `src/*.check.ts`, `ci/keep.mjs`) — drop a
   file in and it runs, no runner edit. No test framework, no test dependency. A check that exits 0
   with no output, or has no assertion in its source, is reported **FAIL** — a gutted test is worse

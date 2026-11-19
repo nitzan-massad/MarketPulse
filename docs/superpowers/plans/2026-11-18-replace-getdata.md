@@ -47,7 +47,7 @@
 - Consensus vocab is `CON_NAME` in `ci/keep.mjs`.
 - **Row contract:** a mapper returns `undefined` for a field it cannot see ("unknown → keep prev") and `null` only for an explicit "source says empty". Explicit-empty cases:
   - `ss`: `null` when the score object is present with a null value;
-  - no coverage (both best and all consensus objects are `null`): `con:null, b:0, h:0, s:0, pt:null, up:null`.
+  - no coverage (both best and all consensus objects are `null`): **in-pull** `con:null, b:0, h:0, s:0, pt:null, up:null`; **off-pull** (universe row / aianalyst payload) `con:"Neutral", b:0, h:0, s:0, pt:null, up:null` — getData parity (D1, Task 4 ruling: getData wrote Neutral 0/0/0 for no coverage; 23 such rows at T0). `NO_COVERAGE_GETDATA` in `ci/keep.mjs`.
 - `sec: "General"` from the screener is `undefined` (the enrich pass fills real sectors).
 - `scripts/refresh-data.mjs` must stay in step with `ci/refresh-data-ci.mjs` (CLAUDE.md). Its screener mapping runs inside `page.evaluate`, so it returns raw items and maps them in Node.
 - **Tests:** plain `ci/test-*.mjs` with `node:assert/strict`. They must print output and contain an assertion. No network. Fixtures go in `ci/fixtures/`.
