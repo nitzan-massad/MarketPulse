@@ -234,6 +234,12 @@ export function mergeRow(prev, next) {
   return row;
 }
 
+// A BACKFILL row (universe item / aianalyst payload) for a kept off-pull ticker, or null when the
+// source had no row for it (ticker not in models.stocks, a reshaped payload, an item with no ticker).
+// Not mergeRow: mergeRow(prev, null) returns prev, so "no row" read as a successful refresh and the
+// carried>30% health rule never saw a reshaped payload. null -> the caller carries and counts it.
+export const refreshedRow = (prev, mapped) => (mapped?.t ? mergeRow(prev, mapped) : null);
+
 // Fields from the per-ticker stock-forecast payload (www.tipranks.com/stocks/<t>/
 // stock-forecast/payload.json) — this is the ONLY per-ticker source for the AI-analyst
 // score/rating/target and sector name (the screener exposes neither). Select the requested

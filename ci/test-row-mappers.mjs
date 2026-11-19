@@ -4,7 +4,7 @@
 // Run: node ci/test-row-mappers.mjs
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ROW_KEYS, rowFromScreener, rowFromAiAnalyst, mergeRow } from "./keep.mjs";
+import { ROW_KEYS, rowFromScreener, rowFromAiAnalyst, mergeRow, refreshedRow } from "./keep.mjs";
 
 const fx = (f) => JSON.parse(readFileSync(new URL("./fixtures/" + f, import.meta.url), "utf8"));
 const S = fx("screener-items.json");
@@ -304,5 +304,24 @@ for (const inPull of [true, false]) {
   // both target keys absent: still carry pt AND up together
   const c = mergeRow(prev, ap({}));
   assert.deepEqual([c.pt, c.up], [20, 300], "best and all keys both absent -> pt and up both carry");
+}
+// M1: a backfill source with no row for the ticker is NOT a refresh. mergeRow(prev, null) returns prev
+// (truthy .t), so the refresh scripts counted "no row in payload" as fromPayload, hid real carries,
+// and the carried>30% health rule could never fire on a reshaped aianalyst payload.
+{
+  const prev = { t: "KPTI", n: "Karyopharm", px: 1 };
+  assert.equal(refreshedRow(prev, rowFromAiAnalyst({ models: { stocks: [] } }, "KPTI")), null, "ticker not in models.stocks -> null (carry)");
+  assert.equal(refreshedRow(prev, rowFromAiAnalyst({ models: {} }, "KPTI")), null, "reshaped models -> null (carry)");
+  assert.equal(refreshedRow(prev, null), null);
+  assert.equal(refreshedRow(prev, rowFromScreener({}, { inPull: false })), null, "an item with no ticker is no row either");
+  const r = refreshedRow(prev, { t: "KPTI", px: 2 });
+  assert.deepEqual([r.t, r.n, r.px], ["KPTI", "Karyopharm", 2], "a real row merges over prev as before");
+  for (const p of ["ci/refresh-data-ci.mjs", "scripts/refresh-data.mjs"]) {
+    const src = readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
+    const raw = src.match(/mergeRow\([^;\n]*rowFrom(AiAnalyst|Screener)\([^;\n]*inPull: false|mergeRow\([^;\n]*rowFromAiAnalyst/g) || [];
+    console.log(`M1 ${p}: backfill rows via refreshedRow=${(src.match(/refreshedRow\(/g) || []).length}, raw mergeRow=${raw.length}`);
+    assert.equal(raw.length, 0, `${p}: backfill rows must go through refreshedRow, not mergeRow`);
+    assert((src.match(/refreshedRow\(/g) || []).length >= 2, `${p}: universe + payload paths use refreshedRow`);
+  }
 }
 console.log("row-mappers OK");

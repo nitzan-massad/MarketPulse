@@ -53,6 +53,7 @@ const EXPECTED_EXPORTS = {
   AI_TRIO: "object", ENRICH_MAX: "number", ENRICH_TARGET_RUNS: "number", ENRICH_STALE_MS: "number",
   // row mappers + keep-last-known merge — covered in ci/test-row-mappers.mjs
   ROW_KEYS: "object", rowFromScreener: "function", rowFromAiAnalyst: "function", mergeRow: "function",
+  refreshedRow: "function", // backfill rows: null when the source had no row (M1)
 };
 for (const [name, type] of Object.entries(EXPECTED_EXPORTS)) {
   eq(`export ${name} is a ${type}`, () => typeof K[name], type);

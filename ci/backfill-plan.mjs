@@ -48,6 +48,24 @@ export function universeItems(body) {
   return items;
 }
 
+/** Cheap `ok` predicate for the universe fetch (ci/tr-fetch.mjs getText): looks like JSON (or a
+ *  FlareSolverr <pre> wrapper) and names `items`. Without it a plain 200 maintenance/error page that
+ *  isChallenge misses was returned as is, the parse threw, and FlareSolverr was never tried. Not a
+ *  full parse: the body is ~77 MB. */
+export const universeOk = (b) => typeof b === "string" && /^\s*[{<]/.test(b) && /"items"|&quot;items&quot;/.test(b);
+
+/** Only the items for `tickers` (every listing of each, so universeMap's duplicate tie-break still
+ *  sees them all). The universe is ~14k items; the kept-but-missing set is a few hundred. */
+export function itemsFor(items, tickers) {
+  const want = new Set(tickers);
+  return (Array.isArray(items) ? items : []).filter((it) => want.has(it?.tradingInformationData?.ticker));
+}
+
+/** Ambiguous duplicate tickers that ended up CARRIED (no universe row, no payload row). Only these
+ *  are a health line: one covered by its payload is fine, and a permanent duplicate reported every
+ *  run would turn every run red. */
+export const ambiguousCarried = (ambiguous, carried) => ambiguous.filter((t) => carried.has(t));
+
 /** Split `missing` into tickers the universe covers and tickers that need a per-ticker payload. */
 export function planBackfill(missing, universe) {
   const fromUniverse = [], needPayload = [];

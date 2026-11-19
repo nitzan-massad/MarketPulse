@@ -3,9 +3,9 @@
 // does the same in-page fetch the app's data was originally pulled with.
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { UNIVERSE_URL, universeMap, universeItems, planBackfill } from "../ci/backfill-plan.mjs";
+import { UNIVERSE_URL, universeMap, universeItems, ambiguousCarried, planBackfill } from "../ci/backfill-plan.mjs";
 import { health } from "../ci/tr-fetch.mjs";
-import { computeKeep, rowFromScreener, rowFromAiAnalyst, mergeRow, forecastFields, applyForecast, enrichQueue, nextLastSeen, KEEP_MAX_AGE_DAYS } from "../ci/keep.mjs";
+import { computeKeep, rowFromScreener, rowFromAiAnalyst, mergeRow, refreshedRow, forecastFields, applyForecast, enrichQueue, nextLastSeen, KEEP_MAX_AGE_DAYS } from "../ci/keep.mjs";
 
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -39,14 +39,19 @@ async function pull(page) {
   }, API);
 }
 
-// in-page fetches (need the page's Cloudflare clearance). The universe is one ~77 MB call whose
-// items come back raw; the per-ticker aianalyst payloads cover tickers it lacks. universeItems
-// (shared with ci/refresh-data-ci.mjs) throws on a reshaped body, so it reaches health().
-async function fetchUniverse(page) {
-  return universeItems(await page.evaluate(async (url) => {
+// in-page fetches (need the page's Cloudflare clearance). The universe is one ~77 MB call; only
+// the `want` tickers' items (every listing of each, for universeMap's tie-break) cross CDP back to
+// Node — the same filter as itemsFor in ci/backfill-plan.mjs, inlined because this function runs in
+// the page with no module scope. A body with no `items` array comes back as is, so universeItems
+// (shared with ci/refresh-data-ci.mjs) still throws on a reshape and it reaches health().
+async function fetchUniverse(page, want) {
+  return universeItems(await page.evaluate(async ({ url, want }) => {
     const r = await fetch(url, { headers: { accept: "application/json" } });
-    return r.json();
-  }, UNIVERSE_URL));
+    const j = await r.json();
+    if (!Array.isArray(j?.items)) return j;
+    const w = new Set(want);
+    return { items: j.items.filter((it) => w.has(it?.tradingInformationData?.ticker)) };
+  }, { url: UNIVERSE_URL, want }));
 }
 async function fetchAiAnalyst(page, tickers) {
   return page.evaluate(async (ts) => {
@@ -134,31 +139,36 @@ const lsMs = (t) => Date.parse(prevSeen[t]?.ls || prevSeen[t]?.d || "") || 0;
 const baMs = (t) => Date.parse(prevSeen[t]?.ba || "") || lsMs(t);
 const missing = [...keep].filter((t) => !inPull.has(t)).sort((a, b) => baMs(a) - baMs(b));
 let universe = new Map();
+let skipped = []; // ambiguous duplicates: a health line only if they end up carried (below)
 if (missing.length) {
   try {
     const ambiguous = [];
-    universe = universeMap(await fetchUniverse(page), { prev: prevRows, ambiguous });
+    universe = universeMap(await fetchUniverse(page, missing), { prev: prevRows, ambiguous });
     // duplicate ticker, no primary listing, no name match: skipped (payload/carry), never guessed
-    const skipped = ambiguous.filter((t) => missing.includes(t));
-    if (skipped.length) { health(`universe: ${skipped.length} ambiguous duplicate ticker(s) skipped`); console.log(`  universe: ambiguous duplicates skipped (payload/carry): ${skipped.join(",")}`); }
+    skipped = ambiguous;
+    if (skipped.length) console.log(`  universe: ambiguous duplicates skipped (payload/carry): ${skipped.join(",")}`);
   } catch (e) { health("universe pull failed"); console.error(`universe pull failed (${e.message}): backfilling from payloads only`); }
 }
 const { fromUniverse, needPayload } = planBackfill(missing, universe);
 const toFetch = [];
 let fromUni = 0, refreshed = 0, carried = 0;
-const carry = (t) => { const prev = prevRows.get(t); if (prev) { seen.set(t, prev); carried++; } };
+const carriedSet = new Set();
+const carry = (t) => { const prev = prevRows.get(t); if (prev) { seen.set(t, prev); carried++; carriedSet.add(t); } };
+// refreshedRow, not mergeRow: a source with no row for t is a carry, never a refresh (ci/keep.mjs)
 for (const t of fromUniverse) {
-  const row = mergeRow(prevRows.get(t), rowFromScreener(universe.get(t), { inPull: false }));
-  if (row?.t) { seen.set(t, row); fromUni++; toFetch.push(t); } else needPayload.push(t);
+  const row = refreshedRow(prevRows.get(t), rowFromScreener(universe.get(t), { inPull: false }));
+  if (row) { seen.set(t, row); fromUni++; toFetch.push(t); } else needPayload.push(t);
 }
 const payloadList = needPayload.slice(0, BACKFILL_LIMIT);
 const fetched = payloadList.length ? await fetchAiAnalyst(page, payloadList) : [];
 payloadList.forEach((t, i) => {
   toFetch.push(t); // attempt, not success — for the `ba` rotation stamp
-  const row = fetched[i] && mergeRow(prevRows.get(t), rowFromAiAnalyst(fetched[i], t));
-  if (row?.t) { seen.set(t, row); refreshed++; } else carry(t);
+  const row = fetched[i] && refreshedRow(prevRows.get(t), rowFromAiAnalyst(fetched[i], t));
+  if (row) { seen.set(t, row); refreshed++; } else carry(t);
 });
 for (const t of needPayload.slice(BACKFILL_LIMIT)) carry(t); // over cap — keep last-known row
+const ambCarried = ambiguousCarried(skipped, carriedSet);
+if (ambCarried.length) health(`universe: ${ambCarried.length} ambiguous duplicate ticker(s) carried: ${ambCarried.join(",")}`);
 for (const t of pinned) if (seen.has(t) && !(membership[t] || []).includes("p")) (membership[t] ??= []).push("p");
 console.log(`backfill: ${fromUni} universe, ${refreshed} payload, ${carried} carried (of ${missing.length} missing)`);
 console.log(`keep set: ${keep.size} (${fromUni + refreshed} refreshed, ${carried} carried, ${dropped.length} expired)`);

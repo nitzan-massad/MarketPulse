@@ -3,8 +3,8 @@
 // page body. We request the screener API through it and parse the JSON out.
 // (Local manual refresh uses scripts/refresh-data.mjs with Playwright instead.)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { computeKeep, forecastFields, applyForecast, enrichQueue, nextLastSeen, rowFromScreener, rowFromAiAnalyst, mergeRow, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
-import { UNIVERSE_URL, universeMap, universeItems, planBackfill } from "./backfill-plan.mjs";
+import { computeKeep, forecastFields, applyForecast, enrichQueue, nextLastSeen, rowFromScreener, rowFromAiAnalyst, mergeRow, refreshedRow, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
+import { UNIVERSE_URL, universeMap, universeItems, universeOk, itemsFor, ambiguousCarried, planBackfill } from "./backfill-plan.mjs";
 import { getText, makeBreaker, health, stepDeadline } from "./tr-fetch.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
@@ -95,27 +95,31 @@ const missing = [...keep].filter((t) => !inPull.has(t)).sort((a, b) => baMs(a) -
 const backfillTried = new Set();
 // Off-pull rows come from the full-universe screener call (one request, ~14k items) where
 // possible; only tickers it lacks need a per-ticker stock-aianalyst payload. The raw response
-// is ~77 MB: parse once, keep only the map.
+// is ~77 MB: parse once, keep only the missing tickers' items (itemsFor), then only the map.
 let universe = new Map(), universeTotal = 0;
+let skipped = []; // ambiguous duplicates among `missing`: a health line only if they end up carried (below)
 if (missing.length) {
   try {
-    let body = await getText(UNIVERSE_URL, { flareUrl: FS_URL, tries: 2, timeoutMs: 120_000, breaker: universeBreaker, deadline: STEP.at });
-    const items = universeItems(extractJson(body)); // parsed but reshaped throws: must reach health(), not pass as an empty map
+    // ok: universeOk — a plain 200 that is not the JSON falls through to FlareSolverr instead of failing the parse
+    let body = await getText(UNIVERSE_URL, { flareUrl: FS_URL, tries: 2, ok: universeOk, timeoutMs: 120_000, breaker: universeBreaker, deadline: STEP.at });
+    let items = universeItems(extractJson(body)); // parsed but reshaped throws: must reach health(), not pass as an empty map
     body = null;
-    const ambiguous = [];
-    universe = universeMap(items, { prev: prevRows, ambiguous });
     universeTotal = items.length;
+    const ambiguous = [];
+    universe = universeMap(itemsFor(items, missing), { prev: prevRows, ambiguous });
+    items = null;
     // duplicate ticker, no primary listing, no name match: skipped (payload/carry), never guessed
-    const skipped = ambiguous.filter((t) => missing.includes(t));
-    if (skipped.length) { health(`universe: ${skipped.length} ambiguous duplicate ticker(s) skipped`); console.log(`  universe: ambiguous duplicates skipped (payload/carry): ${skipped.join(",")}`); }
+    skipped = ambiguous;
+    if (skipped.length) console.log(`  universe: ambiguous duplicates skipped (payload/carry): ${skipped.join(",")}`);
   } catch (e) { health("universe pull failed"); console.log(`  universe pull failed (${e.message}): backfilling from payloads only`); }
 }
 const { fromUniverse, needPayload } = planBackfill(missing, universe);
 const today = new Date().toISOString();
 let fromUni = 0, fromPayload = 0, carried = 0;
+const carriedSet = new Set();
 for (const t of fromUniverse) {
-  const row = mergeRow(prevRows.get(t), rowFromScreener(universe.get(t), { inPull: false }));
-  if (row?.t) { seen.set(t, row); fromUni++; backfillTried.add(t); } else needPayload.push(t);
+  const row = refreshedRow(prevRows.get(t), rowFromScreener(universe.get(t), { inPull: false }));
+  if (row) { seen.set(t, row); fromUni++; backfillTried.add(t); } else needPayload.push(t);
 }
 let backfillCut = 0; // payload fetches skipped at the step deadline (rows carried, not stamped)
 for (const t of needPayload) {
@@ -124,13 +128,19 @@ for (const t of needPayload) {
     backfillTried.add(t); // attempt, not success — a permanently-dead ticker must not camp at the head
     try {
       const body = await getText(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`, { flareUrl: FS_URL, tries: 3, ok: parses, breaker: aiBreaker, deadline: STEP.at });
-      const row = mergeRow(prev, rowFromAiAnalyst(extractJson(body), t));
-      if (row?.t) { seen.set(t, row); fromPayload++; continue; }
+      // refreshedRow, not mergeRow: no row for t in the payload (KPTI every run, or a reshape) is a
+      // carry, counted below, never a refresh — or the carried>30% rule could never fire
+      const row = refreshedRow(prev, rowFromAiAnalyst(extractJson(body), t));
+      if (row) { seen.set(t, row); fromPayload++; continue; }
+      console.log(`  keep ${t}: no row for it in the aianalyst payload`);
     } catch (e) { console.log(`  keep ${t}: aianalyst skip (${e.message})`); }
   } else if (STEP.passed()) backfillCut++;
   else if (aiBreaker.open() && !aiBreaker.reported) { aiBreaker.reported = true; health("breaker open: stock-aianalyst"); console.log("  aianalyst breaker open: skipping the rest, carrying last-known rows"); }
-  if (prev?.t) { seen.set(t, prev); carried++; } // past the deadline/cap or fetch failed — keep last-known row
+  if (prev?.t) { seen.set(t, prev); carried++; carriedSet.add(t); } // past the deadline/cap, fetch failed or no row — keep last-known row
 }
+// log above, health only here: an ambiguous duplicate the payload covered is fine every run
+const ambCarried = ambiguousCarried(skipped, carriedSet);
+if (ambCarried.length) health(`universe: ${ambCarried.length} ambiguous duplicate ticker(s) carried: ${ambCarried.join(",")}`);
 console.log(`backfill: ${fromUni} universe, ${fromPayload} payload, ${carried} carried (of ${missing.length} missing; universe ${universe.size}/${universeTotal} items)`);
 // log, not health(): like the old 10-min payload deadline, a cut is the designed bound (rows carry,
 // queues keep their place); the carried>30% rule below and the enrich WARNING flag a chronic shortfall

@@ -1,7 +1,7 @@
 // Backfill planning: which off-pull tickers the full-universe screener pull can serve, and which
 // need a per-ticker stock-aianalyst payload. No network.
 import assert from "node:assert/strict";
-import { universeMap, universeItems, planBackfill, UNIVERSE_URL } from "./backfill-plan.mjs";
+import { universeMap, universeItems, planBackfill, UNIVERSE_URL, universeOk, itemsFor, ambiguousCarried } from "./backfill-plan.mjs";
 import { readFileSync } from "node:fs";
 
 const it = (t, primary, tag) => ({ tradingInformationData: { ticker: t, stockListingIsPrimaryMarket: primary, tag } });
@@ -79,5 +79,53 @@ for (const p of ["ci/refresh-data-ci.mjs", "scripts/refresh-data.mjs"]) {
   assert.match(src, /universeItems\(/, `${p} must parse the universe with universeItems`);
   assert.match(src, /health\("universe pull failed"\)/, `${p} must raise the universe health line`);
   assert.doesNotMatch(src, /\)\.items \|\| \[\]/, `${p} must not swallow a reshaped body with \`.items || []\``);
+}
+
+// M2: the universe pull's `ok` predicate. A plain 200 that is not the JSON (an HTML maintenance or
+// error page that isChallenge misses) must fall through to FlareSolverr instead of failing the parse.
+// Cheap on purpose: the body is ~77 MB, so no full parse here.
+assert.equal(universeOk('{"items":[{"a":1}],"totalCount":1}'), true);
+assert.equal(universeOk('  <html><body><pre>{"items":[]}</pre></body></html>'), true, "FlareSolverr's <pre>-wrapped JSON");
+assert.equal(universeOk("<pre>{&quot;items&quot;:[]}</pre>"), true, "HTML-escaped quotes");
+for (const bad of ["<html><title>Down for maintenance</title></html>", "Service Unavailable", "", '{"error":"rate limited"}', null, undefined]) {
+  assert.equal(universeOk(bad), false, `not the universe: ${JSON.stringify(bad)}`);
+}
+{
+  const src = readFileSync(new URL("../ci/refresh-data-ci.mjs", import.meta.url), "utf8");
+  const call = src.slice(src.indexOf("getText(UNIVERSE_URL"), src.indexOf("getText(UNIVERSE_URL") + 200);
+  console.log("M2 universe getText call:", call.split("\n")[0].trim());
+  assert.match(call, /ok:\s*universeOk/, "the CI universe fetch passes ok: universeOk");
+}
+
+// M8: only the missing tickers' items are kept (all of their duplicates, so universeMap's tie-break
+// still sees every listing) — the local script filters in the page, CI before universeMap.
+{
+  const items = [it("A", true, "a"), it("B", false, "b1"), it("B", true, "b2"), it("C", true, "c"), null, {}];
+  const got = itemsFor(items, ["B", "C", "Q"]);
+  console.log("M8 itemsFor ->", got.map((x) => x.tradingInformationData.tag));
+  assert.deepEqual(got.map((x) => x.tradingInformationData.tag), ["b1", "b2", "c"]);
+  assert.deepEqual(itemsFor(items, []), []);
+  assert.equal(universeMap(itemsFor(items, ["B"])).get("B").tradingInformationData.tag, "b2", "duplicates survive the filter");
+  const ci = readFileSync(new URL("../ci/refresh-data-ci.mjs", import.meta.url), "utf8");
+  assert.match(ci, /universeMap\(itemsFor\(/, "CI filters the universe to the missing tickers before mapping");
+  const local = readFileSync(new URL("../scripts/refresh-data.mjs", import.meta.url), "utf8");
+  const fu = local.slice(local.indexOf("async function fetchUniverse"), local.indexOf("async function fetchAiAnalyst"));
+  assert.match(fu, /page\.evaluate\(async \(\{ url, want \}\)/, "the local universe fetch passes the missing tickers into the page");
+  assert.match(fu, /\.filter\(/, "and filters there, so only their items cross CDP");
+  assert.match(fu, /universeItems\(/, "a reshaped body still throws through universeItems");
+}
+
+// M6: an ambiguous duplicate is a health line only when it also ended up CARRIED (real staleness);
+// covered by its payload it is a log line, or a permanent duplicate turns every run red.
+assert.deepEqual(ambiguousCarried(["X", "Y", "Z"], new Set(["Y"])), ["Y"]);
+assert.deepEqual(ambiguousCarried(["X"], new Set()), []);
+for (const p of ["ci/refresh-data-ci.mjs", "scripts/refresh-data.mjs"]) {
+  const src = readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
+  assert.match(src, /ambiguousCarried\(/, `${p} reports ambiguous duplicates through ambiguousCarried`);
+  const hl = src.match(/health\(`universe: [^`]*`\)/g) || [];
+  console.log(`M6 ${p}: ${hl.join(" | ")}`);
+  assert.equal(hl.length, 1, `${p}: one ambiguous health line`);
+  assert.match(hl[0], /carried/, `${p}: the ambiguous health line is about carried rows`);
+  assert(src.indexOf("ambiguousCarried(") > src.indexOf("carried++"), `${p}: decided after the backfill knows what carried`);
 }
 console.log("backfill plan: all cases passed");
