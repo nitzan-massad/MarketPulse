@@ -109,6 +109,12 @@ const EMPTY_CONSENSUS = { con: null, b: 0, h: 0, s: 0 };
 // in-pull path keeps EMPTY_CONSENSUS (con null). pt/up stay null either way.
 const NO_COVERAGE_GETDATA = { con: "Neutral", b: 0, h: 0, s: 0 };
 
+// D1 "best target, falling back to all" for non-in-pull rows. The fallback keys on the target VALUE,
+// not the object: TipRanks sends `bestPriceTargetData: {convertedPriceTarget: null, upside: null}`
+// (VRCA, e2e R1), which `??` on the object never fell through. Neither has a value -> the best object
+// as before (explicit null = no target; both absent = undefined = carry).
+const bestElseAll = (best, all, key) => (best?.[key] != null ? best : all?.[key] != null ? all : best ?? all);
+
 // Screener item -> row. `inPull` rows keep today's basis (best analysts only, no fallback).
 // Every other row (kept-but-off-pull, rows read from the screener by other means) follows D1:
 // con/b/h/s from ALL analysts, pt/up from the best target falling back to all.
@@ -125,7 +131,7 @@ export function rowFromScreener(item, { inPull }) {
     ptd = e?.bestPriceTargetData ?? null;
   } else if (e) {
     cons = e.analystsConsensusData;
-    ptd = e.bestPriceTargetData ?? e.priceTargetData;
+    ptd = bestElseAll(e.bestPriceTargetData, e.priceTargetData, "convertedPriceTarget");
   }
   const d = cons?.distribution || {};
   const consRow = cons === undefined ? {} : cons === null ? (inPull ? EMPTY_CONSENSUS : NO_COVERAGE_GETDATA)
@@ -172,7 +178,7 @@ export function rowFromAiAnalyst(fj, ticker) {
   else if (ar) {
     const all = ar.all;
     consRow = all ? { con: CON_NAME[all.enumId] ?? null, b: all.buy || 0, h: all.hold || 0, s: all.sell || 0 } : all === null ? NO_COVERAGE_GETDATA : {};
-    ptd = ar.best === undefined && all === undefined ? undefined : (ar.best ?? all)?.priceTarget ?? null;
+    ptd = ar.best === undefined && all === undefined ? undefined : bestElseAll(ar.best?.priceTarget, all?.priceTarget, "value") ?? null;
   }
   const sm = s.smartScore;
   const rep = s.report;

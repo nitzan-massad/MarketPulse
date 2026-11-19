@@ -212,4 +212,31 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   const off = mergeRow(prev, rowFromScreener(item({}), { inPull: false }));
   assert.deepEqual([off.con, off.b, off.pt], ["StrongBuy", 30, 99], "off-pull, keys absent -> carry");
 }
+// R1 (e2e) — VRCA: TipRanks sends the best-target OBJECT with a null value. Off-pull / aianalyst rows
+// fall back to the all-analyst target (D1 "best falling back to all"); in-pull rows never fall back.
+{
+  const e = { analystsConsensusData: { analystConsensus: { name: "Buy" }, distribution: { buy: 3, hold: 0, sell: 0 } },
+    bestPriceTargetData: { convertedPriceTarget: null, upside: null }, priceTargetData: { convertedPriceTarget: 13.67, upside: 2.8418 } };
+  const item = { tradingInformationData: { ticker: "VRCA", lastClose: 3.56 }, tipRanksEssentialData: e };
+  const off = rowFromScreener(item, { inPull: false });
+  console.log("R1 VRCA off-pull pt/up ->", off.pt, off.up);
+  assert.deepEqual([off.pt, off.up], [13.67, 284.2], "off-pull: empty best target -> all-analyst target");
+  const inp = rowFromScreener(item, { inPull: true });
+  assert.deepEqual([inp.pt, inp.up], [null, null], "in-pull: no fallback (D1)");
+  // both empty -> explicit null (data), not carry
+  const both = rowFromScreener({ ...item, tipRanksEssentialData: { ...e, priceTargetData: { convertedPriceTarget: null, upside: null } } }, { inPull: false });
+  assert.deepEqual([both.pt, both.up], [null, null]);
+  // best has a value -> best wins over all
+  const bw = rowFromScreener({ ...item, tipRanksEssentialData: { ...e, bestPriceTargetData: { convertedPriceTarget: 20, upside: 4.618 } } }, { inPull: false });
+  assert.deepEqual([bw.pt, bw.up], [20, 461.8]);
+  // aianalyst payload: analystRatings.best.priceTarget { value: null } -> all's target
+  const ap = (ar) => rowFromAiAnalyst({ models: { stocks: [{ _id: "VRCA", company: { name: "Vera" }, analystRatings: ar }] } }, "VRCA");
+  const a1 = ap({ best: { priceTarget: { value: null, upside: null } }, all: { enumId: 5, buy: 3, hold: 0, sell: 0, priceTarget: { value: 13.67, upside: 2.8418 } } });
+  console.log("R1 VRCA aianalyst pt/up ->", a1.pt, a1.up);
+  assert.deepEqual([a1.pt, a1.up], [13.67, 284.2], "aianalyst: empty best target -> all-analyst target");
+  const a2 = ap({ best: { priceTarget: null }, all: { enumId: 5, buy: 3, hold: 0, sell: 0, priceTarget: { value: 13.67, upside: 2.8418 } } });
+  assert.deepEqual([a2.pt, a2.up], [13.67, 284.2], "aianalyst: best.priceTarget null -> all");
+  const a3 = ap({ best: { priceTarget: { value: 20, upside: 4.618 } }, all: { enumId: 5, priceTarget: { value: 13.67, upside: 2.8418 } } });
+  assert.deepEqual([a3.pt, a3.up], [20, 461.8], "aianalyst: best wins when it has a value");
+}
 console.log("row-mappers OK");
