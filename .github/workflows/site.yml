@@ -92,8 +92,11 @@ jobs:
       # User "Track this stock" requests (RTDB trackRequests) join src/data/tracked.json, and
       # watchlists + views go to keepalive.json, so the refresh below keeps/backfills them via the
       # keep set. See ci/track-requests.mjs.
+      # dry_run must stay read-only: pin PATCHes RTDB (planUnrequest deletes requests whose stock was
+      # dropped), so a dry run skips it. Nothing downstream needs it: the refresh reads tracked.json as
+      # committed. (Fold above only GETs RTDB; its local file writes are never committed on a dry run.)
       - name: Pin requested tickers
-        if: github.event_name != 'push'
+        if: ${{ github.event_name != 'push' && !inputs.dry_run }}
         continue-on-error: true
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
