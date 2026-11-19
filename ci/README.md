@@ -585,6 +585,9 @@ The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **ke
 > **Null vs absent in the mappers** (`rowFromScreener`, `rowFromAiAnalyst`): an explicit `null` is TipRanks'
 > answer, an absent key is a reshape (carry). `tipRanksSmartScoreData: null` / `smartScore: null` -> `ss: null`;
 > `analystRatings: null` / `all: null` -> no coverage (Neutral 0/0/0); `analystRatings.all` absent -> counts carry.
+> In-pull rows never carry consensus/target: an absent `bestAnalystsConsensusData` / `bestPriceTargetData`
+> (or `tipRanksEssentialData`) writes `con: null, 0/0/0, pt/up null`, exactly the old in-pull mapper — carrying
+> prev there mixed an off-pull run's all-analyst basis into a best-analyst row (D1).
 > A null-filled peer stub alone is not a row (`rowFromAiAnalyst` -> null). Deliberate exception: a null
 > `aiAnalystData` / `report` carries the AI trio — the forecast payload (enrich) is the AI source of record and
 > rates tickers the screener nulls, so null there means "this source has none", not "TipRanks has none"

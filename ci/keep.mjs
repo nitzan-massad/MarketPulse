@@ -117,9 +117,15 @@ export function rowFromScreener(item, { inPull }) {
   const e = item?.tipRanksEssentialData ?? undefined;
   const ai = item?.aiAnalystData ?? undefined;
   let cons, ptd;
-  if (e) {
-    cons = inPull ? e.bestAnalystsConsensusData : e.analystsConsensusData;
-    ptd = inPull ? e.bestPriceTargetData : e.bestPriceTargetData ?? e.priceTargetData;
+  if (inPull) {
+    // In-pull never carries: prev may hold an off-pull run's ALL-analyst counts/target, and mixing
+    // them into a best-analyst row breaks D1. Absent == null here, exactly as the old in-pull mapper
+    // (c242d0cc4: `e.bestAnalystsConsensusData || {}`, built fresh, no prev merge) wrote it.
+    cons = e?.bestAnalystsConsensusData ?? null;
+    ptd = e?.bestPriceTargetData ?? null;
+  } else if (e) {
+    cons = e.analystsConsensusData;
+    ptd = e.bestPriceTargetData ?? e.priceTargetData;
   }
   const d = cons?.distribution || {};
   const consRow = cons === undefined ? {} : cons === null ? (inPull ? EMPTY_CONSENSUS : NO_COVERAGE_GETDATA)

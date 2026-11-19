@@ -68,12 +68,14 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   assert.equal(r.ss, null);
   assert.equal(mergeRow({ ss: 7 }, r).ss, null);
 }
-// Missing parents -> undefined everywhere they feed.
+// Missing parents -> undefined everywhere they feed (off-pull; in-pull consensus/target: see B4).
 {
-  const r = rowFromScreener({}, { inPull: true });
+  const r = rowFromScreener({}, { inPull: false });
   for (const k of ROW_KEYS) assert.equal(r[k], undefined, k);
   const m = mergeRow({ t: "X", px: 9, con: "Buy", ss: 3 }, r);
   assert.deepEqual([m.t, m.px, m.con, m.ss], ["X", 9, "Buy", 3]);
+  const ip = rowFromScreener({}, { inPull: true });
+  for (const k of ROW_KEYS.filter((k) => !["con", "b", "h", "s", "pt", "up"].includes(k))) assert.equal(ip[k], undefined, k);
 }
 
 // aianalyst AAPL: counts from analystRatings.all, target from best.
@@ -192,5 +194,22 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
     assert.equal(rowFromScreener({ tradingInformationData: { ticker: "X", priceChangePct: null } }, { inPull }).chg, null);
     assert.equal(rowFromScreener({ tradingInformationData: { ticker: "X" } }, { inPull }).chg, undefined);
   }
+}
+// B4 — in-pull basis is best-analysts only, no fallback (D1). The old in-pull mapper (c242d0cc4
+// ci/refresh-data-ci.mjs: `bc = e.bestAnalystsConsensusData || {}`, `bpt = e.bestPriceTargetData || {}`,
+// row built fresh, no prev merge) wrote con null, b/h/s 0, pt/up null whether the best objects were
+// null OR absent. Carrying prev there mixed in an off-pull row's all-analyst counts.
+{
+  const prev = { t: "X", con: "StrongBuy", b: 30, h: 2, s: 0, pt: 99, up: 40 }; // all-analyst basis from an off-pull run
+  const item = (e) => ({ tradingInformationData: { ticker: "X" }, ...(e === "omit" ? {} : { tipRanksEssentialData: e }) });
+  const all = { analystsConsensusData: { analystConsensus: { name: "Buy" }, distribution: { buy: 9, hold: 1, sell: 0 } }, priceTargetData: { convertedPriceTarget: 50, upside: 0.2 } };
+  for (const [label, e] of [["best keys absent", { ...all }], ["best keys null", { ...all, bestAnalystsConsensusData: null, bestPriceTargetData: null }], ["essential data absent", "omit"], ["essential data null", null]]) {
+    const m = mergeRow(prev, rowFromScreener(item(e), { inPull: true }));
+    console.log(`B4 in-pull, ${label} ->`, JSON.stringify([m.con, m.b, m.h, m.s, m.pt, m.up]));
+    assert.deepEqual([m.con, m.b, m.h, m.s, m.pt, m.up], [null, 0, 0, 0, null, null], `in-pull ${label}: old empty basis, never prev's all-analyst counts`);
+  }
+  // off-pull keeps carry-on-absent (D1 all-analyst basis, best->all fallback)
+  const off = mergeRow(prev, rowFromScreener(item({}), { inPull: false }));
+  assert.deepEqual([off.con, off.b, off.pt], ["StrongBuy", 30, 99], "off-pull, keys absent -> carry");
 }
 console.log("row-mappers OK");
