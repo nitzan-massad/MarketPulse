@@ -34,6 +34,9 @@ export interface Stock {
   mc: number | null;
   /** Company description (from screener) */
   desc?: string | null;
+  /** Legal company name, only when it differs from the display name `n` ("Taiwan Semiconductor
+   *  Manufacturing…" for "TSMC"). Searched (lib.ts nameMatches), never displayed. */
+  ln?: string | null;
 }
 
 export type ViewId = "analyst" | "smart" | "ai";

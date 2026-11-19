@@ -3,10 +3,10 @@
 // request; only tickers it lacks need a per-ticker stock-aianalyst payload.
 export const UNIVERSE_URL = "https://www.tipranks.com/api/apps/stock/screener?country=us&method=screener&page=1&pageSize=20000&sortDir=2";
 
-// Company names for the duplicate-ticker tie-break: case, punctuation and legal suffixes differ
+// Company names for the duplicate-ticker tie-break (and keep.mjs legalName): case, punctuation and legal suffixes differ
 // between the screener ("Aluminum Corp. of China Ltd") and the stored row (from either source).
 const SUFFIX = /\b(inc|incorporated|corp|corporation|co|company|ltd|limited|plc|llc|lp|sa|ag|nv|se|the)\b/g;
-const normName = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(SUFFIX, " ").replace(/\s+/g, " ").trim();
+export const normName = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(SUFFIX, " ").replace(/\s+/g, " ").trim();
 
 /**
  * items -> Map<ticker, item>. The universe lists some tickers more than once (OTC/foreign lines,

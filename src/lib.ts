@@ -96,11 +96,15 @@ export const themeNames = Object.keys(THEMES).filter((k) => THEMES[k].size > 0);
 /** A sector-filter option matches its real sector, or a theme the company was classified into. */
 export const inSector = (s: Stock, name: string): boolean => s.sec === name || !!THEMES[name]?.has(s.t);
 
+/** Ticker, display name, or legal name (`ln`, search-only: "taiwan" finds TSMC) contains `q`.
+ *  The one name-search rule, shared by the table filter and the header search box. */
+export function nameMatches(s: Stock, q: string): boolean {
+  const lc = q.toLowerCase();
+  return [s.t, s.n, s.ln].some((x) => (x || "").toLowerCase().includes(lc));
+}
+
 export function passes(s: Stock, state: FilterState): boolean {
-  if (state.q) {
-    const q = state.q.toLowerCase();
-    if (!((s.t || "").toLowerCase().includes(q) || (s.n || "").toLowerCase().includes(q))) return false;
-  }
+  if (state.q && !nameMatches(s, state.q)) return false;
   if (state.sectors.length && state.sectors.some((n) => inSector(s, n)) === state.sectorNot) return false;
   if (state.cap && (s.mc == null || s.mc < state.cap)) return false;
   // Consensus is a membership test over KNOWN ratings only: a row whose rating the feed

@@ -11,8 +11,8 @@ const S = fx("screener-items.json");
 const aapl = fx("aianalyst-aapl.json");
 const nnnn = fx("aianalyst-nnnn.json");
 
-assert.equal(ROW_KEYS.length, 17);
-assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,mc,desc".split(","));
+assert.equal(ROW_KEYS.length, 18);
+assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,mc,desc,ln".split(","));
 
 // AAPL screener item, in pull: best-analyst basis, exactly what the old inline code produced.
 {
@@ -22,7 +22,27 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
     pt: 339.98, up: -3.4, con: "Buy", b: 11, h: 6, s: 5, ss: 7,
     ai: 75, air: "Outperform", aipt: 381, mc: 5114020,
     desc: S.aapl.tradingInformationData.description,
+    ln: null, // "Apple Inc" normalises to the display name "Apple": nothing extra to search
   });
+}
+// M7: `ln` = the legal company name, ONLY when it differs from the display name `n` (R3 made `n`
+// the display name, so "taiwan" stopped finding TSMC). Search-only, never displayed. Not a data-loss
+// field: value -> null just means the two names now agree.
+{
+  const tid = (o) => ({ tradingInformationData: { ticker: "TSM", ...o } });
+  const r = rowFromScreener(tid({ companyDisplayName: "TSMC", companyName: "Taiwan Semiconductor Manufacturing Company Limited" }), { inPull: true });
+  console.log("M7 screener TSM ->", JSON.stringify({ n: r.n, ln: r.ln }));
+  assert.deepEqual([r.n, r.ln], ["TSMC", "Taiwan Semiconductor Manufacturing Company Limited"]);
+  assert.equal(rowFromScreener(tid({ companyDisplayName: "Apple", companyName: "Apple Inc." }), { inPull: true }).ln, null, "suffix-only difference -> null");
+  assert.equal(rowFromScreener(tid({ companyName: "Tencent Hldgs" }), { inPull: true }).ln, null, "no display name: n IS the legal name");
+  assert.equal(rowFromScreener(tid({ companyDisplayName: "TSMC" }), { inPull: true }).ln, undefined, "legal name absent -> carry");
+  assert.equal(rowFromScreener(tid({ companyDisplayName: "TSMC", companyName: "" }), { inPull: true }).ln, undefined, "empty legal name -> carry");
+  const ap = rowFromAiAnalyst({ models: { stocks: [{ _id: "GOOGL", company: { name: "Google", companyName: "Alphabet Inc Class A" } }] } }, "GOOGL");
+  console.log("M7 aianalyst GOOGL ->", JSON.stringify({ n: ap.n, ln: ap.ln }));
+  assert.deepEqual([ap.n, ap.ln], ["Google", "Alphabet Inc Class A"]);
+  assert.equal(rowFromAiAnalyst(aapl, "AAPL").ln, null, "AAPL fixture: Apple / Apple Inc -> null");
+  assert.equal(mergeRow({ t: "TSM", ln: "Taiwan Semi" }, { t: "TSM" }).ln, "Taiwan Semi", "unknown ln carries");
+  assert.equal(mergeRow({ t: "X" }, { t: "X" }).ln, null, "a pre-ln row merges to null, never undefined");
 }
 // D1: off-pull = all-analyst counts, but pt/up still the best target.
 {

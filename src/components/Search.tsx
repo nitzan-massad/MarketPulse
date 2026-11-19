@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useStocks } from "../stocks";
 import type { Stock } from "../types";
-import { consClass, consLabel, fmtPx } from "../lib";
+import { consClass, consLabel, fmtPx, nameMatches } from "../lib";
 import { buildOptions, nextIndex, type SearchOption } from "../searchNav";
 import { cnbcSearchHits, cnbcSearchMatched } from "../quotes";
 import { prefetchStocks } from "../warmChart";
@@ -70,7 +70,7 @@ export default function Search({ onOpen, onOpenTicker, resetKey, user }: SearchP
   const results = useMemo(() => {
     if (!query) return [];
     const lc = query.toLowerCase();
-    return STOCKS.filter((s) => s.t.toLowerCase().includes(lc) || (s.n || "").toLowerCase().includes(lc))
+    return STOCKS.filter((s) => nameMatches(s, lc))
       .sort((a, b) => {
         // exact/prefix ticker matches first
         const ap = a.t.toLowerCase().startsWith(lc) ? 0 : 1;

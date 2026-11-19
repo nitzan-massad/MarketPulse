@@ -11,6 +11,7 @@
 // that payload can't see (e.g. daily change) carry over instead of going blank. The old getData
 // feed was retired 2026-11-17 (Cloudflare-blocked).
 import assert from "node:assert";
+import { normName } from "./backfill-plan.mjs";
 
 export const KEEP_MAX_AGE_DAYS = 365;
 export const VIEW_KEEP_DAYS = 180;
@@ -95,7 +96,10 @@ export const airName = (slug) => {
 // ROW CONTRACT: a mapper returns `undefined` for a field its source cannot see ("unknown ->
 // keep the previous value") and `null` only when the source explicitly says "empty". mergeRow
 // is the one place that turns that into a stored row, so no refresh script re-inlines it.
-export const ROW_KEYS = Object.freeze(["t", "n", "sec", "px", "chg", "pt", "up", "con", "b", "h", "s", "ss", "ai", "air", "aipt", "mc", "desc"]);
+// `ln` (M7): the legal company name, only when it differs from the display name `n` — search only
+// (src/lib.ts nameMatches), never displayed. Not a data-loss field: value -> null just means the
+// names now agree.
+export const ROW_KEYS = Object.freeze(["t", "n", "sec", "px", "chg", "pt", "up", "con", "b", "h", "s", "ss", "ai", "air", "aipt", "mc", "desc", "ln"]);
 
 // undefined stays undefined (unknown); anything else, null included, goes through f.
 const unk = (x, f) => (x === undefined ? undefined : f(x));
@@ -103,6 +107,9 @@ const unk = (x, f) => (x === undefined ? undefined : f(x));
 // null, so for them an empty answer (null / "" / NaN) is "can't see it" -> undefined -> carry prev.
 const known = (x) => (x == null || x === "" || (typeof x === "number" && Number.isNaN(x)) ? undefined : x);
 const EMPTY_CONSENSUS = { con: null, b: 0, h: 0, s: 0 };
+// `ln` from a source's legal name and the `n` it wrote: absent/empty -> undefined (carry); same
+// company name once case, punctuation and legal suffixes are ignored ("Apple" / "Apple Inc.") -> null.
+const legalName = (legal, n) => { const l = known(legal); return l === undefined ? undefined : normName(l) === normName(n) ? null : l; };
 // getData parity (decision D1, "keep today's behaviour exactly"): rowFromGetData wrote
 // con "Neutral", b/h/s 0 for a ticker with no all-analyst coverage. The non-in-pull paths
 // (universe screener rows, aianalyst payloads) replace getData, so they do the same; the
@@ -137,10 +144,11 @@ export function rowFromScreener(item, { inPull }) {
   const consRow = cons === undefined ? {} : cons === null ? (inPull ? EMPTY_CONSENSUS : NO_COVERAGE_GETDATA)
     : { con: cons.analystConsensus?.name || null, b: d.buy || 0, h: d.hold || 0, s: d.sell || 0 };
   const ssd = e?.tipRanksSmartScoreData;
+  // display name ("IonQ", "TSMC"), as getData had; the legal companyName only when it is absent/empty (R3)
+  const n = known(t?.companyDisplayName) ?? known(t?.companyName);
   return {
     t: t?.ticker,
-    // display name ("IonQ", "TSMC"), as getData had; the legal companyName only when it is absent/empty (R3)
-    n: known(t?.companyDisplayName) ?? known(t?.companyName),
+    n,
     sec: t?.sector?.name !== "General" ? known(t?.sector?.name) : undefined, // "General" = the screener's don't-know; enrich fills it
     px: unk(known(t?.lastClose), rndPx),
     chg: unk(t?.priceChangePct, (x) => (x === null ? null : rnd(x * 100, 2))),
@@ -156,6 +164,7 @@ export function rowFromScreener(item, { inPull }) {
     aipt: unk(ai, (a) => (a === null ? null : rndPx(a.priceTarget))),
     mc: unk(known(t?.marketCap ?? t?.marketCapUSD), (m) => Math.round(m / 1e6)),
     desc: known(t?.description),
+    ln: legalName(t?.companyName, n), // searchable legal name ("Taiwan Semiconductor…" for "TSMC")
   };
 }
 
@@ -186,10 +195,11 @@ export function rowFromAiAnalyst(fj, ticker) {
   const rep = s.report;
   const sec = c ? sectorName(c.sector) : null;
   const mcap = s.marketCap?.daily?.marketCap;
+  // company.name is the display name (equals getData's n 195/195, e2e R3); companyName is legal
+  const n = known(c?.name) ?? known(c?.companyName);
   return {
     t: ticker,
-    // company.name is the display name (equals getData's n 195/195, e2e R3); companyName is legal
-    n: known(c?.name) ?? known(c?.companyName),
+    n,
     sec: sec && sec !== "General" ? sec : undefined, // unknown slug / "General" -> keep prev (enrich fills real sectors)
     px: unk(known(daily?.priceUSD), rndPx),
     chg: unk(daily?.gain, (g) => (g === null ? null : rnd(g * 100, 2))),
@@ -204,6 +214,7 @@ export function rowFromAiAnalyst(fj, ticker) {
     aipt: rep === null ? null : rep ? rndPx(rep.rating?.priceTarget?.value) : undefined,
     mc: unk(known(mcap), (m) => Math.round(m / 1e6)),
     desc: known(c?.description),
+    ln: legalName(c?.companyName, n),
   };
 }
 
