@@ -777,6 +777,9 @@ the commit step also stages `public/forecasts`.
   `keepPrevRating`, `carryRecentPrev` (last run's rows for absent analysts within 92 days — ALL of
   them when the payload failed, so a fetch failure never shrinks a file), `keepNewerPrev`,
   `latestPerAnalyst`. A ticker is stamped in `_asOf.json` only when something was fetched.
+  Every per-analyst join (dedup, `keepNewerPrev`, `carryStars`, carry, top-up) keys on `who()`: the
+  name, or name + firm for "Unknown Analyst" — never name + firm for a named analyst, because
+  `keepPrevRating` leaves a stored rating on its old firm and that listed a moved analyst twice.
   Pipeline lines are pinned by `ci/test-forecast-gate.mjs`.
 
   Measured over all 418 tickers before shipping (Phase 0, writes-nothing):

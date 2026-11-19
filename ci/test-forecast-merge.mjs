@@ -293,7 +293,6 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   const regressed = latestPerAnalyst(keepNewerPrev(ours, latestPerAnalyst(out)));
   assert.deepEqual(regressed.map((r) => [r.d, r.pt]), [["2026-11-15", 220]], "older row never swaps back in");
   assert.deepEqual(keepNewerPrev([], out), [], "never adds an analyst this run lacks");
-  assert.equal(latestPerAnalyst([{ n: "Ann", f: "A", d: "2026-11-01" }, { n: "Ann", f: "B", d: "2026-10-01" }]).length, 2, "firm change = two analysts");
   const two = [{ n: "Ann", f: "A", d: "2026-11-01" }, { n: "Bob", f: "A", d: "2026-10-01" }, { n: "Unknown Analyst", f: "X", d: "2026-11-01" }, { n: "Unknown Analyst", f: "Y", d: "2026-10-01" }];
   assert.equal(latestPerAnalyst(two).length, 4, "different analysts at one firm, and Unknown Analysts at different firms, all stay");
 }
@@ -341,4 +340,36 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   assert.match(forecastsDegraded({ thrown: 4, unfetched: 6, targets: 90 }), /10\/90/);
 }
 
-console.log("ok   forecast merge: page gate, carryStars, carryRecentPrev, additive guarantee, union, dedup, precedence, anonymized rows, BIOA, payload, uid lookup, FX-stable targets, page top-up, shrink-guarded carry");
+/* ------------------------------- B1: one row per analyst across a firm change (old getData shape) */
+{
+  const now = Date.parse("2026-11-18T00:00:00Z");
+  // Ives' 11-01 rating is stored under Yorkville; the payload's profile firm is now Wedbush and he
+  // has a new 11-10 rating. keepPrevRating keeps "Yorkville" on the stored row, so a name+firm key
+  // saw two analysts and listed Ives twice.
+  const prev = [{ n: "Dan Ives", f: "Yorkville", st: 4, r: "Buy", pt: 310, opt: null, d: "2026-11-01" }];
+  const run = [
+    { n: "Dan Ives", f: "Wedbush", st: 4, r: "Buy", pt: 320, opt: 310, d: "2026-11-10" },
+    { n: "Dan Ives", f: "Wedbush", st: 4, r: "Buy", pt: 300, opt: null, d: "2026-11-01" },
+  ];
+  const kept = keepPrevRating(run, prev);
+  assert.deepEqual(kept.map((r) => [r.d, r.f]), [["2026-11-10", "Wedbush"], ["2026-11-01", "Yorkville"]], "D3: the stored rating keeps its firm");
+  const out = carryPrevGuarded(kept, prev, { ok: true, now }).rows;
+  console.log("B1 firm change ->", JSON.stringify(out.map((r) => [r.n, r.f, r.d])));
+  assert.deepEqual(out.map((r) => [r.n, r.f, r.d, r.pt]), [["Dan Ives", "Wedbush", "2026-11-10", 320]], "analyst listed once: the latest rating");
+  assert.equal(latestPerAnalyst([{ n: "Ann", f: "A", d: "2026-11-01" }, { n: "Ann", f: "B", d: "2026-10-01" }]).length, 1, "firm change = one analyst");
+  // keepNewerPrev across a firm change: last run's newer 11-10 (old firm) must not be swapped for this run's 11-01
+  const regressed = carryPrevGuarded([{ n: "Dan Ives", f: "Wedbush", st: 4, r: "Buy", pt: 300, d: "2026-11-01" }],
+    [{ n: "Dan Ives", f: "Yorkville", st: 4, r: "Buy", pt: 320, d: "2026-11-10" }], { ok: true, now }).rows;
+  assert.deepEqual(regressed.map((r) => [r.d, r.pt]), [["2026-11-10", 320]], "older row never swaps back in across a firm change");
+  // Unknown Analysts stay one per firm
+  const ua = [{ n: "Unknown Analyst", f: "X", d: "2026-11-01", pt: 1 }, { n: "Unknown Analyst", f: "Y", d: "2026-10-01", pt: 2 }, { n: "Unknown Analyst", f: "X", d: "2026-09-01", pt: 3 }];
+  assert.deepEqual(latestPerAnalyst(ua).map((r) => [r.f, r.d]), [["X", "2026-11-01"], ["Y", "2026-10-01"]], "Unknown Analyst: one per firm, firms never collapse");
+  // carryStars: an Unknown Analyst's star never crosses firms
+  const st = carryStars([{ n: "Unknown Analyst", f: "Y", d: "2026-11-01", st: null }, { n: "Unknown Analyst", f: "X", d: "2026-11-01", st: null }],
+    [{ n: "Unknown Analyst", f: "X", d: "2026-10-01", st: 3.5 }]);
+  assert.deepEqual(st.map((r) => r.st), [null, 3.5], "Unknown Analyst star stays with its firm");
+  // a named analyst's star still follows him across a firm change
+  assert.equal(carryStars([{ n: "Dan Ives", f: "Wedbush", d: "2026-11-10", st: null }], prev)[0].st, 4, "named analyst: star by name, any firm");
+}
+
+console.log("ok   forecast merge: page gate, carryStars, carryRecentPrev, additive guarantee, union, dedup, precedence, anonymized rows, BIOA, payload, uid lookup, FX-stable targets, page top-up, shrink-guarded carry, one row per analyst across a firm change");

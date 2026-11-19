@@ -176,12 +176,18 @@ export function keepPrevRating(rows, prev) {
   });
 }
 
-/** One row per analyst (name + firm; Unknown Analyst = per firm): the newest. Product choice
+// One analyst's identity for every per-analyst join (dedup, carry, stars, top-up): the name, or the
+// firm for "Unknown Analyst". NOT name+firm: keepPrevRating keeps a stored rating's firm while the
+// analyst's newer rating carries the new one, and a firm-keyed dedup then listed him twice
+// (getData kept one firm per expert, so one row per analyst).
+const who = (f) => (analystKey(f) === UNKNOWN ? `${UNKNOWN}|${firmKey(f)}` : analystKey(f));
+
+/** One row per analyst (who(): name; Unknown Analyst = per firm): the newest. Product choice
  *  (2026-11-16) — a newer rating replaces the analyst's older one instead of sitting beside it. */
 export function latestPerAnalyst(rows) {
   const seen = new Set();
   return [...(rows || [])].sort((a, b) => (b.d || "").localeCompare(a.d || ""))
-    .filter((f) => { const k = `${analystKey(f)}|${firmKey(f)}`; if (seen.has(k)) return false; seen.add(k); return true; });
+    .filter((f) => { const k = who(f); if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
 /**
@@ -193,16 +199,12 @@ export function latestPerAnalyst(rows) {
 export function keepNewerPrev(out, prev) {
   const rows = Array.isArray(out) ? out : [];
   if (!Array.isArray(prev) || !prev.length) return rows;
-  const id = (f) => `${analystKey(f)}|${firmKey(f)}`;
-  const newest = new Map();
-  for (const f of rows) if (f?.n && (newest.get(id(f)) ?? "") < (f.d || "")) newest.set(id(f), f.d || "");
-  const back = prev.filter((f) => f?.n && f.d && Number.isFinite(f.pt) && newest.has(id(f)) && newest.get(id(f)) < f.d);
+  const newest = newestBy(rows);
+  const back = prev.filter((f) => f?.n && f.d && Number.isFinite(f.pt) && newest.has(who(f)) && newest.get(who(f)) < f.d);
   if (!back.length) return rows;
   return [...rows, ...back].sort((a, b) => (b.d || "").localeCompare(a.d || ""));
 }
 
-// One analyst's identity for the carry/top-up joins: the name, or the firm for "Unknown Analyst".
-const who = (f) => (analystKey(f) === UNKNOWN ? `${UNKNOWN}|${firmKey(f)}` : analystKey(f));
 const newestBy = (rows) => {
   const m = new Map();
   for (const f of rows || []) if (f?.n && (m.get(who(f)) ?? "") < (f.d || "")) m.set(who(f), f.d || "");
@@ -211,13 +213,14 @@ const newestBy = (rows) => {
 const sinceDay = (now, days) => new Date(now - days * 864e5).toISOString().slice(0, 10);
 const realRow = (f) => f?.n && f.d && Number.isFinite(f.pt);
 
-/** Fill `st == null` from `prev` by analystKey: stars belong to the analyst, not the rating, so a
- *  page-only row (the page renders none) keeps the star the analyst had last run. */
+/** Fill `st == null` from `prev` by who(): stars belong to the analyst, not the rating, so a
+ *  page-only row (the page renders none) keeps the star the analyst had last run. Unknown Analyst
+ *  is per firm here too — keyed by name alone, one firm's unranked analyst took another's star. */
 export function carryStars(rows, prev) {
   if (!Array.isArray(prev) || !prev.length) return rows;
   const star = new Map();
-  for (const p of prev) if (p?.n && p.st != null && !star.has(analystKey(p))) star.set(analystKey(p), p.st);
-  return rows.map((f) => (f.st == null && star.has(analystKey(f)) ? { ...f, st: star.get(analystKey(f)) } : f));
+  for (const p of prev) if (p?.n && p.st != null && !star.has(who(p))) star.set(who(p), p.st);
+  return rows.map((f) => (f.st == null && star.has(who(f)) ? { ...f, st: star.get(who(f)) } : f));
 }
 
 /**
