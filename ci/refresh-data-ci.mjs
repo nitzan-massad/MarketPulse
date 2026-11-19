@@ -4,7 +4,7 @@
 // (Local manual refresh uses scripts/refresh-data.mjs with Playwright instead.)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { computeKeep, forecastFields, applyForecast, enrichQueue, nextLastSeen, rowFromScreener, rowFromAiAnalyst, mergeRow, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
-import { UNIVERSE_URL, universeMap, planBackfill } from "./backfill-plan.mjs";
+import { UNIVERSE_URL, universeMap, universeItems, planBackfill } from "./backfill-plan.mjs";
 import { getText, makeBreaker, health, stepDeadline } from "./tr-fetch.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
@@ -100,9 +100,8 @@ let universe = new Map(), universeTotal = 0;
 if (missing.length) {
   try {
     let body = await getText(UNIVERSE_URL, { flareUrl: FS_URL, tries: 2, timeoutMs: 120_000, breaker: universeBreaker, deadline: STEP.at });
-    const items = extractJson(body).items;
+    const items = universeItems(extractJson(body)); // parsed but reshaped throws: must reach health(), not pass as an empty map
     body = null;
-    if (!Array.isArray(items)) throw new Error("no items"); // parsed but reshaped: must reach health(), not pass as an empty map
     const ambiguous = [];
     universe = universeMap(items, { prev: prevRows, ambiguous });
     universeTotal = items.length;

@@ -1,7 +1,8 @@
 // Backfill planning: which off-pull tickers the full-universe screener pull can serve, and which
 // need a per-ticker stock-aianalyst payload. No network.
 import assert from "node:assert/strict";
-import { universeMap, planBackfill, UNIVERSE_URL } from "./backfill-plan.mjs";
+import { universeMap, universeItems, planBackfill, UNIVERSE_URL } from "./backfill-plan.mjs";
+import { readFileSync } from "node:fs";
 
 const it = (t, primary, tag) => ({ tradingInformationData: { ticker: t, stockListingIsPrimaryMarket: primary, tag } });
 
@@ -52,4 +53,20 @@ assert.equal(universeMap([null, {}, { tradingInformationData: {} }]).size, 0);
 assert.equal(universeMap(undefined).size, 0);
 
 assert.match(UNIVERSE_URL, /pageSize=20000&sortDir=2$/);
+
+// B5: a parsed-but-reshaped universe body must throw (-> health "universe pull failed"), never pass
+// as an empty map. scripts/refresh-data.mjs had `.items || []`, which hid the reshape locally.
+assert.deepEqual(universeItems({ items: [1, 2] }), [1, 2]);
+assert.deepEqual(universeItems({ items: [] }), [], "a real empty list is an answer");
+for (const bad of [{}, { items: null }, { items: {} }, { data: [] }, null, undefined, "x"]) {
+  assert.throws(() => universeItems(bad), /no items/, `reshaped body ${JSON.stringify(bad)} throws`);
+}
+// both refresh scripts (they fetch on import, so source-level) use the shared guard and report it
+for (const p of ["ci/refresh-data-ci.mjs", "scripts/refresh-data.mjs"]) {
+  const src = readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
+  console.log(`B5 ${p}: universeItems=${/universeItems\(/.test(src)}, health=${/health\("universe pull failed"\)/.test(src)}`);
+  assert.match(src, /universeItems\(/, `${p} must parse the universe with universeItems`);
+  assert.match(src, /health\("universe pull failed"\)/, `${p} must raise the universe health line`);
+  assert.doesNotMatch(src, /\)\.items \|\| \[\]/, `${p} must not swallow a reshaped body with \`.items || []\``);
+}
 console.log("backfill plan: all cases passed");

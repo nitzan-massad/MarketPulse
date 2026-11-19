@@ -3,7 +3,7 @@
 // does the same in-page fetch the app's data was originally pulled with.
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { UNIVERSE_URL, universeMap, planBackfill } from "../ci/backfill-plan.mjs";
+import { UNIVERSE_URL, universeMap, universeItems, planBackfill } from "../ci/backfill-plan.mjs";
 import { health } from "../ci/tr-fetch.mjs";
 import { computeKeep, rowFromScreener, rowFromAiAnalyst, mergeRow, forecastFields, applyForecast, enrichQueue, nextLastSeen, KEEP_MAX_AGE_DAYS } from "../ci/keep.mjs";
 
@@ -40,12 +40,13 @@ async function pull(page) {
 }
 
 // in-page fetches (need the page's Cloudflare clearance). The universe is one ~77 MB call whose
-// items come back raw; the per-ticker aianalyst payloads cover tickers it lacks.
+// items come back raw; the per-ticker aianalyst payloads cover tickers it lacks. universeItems
+// (shared with ci/refresh-data-ci.mjs) throws on a reshaped body, so it reaches health().
 async function fetchUniverse(page) {
-  return page.evaluate(async (url) => {
+  return universeItems(await page.evaluate(async (url) => {
     const r = await fetch(url, { headers: { accept: "application/json" } });
-    return (await r.json()).items || [];
-  }, UNIVERSE_URL);
+    return r.json();
+  }, UNIVERSE_URL));
 }
 async function fetchAiAnalyst(page, tickers) {
   return page.evaluate(async (ts) => {
@@ -140,7 +141,7 @@ if (missing.length) {
     // duplicate ticker, no primary listing, no name match: skipped (payload/carry), never guessed
     const skipped = ambiguous.filter((t) => missing.includes(t));
     if (skipped.length) { health(`universe: ${skipped.length} ambiguous duplicate ticker(s) skipped`); console.log(`  universe: ambiguous duplicates skipped (payload/carry): ${skipped.join(",")}`); }
-  } catch (e) { console.error(`universe pull failed (${e.message}): backfilling from payloads only`); }
+  } catch (e) { health("universe pull failed"); console.error(`universe pull failed (${e.message}): backfilling from payloads only`); }
 }
 const { fromUniverse, needPayload } = planBackfill(missing, universe);
 const toFetch = [];

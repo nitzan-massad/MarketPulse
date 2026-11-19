@@ -38,6 +38,15 @@ export function universeMap(items, { prev, ambiguous } = {}) {
   return m;
 }
 
+/** The universe body's item list. A body that parsed but has no `items` array is a reshape: throw
+ *  so the caller reports it (health "universe pull failed") instead of passing it as an empty map.
+ *  Shared by both refresh scripts — the local one had `.items || []`, which hid exactly that. */
+export function universeItems(body) {
+  const items = body?.items;
+  if (!Array.isArray(items)) throw new Error("no items");
+  return items;
+}
+
 /** Split `missing` into tickers the universe covers and tickers that need a per-ticker payload. */
 export function planBackfill(missing, universe) {
   const fromUniverse = [], needPayload = [];
