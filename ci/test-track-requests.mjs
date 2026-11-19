@@ -1,6 +1,6 @@
 // Guards ci/track-requests.mjs: which requests get tracked, fetched, marked, cleared, and kept alive.
 import assert from "node:assert/strict";
-import { planFail, planFetch, planFold, planKeepalive, planMarks, planTracks, planUnrequest, seenFor, trackedEntry } from "./track-requests.mjs";
+import { planFail, planFetch, planFold, planKeepalive, planMarks, planTracks, planUnrequest, rtdbUrl, seenFor, trackedEntry } from "./track-requests.mjs";
 
 const req = (ts, tracked = false) => ({ uid: "u", ts, tracked });
 const iso = (ms) => new Date(ms).toISOString();
@@ -98,3 +98,13 @@ assert.deepEqual([junk.stocks.length, junk.folded], [1, {}]);
 assert.deepEqual(planFold(null, base).folded, {});
 
 console.log("track-requests: ok");
+
+// ---- RTDB URL: production by default; an emulator (RTDB_URL) keeps its ?ns= on every path ----
+const PROD = "https://marketpulse-df5d9-default-rtdb.europe-west1.firebasedatabase.app";
+assert.equal(rtdbUrl("trackRequests.json"), `${PROD}/trackRequests.json`);
+assert.equal(rtdbUrl("trackedRows.json?shallow=true"), `${PROD}/trackedRows.json?shallow=true`);
+assert.equal(rtdbUrl("trackedRows/BRK_B.json"), `${PROD}/trackedRows/BRK_B.json`);
+const EMU = "http://127.0.0.1:9000?ns=marketpulse-df5d9-default-rtdb";
+assert.equal(rtdbUrl(".json", EMU), "http://127.0.0.1:9000/.json?ns=marketpulse-df5d9-default-rtdb");
+assert.equal(rtdbUrl("trackedRows.json?shallow=true", EMU), "http://127.0.0.1:9000/trackedRows.json?shallow=true&ns=marketpulse-df5d9-default-rtdb");
+assert.equal(rtdbUrl("trackRequests/NNNN.json", "http://127.0.0.1:9000/"), "http://127.0.0.1:9000/trackRequests/NNNN.json");

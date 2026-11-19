@@ -47,6 +47,19 @@ import { mergeRow, rowFromAiAnalyst } from "./keep.mjs";
 import { getText, makeBreaker, health } from "./tr-fetch.mjs";
 
 const DB = "https://marketpulse-df5d9-default-rtdb.europe-west1.firebasedatabase.app";
+// RTDB_URL + RTDB_TOKEN: point every mode at a Firebase emulator instead (local e2e only — CI never
+// sets them), e.g. RTDB_URL="http://127.0.0.1:9000?ns=marketpulse-df5d9-default-rtdb" RTDB_TOKEN=owner
+// (the emulator treats "Bearer owner" as admin). The token is honoured ONLY with RTDB_URL, so it can
+// never be sent to production; production still needs FIREBASE_SERVICE_ACCOUNT.
+const EMU = process.env.RTDB_URL && process.env.RTDB_TOKEN ? { url: process.env.RTDB_URL, token: process.env.RTDB_TOKEN } : null;
+/** `path` (may carry its own query, e.g. "x.json?shallow=true") under `base`; base's query (the
+ *  emulator's `ns`) is kept on every request. */
+export function rtdbUrl(path, base = DB) {
+  const b = new URL(base);
+  const u = new URL(path, `${b.origin}${b.pathname.replace(/\/?$/, "/")}`);
+  for (const [k, v] of b.searchParams) u.searchParams.set(k, v);
+  return u.href;
+}
 const PINNED = "src/data/pinned.json";
 const TRACKED = "src/data/tracked.json";
 const KEEPALIVE = "src/data/keepalive.json";
@@ -245,7 +258,7 @@ async function accessToken(sa) {
 }
 
 async function rtdbRes(token, method, path, body, headers = {}) {
-  return fetch(`${DB}/${path}`, {
+  return fetch(rtdbUrl(path, EMU?.url ?? DB), {
     method,
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...headers },
     body: body && JSON.stringify(body),
@@ -262,11 +275,12 @@ async function rtdb(token, method, path, body) {
 const readText = (path) => { try { return readFileSync(path, "utf8"); } catch { return null; } };
 
 async function main(mode) {
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT && !EMU) {
     console.log("FIREBASE_SERVICE_ACCOUNT not set — skipping track requests.");
     return;
   }
-  const token = await accessToken(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT));
+  if (EMU) console.log(`RTDB: emulator ${new URL(EMU.url).origin}`);
+  const token = EMU ? EMU.token : await accessToken(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT));
   const tracked = readJson(TRACKED, {});
 
   if (mode === "fold") {
