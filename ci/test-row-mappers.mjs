@@ -249,9 +249,31 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   assert.deepEqual([r.pt, r.px, r.up], [0.25, 0.13, 92.3], "upside omitted, pt+px known -> computed like getData");
   assert.equal(ap({ value: 0.25, upside: 0.9 }, { priceUSD: 0.13 }).up, 90, "payload upside present -> payload's");
   assert.equal(ap({ value: 0.25, upside: null }, { priceUSD: 0.13 }).up, null, "explicit null upside = data");
-  assert.equal(ap({ value: 0.25 }, {}).up, undefined, "px unknown -> carry");
-  assert.equal(ap({ value: 0.25 }, undefined).up, undefined, "no prices -> carry");
-  assert.equal(ap({}, { priceUSD: 0.13 }).up, undefined, "pt absent -> carry");
-  assert.equal(mergeRow({ up: 50 }, ap({ value: 0.25 }, {})).up, 50, "carried through mergeRow");
+}
+// Round 2 fix 1 (review): no target -> no upside. pt is written (null) on these shapes, so up must be
+// null too — undefined carried prev's upside next to a "—" target.
+{
+  const prev = { t: "X", pt: 20, up: 300, px: 5 };
+  const ap = (ar, daily = { priceUSD: 5 }) => rowFromAiAnalyst({ models: { stocks: [{ _id: "X", company: { name: "X Co" }, analystRatings: ar, prices: { daily } }] } }, "X");
+  for (const [label, ar] of [
+    ["best value null, all has no priceTarget", { best: { priceTarget: { value: null } }, all: { enumId: 5, buy: 1, hold: 0, sell: 0 } }],
+    ["best priceTarget null, all value null", { best: { priceTarget: null }, all: { enumId: 5, buy: 1, hold: 0, sell: 0, priceTarget: { value: null } } }],
+    ["best value key absent", { best: { priceTarget: {} }, all: { enumId: 5, buy: 1, hold: 0, sell: 0 } }],
+    ["best priceTarget a scalar (reshaped)", { best: { priceTarget: 7 }, all: { enumId: 5, buy: 1, hold: 0, sell: 0 } }],
+  ]) {
+    const m = mergeRow(prev, ap(ar));
+    console.log(`fix1 ${label} -> pt/up`, m.pt, m.up);
+    assert.deepEqual([m.pt, m.up], [null, null], `${label}: target '—' never sits next to prev's upside`);
+  }
+  // pt known, px unknown in this payload: up null (old getData: px null -> up null), never prev's
+  // upside beside a new target. px itself still carries (STRICT field).
+  for (const daily of [{}, null]) { // null, not undefined: undefined would hit ap()'s default px
+    const m = mergeRow(prev, ap({ best: { priceTarget: { value: 30 } }, all: { enumId: 5, buy: 1, hold: 0, sell: 0 } }, daily));
+    console.log("fix1 pt known, px unknown -> pt/px/up", m.pt, m.px, m.up);
+    assert.deepEqual([m.pt, m.px, m.up], [30, 5, null]);
+  }
+  // both target keys absent: still carry pt AND up together
+  const c = mergeRow(prev, ap({}));
+  assert.deepEqual([c.pt, c.up], [20, 300], "best and all keys both absent -> pt and up both carry");
 }
 console.log("row-mappers OK");
