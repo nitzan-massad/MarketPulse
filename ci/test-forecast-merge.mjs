@@ -183,8 +183,9 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
     { n: "Unknown Analyst", f: "Argus", r: "Hold", pt: 600, opt: null, d: "2026-10-15", st: null },
   ], "named + unranked rows kept; AI, no-target, orphan and peer-ticker rows dropped; firm trimmed");
   assert.equal(forecastsFromPayload({}, "MA"), null, "reshaped payload -> null (caller falls back to the page)");
-  // AMD 2026-11-04: the payload's PROFILE firm is where the analyst works now; getData's per-rating
-  // firm (joined on eUid, anonymized experts included) wins.
+  // AMD 2026-11-04: the payload's PROFILE firm is where the analyst works now. getData's per-rating
+  // firm used to override it; getData is retired, so the profile firm is the answer here (stored
+  // ratings keep their firm via keepPrevRating). M10: the dead `data` argument is gone.
   const amd = { models: {
     experts: [{ _id: "oc", name: "David O'Connor", firm: "Exane BNP Paribas" }, { _id: "ml", name: "Mark Lear", firm: "Piper Sandler" }, { _id: "zz", name: "Not In GetData", firm: "Profile Firm" }],
     ratings: [
@@ -193,9 +194,9 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
       { object: { ticker: "AMD" }, expert: { uid: "zz" }, date: "2026-11-01T00:00:00.000Z", position: "buy", priceTarget: { value: 5 } },
     ],
   } };
-  const gd = { experts: [{ name: "David O'Connor", firm: "Piper Sandler", eUid: "oc" }, { name: null, firm: "Scotiabank ", eUid: "ml" }] };
-  assert.deepEqual(forecastsFromPayload(amd, "AMD", gd).map((r) => r.f), ["Piper Sandler", "Scotiabank", "Profile Firm"],
-    "getData firm (named or anonymized) beats the payload profile firm; unknown experts keep the profile firm");
+  assert.deepEqual(forecastsFromPayload(amd, "AMD").map((r) => r.f), ["Exane BNP Paribas", "Piper Sandler", "Profile Firm"],
+    "the payload profile firm, trimmed");
+  assert.equal(forecastsFromPayload.length, 2, "forecastsFromPayload(fj, ticker): no getData argument");
   assert.equal(forecastsFromPayload(null, "MA"), null);
   // two Unknown Analysts on one date are two ratings, not a duplicate
   assert.equal(mergeForecasts(rows, []).length, 3, "Unknown Analysts at different firms must not collapse");
@@ -206,8 +207,8 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
 
 /* ------------------------------------------------ FX-stable targets (review alerts) */
 {
-  // SHOP: the payload converts at today's FX (128.9995); getData's convertedPriceTarget (127.537) is
-  // stable — used whenever getData names the same rating on the same date.
+  // SHOP: the payload converts at today's FX (128.9995), rounded to 2dp; old target as sent. FX
+  // stability now comes only from keepPrevRating below (getData's stable target is retired).
   const fj = { models: {
     experts: [{ _id: "dt", name: "Doug Taylor", firm: "Canaccord" }, { _id: "an", name: "Hidden One", firm: "RBC" }],
     ratings: [
@@ -215,16 +216,8 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
       { object: { ticker: "SHOP" }, expert: { uid: "an" }, date: "2026-11-05T00:00:00.000Z", position: "buy", priceTarget: { value: 150.12 } },
     ],
   } };
-  const data = { experts: [
-    { name: "Doug Taylor", firm: "Canaccord", eUid: "dt", ratings: [{ date: "2026-10-01T00:00:00", convertedPriceTarget: 127.537, convertedOldPriceTarget: 119.2 }] },
-    { name: null, firm: "RBC", eUid: "an", ratings: [{ date: "2026-11-05T00:00:00", convertedPriceTarget: null }] },
-  ] };
-  const rows = forecastsFromPayload(fj, "SHOP", data);
-  assert.deepEqual(rows.map((r) => [r.pt, r.opt]), [[127.54, 119.2], [150.12, null]],
-    "getData's stable converted target wins when it names the rating; an anonymized one keeps the payload's");
-  // a stale getData rating (different date) must not lend its target to a newer payload rating
-  const stale = { experts: [{ name: "Doug Taylor", firm: "Canaccord", eUid: "dt", ratings: [{ date: "2026-08-01T00:00:00", convertedPriceTarget: 99 }] }] };
-  assert.equal(forecastsFromPayload(fj, "SHOP", stale)[0].pt, 129, "another date's target is never borrowed");
+  const rows = forecastsFromPayload(fj, "SHOP");
+  assert.deepEqual(rows.map((r) => [r.pt, r.opt]), [[129, 120.4], [150.12, null]], "payload targets, 2dp; old target as sent");
 
   // keepPrevRating: the same analyst + date is the same rating, so last run's firm/target stand
   // (this subsumes the old keepPrevTarget FX-drift case: same date, 0.4% different target)
@@ -245,20 +238,20 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
 
   // stars: round(5 * rank.rank, 1) from the analyst| record (rating.expert.id), not the sha one
   const aapl = JSON.parse(readFileSync(new URL("./fixtures/stock-forecast-aapl.json", import.meta.url), "utf8"));
-  const stRows = forecastsFromPayload(aapl, "AAPL", null);
+  const stRows = forecastsFromPayload(aapl, "AAPL");
   const my = stRows.find((r) => r.n === "Martin Yang");
   assert.equal(my.st, Math.round(5 * 0.9405121679656434 * 10) / 10, "Martin Yang stars from his analyst|1504 record");
   assert.ok(stRows.length >= 5 && stRows.every((r) => r.st >= 0 && r.st <= 5), "every st in [0,5]");
   const noRank = { models: { experts: [{ _id: "u", name: "No Rank", firm: "X" }], ratings: [{ object: { ticker: "T" }, expert: { uid: "u", id: "analyst|9" }, date: "2026-10-01", position: "buy", priceTarget: { value: 10 } }] } };
-  assert.equal(forecastsFromPayload(noRank, "T", null)[0].st, null, "no rank anywhere -> null");
+  assert.equal(forecastsFromPayload(noRank, "T")[0].st, null, "no rank anywhere -> null");
   const uidOnly = { models: { experts: [{ _id: "u", name: "Uid Only", firm: "X", rank: { rank: 0.5 } }], ratings: noRank.models.ratings } };
-  assert.equal(forecastsFromPayload(uidOnly, "T", null)[0].st, 2.5, "falls back to the uid record");
+  assert.equal(forecastsFromPayload(uidOnly, "T")[0].st, 2.5, "falls back to the uid record");
   // uid regression (AAPL Jack Zhou): the live payload's expert record is `_id: "analyst|<n>"` with the
   // sha in `uid`, and a rating names it by `expert.uid` — indexing experts on `_id` alone dropped him.
   const jz = { models: { experts: [{ _id: "x", uid: "u1", name: "Jack Zhou", firm: "Barclays" }], ratings: [{ object: { ticker: "AAPL" }, expert: { uid: "u1" }, date: "2026-11-01", position: "buy", priceTarget: { value: 300 } }] } };
-  assert.deepEqual(forecastsFromPayload(jz, "AAPL", null).map((r) => r.n), ["Jack Zhou"], "expert found by uid");
+  assert.deepEqual(forecastsFromPayload(jz, "AAPL").map((r) => r.n), ["Jack Zhou"], "expert found by uid");
   const byId = { models: { experts: jz.models.experts, ratings: [{ ...jz.models.ratings[0], expert: { id: "x" } }] } };
-  assert.deepEqual(forecastsFromPayload(byId, "AAPL", null).map((r) => r.n), ["Jack Zhou"], "no uid on the rating -> expert.id");
+  assert.deepEqual(forecastsFromPayload(byId, "AAPL").map((r) => r.n), ["Jack Zhou"], "no uid on the rating -> expert.id");
 }
 
 { // invisible bidi marks in a name must not split one analyst into two keys
@@ -323,7 +316,7 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   const hold = hiddenAnalysts(fj, "WYNN", prev);
   console.log("R2 hiddenAnalysts ->", JSON.stringify(hold));
   assert.deepEqual(hold.sort(), ["chuck cerankosky", "john staszak"]);
-  const src = forecastsFromPayload(fj, "WYNN", null);
+  const src = forecastsFromPayload(fj, "WYNN");
   const g = carryPrevGuarded(keepPrevRating(src, prev), prev, { ok: true, now, hold });
   console.log("R2 WYNN rows ->", JSON.stringify(g.rows.map((f) => [f.n, f.r, f.pt, f.d])));
   assert.equal(g.widened, false);

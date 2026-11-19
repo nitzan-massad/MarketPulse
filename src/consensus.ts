@@ -2,12 +2,13 @@
 // ticker's consensus rating is an upgrade or a downgrade.
 //
 // The vocabulary is written by the data pipeline, from two kinds of writer:
-//   1. ci/keep.mjs:50 `CON_NAME` maps the TipRanks rating/enumId 1–5 to
+//   1. ci/keep.mjs `CON_NAME` maps the TipRanks rating/enumId 1–5 to
 //      StrongSell | Sell | Neutral | Buy | StrongBuy  (note: "Neutral", never "Hold"),
-//      used by rowFromGetData (ci/keep.mjs:118) and forecastFields (ci/keep.mjs:151).
-//   2. the screener passthrough `bc.analystConsensus?.name || null`
-//      (ci/refresh-data-ci.mjs:72 and scripts/refresh-data.mjs:41) — an *unvalidated*
-//      upstream string, so a label we've never seen can appear at any time.
+//      used by rowFromAiAnalyst and forecastFields (and by the "Neutral" 0/0/0 row an
+//      off-pull ticker with explicitly no coverage gets — NO_COVERAGE_GETDATA).
+//   2. the screener passthrough `cons.analystConsensus?.name || null` in ci/keep.mjs
+//      rowFromScreener — an *unvalidated* upstream string, so a label we've never seen
+//      can appear at any time.
 // Either writer can also produce `null` (no coverage), and seen.json carries whatever
 // was current at first sighting, so both sides of a comparison may be null.
 //

@@ -1,4 +1,4 @@
-// Analyst forecasts — per-ticker snapshot pulled from TipRanks' free getData feed
+// Analyst forecasts — per-ticker snapshot from TipRanks' stock-forecast payload + forecast page (ci/scrape-forecasts.mjs)
 // (name, firm, star rating, price target, prior target, position, date), baked into
 // public/forecasts/. Lazy-fetched by the modal; also polled fresh by the review detector.
 // A tracked-only ticker (not bundled yet) reads its payload from RTDB trackedRows instead.

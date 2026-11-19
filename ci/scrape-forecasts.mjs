@@ -104,9 +104,9 @@ async function scrape(t) {
     if (!skipOpen("payload.json", payloadBreaker)) {
       try {
         const breaker = payloadBreaker;
-        const okPayload = (h) => { try { return forecastsFromPayload(extractJson(h), t, null) !== null; } catch { return false; } };
+        const okPayload = (h) => { try { return forecastsFromPayload(extractJson(h), t) !== null; } catch { return false; } };
         fj = extractJson(await getText(`https://www.tipranks.com/stocks/${slug}/stock-forecast/payload.json`, { flareUrl: FS_URL, tries: 2, plain: true, ok: okPayload, breaker }));
-        src = forecastsFromPayload(fj, t, null);
+        src = forecastsFromPayload(fj, t);
       } catch { src = null; }
     }
     // 0 rows over a non-empty file counts as a failure too (a reshape must not shrink the file)

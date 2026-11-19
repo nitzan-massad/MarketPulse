@@ -22,7 +22,7 @@ function runTicker({ ticker, fj, page, out, now = Date.now(), tried = {} }) {
   const file = join(out, `${ticker}.json`);
   let prev = null;
   try { prev = JSON.parse(readFileSync(file, "utf8")); } catch { /* first fetch */ }
-  const src = fj ? forecastsFromPayload(fj, ticker, null) : null;
+  const src = fj ? forecastsFromPayload(fj, ticker) : null;
   const ok = payloadOk(src, prev);
   let fc = carryStars(ok ? src : [], prev);
   const hidden = ok ? hiddenTargetKeys(fj, ticker, prev ?? []) : [];
@@ -163,7 +163,7 @@ const rating = (d, pt) => ({ object: { ticker: "T" }, expert: { uid: "u1", id: "
 {
   const src = readFileSync(new URL("./scrape-forecasts.mjs", import.meta.url), "utf8");
   for (const line of [
-    "src = forecastsFromPayload(fj, t, null);",
+    "src = forecastsFromPayload(fj, t);",
     "const ok = payloadOk(src, prev);",
     "let fc = carryStars(ok ? src : [], prev);",
     "const hidden = ok ? hiddenTargetKeys(fj, t, prev ?? []) : [];",

@@ -2,18 +2,17 @@
 // ci/test-forecast-merge.mjs can exercise it directly instead of mirroring it (which is what
 // ci/test-forecast-gate.mjs had to do for the old inline gate).
 //
-// WHY THIS EXISTS. TipRanks' `getData` API paywall-anonymizes a teaser window of rows: they
-// keep `firm`, `date`, `ratingId` and `stars` but null `name` and every price-target field, so
-// toForecasts() drops them on `!e.name`. The window covers the FRESHEST ratings, so this is a
-// recency problem on every ticker, not a micro-cap problem. The SSR page renders names and
-// targets in full.
+// Today the JSON side is the per-ticker stock-forecast payload (forecastsFromPayload below), and the
+// SSR page tops it up where the payload withholds rows (hiddenAnalysts / topUpRows). getData was
+// retired 2026-11-17 (Cloudflare-blocked); nothing here reads it any more.
 //
-// Until now the page was a FALLBACK, fetched only when the JSON path yielded nothing at all
-// (`!fc.length`). BIOA is the shape of the bug that leaves: 9 real broker ratings exist, 2
-// survived the teaser, so the fallback never fired and 7 stayed invisible next to a label
-// reading "n=9".
+// History (pre-2026-11-18, when the JSON side was getData): getData paywall-anonymized a teaser
+// window of the FRESHEST ratings (firm/date/rating/stars kept, name and targets nulled), so
+// toForecasts() dropped them, and the page was only a fallback when nothing survived at all. BIOA
+// was the shape of that bug: 9 real ratings, 2 survived, 7 invisible next to "n=9". The union
+// below was built for it, and it still serves the payload + page merge.
 //
-// Measured over all 418 tickers (Phase 0 of PLAN-ssr-merge.md, 2026-08-22):
+// Measured over all 418 tickers (Phase 0 of PLAN-ssr-merge.md, 2026-08-22, getData era):
 //   rows 3976 -> 5669 (+42.6%)      85% of tickers gain rows
 //   83% get FRESHER data            median +16 days, worst +349 (ANVS, stuck on 2025-09-03)
 //   0 tickers lose rows   0 malformed rows   0 target conflicts where both sources have it
@@ -96,62 +95,48 @@ const POSITION = { buy: "Buy", hold: "Hold", sell: "Sell" };
 
 /**
  * Every rating in TipRanks' consensus window, NAMED, from /stocks/<t>/stock-forecast/payload.json
- * (`models.ratings[]` joined to `models.experts[]` on expert.uid/id = _id or uid). Unlike getData it does not
- * anonymize the freshest ~10 brokers, and unlike the SSR page it is not cut at ~15 rows — on
- * 2026-11-07 MA had 46 ratings here, including Clear Street (anonymized in getData, below row 15 on
- * the page) and Deutsche Bank's "Unknown Analyst" row (getData files those under
- * `notRankedExperts[]`, which toForecasts never read). Returns null when the payload is not this
- * shape, so the caller falls back to the page.
+ * (`models.ratings[]` joined to `models.experts[]` on expert.uid/id = _id or uid). It is not cut at
+ * ~15 rows like the SSR page — on 2026-11-07 MA had 46 ratings here, including Clear Street (below
+ * row 15 on the page) and Deutsche Bank's "Unknown Analyst" row. Returns null when the payload is
+ * not this shape, so the caller falls back to the page.
  *
- * Dropped: TipRanks' own AI models (firm "TipRanks - OpenAI" etc. — toForecasts drops them via
- * `aiModel`), ratings without a target (a Forecast needs one), a rating whose expert is missing.
- * `priceTarget` is the USD-converted value, the same one getData calls convertedPriceTarget.
+ * Dropped: TipRanks' own AI models (firm "TipRanks - OpenAI" etc.), ratings without a target (a
+ * Forecast needs one), a rating whose expert is missing. `priceTarget` is the USD-converted value.
  *
  * FIRM: the payload's firm sits on the expert PROFILE (where the analyst works now), not on the
- * rating. AMD 2026-11-04 David O'Connor read "Exane BNP Paribas" here but "Piper Sandler" in getData
- * and on the page; DVN/OVV/BMRN had the same skew. getData keeps a per-rating firm on every expert,
- * anonymized ones included, keyed by `eUid` = the payload's `expert.uid` — pass `data` and that
- * firm wins. Experts getData does not list keep the profile firm (no better source).
+ * rating (AMD 2026-11-04 David O'Connor read "Exane BNP Paribas" here, "Piper Sandler" on the page).
+ * TARGET: non-USD targets are converted at TODAY's FX, so they wobble run to run. Both are settled
+ * downstream: keepPrevRating keeps a stored rating's firm and target. (Until 2026-11-18 a getData
+ * argument overrode both; it was retired with getData.)
  */
-export function forecastsFromPayload(fj, ticker, data) {
+export function forecastsFromPayload(fj, ticker) {
   const m = fj?.models;
   if (!Array.isArray(m?.ratings) || !Array.isArray(m?.experts)) return null;
   // Indexed by BOTH ids: the live record is `_id: "analyst|<n>"` with the sha in `uid`, and a rating
   // names it by `expert.uid` (sha) — an `_id`-only index dropped AAPL's Jack Zhou (2026-11-18).
   const experts = new Map();
   for (const e of m.experts) for (const id of [e?._id, e?.uid]) if (id != null && !experts.has(id)) experts.set(id, e);
-  const firmOf = new Map();
-  const gd = new Map(); // eUid -> getData's latest rating (one per expert)
-  for (const e of [...(data?.experts || []), ...(data?.notRankedExperts || [])]) {
-    if (!e?.eUid) continue;
-    if (typeof e.firm === "string" && e.firm.trim()) firmOf.set(e.eUid, e.firm.trim());
-    if ((e.ratings || [])[0]) gd.set(e.eUid, e.ratings[0]);
-  }
   const out = [];
   for (const r of m.ratings) {
     if (ticker && r?.object?.ticker && r.object.ticker !== ticker) continue; // a peer's rating
     const e = experts.get(r?.expert?.uid ?? r?.expert?.id);
     const n = cleanName(e?.name);
-    const f = firmOf.get(r?.expert?.uid) ?? (typeof e?.firm === "string" ? e.firm.trim() : "");
+    const f = typeof e?.firm === "string" ? e.firm.trim() : "";
     if (!n || !f || /^TipRanks\b/i.test(f)) continue;
     const pt = Number(r.priceTarget?.value);
     if (!Number.isFinite(pt) || pt <= 0) continue;
     const d = String(r.date || "").slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
-    // TARGETS: the payload converts non-USD targets at TODAY's FX (SHOP Doug Taylor 128.9995 here
-    // vs 127.537 in getData), so they wobble run to run — and src/reviewAlerts.ts keys a review on
-    // n|f|d|r|pt, so every wobble would ring the bell as a "new review". getData's
-    // convertedPriceTarget is stable; use it whenever getData names this same rating.
-    const g = gd.get(r?.expert?.uid);
-    const same = g && String(g.date || "").slice(0, 10) === d && Number.isFinite(g.convertedPriceTarget) && g.convertedPriceTarget > 0;
-    const opt = same ? Number(g.convertedOldPriceTarget) : Number(r.oldPriceTarget);
+    // TARGETS wobble with FX (SHOP Doug Taylor 128.9995 one day) and src/reviewAlerts.ts keys a
+    // review on n|f|d|r|pt, so keepPrevRating (below) pins a stored rating's target.
+    const opt = Number(r.oldPriceTarget);
     // STARS: TipRanks' own CSV formula, round(5 * rank.rank, 1). The `analyst|<n>` record (rating.expert.id)
     // is the live one; the sha record (expert.uid) is an older snapshot, kept as the fallback.
     const rk = experts.get(r?.expert?.id)?.rank?.rank ?? e?.rank?.rank;
     const st = Number.isFinite(rk) ? Math.round(5 * rk * 10) / 10 : null;
     out.push({
       n, f, r: POSITION[String(r.position || "").toLowerCase()] ?? null,
-      pt: +(same ? g.convertedPriceTarget : pt).toFixed(2), opt: Number.isFinite(opt) && opt > 0 ? opt : null, d, st,
+      pt: +pt.toFixed(2), opt: Number.isFinite(opt) && opt > 0 ? opt : null, d, st,
     });
   }
   return out;
