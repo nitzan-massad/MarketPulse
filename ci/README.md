@@ -574,7 +574,9 @@ The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **ke
 > Cloudflare since 2026-11-17 and is no longer fetched by the refresh. Off-pull kept tickers now come from:
 > 1. **Universe screener** `https://www.tipranks.com/api/apps/stock/screener?country=us&method=screener&page=1&pageSize=20000&sortDir=2`
 >    (~13.9k items, ~77 MB, same item shape as the sorted calls; `rowFromScreener(item, { inPull: false })`,
->    duplicates resolved by `stockListingIsPrimaryMarket`; `ci/backfill-plan.mjs`).
+>    duplicates resolved by `stockListingIsPrimaryMarket`, then by name match against last run's row;
+>    still ambiguous -> skipped (payload, then carry; health line `universe: N ambiguous duplicate
+>    ticker(s) skipped`), never "first item wins" — that could be another company; `ci/backfill-plan.mjs`).
 > 2. **`stock-aianalyst` payload** `https://www.tipranks.com/stocks/<t>/stock-aianalyst/payload.json`
 >    (`models.stocks[]` selected by `_id`; `rowFromAiAnalyst`) for tickers the universe lacks, capped by
 >    `BACKFILL_LIMIT` and the snapshot step's deadline (`STEP_DEADLINE_MS`, default 12 min from script start, shared with enrich); past either, or on failure, the last-known row is carried.

@@ -4,6 +4,7 @@
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { UNIVERSE_URL, universeMap, planBackfill } from "../ci/backfill-plan.mjs";
+import { health } from "../ci/tr-fetch.mjs";
 import { computeKeep, rowFromScreener, rowFromAiAnalyst, mergeRow, forecastFields, applyForecast, enrichQueue, nextLastSeen, KEEP_MAX_AGE_DAYS } from "../ci/keep.mjs";
 
 const UA =
@@ -133,7 +134,13 @@ const baMs = (t) => Date.parse(prevSeen[t]?.ba || "") || lsMs(t);
 const missing = [...keep].filter((t) => !inPull.has(t)).sort((a, b) => baMs(a) - baMs(b));
 let universe = new Map();
 if (missing.length) {
-  try { universe = universeMap(await fetchUniverse(page)); } catch (e) { console.error(`universe pull failed (${e.message}): backfilling from payloads only`); }
+  try {
+    const ambiguous = [];
+    universe = universeMap(await fetchUniverse(page), { prev: prevRows, ambiguous });
+    // duplicate ticker, no primary listing, no name match: skipped (payload/carry), never guessed
+    const skipped = ambiguous.filter((t) => missing.includes(t));
+    if (skipped.length) { health(`universe: ${skipped.length} ambiguous duplicate ticker(s) skipped`); console.log(`  universe: ambiguous duplicates skipped (payload/carry): ${skipped.join(",")}`); }
+  } catch (e) { console.error(`universe pull failed (${e.message}): backfilling from payloads only`); }
 }
 const { fromUniverse, needPayload } = planBackfill(missing, universe);
 const toFetch = [];

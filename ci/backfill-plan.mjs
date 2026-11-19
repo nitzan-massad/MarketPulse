@@ -3,15 +3,37 @@
 // request; only tickers it lacks need a per-ticker stock-aianalyst payload.
 export const UNIVERSE_URL = "https://www.tipranks.com/api/apps/stock/screener?country=us&method=screener&page=1&pageSize=20000&sortDir=2";
 
-/** items -> Map<ticker, item>. On duplicate tickers the primary-market listing wins, else the first stays. */
-export function universeMap(items) {
-  const m = new Map();
+// Company names for the duplicate-ticker tie-break: case, punctuation and legal suffixes differ
+// between the screener ("Aluminum Corp. of China Ltd") and the stored row (from either source).
+const SUFFIX = /\b(inc|incorporated|corp|corporation|co|company|ltd|limited|plc|llc|lp|sa|ag|nv|se|the)\b/g;
+const normName = (s) => String(s ?? "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(SUFFIX, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * items -> Map<ticker, item>. The universe lists some tickers more than once (OTC/foreign lines,
+ * a different company reusing the symbol). Per ticker: the only item; else the one primary-market
+ * listing; else the one whose name matches last run's row (`prev`: Map<ticker, row>). Anything
+ * still ambiguous is SKIPPED — pushed to `ambiguous` for a health line — so it falls to the
+ * per-ticker payload (then carry). Keeping the first item used to graft another company's price
+ * and consensus onto the row.
+ */
+export function universeMap(items, { prev, ambiguous } = {}) {
+  const groups = new Map();
   for (const it of Array.isArray(items) ? items : []) {
-    const td = it?.tradingInformationData;
-    const t = td?.ticker;
+    const t = it?.tradingInformationData?.ticker;
     if (!t) continue;
-    const cur = m.get(t);
-    if (!cur || (td.stockListingIsPrimaryMarket === true && cur.tradingInformationData.stockListingIsPrimaryMarket !== true)) m.set(t, it);
+    if (!groups.has(t)) groups.set(t, []);
+    groups.get(t).push(it);
+  }
+  const m = new Map();
+  for (const [t, list] of groups) {
+    const primary = list.filter((it) => it.tradingInformationData.stockListingIsPrimaryMarket === true);
+    let cands = primary.length ? primary : list;
+    if (cands.length > 1) {
+      const want = normName(prev?.get(t)?.n);
+      cands = want ? cands.filter((it) => normName(it.tradingInformationData.companyName) === want) : [];
+    }
+    if (cands.length === 1) m.set(t, cands[0]);
+    else ambiguous?.push(t);
   }
   return m;
 }

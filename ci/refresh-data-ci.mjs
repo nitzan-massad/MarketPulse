@@ -103,8 +103,12 @@ if (missing.length) {
     const items = extractJson(body).items;
     body = null;
     if (!Array.isArray(items)) throw new Error("no items"); // parsed but reshaped: must reach health(), not pass as an empty map
-    universe = universeMap(items);
+    const ambiguous = [];
+    universe = universeMap(items, { prev: prevRows, ambiguous });
     universeTotal = items.length;
+    // duplicate ticker, no primary listing, no name match: skipped (payload/carry), never guessed
+    const skipped = ambiguous.filter((t) => missing.includes(t));
+    if (skipped.length) { health(`universe: ${skipped.length} ambiguous duplicate ticker(s) skipped`); console.log(`  universe: ambiguous duplicates skipped (payload/carry): ${skipped.join(",")}`); }
   } catch (e) { health("universe pull failed"); console.log(`  universe pull failed (${e.message}): backfilling from payloads only`); }
 }
 const { fromUniverse, needPayload } = planBackfill(missing, universe);
