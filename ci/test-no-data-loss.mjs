@@ -4,7 +4,8 @@
 // No network.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { lossReport, loadSnapshot, countRows } from "./data-loss.mjs";
+import { lossReport, loadSnapshot, countRows, gateVerdict } from "./data-loss.mjs";
+import { health } from "./tr-fetch.mjs";
 
 const row = (t, o = {}) => ({ t, n: t + " Inc", sec: "Tech", px: 10, pt: 12, up: 5, con: "Buy", ss: 5, ai: 70, air: "Outperform", aipt: 15, mc: 100, desc: "d", ...o });
 const base = () => ({ prevRows: [row("A"), row("B")], nextRows: [row("A"), row("B")], prevSeen: { A: { d: "2026-01-01" } }, nextSeen: { A: { d: "2026-01-01" } }, prevFc: { A: 10 }, nextFc: { A: 10 } });
@@ -54,6 +55,16 @@ ok("10 -> 7 where 3 dropped are AI rows", { prevFc: fc([...human(7), ...ai(3)]),
 ok("10 -> 7 where 3 dropped are >365d old", { prevFc: fc([...human(7), ...old(3)]), nextFc: fc(human(7)) });
 bad("10 -> 7 recent human rows still a violation", { prevFc: fc(human(10)), nextFc: fc(human(7)) }, /shrank 10 -> 7/);
 assert.equal(countRows([{ f: "tipranks - X", d: "2026-11-01" }, { f: "Y" }, { f: "Z", d: "2025-11-17" }, { f: "W", d: "2025-11-19" }], NOW), 2); // no date counts; 365d boundary
+// accept_data_loss (site.yml workflow_dispatch input -> ACCEPT_DATA_LOSS=1, one run only): the
+// owner's escape hatch from a self-reinforcing freeze. A clean report never needs it; an accepted
+// one ships but leaves a health line (the run still goes red); only the exact string "1" accepts.
+assert.deepEqual(gateVerdict([], undefined), { fail: false, health: null }); cases++;
+assert.deepEqual(gateVerdict([], "1"), { fail: false, health: null }); cases++;
+assert.deepEqual(gateVerdict(["x", "y"], undefined), { fail: true, health: null }); cases++;
+for (const v of ["", "0", "true", "false", "yes"]) { assert.equal(gateVerdict(["x"], v).fail, true, `ACCEPT_DATA_LOSS=${JSON.stringify(v)} must not accept`); cases++; }
+{ const v = gateVerdict(["x", "y"], "1"); cases++;
+  assert.equal(v.fail, false, "accepted -> ships");
+  assert.match(v.health, /data-loss gate overridden.*accept_data_loss.*2 violation/, "accepted -> one health line naming the count"); }
 console.log(`unit cases: ${cases} passed`);
 
 // ---- live check ----
@@ -70,5 +81,11 @@ console.log(dir
   : `live: PREV_DIR unset, comparing HEAD with itself (${next.rows.length} rows, ${Object.keys(next.fc).length} forecast files)`);
 const report = lossReport({ prevRows: prev.rows, nextRows: next.rows, prevSeen: prev.seen, nextSeen: next.seen, prevFc: prev.fc, nextFc: next.fc, dropped });
 for (const l of report) console.log("  DATA LOSS: " + l);
-assert.deepEqual(report, [], `the refresh lost data (${report.length} violation(s), see above)`);
-console.log("live: no data lost");
+const verdict = gateVerdict(report, process.env.ACCEPT_DATA_LOSS);
+if (verdict.health) {
+  // the snapshot ships; the Health gate (last step) still turns the run red, so the owner is emailed
+  health(verdict.health);
+  console.log(`::warning::${verdict.health}`);
+}
+assert.equal(verdict.fail, false, `the refresh lost data (${report.length} violation(s), see above). Recovery: ci/README.md -> Gates -> "Recovering from a data-loss freeze"`);
+console.log(report.length ? `live: ${report.length} violation(s) ACCEPTED for this run (accept_data_loss)` : "live: no data lost");

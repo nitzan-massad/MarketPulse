@@ -74,6 +74,20 @@ export function lossReport({ prevRows = [], nextRows = [], prevSeen = {}, nextSe
   return out;
 }
 
+/**
+ * What the DATA GATE does with a loss report. `accept` is $ACCEPT_DATA_LOSS, set to "1" only by
+ * site.yml's `accept_data_loss` workflow_dispatch input (scheduled runs never set it): the owner has
+ * read the DATA LOSS lines and decided this run's snapshot ships anyway. That is the one way out of
+ * a freeze: the gate compares against HEAD, so while it blocks the commit the violations only grow.
+ * Accepted -> no failure, one health line (the Health gate still turns the run red).
+ * @returns {{fail: boolean, health: string|null}}
+ */
+export function gateVerdict(report, accept) {
+  if (!report.length) return { fail: false, health: null };
+  if (accept !== "1") return { fail: true, health: null };
+  return { fail: false, health: `data-loss gate overridden (accept_data_loss): ${report.length} violation(s) shipped` };
+}
+
 // ---- loaders (shared by the test and the replay) ----
 const readJson = (f, dflt) => { try { return JSON.parse(readFileSync(f, "utf8")); } catch { return dflt; } };
 

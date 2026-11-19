@@ -9,6 +9,15 @@ on:
         description: "Scrape and run the gates, but do not commit, deploy or mark requests tracked"
         type: boolean
         default: false
+      # The data-loss gate blocks the commit, and it compares against HEAD, so a legitimate loss
+      # (e.g. TipRanks withdrawing many Smart Scores at once) freezes the data and every later run
+      # sees the same loss plus more churn. This is the way out, for ONE run: the gate prints its
+      # DATA LOSS lines and passes, the snapshot ships, and the Health gate still turns the run red.
+      # Scheduled runs never set it. Runbook: ci/README.md -> Gates -> "Recovering from a data-loss freeze".
+      accept_data_loss:
+        description: "Ship this run's data even if the data-loss gate finds losses (one run; read the DATA LOSS lines first)"
+        type: boolean
+        default: false
   push:
     branches: [main]         # redeploy on code changes
 
@@ -24,8 +33,11 @@ concurrency:
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
-    # a blocked run used to retry to GitHub's 6h job limit; the longest healthy run is ~2h
-    timeout-minutes: 220
+    # a blocked run used to retry to GitHub's 6h job limit; the longest healthy run is ~2h.
+    # Every continue-on-error step has its own timeout-minutes, and this covers their sum (228) plus
+    # a margin for the uncapped steps, so a hang in any scrape step can never kill the job before
+    # "Commit refreshed data". ci/test-workflow-dry-run.mjs enforces that sum.
+    timeout-minutes: 245
     services:
       flaresolverr:
         image: ghcr.io/flaresolverr/flaresolverr:latest
@@ -76,6 +88,7 @@ jobs:
       - name: Fold lite-run tracked rows
         if: github.event_name != 'push'
         continue-on-error: true
+        timeout-minutes: 5
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node ci/track-requests.mjs fold
@@ -98,6 +111,7 @@ jobs:
       - name: Pin requested tickers
         if: ${{ github.event_name != 'push' && !inputs.dry_run }}
         continue-on-error: true
+        timeout-minutes: 5
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node ci/track-requests.mjs pin
@@ -175,6 +189,7 @@ jobs:
       - name: Build recent-reviews feed
         if: github.event_name != 'push'
         continue-on-error: true
+        timeout-minutes: 5
         run: node ci/build-reviews-recent.mjs
 
       # Sector average P/E (trailing + forward) from Finviz — one GET, no key.
@@ -183,6 +198,7 @@ jobs:
         id: sectors
         if: github.event_name != 'push'
         continue-on-error: true
+        timeout-minutes: 5
         env:
           FLARESOLVERR_URL: http://localhost:8191/v1
         run: node ci/scrape-sectors.mjs
@@ -196,6 +212,7 @@ jobs:
         id: feargreed
         if: github.event_name != 'push'
         continue-on-error: true
+        timeout-minutes: 3
         run: node ci/scrape-feargreed.mjs
 
       # Next earnings date for every listed company (Finnhub's calendar, ~70 calls a run) —
@@ -216,10 +233,13 @@ jobs:
       # at the end still turns the run red when this step fails).
       # Runs BEFORE the gate so the post ships in the same commit as the data it describes.
       # Cadence is entirely in the env below — POSTS_PER_RUN is the knob.
+      # Skipped on dry_run: it spends the free Cloudflare neuron budget, a dry run commits nothing, so
+      # the next scheduled run would spend it again and could go red on an exhausted tier. It feeds no gate.
       - name: Generate social post
         id: post
-        if: github.event_name != 'push'
+        if: ${{ github.event_name != 'push' && !inputs.dry_run }}
         continue-on-error: true
+        timeout-minutes: 15
         env:
           POSTS_ENABLED: "true"
           POST_PROVIDER: cloudflare
@@ -236,10 +256,12 @@ jobs:
       # Sector-filter themes (Quantum Computing): each company asked once, by the same free
       # Cloudflare model, after the post so the post keeps first claim on the daily neurons.
       # New arrivals cost 0-5 calls a run; a backfill is capped at 150 calls a run.
+      # Skipped on dry_run for the same neuron-budget reason as the post above.
       - name: Classify sector themes
         id: themes
-        if: github.event_name != 'push'
+        if: ${{ github.event_name != 'push' && !inputs.dry_run }}
         continue-on-error: true
+        timeout-minutes: 15
         env:
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
@@ -255,6 +277,9 @@ jobs:
       #
       # Deliberately NOT `continue-on-error`: failing here aborts before the commit and
       # before the Pages deploy, so nothing is written and the last good deploy stays up.
+      # That includes ci/test-no-data-loss.mjs, which fails on data LOST vs the previous commit
+      # (PREV_DIR). ACCEPT_DATA_LOSS (the accept_data_loss input, manual runs only) turns that one
+      # check's failure into a health line for this run — see the input above.
       # Re-runs the whole suite rather than a data-only subset — it takes ~2s, and a
       # separate "which checks are the data ones" list is one more thing to get wrong.
       - name: Re-check the refreshed data (THE DATA GATE)
@@ -262,6 +287,7 @@ jobs:
         env:
           PREV_DIR: ${{ runner.temp }} # ci/test-no-data-loss.mjs: previous snapshot to compare against
           DROPPED: ${{ runner.temp }}/dropped.json
+          ACCEPT_DATA_LOSS: ${{ github.event_name == 'workflow_dispatch' && inputs.accept_data_loss && '1' || '' }}
         run: npm test
 
       # dry_run (manual runs only; empty -> falsy on schedule/push) stops here: scrape + gates ran,
@@ -311,6 +337,7 @@ jobs:
       - name: Mark requests tracked
         if: ${{ github.event_name != 'push' && !inputs.dry_run }}
         continue-on-error: true
+        timeout-minutes: 5
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node ci/track-requests.mjs mark
@@ -321,13 +348,14 @@ jobs:
       - name: Clear folded tracked rows
         if: ${{ github.event_name != 'push' && !inputs.dry_run }}
         continue-on-error: true
+        timeout-minutes: 5
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node ci/track-requests.mjs clear
 
       # LAST step, after the commit/deploy, so data ships even when a source degraded — but the run
       # goes red so GitHub emails the owner. Trips on a line in $RUNNER_TEMP/health (breaker open,
-      # universe failure, >30% carried, >10% forecasts failed) or any scrape step whose OUTCOME is
+      # universe failure, >30% carried, >10% forecasts failed, an accepted data-loss override) or any scrape step whose OUTCOME is
       # failure/cancelled (outcome, not conclusion: continue-on-error makes conclusion "success").
       # 'skipped' is fine: push events skip every scrape step, dry_run still reaches this gate.
       - name: Health gate
