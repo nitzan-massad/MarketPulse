@@ -48,4 +48,4 @@ assert(fold.length > 200, "found the fold branch");
 assert(/rtdb\(token, "GET"/.test(fold), "fold reads trackedRows");
 assert(!/"(PATCH|PUT|POST|DELETE)"/.test(fold), "fold must never write RTDB — it runs on dry runs");
 assert(!/inputs\.dry_run/.test(ifOf(find(/^Fold lite-run tracked rows$/))), "fold runs on dry runs (read-only)");
-console.log(`site.yml dry_run: ${writers.length} external writers gated, fold read-only (${steps.length} steps)`);
+console.log(`site.yml dry_run: ${writers.length} external writers gated, fold read-only (${steps.length} steps) — ok`);
