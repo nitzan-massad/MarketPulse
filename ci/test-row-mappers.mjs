@@ -239,4 +239,19 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   const a3 = ap({ best: { priceTarget: { value: 20, upside: 4.618 } }, all: { enumId: 5, priceTarget: { value: 13.67, upside: 2.8418 } } });
   assert.deepEqual([a3.pt, a3.up], [20, 461.8], "aianalyst: best wins when it has a value");
 }
+// R4 (e2e) — ACH: the aianalyst payload omitted priceTarget.upside while pt and px were known; the old
+// getData mapper computed up = rnd((pt - px) / px * 100, 1) with px already rndPx'd (c242d0cc4 keep.mjs).
+{
+  const ap = (pt, daily) => rowFromAiAnalyst({ models: { stocks: [{ _id: "ACH", company: { name: "Aluminum Corp" },
+    analystRatings: { best: { priceTarget: pt }, all: { enumId: 5, buy: 1, hold: 0, sell: 0 } }, prices: { daily } }] } }, "ACH");
+  const r = ap({ value: 0.25 }, { priceUSD: 0.13 });
+  console.log("R4 ACH upside omitted -> pt/px/up", r.pt, r.px, r.up);
+  assert.deepEqual([r.pt, r.px, r.up], [0.25, 0.13, 92.3], "upside omitted, pt+px known -> computed like getData");
+  assert.equal(ap({ value: 0.25, upside: 0.9 }, { priceUSD: 0.13 }).up, 90, "payload upside present -> payload's");
+  assert.equal(ap({ value: 0.25, upside: null }, { priceUSD: 0.13 }).up, null, "explicit null upside = data");
+  assert.equal(ap({ value: 0.25 }, {}).up, undefined, "px unknown -> carry");
+  assert.equal(ap({ value: 0.25 }, undefined).up, undefined, "no prices -> carry");
+  assert.equal(ap({}, { priceUSD: 0.13 }).up, undefined, "pt absent -> carry");
+  assert.equal(mergeRow({ up: 50 }, ap({ value: 0.25 }, {})).up, 50, "carried through mergeRow");
+}
 console.log("row-mappers OK");

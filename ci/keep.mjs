@@ -191,7 +191,7 @@ export function rowFromAiAnalyst(fj, ticker) {
     px: unk(known(daily?.priceUSD), rndPx),
     chg: unk(daily?.gain, (g) => (g === null ? null : rnd(g * 100, 2))),
     pt: unk(ptd, (p) => rndPx(p?.value)),
-    up: unk(ptd, (p) => (p?.upside != null ? rnd(p.upside * 100, 1) : null)),
+    up: unk(ptd, (p) => upFrom(p, known(daily?.priceUSD))),
     con: consRow.con, b: consRow.b, h: consRow.h, s: consRow.s,
     // smartScore null = "no Smart Score" -> null ("—"); object without `value` = reshaped -> carry
     ss: sm === null ? null : sm === undefined || typeof sm !== "object" || !("value" in sm) ? undefined : sm.value ?? null,
@@ -201,6 +201,18 @@ export function rowFromAiAnalyst(fj, ticker) {
     mc: unk(known(mcap), (m) => Math.round(m / 1e6)),
     desc: known(c?.description),
   };
+}
+
+// aianalyst upside. The payload sometimes omits `priceTarget.upside` (ACH, e2e R4); getData's mapper
+// always computed it, so do the same from pt and px: rnd((pt - px) / px * 100, 1) with px rndPx'd
+// first and pt raw, exactly as c242d0cc4 rowFromGetData. An explicit null upside is data (null);
+// pt or px unknown -> undefined (carry).
+function upFrom(p, px) {
+  if (p == null) return null;
+  if (typeof p !== "object") return undefined; // reshaped -> carry
+  if ("upside" in p) return p.upside != null ? rnd(p.upside * 100, 1) : null;
+  const pt = Number(p.value), x = rndPx(px);
+  return p.value != null && Number.isFinite(pt) && Number.isFinite(x) && x > 0 ? rnd(((pt - x) / x) * 100, 1) : undefined;
 }
 
 // Keep-last-known merge. `next == null` -> the source had nothing for this ticker, prev stays
