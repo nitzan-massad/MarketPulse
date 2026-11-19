@@ -593,7 +593,8 @@ The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **ke
 > writes `ai/air/aipt: null` (the UI shows "—"); an absent key carries. A null trio makes the row
 > `needsFill`, so enrich (stock-forecast, the AI source of record) refills it at priority 1 when TipRanks
 > has a report there. On the 2026-11-18 universe capture 22/555 stored tickers had `aiAnalystData: null`,
-> none of them with a stored `ai`.
+> none of them with a stored `ai`. The data-loss gate (`ci/data-loss.mjs` LIMITS) fails a run in which more
+> than 10 rows lose `ai`, `air` or `aipt` (value -> null; replay max 0), so a screener-wide null cannot ship.
 > **Company name** (`n`) is the DISPLAY name on every path (owner decision 2026-11-19, e2e R3): screener
 > `tradingInformationData.companyDisplayName` ("IonQ", "TSMC"), aianalyst `company.name`; the legal
 > `companyName` only when the display field is absent/empty. The universe duplicate tie-break

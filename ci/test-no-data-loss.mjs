@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { lossReport, loadSnapshot, countRows } from "./data-loss.mjs";
 
-const row = (t, o = {}) => ({ t, n: t + " Inc", sec: "Tech", px: 10, pt: 12, up: 5, con: "Buy", ss: 5, mc: 100, desc: "d", ...o });
+const row = (t, o = {}) => ({ t, n: t + " Inc", sec: "Tech", px: 10, pt: 12, up: 5, con: "Buy", ss: 5, ai: 70, air: "Outperform", aipt: 15, mc: 100, desc: "d", ...o });
 const base = () => ({ prevRows: [row("A"), row("B")], nextRows: [row("A"), row("B")], prevSeen: { A: { d: "2026-01-01" } }, nextSeen: { A: { d: "2026-01-01" } }, prevFc: { A: 10 }, nextFc: { A: 10 } });
 const run = (o) => lossReport({ ...base(), ...o });
 const many = (k, n) => Array.from({ length: 20 }, (_, i) => row("T" + i, i < n ? { [k]: null } : {}));
@@ -26,6 +26,15 @@ ok("15 pt nulls", { prevRows: manyPrev(), nextRows: many("pt", 15) });
 bad("16 pt nulls", { prevRows: manyPrev(), nextRows: many("pt", 16) }, /16 rows lost pt/);
 bad("11 ss nulls", { prevRows: manyPrev(), nextRows: many("ss", 11) }, /11 rows lost ss/);
 bad("6 con nulls", { prevRows: manyPrev(), nextRows: many("con", 6) }, /6 rows lost con/);
+// AI trio (round 4 fix 1): an explicit null AI block now writes null instead of carrying, so a
+// screener-wide `aiAnalystData: null` would wipe every in-pull trio. Replay max 0/run -> limit 10.
+ok("10 ai nulls", { prevRows: manyPrev(), nextRows: many("ai", 10) });
+bad("11 ai nulls", { prevRows: manyPrev(), nextRows: many("ai", 11) }, /11 rows lost ai/);
+ok("10 air nulls", { prevRows: manyPrev(), nextRows: many("air", 10) });
+bad("11 air nulls", { prevRows: manyPrev(), nextRows: many("air", 11) }, /11 rows lost air/);
+bad("11 aipt nulls", { prevRows: manyPrev(), nextRows: many("aipt", 11) }, /11 rows lost aipt/);
+bad("whole trio wiped on 20 rows", { prevRows: manyPrev(), nextRows: Array.from({ length: 20 }, (_, i) => row("T" + i, { ai: null, air: null, aipt: null })) }, /20 rows lost ai\b/, 3);
+ok("ai already null before", { prevRows: manyPrev().map((r) => ({ ...r, ai: null })), nextRows: many("ai", 20) });
 ok("pt already null before", { prevRows: manyPrev().map((r) => ({ ...r, pt: null })), nextRows: many("pt", 20) });
 bad("seen d changed", { nextSeen: { A: { d: "2026-02-02" } } }, /seen\.A\.d changed/);
 bad("seen key gone", { nextSeen: {} }, /seen\.A: key gone/);

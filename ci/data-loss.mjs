@@ -14,7 +14,11 @@ export const STRICT = Object.freeze(["n", "px", "mc", "desc", "sec"]);
 // rows going value -> null in a single run was (2026-11-18, 60 pairs, 513 -> 557 rows):
 //   pt 8, up 8, con 1, ss 5   -> limits are roughly 2x headroom over that (con/ss kept tighter
 //   because their observed churn is tiny, so a bigger jump there is a real signal).
-export const LIMITS = Object.freeze({ pt: 15, up: 15, con: 5, ss: 10 });
+// ai/air/aipt (2026-11-19): the mappers now write an explicit-null AI block as null instead of
+// carrying it, so one screener response with `aiAnalystData: null` everywhere would wipe every
+// in-pull trio. Observed max value -> null per run: ai 0, air 0, aipt 0 (60 and 300 data-commit
+// pairs). 10 allows a few genuine report withdrawals; a wipe of the ~120-row pull trips it.
+export const LIMITS = Object.freeze({ pt: 15, up: 15, con: 5, ss: 10, ai: 10, air: 10, aipt: 10 });
 
 export const FORECAST_SHRINK = 0.2; // a file may lose at most 20% of its rows...
 export const FORECAST_MIN_ROWS = 5; // ...once it has at least this many
