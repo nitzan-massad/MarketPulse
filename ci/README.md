@@ -582,6 +582,13 @@ The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **ke
 >    `BACKFILL_LIMIT` and the snapshot step's deadline (`STEP_DEADLINE_MS`, default 12 min from script start, shared with enrich); past either, or on failure, the last-known row is carried.
 >
 > The log line `backfill: U universe, P payload, C carried` reports the split; C > 30% of missing raises a health note.
+> **Null vs absent in the mappers** (`rowFromScreener`, `rowFromAiAnalyst`): an explicit `null` is TipRanks'
+> answer, an absent key is a reshape (carry). `tipRanksSmartScoreData: null` / `smartScore: null` -> `ss: null`;
+> `analystRatings: null` / `all: null` -> no coverage (Neutral 0/0/0); `analystRatings.all` absent -> counts carry.
+> A null-filled peer stub alone is not a row (`rowFromAiAnalyst` -> null). Deliberate exception: a null
+> `aiAnalystData` / `report` carries the AI trio — the forecast payload (enrich) is the AI source of record and
+> rates tickers the screener nulls, so null there means "this source has none", not "TipRanks has none"
+> (plan Review Focus 1: wiping it blanked the trio on ~287 rows).
 > `rowFromGetData` / `ssFromGetData` were deleted 2026-11-18 (getData has been Cloudflare-blocked since 2026-11-17); the text below is history.
 > **Track requests** use the same payload: `ci/track-requests.mjs fetch` maps it with `rowFromAiAnalyst`; a null
 > row or one with no name/price is a failure. The lite run's last step (`fail`) stamps `trackRequests/<KEY>/err`

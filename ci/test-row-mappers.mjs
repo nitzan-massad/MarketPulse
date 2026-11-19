@@ -149,4 +149,48 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   const real = rowFromScreener({ tradingInformationData: { ticker: "X", companyName: "New", lastClose: 2, marketCap: 3e6, description: "nd", sector: { name: "Energy" } } }, { inPull: true });
   assert.deepEqual([real.n, real.px, real.mc, real.desc, real.sec], ["New", 2, 3, "nd", "Energy"]);
 }
+// B3 — explicit null vs absent, field by field (CLAUDE.md: an explicit TipRanks null is data; only
+// an ABSENT key carries the previous value).
+{
+  const prev = { t: "X", ss: 7, con: "Buy", b: 3, h: 1, s: 0, pt: 20, up: 10 };
+  const ai = (s) => ({ models: { stocks: [{ _id: "X", company: { companyName: "X Corp" }, prices: { daily: { priceUSD: 5, gain: 0.01 } }, ...s }] } });
+  // smartScore
+  const ssNull = rowFromAiAnalyst(ai({ smartScore: null }), "X");
+  console.log("B3 aianalyst smartScore:null -> ss =", ssNull.ss, "| merged over ss 7 ->", mergeRow(prev, ssNull).ss);
+  assert.equal(ssNull.ss, null, "smartScore: null = no Smart Score -> ss null, not carry");
+  assert.equal(mergeRow(prev, ssNull).ss, null, "and it beats the stale prev.ss");
+  assert.equal(rowFromAiAnalyst(ai({ smartScore: { value: null } }), "X").ss, null, "value: null -> null");
+  assert.equal(rowFromAiAnalyst(ai({}), "X").ss, undefined, "smartScore absent -> carry");
+  assert.equal(rowFromAiAnalyst(ai({ smartScore: { update: "2026-11-15" } }), "X").ss, undefined, "value key absent (reshaped) -> carry");
+  assert.equal(rowFromAiAnalyst(ai({ smartScore: { value: 9 } }), "X").ss, 9);
+  // analystRatings
+  const arNull = rowFromAiAnalyst(ai({ analystRatings: null }), "X");
+  assert.deepEqual([arNull.con, arNull.b, arNull.h, arNull.s, arNull.pt, arNull.up], ["Neutral", 0, 0, 0, null, null], "analystRatings: null = no coverage (D1 getData parity), not carry");
+  const arAbsent = rowFromAiAnalyst(ai({}), "X");
+  assert.deepEqual([arAbsent.con, arAbsent.b, arAbsent.pt, arAbsent.up], [undefined, undefined, undefined, undefined], "analystRatings absent -> carry");
+  const allAbsent = rowFromAiAnalyst(ai({ analystRatings: { best: { priceTarget: { value: 30, upside: 0.5 } } } }), "X");
+  assert.deepEqual([allAbsent.con, allAbsent.b, allAbsent.h, allAbsent.s], [undefined, undefined, undefined, undefined], "all absent (reshaped) -> counts carry, not 'no coverage'");
+  assert.deepEqual([allAbsent.pt, allAbsent.up], [30, 50], "the best target still lands");
+  const bothAbsent = rowFromAiAnalyst(ai({ analystRatings: {} }), "X");
+  assert.deepEqual([bothAbsent.con, bothAbsent.pt, bothAbsent.up], [undefined, undefined, undefined], "best and all absent -> carry");
+  // chg
+  assert.equal(rowFromAiAnalyst(ai({ prices: { daily: { priceUSD: 5, gain: null } } }), "X").chg, null, "gain: null -> null");
+  assert.equal(rowFromAiAnalyst(ai({ prices: { daily: { priceUSD: 5 } } }), "X").chg, undefined, "gain absent -> carry");
+  // a null-filled peer stub is not a row (else smartScore/analystRatings null would wipe ss/consensus)
+  assert.equal(rowFromAiAnalyst({ models: { stocks: [{ _id: "X", company: null, analystRatings: null, smartScore: null, prices: null, report: null, marketCap: null }] } }, "X"), null, "stub only -> no row -> prev kept");
+
+  // screener: tipRanksSmartScoreData
+  const sc = (e) => ({ tradingInformationData: { ticker: "X" }, tipRanksEssentialData: e });
+  for (const inPull of [true, false]) {
+    const r = rowFromScreener(sc({ tipRanksSmartScoreData: null }), { inPull });
+    console.log(`B3 screener tipRanksSmartScoreData:null inPull=${inPull} -> ss =`, r.ss);
+    assert.equal(r.ss, null, "tipRanksSmartScoreData: null = no Smart Score (old in-pull wrote null)");
+    assert.equal(rowFromScreener(sc({}), { inPull }).ss, undefined, "absent -> carry");
+    assert.equal(rowFromScreener(sc({ tipRanksSmartScoreData: {} }), { inPull }).ss, undefined, "score key absent (reshaped) -> carry");
+    assert.equal(rowFromScreener(sc({ tipRanksSmartScoreData: { tipRanksSmartScore: null } }), { inPull }).ss, null);
+    // chg
+    assert.equal(rowFromScreener({ tradingInformationData: { ticker: "X", priceChangePct: null } }, { inPull }).chg, null);
+    assert.equal(rowFromScreener({ tradingInformationData: { ticker: "X" } }, { inPull }).chg, undefined);
+  }
+}
 console.log("row-mappers OK");

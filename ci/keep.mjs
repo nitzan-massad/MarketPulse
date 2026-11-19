@@ -134,7 +134,9 @@ export function rowFromScreener(item, { inPull }) {
     pt: unk(ptd, (p) => rndPx(p?.convertedPriceTarget)),
     up: unk(ptd, (p) => (p?.upside != null ? rnd(p.upside * 100, 1) : null)),
     con: consRow.con, b: consRow.b, h: consRow.h, s: consRow.s,
-    ss: ssd == null ? undefined : ssd.tipRanksSmartScore ?? null,
+    // explicit null object = "no Smart Score" (the old in-pull mapper wrote null); a missing object
+    // or score key = reshaped -> carry
+    ss: ssd === null ? null : ssd === undefined || typeof ssd !== "object" || !("tipRanksSmartScore" in ssd) ? undefined : ssd.tipRanksSmartScore ?? null,
     ai: unk(ai, (a) => rnd(a.overallScore, 1)),
     air: unk(ai, (a) => (typeof a.overallRating === "object" ? a.overallRating?.name : a.overallRating) ?? null),
     aipt: unk(ai, (a) => rndPx(a.priceTarget)),
@@ -149,17 +151,24 @@ export function rowFromScreener(item, { inPull }) {
 export function rowFromAiAnalyst(fj, ticker) {
   const list = fj?.models?.stocks;
   const matches = ticker && Array.isArray(list) ? list.filter((x) => x && x._id === ticker) : [];
-  const s = matches.find((x) => x.company || x.analystRatings) ?? matches[0]; // skip null-filled peer stubs
+  const s = matches.find((x) => x.company || x.analystRatings || x.prices) ?? null; // skip null-filled peer stubs
+  // A stub alone is not a row: its smartScore/analystRatings nulls are the stub's, not TipRanks'
+  // answer for this ticker, and below they would be read as "no score" / "no coverage".
   if (!s) return null;
   const c = s.company;
   const daily = s.prices?.daily;
+  // Explicit null is data, absent is unknown (CLAUDE.md), per key:
+  //   analystRatings null -> no coverage; absent -> carry. all null -> no coverage; absent -> carry counts.
+  //   target: best, else all; both keys absent -> carry.
   const ar = s.analystRatings;
   let consRow = {}, ptd;
-  if (ar) {
+  if (ar === null) { consRow = NO_COVERAGE_GETDATA; ptd = null; }
+  else if (ar) {
     const all = ar.all;
-    consRow = all ? { con: CON_NAME[all.enumId] ?? null, b: all.buy || 0, h: all.hold || 0, s: all.sell || 0 } : NO_COVERAGE_GETDATA;
-    ptd = (ar.best ?? ar.all)?.priceTarget ?? null;
+    consRow = all ? { con: CON_NAME[all.enumId] ?? null, b: all.buy || 0, h: all.hold || 0, s: all.sell || 0 } : all === null ? NO_COVERAGE_GETDATA : {};
+    ptd = ar.best === undefined && all === undefined ? undefined : (ar.best ?? all)?.priceTarget ?? null;
   }
+  const sm = s.smartScore;
   const rep = s.report;
   const sec = c ? sectorName(c.sector) : null;
   const mcap = s.marketCap?.daily?.marketCap;
@@ -169,10 +178,11 @@ export function rowFromAiAnalyst(fj, ticker) {
     sec: sec && sec !== "General" ? sec : undefined, // unknown slug / "General" -> keep prev (enrich fills real sectors)
     px: unk(known(daily?.priceUSD), rndPx),
     chg: unk(daily?.gain, (g) => (g === null ? null : rnd(g * 100, 2))),
-    pt: ar ? rndPx(ptd?.value) : undefined,
-    up: ar ? (ptd?.upside != null ? rnd(ptd.upside * 100, 1) : null) : undefined,
+    pt: unk(ptd, (p) => rndPx(p?.value)),
+    up: unk(ptd, (p) => (p?.upside != null ? rnd(p.upside * 100, 1) : null)),
     con: consRow.con, b: consRow.b, h: consRow.h, s: consRow.s,
-    ss: s.smartScore ? s.smartScore.value ?? null : undefined,
+    // smartScore null = "no Smart Score" -> null ("—"); object without `value` = reshaped -> carry
+    ss: sm === null ? null : sm === undefined || typeof sm !== "object" || !("value" in sm) ? undefined : sm.value ?? null,
     ai: rep ? rnd(rep.score, 1) : undefined,
     air: rep ? airName(rep.ratingId) : undefined,
     aipt: rep ? rndPx(rep.rating?.priceTarget?.value) : undefined,
