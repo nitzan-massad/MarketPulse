@@ -12,7 +12,7 @@
 // between 2026-07-24 and 2026-08-02. The sidecar survives checkout because git tracks it.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { parseForecastHtml, usablePage, withStars } from "./forecast-html.mjs";
-import { carryPrevGuarded, carryStars, forecastsDegraded, prunedTried, forecastsFromPayload, hiddenTargetKeys, pageNeeded, payloadOk, keepPrevRating, mergeForecasts, missingOf, topUpRows } from "./forecast-merge.mjs";
+import { carryPrevGuarded, carryStars, forecastsDegraded, prunedTried, forecastsFromPayload, hiddenAnalysts, hiddenTargetKeys, pageNeeded, payloadOk, keepPrevRating, mergeForecasts, missingOf, topUpRows } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
 import { getText, makeBreaker, health } from "./tr-fetch.mjs";
 
@@ -149,7 +149,8 @@ async function scrape(t) {
     // keepNewerPrev: a source regression must not swap an analyst's older row back in; then the newest
     // rating per analyst replaces the older one. Widens to all:true if the file would shrink past the gate.
     fc = keepPrevRating(fc, prev);
-    const g = carryPrevGuarded(fc, prev, { ok });
+    // hold: an analyst whose newer payload rating hides its target keeps his stored row at any age (R2)
+    const g = carryPrevGuarded(fc, prev, { ok, hold: ok ? hiddenAnalysts(fj, t, prev ?? []) : [] });
     fc = g.rows;
     const back = g.carried;
     carried += back;

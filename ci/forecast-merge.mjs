@@ -249,12 +249,17 @@ function hiddenEntries(fj, ticker, fileRows) {
   const have = newestBy(fileRows);
   return [...latest.entries()]
     .filter(([k, x]) => !(Number.isFinite(x.pt) && x.pt > 0) && have.has(k) && have.get(k) < x.d)
-    .map(([k, x]) => ({ n: x.n, key: `${k}|${x.d}` }));
+    .map(([k, x]) => ({ n: x.n, who: k, key: `${k}|${x.d}` }));
 }
 export const hiddenTargets = (fj, ticker, fileRows) => hiddenEntries(fj, ticker, fileRows).map((x) => x.n);
 /** hiddenTargets as `analystKey|date` keys (Unknown Analyst: `unknown analyst|firm|date`), the
  *  identity recorded in `_pageTried.json` so one hidden rating costs one page fetch, not one per run. */
 export const hiddenTargetKeys = (fj, ticker, fileRows) => hiddenEntries(fj, ticker, fileRows).map((x) => x.key);
+/** hiddenTargets as who() keys, for carryPrevGuarded's `hold`: these analysts re-rated with a target
+ *  the payload withholds, so forecastsFromPayload drops their newest rating and — unless the page
+ *  renders it — they look absent. Their stored row is the only target we have for them (getData kept
+ *  it), so it is carried at any age instead of aging out of the 92-day window (e2e R2). */
+export const hiddenAnalysts = (fj, ticker, fileRows) => hiddenEntries(fj, ticker, fileRows).map((x) => x.who);
 
 /** Fetch the page? Always when the payload failed; else only for a hidden target not tried yet. */
 export function pageNeeded({ srcOk, hidden, tried }) {
@@ -296,16 +301,18 @@ export function topUpRows(pageRows, missing) {
  * Last run's rows for analysts this run lacks, rated within `days` of `now` — or all of them with
  * `all` (the payload failed: never let a fetch failure shrink the file). Covers the page-recovered
  * rows on runs that skip the page, and an analyst a payload transiently omits. Never duplicates an
- * analyst already in `rows`.
+ * analyst already in `rows`. `hold` (who() keys, from hiddenAnalysts) lifts the age limit for analysts
+ * whose newer rating the payload names but hides the target of: still one row per analyst, the stored one.
  */
-export function carryRecentPrev(rows, prev, { now = Date.now(), days = 92, all = false } = {}) {
+export function carryRecentPrev(rows, prev, { now = Date.now(), days = 92, all = false, hold = [] } = {}) {
   const out = Array.isArray(rows) ? rows : [];
   if (!Array.isArray(prev) || !prev.length) return out;
   const since = sinceDay(now, days);
   const present = new Set(out.filter((f) => f?.n).map(who));
+  const held = new Set(hold || []); // analysts whose newer rating hides its target: carry at any age
   const seen = new Set();
   const back = prev.filter((f) => {
-    if (!realRow(f) || present.has(who(f)) || (!all && f.d < since)) return false;
+    if (!realRow(f) || present.has(who(f)) || (!all && f.d < since && !held.has(who(f)))) return false;
     const k = `${who(f)}|${f.d}`; if (seen.has(k)) return false; seen.add(k); return true;
   });
   if (!back.length) return out;
@@ -320,10 +327,10 @@ export function carryRecentPrev(rows, prev, { now = Date.now(), days = 92, all =
  * first-rotation case: files holding many 92-365 day rows for analysts the payload no longer lists
  * would otherwise turn the gate red and freeze the deploy. Returns { rows, carried, widened }.
  */
-export function carryPrevGuarded(rows, prev, { ok, now = Date.now() } = {}) {
+export function carryPrevGuarded(rows, prev, { ok, now = Date.now(), hold = [] } = {}) {
   const base = Array.isArray(rows) ? rows : [];
   const tail = (all) => {
-    const c = keepNewerPrev(carryRecentPrev(base, prev, { now, all }), prev);
+    const c = keepNewerPrev(carryRecentPrev(base, prev, { now, all, hold }), prev);
     return { rows: latestPerAnalyst(c), carried: c.length - base.length };
   };
   const r = tail(!ok);

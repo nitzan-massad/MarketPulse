@@ -4,7 +4,7 @@
 // ci/test-forecast-gate.mjs had to mirror the old inline gate.
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
-import { carryPrevGuarded, forecastsDegraded, prunedTried, carryRecentPrev, carryStars, forecastsFromPayload, hiddenTargetKeys, hiddenTargets, pageNeeded, payloadOk, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, mergeKey, missingOf, topUpRows } from "./forecast-merge.mjs";
+import { hiddenAnalysts, carryPrevGuarded, forecastsDegraded, prunedTried, carryRecentPrev, carryStars, forecastsFromPayload, hiddenTargetKeys, hiddenTargets, pageNeeded, payloadOk, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, mergeKey, missingOf, topUpRows } from "./forecast-merge.mjs";
 
 const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", pt, opt: null, d, ...extra });
 
@@ -295,6 +295,48 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   assert.deepEqual(keepNewerPrev([], out), [], "never adds an analyst this run lacks");
   const two = [{ n: "Ann", f: "A", d: "2026-11-01" }, { n: "Bob", f: "A", d: "2026-10-01" }, { n: "Unknown Analyst", f: "X", d: "2026-11-01" }, { n: "Unknown Analyst", f: "Y", d: "2026-10-01" }];
   assert.equal(latestPerAnalyst(two).length, 4, "different analysts at one firm, and Unknown Analysts at different firms, all stay");
+}
+
+/* ------------- R2 (e2e): a stored rating survives when its analyst's newer payload rating hides its target */
+{
+  // WYNN capture 1: John Staszak's only payload rating is Hold 11-18 with priceTarget null; the page
+  // fetch did not render it (cut at ~15 rows). T0 (c242d0cc4 public/forecasts/WYNN.json) held his
+  // Buy $130 2026-08-05 row — 106 days old, past the 92-day carry window. COST: Chuck Cerankosky,
+  // Buy $1100 2025-12-24 (330 days), hidden Hold 11-16.
+  const now = Date.parse("2026-11-19T12:00:00Z");
+  const fj = { models: {
+    experts: [
+      { _id: "analyst|1", uid: "js", name: "John Staszak", firm: "Argus Research", rank: { rank: 0.94 } },
+      { _id: "analyst|2", uid: "cc", name: "Chuck Cerankosky", firm: "Northcoast Research", rank: { rank: 0.86 } },
+      { _id: "analyst|3", uid: "ot", name: "Other Analyst", firm: "Other Co", rank: { rank: 0.5 } },
+    ],
+    ratings: [
+      { object: { ticker: "WYNN" }, expert: { uid: "js", id: "analyst|1" }, date: "2026-11-18T00:00:00.000Z", position: "hold", priceTarget: null },
+      { object: { ticker: "WYNN" }, expert: { uid: "cc", id: "analyst|2" }, date: "2026-11-16T00:00:00.000Z", position: "hold", priceTarget: null },
+      { object: { ticker: "WYNN" }, expert: { uid: "ot", id: "analyst|3" }, date: "2026-11-10T00:00:00.000Z", position: "buy", priceTarget: { value: 150 } },
+    ],
+  } };
+  const js = { n: "John Staszak", f: "Argus Research", st: 4.7, r: "Buy", pt: 130, opt: 115, d: "2026-08-05" };
+  const cc = { n: "Chuck Cerankosky", f: "Northcoast Research", st: 4.3, r: "Buy", pt: 1100, opt: null, d: "2025-12-24" };
+  const gone = { n: "Gone Analyst", f: "Gone Co", st: 3, r: "Buy", pt: 120, opt: null, d: "2026-07-01" }; // absent from the payload
+  const prev = [{ n: "Other Analyst", f: "Other Co", st: 2.5, r: "Buy", pt: 140, opt: null, d: "2026-10-01" }, js, gone, cc];
+  const hold = hiddenAnalysts(fj, "WYNN", prev);
+  console.log("R2 hiddenAnalysts ->", JSON.stringify(hold));
+  assert.deepEqual(hold.sort(), ["chuck cerankosky", "john staszak"]);
+  const src = forecastsFromPayload(fj, "WYNN", null);
+  const g = carryPrevGuarded(keepPrevRating(src, prev), prev, { ok: true, now, hold });
+  console.log("R2 WYNN rows ->", JSON.stringify(g.rows.map((f) => [f.n, f.r, f.pt, f.d])));
+  assert.equal(g.widened, false);
+  assert.deepEqual(g.rows.find((f) => f.n === "John Staszak"), js, "stored row kept whole (getData kept it)");
+  assert.deepEqual(g.rows.find((f) => f.n === "Chuck Cerankosky"), cc, "330-day stored row kept too");
+  assert.equal(g.rows.find((f) => f.n === "Gone Analyst"), undefined, "absent analyst past 92 days: dropped as before (INTENDED)");
+  assert.equal(g.rows.filter((f) => f.n === "John Staszak").length, 1);
+  // the page DID render the hidden rating -> the analyst is present: newest only, one row per analyst (B1)
+  const paged = [...src, { n: "John Staszak", f: "Argus Research", st: null, r: "Hold", pt: 110, opt: 130, d: "2026-11-18" }];
+  const g2 = carryPrevGuarded(keepPrevRating(paged, prev), prev, { ok: true, now, hold });
+  assert.deepEqual(g2.rows.filter((f) => f.n === "John Staszak").map((f) => [f.r, f.pt, f.d]), [["Hold", 110, "2026-11-18"]], "no duplicate analyst");
+  // without hold: the regression (stored row dropped)
+  assert.equal(carryPrevGuarded(keepPrevRating(src, prev), prev, { ok: true, now }).rows.some((f) => f.n === "John Staszak"), false);
 }
 
 /* ------------------------------------------------------------- carryPrevGuarded */

@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import { parseForecastHtml, withStars } from "./forecast-html.mjs";
-import { carryPrevGuarded, carryStars, forecastsFromPayload, hiddenTargetKeys, pageNeeded, payloadOk, keepPrevRating, mergeForecasts, missingOf, prunedTried, topUpRows } from "./forecast-merge.mjs";
+import { carryPrevGuarded, carryStars, forecastsFromPayload, hiddenAnalysts, hiddenTargetKeys, pageNeeded, payloadOk, keepPrevRating, mergeForecasts, missingOf, prunedTried, topUpRows } from "./forecast-merge.mjs";
 
 /* ---------------------------------------------------------------- the mirror */
 // `fj` = the parsed payload, or null when the fetch failed. `page` = the page HTML, or null when the
@@ -37,7 +37,7 @@ function runTicker({ ticker, fj, page, out, now = Date.now(), tried = {} }) {
   if (!tried[ticker].length) delete tried[ticker];
   fc = carryStars(fc, prev);
   fc = keepPrevRating(fc, prev);
-  fc = carryPrevGuarded(fc, prev, { ok, now }).rows;
+  fc = carryPrevGuarded(fc, prev, { ok, now, hold: ok ? hiddenAnalysts(fj, ticker, prev ?? []) : [] }).rows;
   let wrote = false;
   if (fc.length) { writeFileSync(file, JSON.stringify(fc)); wrote = true; }
   return { wrote, fetchedPage: needPage, rows: fc };
@@ -142,6 +142,21 @@ const rating = (d, pt) => ({ object: { ticker: "T" }, expert: { uid: "u1", id: "
   assert.deepEqual(r.rows, GOOD, "...and every previous row kept (all:true), even the year-old one");
 }
 
+/* --- 7. R2 (e2e): hidden re-rating the page does not render -> the stored 92-365 day row survives */
+{
+  // WYNN shape: the stored Buy row is 106 days old; the analyst's only payload rating is a newer Hold
+  // with priceTarget null, and the page (cut at ~15 rows) does not list him.
+  const stored = { n: "Real Analyst", f: "Real Firm", st: 4.7, r: "Buy", pt: 130, opt: 115, d: "2026-03-26" }; // NOW - 106 days
+  writeFileSync(join(OUT, "T.json"), JSON.stringify([stored]));
+  // a second analyst with a target, so the payload parses to rows (ok) rather than counting as a failure
+  const other = { _id: "analyst|2", uid: "u2", name: "Other Analyst", firm: "Other Firm", rank: { rank: 0.5 } };
+  const otherRating = { object: { ticker: "T" }, expert: { uid: "u2", id: "analyst|2" }, date: "2026-07-01T00:00:00.000Z", position: "buy", priceTarget: { value: 20 } };
+  const r2 = runTicker({ ticker: "T", fj: payload([rating("2026-07-09", null), otherRating], [EXPERT, other]), page: PAGE, out: OUT, now: NOW, tried: {} });
+  console.log("R2 pipeline (page fetched, analyst not on it) ->", JSON.stringify(r2.rows.filter((x) => x.n === "Real Analyst")));
+  assert.equal(r2.fetchedPage, true);
+  assert.deepEqual(r2.rows.filter((x) => x.n === "Real Analyst"), [stored], "stored rating kept whole, one row");
+}
+
 /* --------------------------------------------------------------- SOURCE FIDELITY
    runTicker() above restates the scraper's per-ticker flow, so pin the load-bearing source lines.
    If one of these fails the scraper changed — update BOTH. */
@@ -162,7 +177,7 @@ const rating = (d, pt) => ({ object: { ticker: "T" }, expert: { uid: "u1", id: "
     "if (!tried[t].length) delete tried[t];",
     "fc = carryStars(fc, prev);",
     "fc = keepPrevRating(fc, prev);",
-    "const g = carryPrevGuarded(fc, prev, { ok });",
+    "const g = carryPrevGuarded(fc, prev, { ok, hold: ok ? hiddenAnalysts(fj, t, prev ?? []) : [] });",
     "fc = g.rows;",
     "if (fc.length) {\n      writeFileSync(",
     "const PARALLEL = Math.max(1, ",
