@@ -18,7 +18,7 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
 {
   const r = rowFromScreener(S.aapl, { inPull: true });
   assert.deepEqual(r, {
-    t: "AAPL", n: "Apple Inc", sec: "Technology", px: 351.91, chg: -0.25,
+    t: "AAPL", n: "Apple", sec: "Technology", px: 351.91, chg: -0.25,
     pt: 339.98, up: -3.4, con: "Buy", b: 11, h: 6, s: 5, ss: 7,
     ai: 75, air: "Outperform", aipt: 381, mc: 5114020,
     desc: S.aapl.tradingInformationData.description,
@@ -47,15 +47,32 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   assert.equal(r.pt, 88);
   assert.equal(r.up, 83.6);
 }
-// Missing aiAnalystData: the trio is "unknown" and survives a merge.
-{
-  const r = rowFromScreener(S.noai, { inPull: true });
-  assert.equal(r.ai, undefined);
-  assert.equal(r.air, undefined);
-  assert.equal(r.aipt, undefined);
+// Owner decision 2026-11-19 (round 4): `aiAnalystData: null` is TipRanks' answer "no AI report" ->
+// the trio is written null ("—"), on both bases. Only an ABSENT key carries.
+for (const inPull of [true, false]) {
+  const r = rowFromScreener(S.noai, { inPull });
+  console.log(`R4 screener aiAnalystData:null inPull=${inPull} -> ai/air/aipt =`, r.ai, r.air, r.aipt);
+  assert.deepEqual([r.ai, r.air, r.aipt], [null, null, null], "explicit null -> null trio");
   const m = mergeRow({ ai: 70, air: "Neutral", aipt: 5 }, r);
-  assert.deepEqual([m.ai, m.air, m.aipt], [70, "Neutral", 5]);
-  assert.equal(m.n, "Samsung Electronics Co. Ltd."); // fresh fields still land
+  assert.deepEqual([m.ai, m.air, m.aipt], [null, null, null], "and it beats the stale prev trio");
+  assert.equal(m.n, "Samsung Electronics Co. Ltd."); // no display name in this item -> legal fallback
+  const { aiAnalystData, ...absent } = S.noai;
+  const a = rowFromScreener(absent, { inPull });
+  assert.deepEqual([a.ai, a.air, a.aipt], [undefined, undefined, undefined], "absent key -> carry");
+  assert.deepEqual((({ ai, air, aipt }) => [ai, air, aipt])(mergeRow({ ai: 70, air: "Neutral", aipt: 5 }, a)), [70, "Neutral", 5]);
+}
+// Owner decision 2026-11-19 (R3): n is the DISPLAY name on every path. Screener:
+// tradingInformationData.companyDisplayName, falling back to companyName only when it is absent/empty.
+{
+  const item = (d, c) => ({ tradingInformationData: { ticker: "IONQ", ...(d === "ABSENT" ? {} : { companyDisplayName: d }), companyName: c } });
+  for (const inPull of [true, false]) {
+    const r = rowFromScreener(item("IonQ", "Ionq, Inc."), { inPull });
+    console.log(`R3 screener inPull=${inPull} -> n =`, r.n);
+    assert.equal(r.n, "IonQ", "display name wins over the legal name");
+    for (const d of ["ABSENT", null, ""]) assert.equal(rowFromScreener(item(d, "Ionq, Inc."), { inPull }).n, "Ionq, Inc.", `display ${JSON.stringify(d)} -> legal fallback`);
+    assert.equal(rowFromScreener(item(null, null), { inPull }).n, undefined, "neither -> carry (strict field, never null)");
+  }
+  assert.equal(rowFromScreener(S.aapl, { inPull: false }).n, "Apple");
 }
 // "General" sector is unknown, not a value.
 {
@@ -86,7 +103,7 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   assert.equal(r.up, -3.4);
   assert.equal(r.ss, 7);
   assert.equal(r.mc, 5114027);
-  assert.equal(r.n, "Apple Inc");
+  assert.equal(r.n, "Apple", "R3: company.name is the display name (= T0 n 195/195), not companyName");
   assert.equal(r.sec, "Technology");
   assert.equal(r.px, 351.91);
   assert.equal(r.chg, -0.25);
@@ -178,6 +195,18 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   // chg
   assert.equal(rowFromAiAnalyst(ai({ prices: { daily: { priceUSD: 5, gain: null } } }), "X").chg, null, "gain: null -> null");
   assert.equal(rowFromAiAnalyst(ai({ prices: { daily: { priceUSD: 5 } } }), "X").chg, undefined, "gain absent -> carry");
+  // R3: company.name (display) first, companyName only when name is absent/empty; neither -> carry
+  const nm = (c) => rowFromAiAnalyst(ai({ company: c }), "X").n;
+  assert.equal(nm({ name: "IonQ", companyName: "Ionq, Inc." }), "IonQ");
+  for (const v of [undefined, null, ""]) assert.equal(nm({ name: v, companyName: "Ionq, Inc." }), "Ionq, Inc.", `name ${JSON.stringify(v)} -> companyName`);
+  assert.equal(nm({ name: null, companyName: null }), undefined, "neither -> carry");
+  // AI trio (owner decision round 4): report: null -> null trio; report absent -> carry
+  const repNull = rowFromAiAnalyst(ai({ report: null }), "X");
+  console.log("R4 aianalyst report:null -> ai/air/aipt =", repNull.ai, repNull.air, repNull.aipt);
+  assert.deepEqual([repNull.ai, repNull.air, repNull.aipt], [null, null, null], "report: null = no AI report -> null trio");
+  assert.deepEqual((({ ai, air, aipt }) => [ai, air, aipt])(mergeRow({ ai: 70, air: "Neutral", aipt: 5 }, repNull)), [null, null, null]);
+  const repAbs = rowFromAiAnalyst(ai({}), "X");
+  assert.deepEqual([repAbs.ai, repAbs.air, repAbs.aipt], [undefined, undefined, undefined], "report absent -> carry");
   // a null-filled peer stub is not a row (else smartScore/analystRatings null would wipe ss/consensus)
   assert.equal(rowFromAiAnalyst({ models: { stocks: [{ _id: "X", company: null, analystRatings: null, smartScore: null, prices: null, report: null, marketCap: null }] } }, "X"), null, "stub only -> no row -> prev kept");
 

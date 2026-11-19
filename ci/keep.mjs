@@ -121,7 +121,7 @@ const bestElseAll = (best, all, key) => (best?.[key] != null ? best : all?.[key]
 export function rowFromScreener(item, { inPull }) {
   const t = item?.tradingInformationData ?? undefined;
   const e = item?.tipRanksEssentialData ?? undefined;
-  const ai = item?.aiAnalystData ?? undefined;
+  const ai = item?.aiAnalystData; // null stays null (no AI report), absent stays undefined (carry)
   let cons, ptd;
   if (inPull) {
     // In-pull never carries: prev may hold an off-pull run's ALL-analyst counts/target, and mixing
@@ -139,7 +139,8 @@ export function rowFromScreener(item, { inPull }) {
   const ssd = e?.tipRanksSmartScoreData;
   return {
     t: t?.ticker,
-    n: known(t?.companyName),
+    // display name ("IonQ", "TSMC"), as getData had; the legal companyName only when it is absent/empty (R3)
+    n: known(t?.companyDisplayName) ?? known(t?.companyName),
     sec: t?.sector?.name !== "General" ? known(t?.sector?.name) : undefined, // "General" = the screener's don't-know; enrich fills it
     px: unk(known(t?.lastClose), rndPx),
     chg: unk(t?.priceChangePct, (x) => (x === null ? null : rnd(x * 100, 2))),
@@ -149,9 +150,10 @@ export function rowFromScreener(item, { inPull }) {
     // explicit null object = "no Smart Score" (the old in-pull mapper wrote null); a missing object
     // or score key = reshaped -> carry
     ss: ssd === null ? null : ssd === undefined || typeof ssd !== "object" || !("tipRanksSmartScore" in ssd) ? undefined : ssd.tipRanksSmartScore ?? null,
-    ai: unk(ai, (a) => rnd(a.overallScore, 1)),
-    air: unk(ai, (a) => (typeof a.overallRating === "object" ? a.overallRating?.name : a.overallRating) ?? null),
-    aipt: unk(ai, (a) => rndPx(a.priceTarget)),
+    // aiAnalystData: null = TipRanks' "no AI report" -> null trio ("—"); absent key -> carry (owner, 2026-11-19)
+    ai: unk(ai, (a) => (a === null ? null : rnd(a.overallScore, 1))),
+    air: unk(ai, (a) => (a === null ? null : (typeof a.overallRating === "object" ? a.overallRating?.name : a.overallRating) ?? null)),
+    aipt: unk(ai, (a) => (a === null ? null : rndPx(a.priceTarget))),
     mc: unk(known(t?.marketCap ?? t?.marketCapUSD), (m) => Math.round(m / 1e6)),
     desc: known(t?.description),
   };
@@ -186,7 +188,8 @@ export function rowFromAiAnalyst(fj, ticker) {
   const mcap = s.marketCap?.daily?.marketCap;
   return {
     t: ticker,
-    n: known(c?.companyName) ?? known(c?.name),
+    // company.name is the display name (equals getData's n 195/195, e2e R3); companyName is legal
+    n: known(c?.name) ?? known(c?.companyName),
     sec: sec && sec !== "General" ? sec : undefined, // unknown slug / "General" -> keep prev (enrich fills real sectors)
     px: unk(known(daily?.priceUSD), rndPx),
     chg: unk(daily?.gain, (g) => (g === null ? null : rnd(g * 100, 2))),
@@ -195,9 +198,10 @@ export function rowFromAiAnalyst(fj, ticker) {
     con: consRow.con, b: consRow.b, h: consRow.h, s: consRow.s,
     // smartScore null = "no Smart Score" -> null ("—"); object without `value` = reshaped -> carry
     ss: sm === null ? null : sm === undefined || typeof sm !== "object" || !("value" in sm) ? undefined : sm.value ?? null,
-    ai: rep ? rnd(rep.score, 1) : undefined,
-    air: rep ? airName(rep.ratingId) : undefined,
-    aipt: rep ? rndPx(rep.rating?.priceTarget?.value) : undefined,
+    // report: null = no AI report -> null trio; absent -> carry (owner, 2026-11-19)
+    ai: rep === null ? null : rep ? rnd(rep.score, 1) : undefined,
+    air: rep === null ? null : rep ? airName(rep.ratingId) : undefined,
+    aipt: rep === null ? null : rep ? rndPx(rep.rating?.priceTarget?.value) : undefined,
     mc: unk(known(mcap), (m) => Math.round(m / 1e6)),
     desc: known(c?.description),
   };

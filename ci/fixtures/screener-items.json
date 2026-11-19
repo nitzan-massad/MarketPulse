@@ -2,6 +2,7 @@
  "aapl": {
   "tradingInformationData": {
    "ticker": "AAPL",
+   "companyDisplayName": "Apple",
    "companyName": "Apple Inc",
    "lastClose": 351.91,
    "priceChangePct": -0.0024661261976302515,

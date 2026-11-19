@@ -30,7 +30,8 @@ export function universeMap(items, { prev, ambiguous } = {}) {
     let cands = primary.length ? primary : list;
     if (cands.length > 1) {
       const want = normName(prev?.get(t)?.n);
-      cands = want ? cands.filter((it) => normName(it.tradingInformationData.companyName) === want) : [];
+      // stored n is the display name now (R3); rows written before that hold the legal name
+      cands = want ? cands.filter((it) => [it.tradingInformationData.companyDisplayName, it.tradingInformationData.companyName].some((x) => normName(x) === want)) : [];
     }
     if (cands.length === 1) m.set(t, cands[0]);
     else ambiguous?.push(t);

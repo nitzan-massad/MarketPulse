@@ -588,10 +588,16 @@ The refresh isn't only the dynamic top-120 screener sorts. A ticker is also **ke
 > In-pull rows never carry consensus/target: an absent `bestAnalystsConsensusData` / `bestPriceTargetData`
 > (or `tipRanksEssentialData`) writes `con: null, 0/0/0, pt/up null`, exactly the old in-pull mapper — carrying
 > prev there mixed an off-pull run's all-analyst basis into a best-analyst row (D1).
-> A null-filled peer stub alone is not a row (`rowFromAiAnalyst` -> null). Deliberate exception: a null
-> `aiAnalystData` / `report` carries the AI trio — the forecast payload (enrich) is the AI source of record and
-> rates tickers the screener nulls, so null there means "this source has none", not "TipRanks has none"
-> (plan Review Focus 1: wiping it blanked the trio on ~287 rows).
+> A null-filled peer stub alone is not a row (`rowFromAiAnalyst` -> null). The AI trio follows the same rule
+> (owner decision 2026-11-19, replacing the earlier carry exception): `aiAnalystData: null` / `report: null`
+> writes `ai/air/aipt: null` (the UI shows "—"); an absent key carries. A null trio makes the row
+> `needsFill`, so enrich (stock-forecast, the AI source of record) refills it at priority 1 when TipRanks
+> has a report there. On the 2026-11-18 universe capture 22/555 stored tickers had `aiAnalystData: null`,
+> none of them with a stored `ai`.
+> **Company name** (`n`) is the DISPLAY name on every path (owner decision 2026-11-19, e2e R3): screener
+> `tradingInformationData.companyDisplayName` ("IonQ", "TSMC"), aianalyst `company.name`; the legal
+> `companyName` only when the display field is absent/empty. The universe duplicate tie-break
+> (`ci/backfill-plan.mjs`) matches the stored name against either field.
 > `rowFromGetData` / `ssFromGetData` were deleted 2026-11-18 (getData has been Cloudflare-blocked since 2026-11-17); the text below is history.
 > **Track requests** use the same payload: `ci/track-requests.mjs fetch` maps it with `rowFromAiAnalyst`; a null
 > row or one with no name/price is a failure. The lite run's last step (`fail`) stamps `trackRequests/<KEY>/err`

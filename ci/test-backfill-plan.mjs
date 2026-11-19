@@ -45,6 +45,17 @@ m = universeMap([named("P", "Other Co", "otc"), named("P", "Real Co", "primary",
 assert.equal(m.get("P").tradingInformationData.tag, "primary");
 m = universeMap([named("P", "Other Co", "p1", true), named("P", "Real Co", "p2", true)], { prev: new Map([["P", { n: "Real Co" }]]) });
 assert.equal(m.get("P").tradingInformationData.tag, "p2", "two primaries: the name match decides");
+// R3: stored rows now hold the DISPLAY name, so the tie-break matches either the listing's
+// companyDisplayName or its legal companyName (rows written before the switch hold either).
+{
+  const dn = (t, disp, legal, tag) => ({ tradingInformationData: { ticker: t, companyDisplayName: disp, companyName: legal, stockListingIsPrimaryMarket: false, tag } });
+  const items = [dn("T", "Other Thing", "Other Thing Ltd", "other"), dn("T", "TSMC", "Taiwan Semiconductor Manufacturing Company Limited", "ours")];
+  const byDisp = universeMap(items, { prev: new Map([["T", { n: "TSMC" }]]) });
+  console.log("R3 tie-break on stored display name ->", byDisp.get("T")?.tradingInformationData.tag);
+  assert.equal(byDisp.get("T")?.tradingInformationData.tag, "ours", "a stored display name matches the listing's companyDisplayName");
+  const byLegal = universeMap(items, { prev: new Map([["T", { n: "Taiwan Semiconductor Manufacturing Co Ltd" }]]) });
+  assert.equal(byLegal.get("T")?.tradingInformationData.tag, "ours", "a stored legal name still matches companyName");
+}
 // planBackfill: a skipped ticker needs a payload (then carries)
 assert.deepEqual(planBackfill(["X"], universeMap([it("X", false, "a"), it("X", false, "b")])), { fromUniverse: [], needPayload: ["X"] });
 
