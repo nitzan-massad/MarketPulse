@@ -44,7 +44,7 @@ import { createSign } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { mergeRow, rowFromAiAnalyst } from "./keep.mjs";
-import { getText, makeBreaker, health } from "./tr-fetch.mjs";
+import { getText, makeBreaker, health, stepDeadline } from "./tr-fetch.mjs";
 
 const DB = "https://marketpulse-df5d9-default-rtdb.europe-west1.firebasedatabase.app";
 // RTDB_URL + RTDB_TOKEN: point every mode at a Firebase emulator instead (local e2e only — CI never
@@ -212,7 +212,7 @@ function readJson(path, fallback) {
 
 // Transport is ci/tr-fetch.mjs (shared with the other scrapers): a Cloudflare firewall block fails
 // at once instead of being retried. The aianalyst pull has a breaker: after 3 blocks the lite run stops
-// asking and the pending requests stay pending for the next run.
+// asking; the rest go to `failed` (err stamped by `fail`) and stay pending for the next run.
 const aiBreaker = makeBreaker();
 function parseJson(html) {
   const pre = html.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
@@ -223,8 +223,23 @@ function parseJson(html) {
 }
 const parses = (h) => { try { parseJson(h); return true; } catch { return false; } };
 // unparseable body = retried, as before; retries also absorb FlareSolverr's cold start
-async function flareJson(url, tries = 6, breaker) {
-  return parseJson(await getText(url, { flareUrl: FS_URL, tries, ok: parses, breaker }));
+async function flareJson(url, tries = 6, breaker, deadline = Infinity) {
+  return parseJson(await getText(url, { flareUrl: FS_URL, tries, ok: parses, breaker, deadline }));
+}
+
+/** The lite fetch loop. `passed()` is the step deadline: nothing starts past it, and every ticker
+ *  not attempted goes to `failed` (with fetch failures and breaker skips), so `fail` stamps `err`
+ *  instead of leaving the request on "Loading analyst data" when the job is killed. */
+export async function fetchRows(want, { getRow, passed, breakerOpen }) {
+  const got = [], failed = [];
+  let breakerHit = false, cut = 0;
+  for (const t of want) {
+    if (passed()) { failed.push(t); cut++; continue; }
+    if (breakerOpen()) { breakerHit = true; failed.push(t); continue; }
+    try { got.push(await getRow(t)); } catch (e) { console.log(`  ${t}: aianalyst skip (${e.message})`); failed.push(t); }
+  }
+  if (cut) console.log(`  fetch deadline reached: ${cut} request(s) not attempted, marked failed (retried next run)`);
+  return { got, failed, breakerHit };
 }
 
 /** The lite run starts FlareSolverr in the background (track-requests.yml) so an empty run never
@@ -375,24 +390,24 @@ async function main(mode) {
     const stocks = JSON.parse(readFileSync(STOCKS, "utf8"));
     const seen = JSON.parse(readFileSync(SEEN, "utf8"));
     const now = new Date().toISOString();
-    const got = [], failed = [];
+    // track-requests.yml kills the job at 10 min, and a kill inside this step loses its outputs, so
+    // `fail` would stamp nothing. 5 min from here (FlareSolverr wait included) leaves room for the
+    // payload scrapers, the gate and the upload; STEP_DEADLINE_MS overrides it.
+    const STEP = stepDeadline(Number(process.env.STEP_DEADLINE_MS) || 5 * 60_000);
     const want = planFetch(pending, Object.keys(tracked), stocks.map((r) => r.t));
-    if (want.length) await waitForFlare();
-    let reported = false;
-    for (const t of want) {
-      if (aiBreaker.open()) {
-        if (!reported) { reported = true; health("breaker open: stock-aianalyst"); console.log("  aianalyst breaker open: leaving the remaining requests pending"); }
-        failed.push(t);
-        continue;
-      }
-      try {
-        const row = mergeRow(undefined, rowFromAiAnalyst(await flareJson(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`, 3, aiBreaker), t));
+    if (want.length) await waitForFlare(Math.min(180_000, Math.max(0, STEP.at - Date.now())));
+    const res = await fetchRows(want, {
+      passed: () => STEP.passed(),
+      breakerOpen: () => aiBreaker.open(),
+      getRow: async (t) => {
+        const row = mergeRow(undefined, rowFromAiAnalyst(await flareJson(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`, 3, aiBreaker, STEP.at), t));
         if (!row?.n || row.px == null) throw new Error("no name or price in the payload");
-        stocks.push(row);
-        seen[t] = seenFor(row, now);
-        got.push(t);
-      } catch (e) { console.log(`  ${t}: aianalyst skip (${e.message})`); failed.push(t); }
-    }
+        return row;
+      },
+    });
+    if (res.breakerHit) { health("breaker open: stock-aianalyst"); console.log("  aianalyst breaker open: the remaining requests are marked failed (err stamped, retried next run)"); }
+    const failed = res.failed, got = [];
+    for (const row of res.got) { stocks.push(row); seen[row.t] = seenFor(row, now); got.push(row.t); }
     if (got.length) {
       writeFileSync(STOCKS, JSON.stringify(stocks));
       writeFileSync(SEEN, JSON.stringify(seen));

@@ -1,6 +1,7 @@
 // Guards ci/track-requests.mjs: which requests get tracked, fetched, marked, cleared, and kept alive.
 import assert from "node:assert/strict";
-import { planFail, planFetch, planFold, planKeepalive, planMarks, planTracks, planUnrequest, rtdbUrl, seenFor, trackedEntry } from "./track-requests.mjs";
+import { readFileSync } from "node:fs";
+import { fetchRows, planFail, planFetch, planFold, planKeepalive, planMarks, planTracks, planUnrequest, rtdbUrl, seenFor, trackedEntry } from "./track-requests.mjs";
 
 const req = (ts, tracked = false) => ({ uid: "u", ts, tracked });
 const iso = (ms) => new Date(ms).toISOString();
@@ -108,3 +109,27 @@ const EMU = "http://127.0.0.1:9000?ns=marketpulse-df5d9-default-rtdb";
 assert.equal(rtdbUrl(".json", EMU), "http://127.0.0.1:9000/.json?ns=marketpulse-df5d9-default-rtdb");
 assert.equal(rtdbUrl("trackedRows.json?shallow=true", EMU), "http://127.0.0.1:9000/trackedRows.json?shallow=true&ns=marketpulse-df5d9-default-rtdb");
 assert.equal(rtdbUrl("trackRequests/NNNN.json", "http://127.0.0.1:9000/"), "http://127.0.0.1:9000/trackRequests/NNNN.json");
+
+// M3: the lite fetch loop is bounded by a deadline (track-requests.yml's job is 10 min; 20 tickers x
+// (30s plain + 3 x 90s FlareSolverr) is far more). Past it, every un-attempted ticker goes to `failed`
+// (so `fail` stamps err) and the loop returns, so $GITHUB_OUTPUT is written before the job is killed.
+{
+  let now = 0;
+  const tried = [];
+  const getRow = async (t) => { tried.push(t); now += 100; if (t === "BAD") throw new Error("no name"); return { t }; };
+  const r = await fetchRows(["A", "BAD", "B", "C", "D"], { getRow, passed: () => now >= 250, breakerOpen: () => false });
+  console.log("M3 deadline at 250 ->", JSON.stringify({ tried, got: r.got.map((x) => x.t), failed: r.failed }));
+  assert.deepEqual(tried, ["A", "BAD", "B"], "nothing starts past the deadline");
+  assert.deepEqual(r.got.map((x) => x.t), ["A", "B"]);
+  assert.deepEqual(r.failed, ["BAD", "C", "D"], "the failure and the un-attempted both reach `failed`");
+  let n = 0;
+  const br = await fetchRows(["A", "B", "C"], { getRow: async (t) => ({ t }), passed: () => false, breakerOpen: () => n++ >= 1 });
+  assert.deepEqual([br.got.map((x) => x.t), br.failed, br.breakerHit], [["A"], ["B", "C"], true], "open breaker -> rest failed");
+  const src = readFileSync(new URL("./track-requests.mjs", import.meta.url), "utf8");
+  const fetchMode = src.slice(src.indexOf('mode === "fetch"'), src.indexOf('mode === "mark"'));
+  assert.match(fetchMode, /stepDeadline\(/, "the fetch mode sets a deadline");
+  assert.match(fetchMode, /flareJson\([^;]*STEP\.at\)/, "and every request is bounded by it");
+  assert.match(src, /getText\(url, \{[^}]*deadline \}\)/, "flareJson hands the deadline to getText");
+  assert.doesNotMatch(src, /leaving the remaining requests pending/, "the breaker log says what happens: they are marked failed");
+}
+console.log("track-requests: fetch deadline ok");
