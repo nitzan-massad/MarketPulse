@@ -1,5 +1,27 @@
 [
   {
+    "id": "RAPP-2026-11-20T12:06:52.346Z",
+    "ts": "2026-11-20T12:06:52.346Z",
+    "kind": "list",
+    "ticker": "RAPP",
+    "name": "Rapport Therapeutics, Inc.",
+    "sector": "Healthcare",
+    "text": "197% leads the board, 5 names.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "RAPP appeared in a recent post"
+    ],
+    "facts": {
+      "members": "Rapport Therapeutics (196.7% to $70), Fervo Energy Company Class A (191.7% to $32.5), SanDisk (182.2% to $2130.83), Larimar Therapeutics (179.5% to $9), Vera Therapeutics (175.4% to $73.67)",
+      "count": 5,
+      "leader": "Rapport Therapeutics",
+      "leaderUpside": 196.7
+    },
+    "descriptor": "CNS Therapeutics Developer"
+  },
+  {
     "id": "ORLY-2026-11-20T06:29:52.341Z",
     "ts": "2026-11-20T06:29:52.341Z",
     "kind": "contrarian",

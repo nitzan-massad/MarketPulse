@@ -1,7 +1,7 @@
 {
- "score": 18.6,
+ "score": 16.7,
  "rating": "extreme fear",
- "asOf": "2026-11-20T01:00:00",
+ "asOf": "2026-11-20T11:45:01",
  "previous": {
   "close": 18.7,
   "week": 37.4,
@@ -18,14 +18,14 @@
   {
    "key": "stock_price_strength",
    "label": "Stock price strength",
-   "score": 31.2,
+   "score": 29.2,
    "rating": "fear"
   },
   {
    "key": "stock_price_breadth",
    "label": "Stock price breadth",
-   "score": 30.8,
-   "rating": "fear"
+   "score": 19.6,
+   "rating": "extreme fear"
   },
   {
    "key": "put_call_options",
@@ -36,7 +36,7 @@
   {
    "key": "market_volatility_vix",
    "label": "Market volatility",
-   "score": 13.3,
+   "score": 13.2,
    "rating": "extreme fear"
   },
   {
@@ -1051,11 +1051,11 @@
   },
   {
    "d": "2026-11-19",
-   "v": 18.6
+   "v": 16.6
   },
   {
    "d": "2026-11-20",
-   "v": 18.6
+   "v": 16.7
   }
  ]
 }
