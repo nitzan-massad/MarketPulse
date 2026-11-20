@@ -13,3 +13,7 @@ class_name = "LiveRelay"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["LiveRelay"]
+
+# Keeps console.log/error from the "Track this stock" dispatch (dashboard: Workers → marketpulse-track → Logs).
+[observability]
+enabled = true

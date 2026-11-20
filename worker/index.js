@@ -232,6 +232,8 @@ export default {
       },
       body: JSON.stringify({ ref: "main" }),
     });
+    if (r.ok) console.log("dispatch ok", r.status, origin);
+    else console.error("dispatch failed", r.status, origin, (await r.text()).slice(0, 500));
     return new Response(null, { status: r.ok ? 204 : 502, headers: cors });
   },
 };
