@@ -323,5 +323,10 @@
     "name": "Ondas",
     "descriptor": "Wireless Network Solutions",
     "scene": "tuning a radio frequency module on a laboratory workbench"
+  },
+  "NRIX": {
+    "name": "Nurix Therapeutics",
+    "descriptor": "Cancer Therapy Developer",
+    "scene": "researcher pipetting samples into microplates for cell analysis"
   }
 }

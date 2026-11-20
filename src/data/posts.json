@@ -1,5 +1,35 @@
 [
   {
+    "id": "NRIX-2026-11-20T03:17:26.763Z",
+    "ts": "2026-11-20T03:17:26.763Z",
+    "kind": "record",
+    "ticker": "NRIX",
+    "name": "Nurix Therapeutics",
+    "sector": "Healthcare",
+    "text": "~140% upside, this month's high, doubles sector.",
+    "score": 36,
+    "reasons": [
+      "3 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "duplicate of a recent post (44% word overlap)"
+    ],
+    "facts": {
+      "upside": 140,
+      "windowLow": 26.8,
+      "windowHigh": 140,
+      "snapshots": 241,
+      "days": 61.8,
+      "price": 14.1,
+      "priceTarget": 33.83,
+      "analysts": 10,
+      "sectorMedianUpside": 30.6
+    },
+    "descriptor": "Cancer Therapy Developer",
+    "image": "NRIX-2026-11-20T03-17-26-763Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "ONDS-2026-11-17T04:32:48.046Z",
     "ts": "2026-11-17T04:32:48.046Z",
     "kind": "surprise",
