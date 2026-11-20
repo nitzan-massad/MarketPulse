@@ -1,5 +1,33 @@
 [
   {
+    "id": "ORLY-2026-11-20T06:29:52.341Z",
+    "ts": "2026-11-20T06:29:52.341Z",
+    "kind": "contrarian",
+    "ticker": "ORLY",
+    "name": "O'Reilly Auto",
+    "sector": "ConsumerCyclical",
+    "text": "1, 73: huge model gap.",
+    "score": 54,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "ORLY appeared in a recent post"
+    ],
+    "facts": {
+      "smartScore": 1,
+      "aiScore": 73,
+      "aiRating": "Outperform",
+      "consensus": "StrongBuy",
+      "upside": 15.9,
+      "price": 93.37,
+      "analysts": 10,
+      "bullish": "ai"
+    },
+    "descriptor": "Auto Parts Supplier",
+    "image": "ORLY-2026-11-20T06-29-52-341Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "NRIX-2026-11-20T03:17:26.763Z",
     "ts": "2026-11-20T03:17:26.763Z",
     "kind": "record",
