@@ -1,5 +1,32 @@
 [
   {
+    "id": "TMO-2026-11-20T20:32:28.483Z",
+    "ts": "2026-11-20T20:32:28.483Z",
+    "kind": "newcomer",
+    "ticker": "TMO",
+    "name": "Thermo Fisher",
+    "sector": "Healthcare",
+    "text": "12% upside, new to board 44 days ago.",
+    "score": 36,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (40% word overlap)"
+    ],
+    "facts": {
+      "seenIn": 125,
+      "windowSnapshots": 241,
+      "days": 44.4,
+      "upside": 11.7,
+      "consensus": "StrongBuy",
+      "analysts": 13,
+      "smartScore": 9
+    },
+    "descriptor": "Laboratory Equipment",
+    "image": "TMO-2026-11-20T20-32-28-483Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "RAPP-2026-11-20T12:06:52.346Z",
     "ts": "2026-11-20T12:06:52.346Z",
     "kind": "list",
