@@ -2,14 +2,15 @@ name: Deploy github.io redirect
 
 # The old https://nitzan-massad.github.io/MarketPulse/ URL serves only redirect/ (a forward to the
 # Firebase site; 404.html catches every deep path). Pages keeps the last deploy, so this runs only
-# when redirect/ changes, or by hand.
+# when redirect/ or this file changes, or by hand.
 on:
   push:
     branches: [main]
-    paths: ["redirect/**"]
+    paths: ["redirect/**", ".github/workflows/redirect.yml"]
   workflow_dispatch:
 
 permissions:
+  contents: read   # checkout
   pages: write
   id-token: write
 

@@ -24,6 +24,8 @@ on:
 permissions:
   contents: write   # commit refreshed data
 
+# The group name is historical (site.yml used to deploy Pages too); not renamed so a run already
+# queued under it still waits its turn. It only keeps schedule/dispatch/push runs in one queue.
 concurrency:
   group: pages
   cancel-in-progress: false

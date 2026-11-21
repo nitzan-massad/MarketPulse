@@ -15,7 +15,7 @@ on:
 permissions:
   contents: read
 
-# Its own group, NOT site.yml's `pages`: nothing here touches main or Pages, so it no longer waits
+# Its own group, NOT site.yml's `pages`: nothing here touches main, so it no longer waits
 # behind a 15-48 min site run. A dispatch during a lite run queues (a newer one replaces a queued
 # one, harmlessly: every run handles every pending request).
 concurrency:

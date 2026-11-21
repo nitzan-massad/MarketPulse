@@ -1,6 +1,6 @@
 // Guards site.yml's dry_run contract: "scrape and run the gates, but do not commit, deploy or mark
 // requests tracked" — and nothing else outside the runner either. Every step that WRITES somewhere
-// other than the runner's disk (git push, Firebase Hosting, GitHub Pages, RTDB) must be skipped
+// other than the runner's disk (git push, Firebase Hosting, RTDB) must be skipped
 // when `inputs.dry_run` is set. The pin step was the leak: it PATCHes RTDB trackRequests
 // (planUnrequest), so a "read-only" dry run deleted live requests.
 // No YAML dependency: steps are split on `- name:` / `- uses:` / `- run:` at the steps indent.
@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 const yml = readFileSync(new URL("../.github/workflows/site.yml", import.meta.url), "utf8");
 const body = yml.slice(yml.indexOf("    steps:\n") + "    steps:\n".length);
 const steps = body.split(/\n(?=      - )/).map((s) => s.trim()).filter((s) => s.startsWith("- "));
-// a step is named by `name:`, else its `uses:`, else its first `run:` line (e.g. `- id: deployment` + `uses:`)
+// a step is named by `name:`, else its `uses:`, else its first `run:` line (e.g. `- uses: actions/checkout@v4`)
 const nameOf = (s) => (s.match(/^-?\s*name:\s*(.+)$/m) || s.match(/^-?\s*uses:\s*(.+)$/m) || s.match(/^-?\s*run:\s*(.+)$/m) || [, s.split("\n")[0]])[1].trim();
 const ifOf = (s) => (s.match(/^\s*if:\s*(.+)$/m) || [])[1] || "";
 const find = (re) => {
@@ -18,6 +18,9 @@ const find = (re) => {
   assert.equal(hit.length, 1, `exactly one step matching ${re} (found ${hit.map(nameOf).join(", ") || "none"})`);
   return hit[0];
 };
+// The github.io redirect is deployed by redirect.yml only when it changes; a per-run Pages deploy
+// here failed on GitHub artifact-API flakes and skipped mark/clear.
+assert(!/deploy-pages|upload-pages-artifact|configure-pages/.test(yml), "site.yml must not deploy GitHub Pages (redirect.yml does)");
 assert(steps.length >= 20, `parsed ${steps.length} steps — the splitter no longer matches site.yml's layout`);
 
 // the external writers: each must be skipped on a dry run

@@ -7,8 +7,8 @@ name: Tests
 # `main` is excluded on purpose: site.yml runs the identical `npm test` on every push to
 # main, so including it here just buys a duplicate job. Not a coverage gap.
 #
-# It is NOT what stops a bad deploy: a separate workflow cannot block site.yml's Pages
-# deploy. site.yml runs `npm test` itself — twice, once before the scrape and once after —
+# It is NOT what stops a bad deploy: a separate workflow cannot block site.yml's Firebase
+# Hosting deploy. site.yml runs `npm test` itself — twice, once before the scrape and once after —
 # and those steps are the actual gates. See ci/README.md → Tests.
 on:
   push:

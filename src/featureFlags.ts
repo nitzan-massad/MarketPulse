@@ -1,7 +1,7 @@
 // Feature flags for a static site with no backend.
 //
 // `?ff=feed` turns a flag on and remembers it; `?ff=-feed` turns it off. That is the entire
-// mechanism — this app deploys to GitHub Pages and has no server to ask, so a flag service
+// mechanism — this app is a static site on Firebase Hosting with no server to ask, so a flag service
 // is not an option. Good enough to keep an unfinished section out of everyone's way, and to
 // hand a reviewer a link that switches it on.
 //
