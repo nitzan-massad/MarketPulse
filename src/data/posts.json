@@ -1,5 +1,36 @@
 [
   {
+    "id": "WULF-2026-11-21T10:31:09.245Z",
+    "ts": "2026-11-21T10:31:09.245Z",
+    "kind": "movement",
+    "ticker": "WULF",
+    "name": "TeraWulf Inc",
+    "sector": "Financial",
+    "text": "~154% upside, up from 116%, today, 11 analysts.",
+    "score": 70,
+    "reasons": [
+      "8 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "WULF appeared in a recent post"
+    ],
+    "facts": {
+      "upsideFrom": 116.3,
+      "upsideTo": 154.3,
+      "consensusFrom": "StrongBuy",
+      "consensusTo": "StrongBuy",
+      "price": 9.85,
+      "priceTarget": 25.05,
+      "analysts": 11,
+      "sector": "Financial",
+      "smartScoreFrom": 4,
+      "smartScoreTo": 2
+    },
+    "descriptor": "Bitcoin Mining Operator",
+    "image": "WULF-2026-11-21T10-31-09-245Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "AMZN-2026-11-21T02:25:56.391Z",
     "ts": "2026-11-21T02:25:56.391Z",
     "kind": "steady",

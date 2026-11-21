@@ -170,9 +170,9 @@
     "scene": "researcher filling vials with subcutaneous injection medication in a laboratory"
   },
   "WULF": {
-    "name": "Terawulf",
+    "name": "TeraWulf",
     "descriptor": "Bitcoin Mining Operator",
-    "scene": "inspecting rows of humming bitcoin servers in a large data centre"
+    "scene": "inspecting rows of humming bitcoin mining servers in a large data centre"
   },
   "QBTS": {
     "name": "D-Wave Quantum",
