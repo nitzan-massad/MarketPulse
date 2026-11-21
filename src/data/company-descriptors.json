@@ -328,5 +328,10 @@
     "name": "Nurix Therapeutics",
     "descriptor": "Cancer Therapy Developer",
     "scene": "researcher pipetting samples into microplates for cell analysis"
+  },
+  "NUAI": {
+    "name": "New Era Energy & Digital",
+    "descriptor": "Energy Resource Explorer",
+    "scene": "operating a drilling rig in a desert landscape surrounded by pipes and equipment"
   }
 }

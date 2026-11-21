@@ -1,5 +1,28 @@
 [
   {
+    "id": "NUAI-2026-11-21T19:24:37.971Z",
+    "ts": "2026-11-21T19:24:37.971Z",
+    "kind": "list",
+    "ticker": "NUAI",
+    "name": "New Era Energy & Digital",
+    "sector": "Technology",
+    "text": "191% leads the board, 5 names follow.",
+    "score": 68,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "members": "New Era Energy & Digital (191% to $11), Vera Therapeutics (189.5% to $73.67), Larimar Therapeutics (186.6% to $9), Hut 8 (182.9% to $130), Rigetti Computing (182.8% to $20.25)",
+      "count": 5,
+      "leader": "New Era Energy & Digital",
+      "leaderUpside": 191
+    },
+    "descriptor": "Energy Resource Explorer",
+    "image": "NUAI-2026-11-21T19-24-37-971Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "MU-2026-11-21T11:13:34.682Z",
     "ts": "2026-11-21T11:13:34.682Z",
     "kind": "surprise",
