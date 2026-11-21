@@ -26,7 +26,7 @@ uses whatever is on `main`.
   **data-loss gate** against the previous commit; red blocks the commit and the deploy. See *Gates*.
 - **Commit step** stages the refreshed data and commits `chore: refresh TipRanks snapshot [skip ci]`.
 - **Build** (`npm run build`) with the Finnhub/TwelveData/FMP keys from repo secrets, then deploy to
-  Firebase Hosting (GitHub Pages serves only the `redirect/` stub).
+  Firebase Hosting. GitHub Pages serves only the `redirect/` stub, deployed by `redirect.yml` when it changes.
 - **Health gate** (last): red when a source degraded, after the data shipped. See *Gates*.
 - **`ci/generate-posts.mjs`** turns the fresh snapshot into one social post for the in-app feed.
   `loadWindow()` (in `generate-posts.mjs`, **not** in `hooks.mjs`) reads the last `POST_WINDOW`
@@ -636,7 +636,7 @@ A red Health gate means "look at the log", not "the site is broken".
 
 `workflow_dispatch` input: "scrape and run the gates, but do not commit, deploy or mark requests
 tracked". Skipped on a dry run: every step that writes outside the runner — pin (RTDB PATCH),
-the commit, Firebase Hosting, the Pages upload + deploy, mark and clear (RTDB) — plus the two
+the commit, Firebase Hosting, mark and clear (RTDB) — plus the two
 Cloudflare-model steps, post and themes, because a dry run commits nothing and whatever it spends
 the next scheduled run spends again (an exhausted daily tier would turn that run red). Still run:
 fold (it only GETs RTDB), the previous-data snapshot, the refresh, the backfills, both test gates and

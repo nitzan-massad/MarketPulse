@@ -25,8 +25,6 @@ const writers = [
   [/^Pin requested tickers$/, "RTDB PATCH (planUnrequest) + keepalive"],
   [/^Commit refreshed data$/, "git push"],
   [/^Deploy to Firebase Hosting$/, "Firebase Hosting"],
-  [/^actions\/upload-pages-artifact/, "Pages artifact"],
-  [/^actions\/deploy-pages/, "Pages deploy"],
   [/^Mark requests tracked$/, "RTDB PATCH trackRequests"],
   [/^Clear folded tracked rows$/, "RTDB DELETE trackedRows"],
 ];

@@ -1,0 +1,37 @@
+name: Deploy github.io redirect
+
+# The old https://nitzan-massad.github.io/MarketPulse/ URL serves only redirect/ (a forward to the
+# Firebase site; 404.html catches every deep path). Pages keeps the last deploy, so this runs only
+# when redirect/ changes, or by hand.
+on:
+  push:
+    branches: [main]
+    paths: ["redirect/**"]
+  workflow_dispatch:
+
+permissions:
+  pages: write
+  id-token: write
+
+concurrency:
+  group: redirect
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - run: cp redirect/index.html redirect/404.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: redirect
+      - id: deployment
+        uses: actions/deploy-pages@v4

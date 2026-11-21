@@ -23,8 +23,6 @@ on:
 
 permissions:
   contents: write   # commit refreshed data
-  pages: write      # deploy the github.io redirect stub
-  id-token: write   # Pages OIDC
 
 concurrency:
   group: pages
@@ -75,10 +73,6 @@ jobs:
       # steps: a red check must stop this job.
       - name: Run all checks (npm test)
         run: npm test
-
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       # Lite-run tickers (track-requests.yml) live in RTDB trackedRows until this folds them into
       # stocks/tracked/seen.json + public/forecasts|bullbear|pe. MUST come before the pin and the
@@ -276,7 +270,7 @@ jobs:
       # sees it either.
       #
       # Deliberately NOT `continue-on-error`: failing here aborts before the commit and
-      # before the Pages deploy, so nothing is written and the last good deploy stays up.
+      # before the deploy, so nothing is written and the last good deploy stays up.
       # That includes ci/test-no-data-loss.mjs, which fails on data LOST vs the previous commit
       # (PREV_DIR). ACCEPT_DATA_LOSS (the accept_data_loss input, manual runs only) turns that one
       # check's failure into a health line for this run — see the input above.
@@ -320,17 +314,8 @@ jobs:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: npx --yes firebase-tools deploy --only hosting --project marketpulse-df5d9 --non-interactive
 
-      # The old https://nitzan-massad.github.io/MarketPulse/ URL keeps serving only a redirect
-      # to the Firebase site. 404.html catches every deep path.
-      - run: cp redirect/index.html redirect/404.html
-      - uses: actions/upload-pages-artifact@v3
-        if: ${{ !inputs.dry_run }}
-        with:
-          path: redirect
-
-      - id: deployment
-        if: ${{ !inputs.dry_run }}
-        uses: actions/deploy-pages@v4
+      # The github.io redirect stub is NOT deployed here: it never changes, Pages keeps serving the
+      # last deploy, and a Pages API flake used to skip the two steps below. See redirect.yml.
 
       # After the deploy: tracked=true fires the requester's "now tracked" notification, so it
       # must mean the row is live. See ci/track-requests.mjs.

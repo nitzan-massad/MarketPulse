@@ -89,8 +89,8 @@ and localStorage — no real auth, no Firebase writes.
 - **Pushing to `main` *is* the deploy.** The pipeline lives entirely in this repo; there is no
   external CI system. Never edit the workflow through the GitHub web UI. See `AGENTS.md`.
   `site.yml` deploys `dist/` to Firebase Hosting (https://marketpulse-app.web.app, via the
-  `FIREBASE_TOKEN` secret) and deploys only `redirect/` to GitHub Pages, so the old
-  github.io URL forwards there. The worker's `ORIGIN` must match the Firebase site.
+  `FIREBASE_TOKEN` secret). `redirect.yml` deploys `redirect/` to GitHub Pages only when it
+  changes (Pages keeps the last deploy), so the old github.io URL forwards there. The worker's `ORIGIN` must match the Firebase site.
 - **Never hand-edit** `src/data/*.json`, `public/forecasts/`, `public/bullbear/`,
   `public/reviews-recent.json` — CI overwrites them. `src/data/pinned.json` is the one exception
   (hand-maintained list of never-expiring tickers). Users' "Track this stock" requests go to
