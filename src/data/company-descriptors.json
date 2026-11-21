@@ -25,9 +25,9 @@
     "scene": "carefully measuring liquid into a laboratory vial with a pipette"
   },
   "MU": {
-    "name": "Micron Technology",
+    "name": "Micron",
     "descriptor": "Memory Chip Maker",
-    "scene": "inspecting semiconductor wafers with a precision microscope in a cleanroom environment"
+    "scene": "inspecting silicon wafers with a microscope in a cleanroom environment"
   },
   "SCHW": {
     "name": "Charles Schwab",

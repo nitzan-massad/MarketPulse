@@ -1,5 +1,32 @@
 [
   {
+    "id": "MU-2026-11-21T11:13:34.682Z",
+    "ts": "2026-11-21T11:13:34.682Z",
+    "kind": "surprise",
+    "ticker": "MU",
+    "name": "Micron",
+    "sector": "Technology",
+    "text": "~174% upside, 27 analysts, doubles sector.",
+    "score": 40,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (38% word overlap)"
+    ],
+    "facts": {
+      "upside": 174.1,
+      "price": 594.51,
+      "priceTarget": 1629.4,
+      "consensus": "StrongBuy",
+      "analysts": 27,
+      "sector": "Technology",
+      "sectorMedianUpside": 66.4
+    },
+    "descriptor": "Memory Chip Maker",
+    "image": "MU-2026-11-21T11-13-34-682Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "WULF-2026-11-21T10:31:09.245Z",
     "ts": "2026-11-21T10:31:09.245Z",
     "kind": "movement",
