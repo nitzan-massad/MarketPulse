@@ -150,9 +150,9 @@
     "scene": "adjusting antennas on a cellular tower outdoors"
   },
   "AMZN": {
-    "name": "Amazon.Com",
+    "name": "Amazon",
     "descriptor": "Global Online Retailer",
-    "scene": "scanning inventory shelves with a handheld barcode scanner in a vast warehouse"
+    "scene": "carefully packing boxes with household items and electronics for shipping"
   },
   "PNC": {
     "name": "PNC Financial",

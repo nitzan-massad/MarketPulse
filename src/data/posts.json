@@ -1,5 +1,33 @@
 [
   {
+    "id": "AMZN-2026-11-21T02:25:56.391Z",
+    "ts": "2026-11-21T02:25:56.391Z",
+    "kind": "steady",
+    "ticker": "AMZN",
+    "name": "Amazon",
+    "sector": "ConsumerCyclical",
+    "text": "32 analysts, Strong Buy held for 62 days.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "AMZN appeared in a recent post"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "snapshots": 241,
+      "days": 62,
+      "upside": 27.6,
+      "consensus": "StrongBuy",
+      "analysts": 32
+    },
+    "descriptor": "Global Online Retailer",
+    "image": "AMZN-2026-11-21T02-25-56-391Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "CC BY-SA 2.0",
+    "imageAttribution": "Joe Piette — Wikimedia Commons (CC BY-SA 2.0)"
+  },
+  {
     "id": "TMO-2026-11-20T20:32:28.483Z",
     "ts": "2026-11-20T20:32:28.483Z",
     "kind": "newcomer",
