@@ -1,5 +1,31 @@
 [
   {
+    "id": "AMZN-2026-11-22T11:36:01.633Z",
+    "ts": "2026-11-22T11:36:01.633Z",
+    "kind": "steady",
+    "ticker": "AMZN",
+    "name": "Amazon",
+    "sector": "ConsumerCyclical",
+    "text": "10 Smart Score for 62 days straight.",
+    "score": 56,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "AMZN appeared in a recent post"
+    ],
+    "facts": {
+      "smartScore": 10,
+      "snapshots": 241,
+      "days": 62.4,
+      "upside": 33.5,
+      "consensus": "StrongBuy",
+      "analysts": 31
+    },
+    "descriptor": "Global Online Retailer",
+    "image": "AMZN-2026-11-22T11-36-01-633Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "NUAI-2026-11-22T01:28:35.142Z",
     "ts": "2026-11-22T01:28:35.142Z",
     "kind": "list",
