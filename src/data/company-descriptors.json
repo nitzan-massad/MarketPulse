@@ -333,5 +333,10 @@
     "name": "New Era Energy & Digital",
     "descriptor": "Energy Resource Explorer",
     "scene": "operating a drilling rig in a desert landscape surrounded by pipes and equipment"
+  },
+  "DDOG": {
+    "name": "Datadog",
+    "descriptor": "Cloud Monitoring Platform",
+    "scene": "inspecting server racks with diagnostic equipment in a data centre hallway"
   }
 }

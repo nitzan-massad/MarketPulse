@@ -1,5 +1,33 @@
 [
   {
+    "id": "DDOG-2026-11-22T19:49:00.748Z",
+    "ts": "2026-11-22T19:49:00.748Z",
+    "kind": "contrarian",
+    "ticker": "DDOG",
+    "name": "Datadog",
+    "sector": "Technology",
+    "text": "78% upside, analysts bullish, AI neutral.",
+    "score": 32,
+    "reasons": [
+      "2 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (40% word overlap)"
+    ],
+    "facts": {
+      "smartScore": 1,
+      "aiScore": 64,
+      "aiRating": "Neutral",
+      "consensus": "StrongBuy",
+      "upside": 78.1,
+      "price": 157.37,
+      "analysts": 27,
+      "bullish": "ai"
+    },
+    "descriptor": "Cloud Monitoring Platform",
+    "image": "DDOG-2026-11-22T19-49-00-748Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "AMZN-2026-11-22T11:36:01.633Z",
     "ts": "2026-11-22T11:36:01.633Z",
     "kind": "steady",
