@@ -1,11 +1,11 @@
-// Backfill/refresh public/bullbear/<T>.json from the SSR tipranks.com/stocks/<t> page
-// (the AI Bulls Say / Bears Say thesis; parser in ci/bullbear-html.mjs), via FlareSolverr — same Cloudflare-bypass the
-// forecast scrape uses. Fills tickers MISSING a file or older than STALE_DAYS, stalest
+// Backfill/refresh public/bullbear/<T>.json from tipranks.com/stocks/<t>/stock-aianalyst/payload.json
+// (the AI Bulls Say / Bears Say thesis; parser in ci/bullbear-payload.mjs), plain fetch first,
+// FlareSolverr on a challenge — same transport the forecast scrape uses. Fills tickers MISSING a file or older than STALE_DAYS, stalest
 // first so LIMIT rotates through the whole universe (pass ALL=1 to force everyone).
 // Strictly additive + per-ticker failure-tolerant: a bad ticker is skipped, never fatal.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
-import { parseBullBearHtml } from "./bullbear-html.mjs";
+import { extractJson, parseBullBearPayload } from "./bullbear-payload.mjs";
 import { getText, makeBreaker, health } from "./tr-fetch.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
@@ -19,9 +19,10 @@ const OUT = "public/bullbear";
 // rest of the run after 3 in a row (no file written, so the tickers keep their place in the queue).
 // The lite run (ONLY) has a user waiting: 3 tries, not 6 x (up to 60s) per URL.
 const pageBreaker = makeBreaker();
-const flareGet = (url, tries = ONLY ? 3 : 6) => getText(url, { flareUrl: FS_URL, tries, breaker: pageBreaker });
+const parses = (h) => { try { extractJson(h); return true; } catch { return false; } };
+const flareGet = (url, tries = ONLY ? 3 : 6) => getText(url, { flareUrl: FS_URL, tries, ok: parses, breaker: pageBreaker });
 
-// the page carries no content date, so stamp when WE refreshed it
+// the payload carries no content date, so stamp when WE refreshed it
 const ASOF = new Date().toISOString().slice(0, 10);
 
 const stocks = JSON.parse(readFileSync("src/data/stocks.json", "utf8"));
@@ -52,22 +53,21 @@ let ok = 0, empty = 0, fail = 0;
 let skipped = 0;
 for (const t of targets) {
   if (pageBreaker.open()) {
-    if (!skipped) { health("breaker open: bullbear page"); console.log("  bullbear page breaker open: skipping the rest of the run"); }
+    if (!skipped) { health("breaker open: bullbear payload"); console.log("  bullbear payload breaker open: skipping the rest of the run"); }
     skipped++; continue;
   }
   try {
-    const url = `https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}`;
-    const bb = parseBullBearHtml(await flareGet(url));
+    const url = `https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/stock-aianalyst/payload.json`;
+    const bb = parseBullBearPayload(extractJson(await flareGet(url)), t);
     if (bb.bull.length || bb.bear.length) {
       writeFileSync(`${OUT}/${t}.json`, JSON.stringify({ ...bb, asOf: ASOF }));
       ok++;
       console.log(`  ${t}: ${bb.bull.length}↑ ${bb.bear.length}↓ ✓`);
     } else {
-      // Section present but no points (rare). Tickers with NO thesis most likely have no section
-      // at all, so they throw and land under `failed` below, not here.
+      // Ticker has no AI thesis (common for micro-caps).
       // ponytail: either way nothing is written, so the ticker stays at age 0 and is retried
       // every run. Cheap while that set is small; if `failed` grows on healthy runs, stamp an
-      // asOf for "no section" tickers (or keep a skip list) so they rotate out of the budget.
+      // asOf for no-thesis tickers (or keep a skip list) so they rotate out of the budget.
       empty++;
       console.log(`  ${t}: none`);
     }
@@ -77,10 +77,10 @@ for (const t of targets) {
   }
 }
 console.log(`done: ${ok} written, ${empty} empty, ${fail} failed, ${skipped} skipped (breaker open)`);
-// Tripwire: a big run that wrote NOTHING means the source moved again (payload.json died exactly
-// this way, silently, as "N empty"). Warn loudly; the step is continue-on-error so it never blocks
+// Tripwire: a big run that wrote NOTHING means the source moved again (the old stock-analysis
+// payload died exactly this way, silently, as "N empty"). Warn loudly; the step is continue-on-error so it never blocks
 // the deploy. Off for ONLY runs: track-requests.yml fails the lite run on any non-zero exit.
 if (!ONLY && ok === 0 && targets.length >= 10) {
-  console.log(`::warning::bullbear: 0 of ${targets.length} written — TipRanks markup or source likely changed (see ci/bullbear-html.mjs)`);
+  console.log(`::warning::bullbear: 0 of ${targets.length} written — TipRanks payload or source likely changed (see ci/bullbear-payload.mjs)`);
   process.exitCode = 1;
 }

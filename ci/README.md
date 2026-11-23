@@ -1002,27 +1002,29 @@ the commit step also stages `public/forecasts`.
 ## Bulls Say / Bears Say — automated ✅
 
 `ci/scrape-bullbear.mjs` refreshes `public/bullbear/<TICKER>.json` (the AI Bulls Say /
-Bears Say thesis) from the SSR **`/stocks/<t>`** page via FlareSolverr, using the
+Bears Say thesis) from **`/stocks/<t>/stock-aianalyst/payload.json`** (plain fetch first,
+FlareSolverr on a challenge — `ci/tr-fetch.mjs`), using the
 **same selection logic as the forecast scrape** — `STALE_DAYS` staleness, stalest-first,
 `LIMIT` (default 90), `ALL=1` to force everyone. Age comes from the `asOf` field already
 stored **inside** each `<T>.json` (no sidecar needed here), never from mtime — see the
 warning under Analyst forecasts for why. `site.yml` runs it in
 parallel with the forecast backfill (and `scrape-pe.mjs`), and the commit step stages `public/bullbear`.
 
-- **Source:** `https://www.tipranks.com/stocks/<t-lowercase>` (HTML). The old
-  `/stocks/<t>/stock-analysis/payload.json` was retired 2026-11 — it returns
-  `{"data":null,"error":"not found"}` for every ticker, which the old code counted as "no thesis",
-  so nothing refreshed and nothing failed.
-- **Markup** (parser: `ci/bullbear-html.mjs`): `<h2>Bulls Say, Bears Say</h2>`, then two columns,
-  each opened by `<h3>…<span>Bulls Say|Bears Say</span></h3>` with `<h4>title</h4><p>body</p>`
-  pairs (typically 3 + 3). Anchored on text and tag names, never class names. Guarded by
-  `node ci/test-bullbear-html.mjs` against a real trimmed ONDS page (`ci/fixtures/onds-bullbear.html`).
+- **Source history:** `/stocks/<t>/stock-analysis/payload.json` was retired 2026-11 (returns
+  `{"data":null,"error":"not found"}` for every ticker). The SSR `/stocks/<t>` HTML page replaced
+  it until 2026-11-22, when Cloudflare started hard-blocking GitHub runner IPs on HTML pages
+  (FlareSolverr: "Cloudflare has blocked this request") while payload.json kept passing.
+- **Shape** (parser: `ci/bullbear-payload.mjs`): `models.stocks_extra[]` holds several tickers;
+  pick `_id === T`, then `aiAnalysis.keyPoints[]` = `{ sentiment: "bullish"|"bearish", title,
+  description }` (typically 3 + 3; same text the page showed, headings not title-cased). The file
+  is ~1.9 MB per ticker. Guarded by `node ci/test-bullbear-payload.mjs` against a trimmed real AAPL
+  payload (`ci/fixtures/aianalyst-aapl-keypoints.json`).
 - **Output shape:** `{ "bull": [{ "t": "title", "b": "body" }, …], "bear": [ … ], "asOf": "YYYY-MM-DD" }`
-  (`asOf` = the date we last refreshed the ticker, shown next to the panel headline; the page
+  (`asOf` = the date we last refreshed the ticker, shown next to the panel headline; the payload
   carries no content date of its own).
-- **Failure-tolerant, but never silent:** a page without the section (challenge page, error
-  page, redesign) **throws** and counts as `failed`, not `empty`; only a section with no points
-  is `empty`. Per-ticker try/catch, only writes non-empty results, `continue-on-error` in CI.
+- **Failure-tolerant, but never silent:** a body with no JSON or no `stocks_extra` (challenge
+  page, error body, reshape) **throws** and counts as `failed`; a ticker with no keyPoints is
+  `empty`. Per-ticker try/catch, only writes non-empty results, `continue-on-error` in CI.
   A full run (not `ONLY`) of ≥10 tickers that writes nothing prints a `::warning::` and exits 1.
 
 ## Sector average P/E — automated ✅
