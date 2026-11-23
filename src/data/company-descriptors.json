@@ -343,5 +343,10 @@
     "name": "Marvell",
     "descriptor": "Semiconductor Solutions",
     "scene": "inspecting silicon wafers under a microscope in a cleanroom environment"
+  },
+  "ANT": {
+    "name": "Anthropic PBC",
+    "descriptor": "AI Research Lab",
+    "scene": "tweaking code on a hardware prototype with soldering iron and circuit boards nearby"
   }
 }

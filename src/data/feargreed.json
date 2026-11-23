@@ -1,7 +1,7 @@
 {
- "score": 10.4,
+ "score": 10.5,
  "rating": "extreme fear",
- "asOf": "2026-11-23T09:40:16",
+ "asOf": "2026-11-23T11:25:16",
  "previous": {
   "close": 9.7,
   "week": 31.1,
@@ -36,7 +36,7 @@
   {
    "key": "market_volatility_vix",
    "label": "Market volatility",
-   "score": 6.5,
+   "score": 7.1,
    "rating": "extreme fear"
   },
   {
@@ -1047,11 +1047,11 @@
   },
   {
    "d": "2026-11-20",
-   "v": 10.4
+   "v": 10.5
   },
   {
    "d": "2026-11-23",
-   "v": 10.4
+   "v": 10.5
   }
  ]
 }

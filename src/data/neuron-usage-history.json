@@ -1,40 +1,5 @@
 [
   {
-    "ts": "2026-09-28T11:47:20.388Z",
-    "date": "2026-09-28",
-    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-    "calls": {
-      "writer": 5,
-      "descriptor": 0,
-      "image": 1
-    },
-    "measuredNeurons": 155.72,
-    "estimatedNeurons": 57.6,
-    "totalNeurons": 213.32,
-    "publishedCount": 1,
-    "stageMs": {
-      "writer": 1734,
-      "descriptor": 0,
-      "image": 1609,
-      "wikimedia": 0
-    },
-    "candidates": {
-      "generated": 5,
-      "used": 1,
-      "outscored": 0,
-      "rejected": 4
-    },
-    "rejectionReasons": {
-      "duplicate of a recent post": 4
-    },
-    "hookOutcomes": {
-      "surprise": {
-        "attempted": 1,
-        "published": 1
-      }
-    }
-  },
-  {
     "ts": "2026-09-28T21:15:14.683Z",
     "date": "2026-09-28",
     "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
@@ -9412,6 +9377,45 @@
       },
       "list": {
         "attempted": 1,
+        "published": 1
+      }
+    }
+  },
+  {
+    "ts": "2026-11-23T11:45:29.121Z",
+    "date": "2026-11-23",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "calls": {
+      "writer": 20,
+      "descriptor": 1,
+      "image": 0
+    },
+    "measuredNeurons": 877.66,
+    "estimatedNeurons": 0,
+    "totalNeurons": 877.66,
+    "publishedCount": 1,
+    "stageMs": {
+      "writer": 9627,
+      "descriptor": 885,
+      "image": 1100,
+      "wikimedia": 0
+    },
+    "candidates": {
+      "generated": 20,
+      "used": 1,
+      "outscored": 0,
+      "rejected": 19
+    },
+    "rejectionReasons": {
+      "duplicate of a recent post": 19
+    },
+    "hookOutcomes": {
+      "record": {
+        "attempted": 2,
+        "published": 0
+      },
+      "newcomer": {
+        "attempted": 2,
         "published": 1
       }
     }

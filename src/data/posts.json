@@ -1,5 +1,30 @@
 [
   {
+    "id": "ANT-2026-11-23T11:45:23.110Z",
+    "ts": "2026-11-23T11:45:23.110Z",
+    "kind": "newcomer",
+    "ticker": "ANT",
+    "name": "Anthropic PBC Class A",
+    "sector": "Technology",
+    "text": "~46% upside, new to board just 3 days.",
+    "score": 34,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (40% word overlap)"
+    ],
+    "facts": {
+      "seenIn": 12,
+      "windowSnapshots": 241,
+      "days": 3,
+      "upside": 46.2,
+      "consensus": "StrongBuy",
+      "analysts": 7,
+      "smartScore": 9
+    },
+    "descriptor": "AI Research Lab"
+  },
+  {
     "id": "NUAI-2026-11-23T10:04:00.899Z",
     "ts": "2026-11-23T10:04:00.899Z",
     "kind": "list",
