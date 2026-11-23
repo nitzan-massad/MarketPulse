@@ -147,9 +147,11 @@ try {
     r = await timed(getText("https://unused.invalid/", { plain: false, flareUrl: `${base}/v1`, tries: 2, sleepMs: 0, deadline: Date.now() + 300 }), 5000);
     assert.ok(!r.hung && r.ms < 1500, `FlareSolverr body stall bounded by deadline (took ${r.ms}ms, hung=${!!r.hung})`);
 
-    // a retry sleep does not run past the deadline either
-    r = await timed(getText("https://unused.invalid/", { plain: false, flareUrl: `${base}/v1-err`, tries: 3, sleepMs: 5000, deadline: Date.now() + 300 }), 8000);
-    assert.ok(r.ms < 1500, `retry sleep capped at the deadline (took ${r.ms}ms)`);
+    // a retry sleep does not run past the deadline either. ponytail: 1s deadline, not 300ms — the DATA
+    // GATE runs this on a runner still busy with FlareSolverr's Chrome, where the first local POST alone
+    // once took >300ms and aborted before "fs down" (run 45160456514). 5s sleep vs 1s still proves the cap.
+    r = await timed(getText("https://unused.invalid/", { plain: false, flareUrl: `${base}/v1-err`, tries: 3, sleepMs: 5000, deadline: Date.now() + 1000 }), 8000);
+    assert.ok(r.ms < 2500, `retry sleep capped at the deadline (took ${r.ms}ms)`);
     assert.match(String(r.e?.message), /fs down/);
 
     // past the deadline: no request at all, not even the plain one
