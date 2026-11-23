@@ -899,8 +899,17 @@ the commit step also stages `public/forecasts`.
 - **Failure-tolerant:** per-ticker try/catch, only writes valid non-empty results, `continue-on-error`
   in CI — it can never break the main refresh. Tiny tickers with no ranked analysts simply get no file.
 
+- **⛔ Page fallback DROPPED 2026-11-22.** `scrape-forecasts.mjs` no longer fetches the HTML
+  `/stocks/<t>/forecast` page: Cloudflare hard-blocks GitHub runner IPs on it (FlareSolverr: "Cloudflare
+  has blocked this request"), tripping the page breaker and the Health gate. Its yield was ~1 ticker
+  gaining rows per 8 runs, and the withheld targets it chased are null in TipRanks' own
+  `/api/experts/getStocks` too. A failed payload now carries last run's rows; the hidden-target hold
+  (`hiddenAnalysts`) still keeps stored targets. `ci/forecast-html.mjs` (also home of `isChallenge`,
+  used by `tr-fetch.mjs`) and the page helpers in `forecast-merge.mjs` stay unused for a revival;
+  `public/forecasts/_pageTried.json` is no longer read or written. Everything below is history.
+
 - **⚠️ Paywall fallback — `ci/forecast-html.mjs`** (history: Stages 1–3 describe the getData era;
-  Stage 4 is current). The `getData` API anonymized a fixed teaser
+  Stage 4 was current until the drop above). The `getData` API anonymized a fixed teaser
   window of rows: 6 AI-model rows plus **up to 4 real brokers**. An anonymized row keeps `firm`,
   `date`, `ratingId` and `stars` but has `name: null` and every price-target field nulled, so
   `toForecasts()` drops it on the `!e.name` guard. On AAPL (194 experts) losing 4 is noise. On a
