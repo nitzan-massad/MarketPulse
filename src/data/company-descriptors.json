@@ -338,5 +338,10 @@
     "name": "Datadog",
     "descriptor": "Cloud Monitoring Platform",
     "scene": "inspecting server racks with diagnostic equipment in a data centre hallway"
+  },
+  "MRVL": {
+    "name": "Marvell",
+    "descriptor": "Semiconductor Solutions",
+    "scene": "inspecting silicon wafers under a microscope in a cleanroom environment"
   }
 }

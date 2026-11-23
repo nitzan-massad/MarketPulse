@@ -1,5 +1,34 @@
 [
   {
+    "id": "MRVL-2026-11-23T01:53:36.975Z",
+    "ts": "2026-11-23T01:53:36.975Z",
+    "kind": "surprise",
+    "ticker": "MRVL",
+    "name": "Marvell",
+    "sector": "Technology",
+    "text": "~171% upside, nearly triple its sector's.",
+    "score": 36,
+    "reasons": [
+      "3 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (38% word overlap)"
+    ],
+    "facts": {
+      "upside": 171.2,
+      "price": 122.28,
+      "priceTarget": 331.65,
+      "consensus": "StrongBuy",
+      "analysts": 25,
+      "sector": "Technology",
+      "sectorMedianUpside": 65.7
+    },
+    "descriptor": "Semiconductor Solutions",
+    "image": "MRVL-2026-11-23T01-53-36-975Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "Public domain",
+    "imageAttribution": "Unknown authorUnknown author or not provided — Wikimedia Commons (Public domain)"
+  },
+  {
     "id": "DDOG-2026-11-22T19:49:00.748Z",
     "ts": "2026-11-22T19:49:00.748Z",
     "kind": "contrarian",
