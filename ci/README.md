@@ -1022,7 +1022,7 @@ parallel with the forecast backfill (and `scrape-pe.mjs`), and the commit step s
 - **Output shape:** `{ "bull": [{ "t": "title", "b": "body" }, …], "bear": [ … ], "asOf": "YYYY-MM-DD" }`
   (`asOf` = the date we last refreshed the ticker, shown next to the panel headline; the payload
   carries no content date of its own).
-- **Failure-tolerant, but never silent:** a body with no JSON or no `stocks_extra` (challenge
+- **Failure-tolerant, but never silent:** a body with no JSON, no `stocks_extra`, or no entry for the ticker (challenge
   page, error body, reshape) **throws** and counts as `failed`; a ticker with no keyPoints is
   `empty`. Per-ticker try/catch, only writes non-empty results, `continue-on-error` in CI.
   A full run (not `ONLY`) of ≥10 tickers that writes nothing prints a `::warning::` and exits 1.
