@@ -88,6 +88,10 @@ and localStorage — no real auth, no Firebase writes.
 
 ## Non-obvious rules
 
+- **Never name the upstream data provider** — not in code, comments, docs, fixtures, commit
+  messages or PR text. Say "the provider" / "upstream"; hosts, paths and payload keys go through
+  `ci/source.mjs` (secrets), never literals. Product labels are **Pulse Score**, **AI Outlook**,
+  **Upside / Risks**. A local pre-commit hook enforces this.
 - **Pushing to `main` *is* the deploy.** The pipeline lives entirely in this repo; there is no
   external CI system. Never edit the workflow through the GitHub web UI. See `AGENTS.md`.
   `site.yml` deploys `dist/` to Firebase Hosting (https://marketpulse-app.web.app, via the
