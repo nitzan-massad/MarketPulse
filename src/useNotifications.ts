@@ -251,8 +251,11 @@ export function useNotifications(
   }, [user, metaLoaded, watchlist, prices, meta, persistMeta]);
 
   // fire alerts on the ratchet
+  // ponytail: price alerts paused (2026-11-24) — too noisy. Flip to true to re-enable; alertEngine
+  // is untouched. Baselines don't advance while off, so re-enabling fires once per ticker that moved ≥5%.
+  const PRICE_ALERTS_ON = false;
   useEffect(() => {
-    if (!user || !metaLoaded) return;
+    if (!PRICE_ALERTS_ON || !user || !metaLoaded) return;
     const { alerts, writes } = fireAlerts(watchlist, prices, meta, lastFiredPxRef.current);
     for (const a of alerts) addNotif({ type: "price", ...a, at: Date.now(), read: false });
     for (const [t, m] of writes) persistMeta(t, m);
