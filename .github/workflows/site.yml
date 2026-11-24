@@ -112,10 +112,10 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node ci/track-requests.mjs pin
 
-      # Pull a fresh TipRanks snapshot via FlareSolverr (solves Cloudflare from
+      # Pull a fresh data snapshot via FlareSolverr (solves Cloudflare from
       # the runner's datacenter IP). Skipped on plain code pushes. A blocked
       # fetch fails this step but NOT the run — the site still deploys last data.
-      - name: Refresh TipRanks snapshot (via FlareSolverr)
+      - name: Refresh data snapshot (via FlareSolverr)
         id: snapshot
         if: github.event_name != 'push'
         continue-on-error: true
@@ -297,7 +297,7 @@ jobs:
             echo "No data change."
           else
             git add src/data public/forecasts public/bullbear public/pe ci/cache public/reviews-recent.json public/post-images public/earnings.json
-            git commit -m "chore: refresh TipRanks snapshot [skip ci]"
+            git commit -m "chore: refresh data snapshot [skip ci]"
             # a code push landing during this ~2h run must not discard the data (run 42022887893)
             git pull --rebase
             git push

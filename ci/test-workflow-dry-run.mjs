@@ -46,7 +46,7 @@ for (const re of spenders) {
 }
 
 // the steps a dry run is FOR still run on it (a dry run that skips the scrape proves nothing)
-for (const re of [/^Refresh TipRanks snapshot/, /^Backfill forecasts/, /THE DATA GATE/, /^Health gate$/, /^Snapshot previous data/]) {
+for (const re of [/^Refresh data snapshot/, /^Backfill forecasts/, /THE DATA GATE/, /^Health gate$/, /^Snapshot previous data/]) {
   assert(!/inputs\.dry_run/.test(ifOf(find(re))), `${re} must not be skipped on a dry run`);
 }
 

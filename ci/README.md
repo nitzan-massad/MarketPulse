@@ -24,7 +24,7 @@ uses whatever is on `main`.
   and themes: all `continue-on-error`, each with its own `timeout-minutes`.
 - **THE DATA GATE** (`npm test` again) vets the snapshot this run produced, including the
   **data-loss gate** against the previous commit; red blocks the commit and the deploy. See *Gates*.
-- **Commit step** stages the refreshed data and commits `chore: refresh TipRanks snapshot [skip ci]`.
+- **Commit step** stages the refreshed data and commits `chore: refresh data snapshot [skip ci]`.
 - **Build** (`npm run build`) with the Finnhub/TwelveData/FMP keys from repo secrets, then deploy to
   Firebase Hosting. GitHub Pages serves only the `redirect/` stub, deployed by `redirect.yml` when it changes.
 - **Health gate** (last): red when a source degraded, after the data shipped. See *Gates*.
