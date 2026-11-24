@@ -35,8 +35,20 @@ const preloadStocks = (): Plugin => {
   };
 };
 
+// Build id baked into the JS and written to /version.json; autoUpdate.ts compares them to spot
+// a newer deploy.
+const BUILD_ID = String(Date.now());
+const versionFile = (): Plugin => ({
+  name: "version-file",
+  apply: "build",
+  generateBundle() {
+    this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ id: BUILD_ID }) });
+  },
+});
+
 // Served from the root of https://marketpulse-app.web.app (Firebase Hosting).
 export default defineConfig(() => ({
   base: "/",
-  plugins: [react(), preloadStocks()],
+  define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
+  plugins: [react(), preloadStocks(), versionFile()],
 }));

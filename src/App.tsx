@@ -35,12 +35,26 @@ const LIVE_KEY = import.meta.env.VITE_FINNHUB_KEY || null;
 // the feed unreachable even if something else ever sets `nav` to "feed" directly.
 const FEED_ON = flagOn("feed");
 
-// Opened on demand, so kept out of the main chunk: the modal (chart, forecasts, P/E), the feed
-// (posts.json) and sign-in. Each fetches its chunk on first open; fallback={null} because the
-// overlay simply appears a beat later — nothing is underneath to hold a spinner.
-const StockModal = lazy(() => import("./components/StockModal"));
-const PostFeed = lazy(() => import("./components/PostFeed").then((m) => ({ default: m.PostFeed })));
-const SignInModal = lazy(() => import("./components/SignInModal"));
+// Kept out of the main chunk so first paint stays fast: the modal (chart, forecasts, P/E), the
+// feed (posts.json) and sign-in. fallback={null} because the overlay simply appears a beat
+// later — nothing is underneath to hold a spinner.
+const loadModal = () => import("./components/StockModal");
+const loadFeed = () => import("./components/PostFeed");
+const loadSignIn = () => import("./components/SignInModal");
+const StockModal = lazy(loadModal);
+const PostFeed = lazy(() => loadFeed().then((m) => ({ default: m.PostFeed })));
+const SignInModal = lazy(loadSignIn);
+// Fetch the chunks once the page is idle. A deploy deletes the old hashed chunks, so a tab left
+// open across one used to 404 (white screen) on its first modal open, e.g. from the bell. Once
+// imported, a module is reused from memory and never fetched again.
+const idle = (f: () => void) =>
+  "requestIdleCallback" in window ? requestIdleCallback(f, { timeout: 4000 }) : setTimeout(f, 2000);
+idle(() => {
+  // ponytail: errors swallowed here; lazy() retries the import on real open
+  loadModal().catch(() => {});
+  loadSignIn().catch(() => {});
+  if (FEED_ON) loadFeed().catch(() => {});
+});
 
 // map a legacy single-select consensus bucket to the new discrete-rating list
 function bucketToList(b: string | undefined): string[] {

@@ -170,6 +170,12 @@ try {
     assert.match(await page.title(), /Market Pulse/);
   });
 
+  await step("lazy chunks prefetch on idle, before any modal opens", async () => {
+    await page.waitForResponse((r) => /\/assets\/StockModal-[\w-]+\.js$/.test(r.url()), { timeout: 10000 });
+    await page.waitForResponse((r) => /\/assets\/SignInModal-[\w-]+\.js$/.test(r.url()), { timeout: 10000 }).catch(() => {});
+    assert.equal(await page.locator(".mkm-modal").count(), 0, "a modal was open; prefetch not proven");
+  });
+
   await step("table pool ~= stocks.json row count", async () => {
     const poolN = Number(await page.locator("#poolN").textContent());
     assert.ok(Math.abs(poolN - STOCKS.length) <= 5, `poolN ${poolN} vs stocks.json ${STOCKS.length}`);
@@ -298,6 +304,123 @@ try {
     await page.locator(".wl-table tbody tr", { hasText: WL }).locator(`button[aria-label="Remove ${WL} from watchlist"]`).click();
     await page.locator(".bob-empty", { hasText: "No tracked stocks" }).waitFor();
     assert.deepEqual(JSON.parse(await page.evaluate(() => localStorage.getItem("mp_watchlist"))), []);
+  });
+
+  await step("after a deploy deletes the chunk, a modal still opens with no reload", async () => {
+    await closeModal();
+    await nav("Stocks");
+    let navs = 0;
+    const onNav = (f) => f === page.mainFrame() && navs++;
+    page.on("framenavigated", onNav);
+    // the deploy: every hashed StockModal chunk now 404s, as on Firebase after a release
+    const gone = (route) => route.fulfill({ status: 404, body: "" });
+    await page.route(/\/assets\/StockModal-[\w-]+\.js$/, gone);
+    try {
+      await bodyRows().first().click();
+      await page.locator(".mkm-modal #mkm-sym").first().waitFor({ timeout: 5000 });
+      assert.equal(navs, 0, "page reloaded on open");
+    } finally {
+      await page.unroute(/\/assets\/StockModal-[\w-]+\.js$/, gone);
+      page.off("framenavigated", onNav);
+    }
+    await closeModal();
+  });
+
+  // Fresh pages for the reload paths, so their navigations/errors don't touch the main page.
+  async function freshPage() {
+    const p = await context.newPage();
+    const navs = [];
+    p.on("framenavigated", (f) => f === p.mainFrame() && navs.push(f.url()));
+    await p.goto(BASE + "/", { waitUntil: "load" });
+    await p.locator("tbody#body tr.row-open").first().waitFor({ timeout: 15000 });
+    return { p, navs };
+  }
+  const hide = (p) =>
+    p.evaluate(() => {
+      Object.defineProperty(document, "hidden", { value: true, configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+  await step("version.json is served and matches the build", async () => {
+    const { p } = await freshPage();
+    try {
+      const r = await p.request.get(BASE + "/version.json");
+      assert.equal(r.status(), 200);
+      const { id } = await r.json();
+      assert.match(id, /^\d{13}$/);
+      const js = await p.evaluate(() => [...document.scripts].map((s) => s.src).find((u) => /\/assets\/index-/.test(u)));
+      assert.ok((await (await p.request.get(js)).text()).includes(JSON.stringify(id)), "build id not baked into the entry chunk");
+    } finally { await p.close(); }
+  });
+
+  await step("same version: hiding the tab does not reload", async () => {
+    const { p, navs } = await freshPage();
+    try {
+      const v = p.waitForResponse((r) => r.url().endsWith("/version.json"));
+      await hide(p);
+      await v;
+      await p.waitForTimeout(1000);
+      assert.equal(navs.length, 1, `reloaded: ${navs.length - 1}x`);
+    } finally { await p.close(); }
+  });
+
+  await step("new deploy + tab hidden -> reloads once, keeping the open stock", async () => {
+    const { p, navs } = await freshPage();
+    try {
+      await p.goto(BASE + "/#" + RICH.t, { waitUntil: "load" });
+      await p.locator(".mkm-modal #mkm-sym", { hasText: RICH.t }).first().waitFor({ timeout: 15000 });
+      await p.route("**/version.json", (r) => r.fulfill({ json: { id: "9999999999999" } }));
+      const n0 = navs.length;
+      const reload = p.waitForEvent("load", { timeout: 10000 });
+      await hide(p);
+      await reload;
+      assert.equal(navs.length, n0 + 1, "expected exactly one reload");
+      await p.locator(".mkm-modal #mkm-sym", { hasText: RICH.t }).first().waitFor({ timeout: 15000 });
+    } finally { await p.close(); }
+  });
+
+  await step("prefetch hits a deleted chunk (online) -> reloads once, then modal opens", async () => {
+    const p = await context.newPage();
+    const navs = [];
+    p.on("framenavigated", (f) => f === p.mainFrame() && navs.push(f.url()));
+    let hits = 0;
+    await p.route(/\/assets\/StockModal-[\w-]+\.js$/, (r) => (hits++ === 0 ? r.fulfill({ status: 404, body: "" }) : r.continue()));
+    try {
+      await p.goto(BASE + "/", { waitUntil: "load" });
+      await p.waitForEvent("load", { timeout: 10000 }); // the one recovery reload
+      await p.locator("tbody#body tr.row-open").first().waitFor({ timeout: 15000 });
+      await p.waitForTimeout(5000);
+      assert.equal(navs.length, 2, `navigations: ${navs.length}`);
+      await p.locator("tbody#body tr.row-open").first().click();
+      await p.locator(".mkm-modal #mkm-sym").first().waitFor({ timeout: 5000 });
+    } finally { await p.close(); }
+  });
+
+  await step("chunk keeps failing -> no reload loop", async () => {
+    const p = await context.newPage();
+    const navs = [];
+    p.on("framenavigated", (f) => f === p.mainFrame() && navs.push(f.url()));
+    await p.route(/\/assets\/StockModal-[\w-]+\.js$/, (r) => r.fulfill({ status: 404, body: "" }));
+    try {
+      await p.goto(BASE + "/", { waitUntil: "load" });
+      await p.waitForTimeout(12000);
+      assert.equal(navs.length, 2, `expected 1 load + 1 reload, got ${navs.length}`);
+    } finally { await p.close(); }
+  });
+
+  await step("offline prefetch failure -> no reload", async () => {
+    const p = await context.newPage();
+    const navs = [];
+    p.on("framenavigated", (f) => f === p.mainFrame() && navs.push(f.url()));
+    try {
+      await p.goto(BASE + "/", { waitUntil: "load" });
+      await context.setOffline(true);
+      await p.waitForTimeout(6000);
+      assert.equal(navs.length, 1, `reloaded while offline: ${navs.length - 1}x`);
+    } finally {
+      await context.setOffline(false);
+      await p.close();
+    }
   });
 
   await step("no console errors", async () => {
