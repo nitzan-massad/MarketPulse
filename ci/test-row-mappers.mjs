@@ -5,6 +5,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ROW_KEYS, rowFromScreener, rowFromOutlook, mergeRow, refreshedRow } from "./keep.mjs";
+import { spawnSync } from "node:child_process";
+
+// Fixtures use ci/source.mjs's neutral default key names; with the real SRC_MAP set (CI job env) re-run without it.
+if (process.env.SRC_MAP || process.env.SRC_BASE) {
+  const { SRC_MAP, SRC_BASE, ...env } = process.env;
+  process.exit(spawnSync(process.execPath, [new URL(import.meta.url).pathname], { env, stdio: "inherit" }).status ?? 1);
+}
 
 const fx = (f) => JSON.parse(readFileSync(new URL("./fixtures/" + f, import.meta.url), "utf8"));
 const S = fx("screener-items.json");

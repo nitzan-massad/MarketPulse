@@ -58,24 +58,24 @@ async function fetchOutlook(page, tickers) {
     const out = [];
     for (const t of ts) {
       try {
-        const r = await fetch(srcUrl("analysis", t), { headers: { accept: "application/json" } });
+        const r = await fetch(t, { headers: { accept: "application/json" } });
         out.push(await r.json());
       } catch { out.push(null); }
     }
     return out;
-  }, tickers);
+  }, tickers.map((t) => srcUrl("analysis", t)));
 }
 async function fetchForecasts(page, tickers) {
   return page.evaluate(async (ts) => {
     const out = [];
     for (const t of ts) {
       try {
-        const r = await fetch(srcUrl("forecast", t), { headers: { accept: "application/json" } });
+        const r = await fetch(t, { headers: { accept: "application/json" } });
         out.push(await r.json());
       } catch { out.push(null); }
     }
     return out;
-  }, tickers);
+  }, tickers.map((t) => srcUrl("forecast", t)));
 }
 
 const browser = await chromium.launch({

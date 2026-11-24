@@ -4,6 +4,7 @@
 // ci/test-forecast-gate.mjs had to mirror the old inline gate.
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
+import { src } from "./source.mjs";
 import { hiddenAnalysts, carryPrevGuarded, forecastsDegraded, prunedTried, carryRecentPrev, carryStars, forecastsFromPayload, hiddenTargetKeys, hiddenTargets, pageNeeded, payloadOk, keepNewerPrev, keepPrevRating, latestPerAnalyst, mergeForecasts, mergeKey, missingOf, topUpRows } from "./forecast-merge.mjs";
 
 const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", pt, opt: null, d, ...extra });
@@ -163,7 +164,7 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
       { _id: "u1", name: "Owen Lau", firm: "Clear Street" },
       { _id: "u2", name: "Unknown Analyst", firm: "Deutsche Bank " },
       { _id: "u3", name: "Unknown Analyst", firm: "Argus" },
-      { _id: "ai", name: "OpenAI Financial - Credit Services", firm: "Provider - OpenAI" },
+      { _id: "ai", name: "OpenAI Financial - Credit Services", firm: `${src("aiFirm")} - OpenAI` },
       { _id: "u4", name: "No Target", firm: "DZ BANK" },
     ],
     ratings: [
