@@ -35,14 +35,16 @@ breaks the build). Production injects them from the `FINNHUB_KEY` / `TWELVEDATA_
 
 ## Architecture
 
-A single-page React 18 + TS + Vite dashboard over a **point-in-time TipRanks snapshot**, plus
+A single-page React 18 + TS + Vite dashboard over a **point-in-time data snapshot**, plus
 live quotes and per-user state. No backend of our own.
 
 **Three layers, and the boundary between them matters:**
 
-1. **Pipeline (`ci/`, Node ESM, effectively no deps)** — scrapes TipRanks/Finviz (plain fetch
+1. **Pipeline (`ci/`, Node ESM, effectively no deps)** — scrapes the upstream provider and Finviz (plain fetch
    first, FlareSolverr only on a Cloudflare challenge, fail-fast on a firewall block:
-   `ci/tr-fetch.mjs`) and writes the data files. Runs in `.github/workflows/site.yml` every 3h (at :17).
+   `ci/src-fetch.mjs`) and writes the data files. Upstream URLs and payload key names are not in
+   the repo: they come from the `SRC_BASE` / `SRC_MAP` Actions secrets via `ci/source.mjs`
+   (`srcUrl(kind)`, `src(name)`; neutral `provider.example` defaults when unset). Runs in `.github/workflows/site.yml` every 3h (at :17).
    `ci/keep.mjs` is the shared brain (keep-set expiry, row mapping, enrich queue, scale
    guards); `scripts/refresh-data.mjs` is the *local* Playwright equivalent and **must stay in
    step** — the two held copies of this logic once, drifted, and silently re-introduced a
@@ -103,12 +105,12 @@ and localStorage — no real auth, no Firebase writes.
 - **`ai` is 0–100 on both sources — never rescale it.** A stray `/10` shipped two rows on the
   wrong scale for 58 commits. `ci/test-ai-scale.mjs` guards it and cannot be silenced by
   "being careful" with its `floor` argument (lowering `floor` *weakens* the check).
-- **An explicit `null` from TipRanks is data, not a gap.** `ss: null` means "no Smart Score" and
+- **An explicit `null` from the provider is data, not a gap.** `ss: null` means "no Pulse Score" and
   must render `—`; only an *absent* key means "payload reshaped, carry the previous value".
   Same shape of rule for `con: null` — such a row is kept by the filter and painted with no
-  rating class, never as a Hold. **One deliberate exception (getData parity, owner ruling):** an
+  rating class, never as a Hold. **One deliberate exception (legacy-pull parity, owner ruling):** an
   *off-pull* row whose source explicitly says "no coverage" is written `con: "Neutral"`, 0/0/0, as
-  getData wrote it (`NO_COVERAGE_GETDATA` in `ci/keep.mjs`); in-pull no-coverage stays `con: null`.
+  the legacy pull wrote it (`NO_COVERAGE_ROW` in `ci/keep.mjs`); in-pull no-coverage stays `con: null`.
   Don't "fix" it; `noAnalystCoverage` (`src/trackState.ts`) recognises both.
 - **`site.yml` runs `npm test` twice on purpose.** The pre-scrape run gates the *code*; the
   post-scrape "DATA GATE" gates the snapshot this run just produced (the data checks read
@@ -139,8 +141,5 @@ and localStorage — no real auth, no Firebase writes.
 - `ci/README.md` — the pipeline in full: every source URL and verified payload shape, the
   keep/pin/sticky rules, the enrich queue's cost bound, the forecast paywall fallback, and the
   bug each guard exists to prevent. **Read it before touching `ci/`.**
-- `ci/PLAN-ssr-merge.md` — designed, not built: merging SSR forecast rows into the JSON path.
-- `docs/superpowers/` — specs + plans (notification bell, social post generator, Twelve Data
-  replacement).
-- `design/` — static HTML/SVG explorations (modals, icons). Not part of the build.
-- `legacy/tipranks-top-stocks.html` — the original standalone dashboard this app was ported from.
+- `docs/superpowers/` — specs + plans (notification bell, Twelve Data replacement).
+- `design/` — static HTML/SVG explorations (icons, whales). Not part of the build.

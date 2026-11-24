@@ -34,7 +34,7 @@ function changesFor(s: Stock): Change[] {
   const out: Change[] = [];
   // metricChange lives in ../lib so it can be unit-tested without mounting a component
   const ss = metricChange(fs.ss, s.ss);
-  if (ss) out.push({ k: "Smart Score", ...ss });
+  if (ss) out.push({ k: "Pulse Score", ...ss });
   const ai = metricChange(fs.ai, s.ai);
   if (ai) out.push({ k: "AI Score", ...ai });
   // normalise "" to null so an empty consensus doesn't read as a change against null
@@ -143,7 +143,7 @@ export default function NewArrivals({ onOpen, onOpenReview, marks, onMark }: New
                 <th>Price</th>
                 <th className="l">Consensus</th>
                 <th>Upside</th>
-                <th>Smart Score</th>
+                <th>Pulse Score</th>
                 <th className="l">AI Score</th>
                 <th className="l">Sector</th>
                 <th>Mkt Cap</th>

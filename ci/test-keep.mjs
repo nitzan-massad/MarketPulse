@@ -1,4 +1,4 @@
-// Full-coverage tests for the keep/mapping layer in ci/keep.mjs (the getData mapper was retired 2026-11-17; row mappers: test-row-mappers.mjs).
+// Full-coverage tests for the keep/mapping layer in ci/keep.mjs (the legacy-pull mapper was retired 2026-11-17; row mappers: test-row-mappers.mjs).
 // Run: node ci/test-keep.mjs      (no network, no file reads — payloads are built here)
 //
 // SCOPE. ci/keep.mjs already carries an inline self-check (`node ci/keep.mjs`) that covers
@@ -13,7 +13,7 @@
 //     column at exactly half) and the `floor` parameter's direction;
 //   * keep/expiry: the off-pull `ls` freeze, the KEEP_MAX_AGE_DAYS boundary, pins.
 //
-// A SHIPPED BUG (the ai rescale; the two ss ones went with the retired getData mapper) has a named regression test below; grep "REGRESSION #".
+// A SHIPPED BUG (the ai rescale; the two ss ones went with the retired legacy-pull mapper) has a named regression test below; grep "REGRESSION #".
 //
 // KEEP_MODULE exists so the three regressions can be proven non-vacuous: point it at a
 // scratchpad copy of keep.mjs with one line reverted and the matching assertion must fail.
@@ -52,7 +52,7 @@ const EXPECTED_EXPORTS = {
   applyForecast: "function", enrichQueue: "function", needsFill: "function",
   AI_TRIO: "object", ENRICH_MAX: "number", ENRICH_TARGET_RUNS: "number", ENRICH_STALE_MS: "number",
   // row mappers + keep-last-known merge — covered in ci/test-row-mappers.mjs
-  ROW_KEYS: "object", rowFromScreener: "function", rowFromAiAnalyst: "function", mergeRow: "function",
+  ROW_KEYS: "object", rowFromScreener: "function", rowFromOutlook: "function", mergeRow: "function",
   refreshedRow: "function", // backfill rows: null when the source had no row (M1)
 };
 for (const [name, type] of Object.entries(EXPECTED_EXPORTS)) {
@@ -195,7 +195,7 @@ const ff = (stock, ticker = "T") => forecastFields({ models: { stocks: [{ _id: "
 
 // --- G1. REGRESSION #1 — `ai` must NOT be rescaled ----------------------------------
 // `forecastFields` divided report.score by 10 on a false claim that the app wants 0–10.
-// Both sources are 0–100: the screener's aiAnalystData.overallScore spreads 39–85 live,
+// Both sources are 0–100: the screener's outlookData.overallScore spreads 39–85 live,
 // and report.score reads 71 / 75 / 79 for TER / AAPL / NVDA. The ÷10 corrupted exactly
 // the two pinned tickers (TER 7.8 for a real 71) for 58 commits.
 eq("REGRESSION #1: report.score 78 → ai 78 (NOT 7.8)", () => ff({ report: { score: 78 } }).ai, 78);
@@ -307,7 +307,7 @@ eq('airName("underperform") → "Underperform"', () => airName("underperform"), 
 eq("airName leaves an already-capitalised value alone", () => airName("Outperform"), "Outperform");
 eq("airName only touches the FIRST character — the rest of the slug is preserved verbatim", () => airName("outPerform"), "OutPerform");
 // MALFORMED OUTPUT — documented, not endorsed. airName capitalises character 0 only, so a
-// multi-word slug keeps its separator and its lower-case second word. If TipRanks ever emits
+// multi-word slug keeps its separator and its lower-case second word. If the provider ever emits
 // one, the app renders "Strong_buy" / "Strong buy" — neither is in the AI-rating vocabulary.
 // FIXED: airName upper-cased character 0 only, so a multi-word ratingId shipped
 // "Strong_buy" — in neither the app's AI-rating vocabulary nor a valid display string.
@@ -486,7 +486,7 @@ eq("a large healthy column is fine", () => aiScaleError(Array.from({ length: 344
 // --- K5. an emptied column ---------------------------------------------------------
 truthy("an entirely wiped ai column is caught, not reported OK", () => aiScaleError(rep(351, null)) !== null);
 truthy("the emptied-column message counts the missing rows", () => aiScaleError(rep(351, null)).includes("351/351"));
-truthy("the emptied-column message blames the mapping, not TipRanks",
+truthy("the emptied-column message blames the mapping, not the provider",
   () => aiScaleError(rep(351, null)).includes("mapping broke"));
 const halfNull = (total, nulls) => Array.from({ length: total }, (_, i) => ({ t: `T${i}`, ai: i < nulls ? null : 50 }));
 eq("exactly HALF the column scored → no verdict (the test is `scored < total * 0.5`)", () => aiScaleError(halfNull(20, 10)), null);

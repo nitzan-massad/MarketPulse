@@ -29,7 +29,7 @@ import { freshQuote } from "../quoteStore";
 const FINNHUB_KEY = import.meta.env.VITE_FINNHUB_KEY ?? "";
 const TWELVEDATA_KEY = import.meta.env.VITE_TWELVEDATA_KEY ?? "";
 // FMP powers the live company description ONLY for tickers missing from the
-// scraped DB (hybrid: DB desc wins). Optional — absent key just skips it.
+// snapshot DB (hybrid: DB desc wins). Optional — absent key just skips it.
 const FMP_KEY = import.meta.env.VITE_FMP_KEY ?? "";
 
 
@@ -81,7 +81,7 @@ interface Metric {
   peQ: EpsPoint[]; // quarterly peTTM (Finnhub series) — the foreign-filer / bank anchor for it
 }
 
-// live company profile (name / industry / market cap) — replaces the scraped
+// live company profile (name / industry / market cap) — replaces the snapshot
 // DB fields so these are current for any ticker, ranked or not
 interface Profile {
   name: string | null;
@@ -137,8 +137,7 @@ const PE_TTL_MS = 6 * 60 * MIN;
 const warmed = new Set<string>(); // stocks whose other ranges were prefetched this page
 let warmGen = 0; // bumped by each new warm-up: an older one (a stock paged away from) stops
 
-// Bulls Say / Bears Say — a static per-ticker snapshot scraped from TipRanks'
-// free preview (the full list is paywalled). Lazy-fetched from public/bullbear/,
+// Upside / Risks — a static per-ticker snapshot. Lazy-fetched from public/bullbear/,
 // so it survives CI data refreshes. Absent file -> panel shows "not available".
 interface BBPoint {
   t: string; // point title
@@ -147,7 +146,7 @@ interface BBPoint {
 interface BullBear {
   bull: BBPoint[];
   bear: BBPoint[];
-  asOf?: string; // YYYY-MM-DD the scrape last refreshed this ticker
+  asOf?: string; // YYYY-MM-DD the pipeline last refreshed this ticker
 }
 const bbCache = new Map<string, BullBear | null>();
 async function fetchBullBear(ticker: string): Promise<BullBear | null> {
@@ -173,8 +172,8 @@ async function fetchBullBear(ticker: string): Promise<BullBear | null> {
 
 // Forecast type + fetchForecasts now live in ../forecasts (shared with the review detector).
 
-// Company description for off-universe tickers (those with no scraped DB desc).
-// Source order: (1) baked public/desc.json — hand-scraped from TipRanks for the
+// Company description for off-universe tickers (those with no snapshot DB desc).
+// Source order: (1) baked public/desc.json — curated for the
 // bull/bear set, no key needed; (2) FMP live, if a key is configured.
 const descCache = new Map<string, string | null>();
 let descMap: Record<string, string> | null = null;
@@ -589,7 +588,7 @@ interface StockModalProps {
   /* Several cards are mounted at once, so anything per-ticker arrives as a resolver. */
   isTracked: (t: string) => boolean;
   onToggleTrack: (t: string) => void;
-  isCovered: (t: string) => boolean; // in the TipRanks ranked set? false => live data only
+  isCovered: (t: string) => boolean; // in the ranked snapshot set? false => live data only
   /** Signed-in user (null when signed out) — drives the "Get analyst data" state. */
   user: User | null;
   /** "Get analyst data" pressed. Absent => sync off, button hidden. */
@@ -772,7 +771,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
     };
   }, [stock.t, active]);
 
-  // fetch Bulls Say / Bears Say snapshot + reset the panel/description on ticker change
+  // fetch Upside / Risks snapshot + reset the panel/description on ticker change
   useEffect(() => {
     let cancelled = false;
     setBb(null);
@@ -954,7 +953,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   const peLive = peRaw != null && peRaw >= 1 ? peRaw : null;
   // Sector averages are keyed by the app's own sector vocab, so this looks up
   // stock.sec — NOT the `sector` below, which prefers Finnhub's finhubIndustry
-  // (a different taxonomy). TipRanks' "General" catch-all has no entry: renders "—".
+  // (a different taxonomy). The snapshot's "General" catch-all has no entry: renders "—".
   const secAvg = (sectorPe.sectors as Record<string, { pe: number | null; fpe: number | null }>)[stock.sec] ?? null;
   // cheaper than the sector on forward earnings reads green, pricier reads red
   const fwdPeClass =
@@ -963,12 +962,12 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
       : metric.fwdPe < secAvg.fpe
         ? "up"
         : "dn";
-  // prefer live profile (Finnhub) over the scraped DB row for these fields
+  // prefer live profile (Finnhub) over the snapshot DB row for these fields
   const name = profile?.name ?? stock.n;
   const sector = profile?.sector ?? stock.sec;
   const earnings = nextReport ? earningsParts(nextReport, todayYmd()) : null;
   const mktCap = profile?.mktCap ?? stock.mc;
-  const desc = stock.desc || liveDesc; // scraped DB desc wins; live FMP fallback
+  const desc = stock.desc || liveDesc; // snapshot DB desc wins; live FMP fallback
   // the % beside the price tracks the selected chart range: 1D uses the true
   // day move (vs prev close); other ranges use the series' first→last change
   // CNBC's daily/weekly/monthly bars stop at yesterday: today's live price joins the series here.
@@ -1061,7 +1060,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
   useEffect(() => setScrub(null), [range, stock.t]); // a new range/ticker clears the readout
   const scrubPt = scrub != null && chart && scrub < chart.pts.length ? chart.pts[scrub] : null;
 
-  // off-universe tickers have no scraped DB row, so while their live data is in
+  // off-universe tickers have no snapshot DB row, so while their live data is in
   // flight show a spinner (not the empty template); once settled, either the
   // full modal or, if nothing came back, a clear "not found" state.
   const loadingUncovered = !covered && (qmLoading || seriesLoading);
@@ -1400,7 +1399,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
               </div>
             </div>
             <div className="mkm-cell">
-              <div className="k">Smart Score</div>
+              <div className="k">Pulse Score</div>
               <div className={`v${stock.ss == null ? " nr" : ""}`}>
                 {stock.ss == null ? "Not rated" : stock.ss}
                 {stock.ss != null && <small>/10</small>}
@@ -1612,10 +1611,10 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
             </div>
           )}
 
-          {/* Bulls Say / Bears Say */}
+          {/* Upside / Risks */}
           <div className="mkm-bb">
             <div className="mkm-bbhdr">
-              Bulls Say, Bears Say
+              Upside, Risks
               {bb?.asOf && (
                 <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400, opacity: 0.7, marginLeft: 8 }}>
                   · updated {bb.asOf}
@@ -1630,14 +1629,14 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
                     className={bbTab === "bull" ? "on bull" : ""}
                     onClick={() => { setBbTab("bull"); setBbOpen(new Set()); }}
                   >
-                    ▲ Bulls Say
+                    ▲ Upside
                   </button>
                   <button
                     type="button"
                     className={bbTab === "bear" ? "on bear" : ""}
                     onClick={() => { setBbTab("bear"); setBbOpen(new Set()); }}
                   >
-                    ▼ Bears Say
+                    ▼ Risks
                   </button>
                 </div>
                 <div className="mkm-bblist">
@@ -1772,7 +1771,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
             <div className="mkm-fcfull mkm-fcfull-modal">
               <div className="mkm-fctable">
                 <div className="mkm-fchead">
-                  <span title="TipRanks analyst star rating">Analyst Rank</span>
+                  <span title="Analyst star rating">Analyst Rank</span>
                   <span>Analyst · Firm</span>
                   <span className="ar">Recommendation</span>
                   <span className="ar">12-mo Target</span>

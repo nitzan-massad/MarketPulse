@@ -209,7 +209,7 @@ Fallback ladder, cheapest first:
 1. **Phase 1 keeps TD** as automatic fallback, so a block degrades to today's behavior.
 2. **FlareSolverr** is already a service in `site.yml`, and the lite run starts it in the background.
    GET the bars URL through it and parse the JSON out of `solution.response` (`<pre>…</pre>`).
-   The scrapers already do this for TipRanks and Finviz.
+   The scrapers already do this for the upstream provider and Finviz.
 3. **Worker `/bars` relay** (Cloudflare egress already reaches CNBC). The Worker is app-origin-only
    and deployed by hand, so this needs a CI auth header. Coordinate with `td-worker.md` if it adds a
    `/bars` route for the app anyway. CI could reuse it with a shared secret.

@@ -5,7 +5,7 @@
 //
 // Run:  node ci/e2e/bullbear-pipeline.mjs          (from the repo root; never writes the main checkout)
 // Env:  CACHE_DIR  raw payload.json bodies per ticker (<T>.json): read before the network, written after.
-//                  A full cache re-runs offline. Default: $TMPDIR/aianalyst-cache.
+//                  A full cache re-runs offline. Default: $TMPDIR/outlook-cache.
 //       SCRATCH    where the worktree goes (default $TMPDIR). KEEP=1 leaves it for inspection.
 //
 // Two inputs are narrowed in the worktree, restored before the gate:
@@ -22,11 +22,16 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, 
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { srcUrl } from "../source.mjs";
 
 const ROOT = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const N = 20, MIN_OK = 18, MAX_REQ = 40, GAP_MS = 1500;
-const CACHE = path.resolve(process.env.CACHE_DIR || path.join(tmpdir(), "aianalyst-cache"));
+const CACHE = path.resolve(process.env.CACHE_DIR || path.join(tmpdir(), "outlook-cache"));
 const WT = path.join(process.env.SCRATCH || tmpdir(), `wt-bullbear-pipeline-${process.pid}`);
+// srcUrl("analysis", t) as a regex source with the ticker captured, for fetch mocks in child processes.
+const [PAY_PRE, PAY_POST] = srcUrl("analysis", "\u0000").split("%00");
+const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const PAYLOAD_RE = `${reEsc(PAY_PRE)}([^/?]+)${reEsc(PAY_POST)}`;
 const PREV = `${WT}-prev`, PRELOAD = `${WT}-preload.mjs`, COUNT = `${WT}-requests`;
 const git = (...a) => execFileSync("git", ["-C", WT, ...a], { encoding: "utf8" });
 const readJson = (p) => JSON.parse(readFileSync(p, "utf8"));
@@ -38,7 +43,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 const real = globalThis.fetch, CACHE = ${JSON.stringify(CACHE)}, COUNT = ${JSON.stringify(COUNT)};
 let last = 0;
 globalThis.fetch = async (url, opts) => {
-  const m = String(url).match(/tipranks\\.com\\/stocks\\/([^/]+)\\/stock-aianalyst\\/payload\\.json/);
+  const m = String(url).match(new RegExp(${JSON.stringify(PAYLOAD_RE)}));
   if (!m) throw new Error("e2e: unexpected network call " + url); // FlareSolverr is dead on purpose
   const f = CACHE + "/" + decodeURIComponent(m[1]).toUpperCase() + ".json";
   if (existsSync(f)) return new Response(readFileSync(f, "utf8"), { status: 200 });
@@ -101,7 +106,7 @@ try {
     ["scraper exit 0", run.status === 0, `status=${run.status}${run.error ? " " + run.error.message : ""}`],
     [`attempted ${N} tickers`, done && +done[1] + +done[2] + +done[3] + +done[4] === N, done?.[0]],
     [`>= ${MIN_OK}/${N} written`, written.length >= MIN_OK, `${written.length} written`],
-    [`<= ${MAX_REQ} TipRanks requests`, requests <= MAX_REQ, `${requests} network, ${N - requests} from cache`],
+    [`<= ${MAX_REQ} provider requests`, requests <= MAX_REQ, `${requests} network, ${N - requests} from cache`],
     ["DATA GATE (npm test) passes", gate.status === 0, gate.status === 0 ? (gate.stdout.match(/^.*\d+ passed.*$/m)?.[0] ?? "ok") : gate.stdout.slice(-3000) + gate.stderr],
     ["diff = exactly the refreshed public/bullbear files (modified, none added/deleted)",
       JSON.stringify(changed) === JSON.stringify(written.map((t) => ["M", `public/bullbear/${t}.json`])),

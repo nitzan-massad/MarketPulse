@@ -1,4 +1,4 @@
-// Themes that cut across TipRanks' sectors (quantum computing sits under Technology AND
+// Themes that cut across the provider's sectors (quantum computing sits under Technology AND
 // General) — each company is asked about once, by the same AI provider the posts use, and the
 // answers become extra options in the app's Sector filter.
 //

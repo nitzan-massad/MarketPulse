@@ -86,7 +86,7 @@ for (const stale of ["technology systems", "public markets", "medical research",
   assert.equal(REAL_SECTORS.some((sec) => descriptorFor(sec) === stale), false,
     `no sector still uses the flat taxonomic wording "${stale}"`);
 }
-// `General` — TipRanks' own unclassified bucket — got particular thought per the brief: it
+// `General` — the provider's own unclassified bucket — got particular thought per the brief: it
 // used to read "public markets" under Alphabet. The fix leans into what usually lands in this
 // bucket (names too large/diversified for one sector tag), not a punchier synonym for "unknown".
 assert.equal(descriptorFor("General"), "too big to label", "General's descriptor names what the bucket actually holds");
@@ -264,7 +264,7 @@ for (const sec of REAL_SECTORS) {
 }
 
 // --- EVERY sector, `General` included, now reaches Flux — no more skip ---------------------
-// A prior pass skipped the Flux call entirely for `General` (TipRanks' unclassified catch-all,
+// A prior pass skipped the Flux call entirely for `General` (the provider's unclassified catch-all,
 // ~44 rows including Alphabet) and rendered a palette-driven abstract mark instead. The user
 // rejected that: every post gets a real generated photo, always, `General` included — the
 // personalised scene comes from ci/company-descriptor.mjs, not the sector, so `General` no

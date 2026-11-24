@@ -246,7 +246,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, tic
                   <td data-label="Upside">
                     <UpBar up={s.up} />
                   </td>
-                  <td data-label="Smart Score">
+                  <td data-label="Pulse Score">
                     <Chip v={s.ss} />
                   </td>
                   <td data-label="AI Score">

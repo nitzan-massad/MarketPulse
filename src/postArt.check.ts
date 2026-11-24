@@ -15,7 +15,7 @@ function eq(label: string, got: unknown, want: unknown) {
   failed++;
 }
 
-// --- every sector TipRanks actually emits maps somewhere ---------------------
+// --- every sector the feed actually emits maps somewhere ----------------------
 // This list is the distinct `sec` values in src/data/stocks.json. If a refresh adds a new
 // one this check still passes (it falls back), but the mapping below is where to add it.
 for (const sec of ["Healthcare", "Technology", "Financial", "Industrials", "Energy",
@@ -31,7 +31,7 @@ eq("healthcare", sceneFor("Healthcare"), "bio");
 eq("tech", sceneFor("Technology"), "screens");
 eq("case-insensitive", sceneFor("hEaLtHcArE"), "bio");
 eq("industrials stays freight", sceneFor("Industrials"), "freight"); // Do not confuse with General
-eq("general is unclassified", sceneFor("General"), "market"); // TipRanks unclassified bucket, not an industry
+eq("general is unclassified", sceneFor("General"), "market"); // upstream unclassified bucket, not an industry
 eq("unknown falls back", sceneFor("Nonexistent Sector"), "market");
 eq("empty falls back", sceneFor(""), "market");
 eq("null falls back", sceneFor(null as unknown as string), "market");

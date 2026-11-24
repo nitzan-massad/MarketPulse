@@ -147,7 +147,7 @@ export default function App() {
     setNav(id);
   }
   // off-universe ticker from search -> synthetic stock; the modal shows live
-  // price/chart and marks the TipRanks metrics as unavailable
+  // price/chart and marks the ranking metrics as unavailable
   function handleOpenTicker(ticker: string) {
     logOpen(ticker, { off_universe: true });
     const s = stubStock(ticker);
@@ -380,7 +380,7 @@ export default function App() {
 
   // live price per watched ticker (CNBC, else Finnhub) — feeds the notification alert engine.
   // Regular-session prices only: the pre/after-hours trade is display-only (see quotes.ts).
-  // No snapshot fallback: a scrape that ran pre-market can carry a pre-market px, and painting
+  // No snapshot fallback: a refresh that ran pre-market can carry a pre-market px, and painting
   // it before the live quote landed fired ±5% alerts against the prior close on every load.
   const watchPrices = useMemo(() => {
     const m: Record<string, number> = {};

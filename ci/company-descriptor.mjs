@@ -1,14 +1,14 @@
 // THE DESCRIPTOR *AND* THE SCENE, BOTH WRITTEN BY THE MODEL, IN ONE CALL — the half-size
 // identity line under the company name AND the photographable scene ci/post-image.mjs's
 // buildImagePrompt uses in place of a sector-mapped phrase, generated per company instead of
-// mapped from the TipRanks `sec` field.
+// mapped from the provider's `sec` field.
 //
 // The bug this replaces (descriptor side): `descriptorFor()` (ci/post-image.mjs) maps a
-// hand-written phrase to each of TipRanks' twelve sector buckets, and `General` — TipRanks' own
+// hand-written phrase to each of the provider's twelve sector buckets, and `General` — the provider's own
 // UNCLASSIFIED bucket, not an industry — rendered "too big to label" under Alphabet. Both
 // meaningless (the bucket says nothing about what the company does) and slightly absurd (a joke
-// that happens to land on whichever mega-cap or conglomerate TipRanks couldn't sort). The user's
-// call: "don't take the company description from TipRanks as is. Insert it to the model and ask
+// that happens to land on whichever mega-cap or conglomerate the provider couldn't sort). The user's
+// call: "don't take the company description from the data provider as is. Insert it to the model and ask
 // for it to write it as a good description with everything that the model knows about the
 // company and all of what we know."
 //
@@ -256,7 +256,7 @@ export function buildDescriptorPrompt(row) {
 
   const facts = [
     `Company: ${name}`,
-    sector ? `TipRanks sector (approximate, often wrong or unclassified — do not just restate it): ${sector}` : null,
+    sector ? `provider sector (approximate, often wrong or unclassified — do not just restate it): ${sector}` : null,
     Number.isFinite(row?.mc) ? `Market cap: ~$${row.mc}M` : null,
     Number.isFinite(row?.px) ? `Share price: ~$${row.px}` : null,
     analysts ? `Analyst coverage: ${analysts} analysts` : null,

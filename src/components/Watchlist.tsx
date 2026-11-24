@@ -118,7 +118,7 @@ export default function Watchlist({
   onReorder,
 }: WatchlistProps) {
   // Follow the WATCHLIST's order, not the snapshot's. Filtering STOCKS inherited its row
-  // order — upside rank, then smart-score rank, then market-cap rank — so the list silently
+  // order — upside rank, then Pulse Score rank, then market-cap rank — so the list silently
   // reshuffled every 5h when CI rewrote stocks.json. Order now means: oldest star first,
   // newest last, and whatever dragging says. See watchlistOrder.ts.
   // A watched ticker with no snapshot row yet is a stub row, not a side chip — CI adds watched
@@ -182,7 +182,7 @@ export default function Watchlist({
                 <th>Price</th>
                 <th>Upside</th>
                 <th className="l">Consensus</th>
-                <th>Smart Score</th>
+                <th>Pulse Score</th>
                 <th>AI Score</th>
                 <th>Mkt Cap</th>
               </tr>

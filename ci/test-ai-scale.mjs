@@ -1,8 +1,8 @@
-// Scale-mixing guard for the AI-analyst score. Run: node ci/test-ai-scale.mjs
+// Scale-mixing guard for the AI-outlook score. Run: node ci/test-ai-scale.mjs
 //
-// The bug this guards against: `forecastFields` in ci/keep.mjs divided the stock-forecast
+// The bug this guards against: `forecastFields` in ci/keep.mjs divided the forecast
 // payload's `report.score` by 10 on a false premise ("the app's ai is 0–10"). Both sources
-// are 0–100 — the screener writes `aiAnalystData.overallScore` undivided, and the frontend
+// are 0–100 — the screener writes `outlookData.overallScore` undivided, and the frontend
 // renders `scoreColor(s.ai, 100)` and a literal `/100` in StockModal. Because that path only
 // ever ran for the two pinned tickers, exactly two rows of 344 shipped on the wrong scale —
 // TER at 7.8 for a real 71, frozen for 58 commits, painted deep red in every table.

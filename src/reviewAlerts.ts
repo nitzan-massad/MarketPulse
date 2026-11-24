@@ -14,7 +14,7 @@ export interface ReviewLike {
   pt: number | null; // price target
 }
 
-// Invisible bidi/zero-width marks TipRanks pads some names with. The pipeline now strips them
+// Invisible bidi/zero-width marks the upstream feed pads some names with. The pipeline now strips them
 // (ci/forecast-merge.mjs cleanName), but users' stored seen-keys still carry them — so strip on
 // BOTH sides, or the cleaned rows re-ring the bell as "new" once. Keep in step with cleanName.
 const MARKS = /[\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\u061c\ufeff]/g;

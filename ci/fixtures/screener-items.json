@@ -14,7 +14,7 @@
    },
    "description": "Apple Inc. is a global technology corporation that specializes in the conceptual"
   },
-  "tipRanksEssentialData": {
+  "essentialData": {
    "priceTargetData": {
     "convertedPriceTarget": 343.2008695652174,
     "upside": -0.02474817548459265,
@@ -61,16 +61,16 @@
      "sell": 5
     }
    },
-   "tipRanksSmartScoreData": {
-    "tipRanksSmartScore": 7,
-    "tipRanksSmartScoreGroup": {
+   "scoreData": {
+    "score": 7,
+    "scoreGroup": {
      "id": 3,
      "name": "Neutral"
     },
-    "tipRanksSmartScoreUpdateDate": "2026-11-15T00:00:00Z"
+    "scoreUpdateDate": "2026-11-15T00:00:00Z"
    }
   },
-  "aiAnalystData": {
+  "outlookData": {
    "overallScore": 75,
    "overallRating": {
     "id": 1,
@@ -99,21 +99,21 @@
    },
    "description": "Industrial and Commercial Bank of China Limited (ICBC), alongside its affiliated"
   },
-  "tipRanksEssentialData": {
+  "essentialData": {
    "priceTargetData": null,
    "bestPriceTargetData": null,
    "analystsConsensusData": null,
    "bestAnalystsConsensusData": null,
-   "tipRanksSmartScoreData": {
-    "tipRanksSmartScore": 5,
-    "tipRanksSmartScoreGroup": {
+   "scoreData": {
+    "score": 5,
+    "scoreGroup": {
      "id": 3,
      "name": "Neutral"
     },
-    "tipRanksSmartScoreUpdateDate": "2026-11-12T00:00:00Z"
+    "scoreUpdateDate": "2026-11-12T00:00:00Z"
    }
   },
-  "aiAnalystData": {
+  "outlookData": {
    "overallScore": 76,
    "overallRating": {
     "id": 1,
@@ -142,7 +142,7 @@
    },
    "description": "Tencent Holdings Limited is an investment holding company that specializes in pr"
   },
-  "tipRanksEssentialData": {
+  "essentialData": {
    "priceTargetData": {
     "convertedPriceTarget": 88,
     "upside": 0.8363939899833056,
@@ -168,16 +168,16 @@
     }
    },
    "bestAnalystsConsensusData": null,
-   "tipRanksSmartScoreData": {
-    "tipRanksSmartScore": 6,
-    "tipRanksSmartScoreGroup": {
+   "scoreData": {
+    "score": 6,
+    "scoreGroup": {
      "id": 3,
      "name": "Neutral"
     },
-    "tipRanksSmartScoreUpdateDate": "2026-11-12T00:00:00Z"
+    "scoreUpdateDate": "2026-11-12T00:00:00Z"
    }
   },
-  "aiAnalystData": {
+  "outlookData": {
    "overallScore": 73,
    "overallRating": {
     "id": 1,
@@ -206,7 +206,7 @@
    },
    "description": "Samsung Electronics Co., Ltd. is a global technology leader operating across con"
   },
-  "tipRanksEssentialData": {
+  "essentialData": {
    "priceTargetData": {
     "convertedPriceTarget": 329.2036,
     "upside": 1.3514542857142857,
@@ -253,13 +253,13 @@
      "sell": 0
     }
    },
-   "tipRanksSmartScoreData": {
-    "tipRanksSmartScore": null,
-    "tipRanksSmartScoreGroup": null,
-    "tipRanksSmartScoreUpdateDate": "1970-01-01T00:00:00Z"
+   "scoreData": {
+    "score": null,
+    "scoreGroup": null,
+    "scoreUpdateDate": "1970-01-01T00:00:00Z"
    }
   },
-  "aiAnalystData": null
+  "outlookData": null
  },
  "general": {
   "tradingInformationData": {
@@ -275,7 +275,7 @@
    },
    "description": "Micron Technology, Inc. is a global leader specializing in the development, manu"
   },
-  "tipRanksEssentialData": {
+  "essentialData": {
    "priceTargetData": {
     "convertedPriceTarget": 1624.423076923077,
     "upside": 1.280148054410432,
@@ -322,16 +322,16 @@
      "sell": 0
     }
    },
-   "tipRanksSmartScoreData": {
-    "tipRanksSmartScore": 8,
-    "tipRanksSmartScoreGroup": {
+   "scoreData": {
+    "score": 8,
+    "scoreGroup": {
      "id": 4,
      "name": "Buy"
     },
-    "tipRanksSmartScoreUpdateDate": "2026-11-17T00:00:00Z"
+    "scoreUpdateDate": "2026-11-17T00:00:00Z"
    }
   },
-  "aiAnalystData": {
+  "outlookData": {
    "overallScore": 72,
    "overallRating": {
     "id": 1,
@@ -360,7 +360,7 @@
    },
    "description": "TotalEnergies SE operates as a major global integrated energy corporation. Its d"
   },
-  "tipRanksEssentialData": {
+  "essentialData": {
    "priceTargetData": {
     "convertedPriceTarget": 99.3589584375,
     "upside": 0.09910352253871682,
@@ -407,13 +407,13 @@
      "sell": 0
     }
    },
-   "tipRanksSmartScoreData": {
-    "tipRanksSmartScore": null,
-    "tipRanksSmartScoreGroup": null,
-    "tipRanksSmartScoreUpdateDate": "1970-01-01T00:00:00Z"
+   "scoreData": {
+    "score": null,
+    "scoreGroup": null,
+    "scoreUpdateDate": "1970-01-01T00:00:00Z"
    }
   },
-  "aiAnalystData": {
+  "outlookData": {
    "overallScore": 77,
    "overallRating": {
     "id": 1,

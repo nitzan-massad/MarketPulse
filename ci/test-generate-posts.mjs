@@ -63,8 +63,8 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   assert.ok(Array.isArray(posts[0].reasons), "the post carries the scorer's reasons");
 }
 
-// --- raw fact keys never reach the prompt (the "smartScore: 10" published bug) -----------
-// One real run published "Alphabet Inc. smartScore: 10, unchanged for 30 snapshots." because
+// --- raw fact keys never reach the prompt (the "pulseScore: 10" published bug) -----------
+// One real run published "Alphabet Inc. pulseScore: 10, unchanged for 30 snapshots." because
 // the prompt rendered `facts` as `- key: value` with the literal JS field name. Every fact key
 // any of the seven hook kinds (ci/hooks.mjs) actually emits must render as a humanised label
 // instead — this exercises every key across a realistic sample of each kind's own shape.
@@ -73,11 +73,11 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
 {
   const FACT_SHAPES = {
     surprise: { upside: 60, price: 148, priceTarget: 210, consensus: "StrongBuy", analysts: 38, sector: "Technology" },
-    contrarian: { smartScore: 1, aiScore: 65, aiRating: "Neutral", consensus: "StrongBuy", upside: 38.6, price: 174.25, analysts: 38, bullish: "ai" },
-    movement: { upsideFrom: 20, upsideTo: 60, consensusFrom: "Hold", consensusTo: "StrongBuy", price: 100, priceTarget: 160, analysts: 21, sector: "Technology", smartScoreFrom: 4, smartScoreTo: 9 },
+    contrarian: { pulseScore: 1, aiScore: 65, aiRating: "Neutral", consensus: "StrongBuy", upside: 38.6, price: 174.25, analysts: 38, bullish: "ai" },
+    movement: { upsideFrom: 20, upsideTo: 60, consensusFrom: "Hold", consensusTo: "StrongBuy", price: 100, priceTarget: 160, analysts: 21, sector: "Technology", pulseScoreFrom: 4, pulseScoreTo: 9 },
     record: { upside: 60, windowLow: 10, windowHigh: 60, snapshots: 30, days: 6.3, price: 100, priceTarget: 160, analysts: 21 },
-    steady: { smartScore: 10, snapshots: 30, days: 6.3, upside: 60, consensus: "StrongBuy", analysts: 21 },
-    newcomer: { seenIn: 5, windowSnapshots: 30, days: 4.2, upside: 60, consensus: "StrongBuy", analysts: 21, smartScore: 8 },
+    steady: { pulseScore: 10, snapshots: 30, days: 6.3, upside: 60, consensus: "StrongBuy", analysts: 21 },
+    newcomer: { seenIn: 5, windowSnapshots: 30, days: 4.2, upside: 60, consensus: "StrongBuy", analysts: 21, pulseScore: 8 },
     list: { members: "AAA (60% to $160), BBB (45% to $145)", count: 2, leader: "AAA", leaderUpside: 60 },
   };
   const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -129,8 +129,8 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
   // first-seen date, never a dated CHANGE — see ci/hooks.mjs's hasGenuineChange doc).
   const standing = [
     { kind: "surprise", facts: { upside: 60 } },
-    { kind: "contrarian", facts: { smartScore: 1, aiScore: 90 } },
-    { kind: "steady", facts: { smartScore: 10, days: 6.3, snapshots: 30 } },
+    { kind: "contrarian", facts: { pulseScore: 1, aiScore: 90 } },
+    { kind: "steady", facts: { pulseScore: 10, days: 6.3, snapshots: 30 } },
     { kind: "newcomer", facts: { seenIn: 5, days: 0.2, windowSnapshots: 30 } },
     { kind: "list", facts: { count: 3, leaderUpside: 40 } },
   ];
@@ -144,8 +144,8 @@ const exemplars = ["TSLA at $240. Street says $310. Do the math.", "Nobody is ta
     "today", "movement's upside pair reads as today",
   );
   assert.equal(
-    genuineChangeTimeframe({ kind: "movement", facts: { smartScoreFrom: 4, smartScoreTo: 9, upsideFrom: 20, upsideTo: 20 } }),
-    "today", "movement's Smart Score pair also reads as today",
+    genuineChangeTimeframe({ kind: "movement", facts: { pulseScoreFrom: 4, pulseScoreTo: 9, upsideFrom: 20, upsideTo: 20 } }),
+    "today", "movement's Pulse Score pair also reads as today",
   );
   // record carries a real `days` fact — banded, not read as a raw number.
   assert.equal(

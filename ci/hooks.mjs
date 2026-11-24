@@ -33,7 +33,7 @@ export const MIN_COMPARISON_GAP = 10;
 // `hoursPerSnapshot` is only the fallback when times are absent (tests, no git).
 const DEFAULTS = { minMc: 300, minPx: 3, minAnalysts: 4, limit: 12, maxPerKind: 2, recentKinds: [], snapTimes: null, hoursPerSnapshot: 3 };
 
-/** Analysts covering the name. TipRanks splits the count across three fields. */
+/** Analysts covering the name. The provider splits the count across three fields. */
 export const coverage = (r) => (r?.b ?? 0) + (r?.h ?? 0) + (r?.s ?? 0);
 
 export function eligible(row, opts = {}) {
@@ -157,7 +157,7 @@ export function detectHooks(history, opts = {}) {
       const gap = r.ss * 10 - r.ai;
       if (Math.abs(gap) >= 40) {
         hooks.push(base(r, "contrarian", Math.abs(gap) * prom * damp("contrarian"), {
-          smartScore: r.ss, aiScore: r.ai, aiRating: r.air,
+          pulseScore: r.ss, aiScore: r.ai, aiRating: r.air,
           consensus: r.con, upside: round(r.up), price: r.px, analysts: coverage(r),
           bullish: gap > 0 ? "quant" : "ai",
         }));
@@ -168,12 +168,12 @@ export function detectHooks(history, opts = {}) {
     //    (Task 0, Finding 4): with the naive weights all 11 real movements in the live
     //    snapshot lost to static high-upside names and none reached the top 12.
     //
-    //    A SMART SCORE MOVE ALONE NO LONGER FIRES THIS. The user's explicit call: "a change
-    //    in smart score is not something that's good enough for a post" — TipRanks' Smart
+    //    A PULSE SCORE MOVE ALONE NO LONGER FIRES THIS. The user's explicit call: "a change
+    //    in pulse score is not something that's good enough for a post" — the Pulse
     //    Score is a 1-10 quant rating, and a post whose entire story is that rating moving is
-    //    weak content that also invites misleading copy (a live post said a Smart Score jump
+    //    weak content that also invites misleading copy (a live post said a Pulse Score jump
     //    happened "overnight" when the window behind it was 6.3 days). Only a real upside
-    //    change or a consensus flip may trigger this hook now; Smart Score's own dedicated
+    //    change or a consensus flip may trigger this hook now; Pulse Score's own dedicated
     //    "the whole story is the rating" kinds (`trend`, the net drift across the window, and
     //    `churn`, how many distinct scores it has shown) are gone entirely — see the bottom of
     //    this file's window-rules section, where they used to live. `contrarian` (above) is
@@ -190,7 +190,7 @@ export function detectHooks(history, opts = {}) {
         // model is told to use the numbers it is given, so `?? 0` would put "upsideFrom: 0"
         // into a post about a name whose target was merely withdrawn, and a null consensus
         // would arrive as the literal string "null". CLAUDE.md's standing rule for `ss`
-        // applies to `up`, `con` and `pt` the same way: an explicit null from TipRanks is
+        // applies to `up`, `con` and `pt` the same way: an explicit null from the provider is
         // data, not a gap — omit the key rather than invent a value for it. Every key below
         // is written exactly as before when the reading is present.
         // Built key by key, in the order they used to be written, so the prompt reads the
@@ -203,20 +203,20 @@ export function detectHooks(history, opts = {}) {
         facts.upsideTo = round(r.up);
         // Consensus is per-side, not a pair: a flip out of "no rating" into Strong Buy is
         // real news, and dropping `consensusTo` with it would leave the hook with nothing to
-        // say. Smart Score stays a pair — `dSs` is 0 unless BOTH readings are finite, so a
-        // hook can never fire on a half-known Smart Score the way it can on a consensus flip.
+        // say. Pulse Score stays a pair — `dSs` is 0 unless BOTH readings are finite, so a
+        // hook can never fire on a half-known Pulse Score the way it can on a consensus flip.
         if (p.con) facts.consensusFrom = p.con;
         if (r.con) facts.consensusTo = r.con;
         facts.price = r.px;
         if (isNum(r.pt)) facts.priceTarget = r.pt;
         facts.analysts = coverage(r);
         facts.sector = r.sec;
-        // SMART SCORE IS LAST, AND ONLY WHEN IT ACTUALLY CHANGED — supporting colour on a
+        // PULSE SCORE IS LAST, AND ONLY WHEN IT ACTUALLY CHANGED — supporting colour on a
         // real upside/consensus story, never the lead, and never restated unchanged ("held at
         // 8" is `steady`'s job, not a footnote on a fact bag it did not cause to fire).
         if (isNum(p.ss) && isNum(r.ss) && p.ss !== r.ss) {
-          facts.smartScoreFrom = p.ss;
-          facts.smartScoreTo = r.ss;
+          facts.pulseScoreFrom = p.ss;
+          facts.pulseScoreTo = r.ss;
         }
         hooks.push(base(r, "movement", mag * prom * damp("movement"), facts));
       }
@@ -247,9 +247,9 @@ export function detectHooks(history, opts = {}) {
 
     // 5. STEADY — never left the top of the scale across the whole window.
     //
-    //    `trend` (net Smart Score drift across the window) and `churn` (how many distinct
+    //    `trend` (net Pulse Score drift across the window) and `churn` (how many distinct
     //    scores it showed) used to live here too. Both are DELETED, not merely damped down:
-    //    the user's call was that a Smart Score change is not a post, full stop, and both of
+    //    the user's call was that a Pulse Score change is not a post, full stop, and both of
     //    those kinds' entire subject was exactly that — a rating moving. `steady` survives a
     //    deliberate judgement call in the other direction: it is not about a CHANGE (it fires
     //    on the absence of one), and "this name has not wavered all week" is a genuinely
@@ -257,7 +257,7 @@ export function detectHooks(history, opts = {}) {
     //    kind of story (what the rating IS/has held) than to `trend`'s (that it changed).
     if (sss.length >= MIN_WINDOW && sss.length === hist.length && sss.every((v) => v >= 9)) {
       hooks.push(base(r, "steady", 60 * prom * damp("steady"), {
-        smartScore: sss[sss.length - 1], snapshots: hist.length, days: spanDays(hist[0].i, hist.length),
+        pulseScore: sss[sss.length - 1], snapshots: hist.length, days: spanDays(hist[0].i, hist.length),
         upside: round(r.up), consensus: r.con, analysts: coverage(r),
       }));
     }
@@ -270,9 +270,9 @@ export function detectHooks(history, opts = {}) {
         days: spanDays(firstSeen, snaps.length - firstSeen),
         upside: round(r.up), consensus: r.con, analysts: coverage(r),
       };
-      // Include Smart Score only when it exists — null is data, not a gap.
+      // Include Pulse Score only when it exists — null is data, not a gap.
       if (isNum(r.ss)) {
-        facts.smartScore = r.ss;
+        facts.pulseScore = r.ss;
       }
       hooks.push(base(r, "newcomer", 55 * prom * damp("newcomer"), facts));
     }
@@ -452,8 +452,8 @@ export function deTickerHooks(hooks, rows) {
 // measured event when its facts carry a real BEFORE/AFTER pair for the SAME metric —
 // `upsideFrom`/`upsideTo` (movement), `windowLow`/`windowHigh` (record — the window's own low
 // sitting next to today's new high; the hook's own firing condition, `r.up >= high - 0.01`,
-// guarantees the current reading IS that high), or `smartScoreFrom`/`smartScoreTo`. A hook
-// carrying only a BARE current figure (`upside`, `smartScore`, `leaderUpside`, …) — `surprise`,
+// guarantees the current reading IS that high), or `pulseScoreFrom`/`pulseScoreTo`. A hook
+// carrying only a BARE current figure (`upside`, `pulseScore`, `leaderUpside`, …) — `surprise`,
 // `contrarian`, `steady`, `newcomer`, `list` — is a snapshot of a standing state, no matter how
 // interesting; it must never be painted as though it just rose, and must never carry an
 // "it happened at" timestamp for that figure. `movement` and `record` are the only two kinds
@@ -476,7 +476,7 @@ export function hasGenuineChange(hook) {
   const f = hook?.facts ?? {};
   return (
     (isNum(f.upsideFrom) && isNum(f.upsideTo)) ||
-    (isNum(f.smartScoreFrom) && isNum(f.smartScoreTo)) ||
+    (isNum(f.pulseScoreFrom) && isNum(f.pulseScoreTo)) ||
     (isNum(f.windowLow) && isNum(f.windowHigh))
   );
 }
@@ -486,7 +486,7 @@ export function hasGenuineChange(hook) {
  * "neutral", matching ci/post-compose.mjs's `DIRECTION_COLOR` keys exactly. Never reads the
  * statement's own wording: a model's prose is not a source of truth about which way a number
  * moved (see the module comment above). Checked in the order a `movement` hook itself writes
- * its facts (upside is the lead fact; Smart Score is written last, and only when it actually
+ * its facts (upside is the lead fact; Pulse Score is written last, and only when it actually
  * changed — see `detectHooks`'s own comment on the `movement` rule), so a hook that happens to
  * carry more than one pair is read the same way the writer prompt already prioritises them.
  * Returns "neutral" whenever `hasGenuineChange` is false, or the one pair present did not
@@ -503,8 +503,8 @@ export function genuineChangeDirection(hook) {
   if (isNum(f.windowLow) && isNum(f.windowHigh) && f.windowHigh > f.windowLow) {
     return "up";
   }
-  if (isNum(f.smartScoreFrom) && isNum(f.smartScoreTo) && f.smartScoreTo !== f.smartScoreFrom) {
-    return f.smartScoreTo > f.smartScoreFrom ? "up" : "down";
+  if (isNum(f.pulseScoreFrom) && isNum(f.pulseScoreTo) && f.pulseScoreTo !== f.pulseScoreFrom) {
+    return f.pulseScoreTo > f.pulseScoreFrom ? "up" : "down";
   }
   return "neutral";
 }

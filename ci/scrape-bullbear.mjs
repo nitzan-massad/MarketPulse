@@ -1,12 +1,13 @@
-// Backfill/refresh public/bullbear/<T>.json from tipranks.com/stocks/<t>/stock-aianalyst/payload.json
-// (the AI Bulls Say / Bears Say thesis; parser in ci/bullbear-payload.mjs), plain fetch first,
+// Backfill/refresh public/bullbear/<T>.json from the provider's per-ticker analysis payload
+// (the AI Upside / Risks thesis; parser in ci/bullbear-payload.mjs), plain fetch first,
 // FlareSolverr on a challenge — same transport the forecast scrape uses. Fills tickers MISSING a file or older than STALE_DAYS, stalest
 // first so LIMIT rotates through the whole universe (pass ALL=1 to force everyone).
 // Strictly additive + per-ticker failure-tolerant: a bad ticker is skipped, never fatal.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
 import { extractJson, parseBullBearPayload } from "./bullbear-payload.mjs";
-import { getText, makeBreaker, health } from "./tr-fetch.mjs";
+import { getText, makeBreaker, health } from "./src-fetch.mjs";
+import { srcUrl } from "./source.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -15,7 +16,7 @@ const ALL = process.env.ALL === "1";
 const ONLY = process.env.ONLY ? process.env.ONLY.split(",") : null; // just these tickers (ci/track-requests)
 const OUT = "public/bullbear";
 
-// Transport is ci/tr-fetch.mjs: a Cloudflare firewall block fails at once; the breaker skips the
+// Transport is ci/src-fetch.mjs: a Cloudflare firewall block fails at once; the breaker skips the
 // rest of the run after 3 in a row (no file written, so the tickers keep their place in the queue).
 // The lite run (ONLY) has a user waiting: 3 tries, not 6 x (up to 60s) per URL.
 const pageBreaker = makeBreaker();
@@ -57,7 +58,7 @@ for (const t of targets) {
     skipped++; continue;
   }
   try {
-    const url = `https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/stock-aianalyst/payload.json`;
+    const url = srcUrl("analysis", t);
     const bb = parseBullBearPayload(extractJson(await flareGet(url)), t);
     if (bb.bull.length || bb.bear.length) {
       writeFileSync(`${OUT}/${t}.json`, JSON.stringify({ ...bb, asOf: ASOF }));
@@ -81,6 +82,6 @@ console.log(`done: ${ok} written, ${empty} empty, ${fail} failed, ${skipped} ski
 // payload died exactly this way, silently, as "N empty"). Warn loudly; the step is continue-on-error so it never blocks
 // the deploy. Off for ONLY runs: track-requests.yml fails the lite run on any non-zero exit.
 if (!ONLY && ok === 0 && targets.length >= 10) {
-  console.log(`::warning::bullbear: 0 of ${targets.length} written — TipRanks payload or source likely changed (see ci/bullbear-payload.mjs)`);
+  console.log(`::warning::bullbear: 0 of ${targets.length} written — upstream payload or source likely changed (see ci/bullbear-payload.mjs)`);
   process.exitCode = 1;
 }

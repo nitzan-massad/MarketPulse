@@ -1,8 +1,9 @@
 // Backfill planning: which off-pull tickers the full-universe screener pull can serve, and which
-// need a per-ticker stock-aianalyst payload. No network.
+// need a per-ticker analysis payload. No network.
 import assert from "node:assert/strict";
 import { universeMap, universeItems, planBackfill, UNIVERSE_URL, universeOk, itemsFor, ambiguousCarried } from "./backfill-plan.mjs";
 import { readFileSync } from "node:fs";
+import { srcUrl } from "./source.mjs";
 
 const it = (t, primary, tag) => ({ tradingInformationData: { ticker: t, stockListingIsPrimaryMarket: primary, tag } });
 
@@ -63,7 +64,7 @@ assert.deepEqual(planBackfill(["X"], universeMap([it("X", false, "a"), it("X", f
 assert.equal(universeMap([null, {}, { tradingInformationData: {} }]).size, 0);
 assert.equal(universeMap(undefined).size, 0);
 
-assert.match(UNIVERSE_URL, /pageSize=20000&sortDir=2$/);
+assert.equal(UNIVERSE_URL, srcUrl("universe"));
 
 // B5: a parsed-but-reshaped universe body must throw (-> health "universe pull failed"), never pass
 // as an empty map. scripts/refresh-data.mjs had `.items || []`, which hid the reshape locally.
@@ -109,7 +110,7 @@ for (const bad of ["<html><title>Down for maintenance</title></html>", "Service 
   const ci = readFileSync(new URL("../ci/refresh-data-ci.mjs", import.meta.url), "utf8");
   assert.match(ci, /universeMap\(itemsFor\(/, "CI filters the universe to the missing tickers before mapping");
   const local = readFileSync(new URL("../scripts/refresh-data.mjs", import.meta.url), "utf8");
-  const fu = local.slice(local.indexOf("async function fetchUniverse"), local.indexOf("async function fetchAiAnalyst"));
+  const fu = local.slice(local.indexOf("async function fetchUniverse"), local.indexOf("async function fetchOutlook"));
   assert.match(fu, /page\.evaluate\(async \(\{ url, want \}\)/, "the local universe fetch passes the missing tickers into the page");
   assert.match(fu, /\.filter\(/, "and filters there, so only their items cross CDP");
   assert.match(fu, /universeItems\(/, "a reshaped body still throws through universeItems");

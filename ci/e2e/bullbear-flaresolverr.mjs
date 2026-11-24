@@ -2,7 +2,7 @@
 // draw a Cloudflare challenge). FlareSolverr returns the JSON inside <pre> with HTML entities.
 // Checks, per ticker: extractJson+parseBullBearPayload(FlareSolverr body) deep-equals the plain-fetch
 // parse; special chars (’ & < > " ') survive; then runs ci/scrape-bullbear.mjs with plain fetch to
-// tipranks.com forced to fail (so every ticker goes via FlareSolverr) and compares the files it writes.
+// the provider forced to fail (so every ticker goes via FlareSolverr) and compares the files it writes.
 //
 // Run: node ci/e2e/bullbear-flaresolverr.mjs
 //   FLARESOLVERR_URL=http://host:port/v1  use that instance; else start ghcr.io/flaresolverr/flaresolverr
@@ -10,7 +10,7 @@
 //   CACHE_DIR=<dir>   plain bodies at <dir>/<T>.json, FlareSolverr bodies at <dir>/flaresolverr/<T>.html;
 //                     when both are cached the comparison runs offline (the scraper step still needs FlareSolverr)
 //   TICKERS=AAPL,...  default AAPL,MSFT,NVDA,KO,DELL (must be in src/data/stocks.json: the scraper only takes those)
-// Exit 1 on any degradation. TipRanks requests: <= 2 per uncached ticker + 1 per ticker for the scraper, 1.5s apart.
+// Exit 1 on any degradation. Provider requests: <= 2 per uncached ticker + 1 per ticker for the scraper, 1.5s apart.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -20,12 +20,13 @@ import { fileURLToPath } from "node:url";
 import { createServer } from "node:net";
 import { extractJson, parseBullBearPayload } from "../bullbear-payload.mjs";
 import { BROWSER_UA } from "../../worker/cnbc.js";
+import { SRC_BASE, srcUrl } from "../source.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const TICKERS = (process.env.TICKERS || "AAPL,MSFT,NVDA,KO,DELL").split(",");
 const CACHE = process.env.CACHE_DIR || "";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const url = (t) => `https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`;
+const url = (t) => srcUrl("analysis", t);
 let lastHit = 0;
 const polite = async () => { const w = lastHit + 1500 - Date.now(); if (w > 0) await sleep(w); lastHit = Date.now(); };
 const cached = (p) => (CACHE && existsSync(p) ? readFileSync(p, "utf8") : null);
@@ -128,14 +129,14 @@ try {
   });
 
   // ---------- 2. the real scraper, plain fetch forced to fail -> every ticker via FlareSolverr ----------
-  console.log(`scrape-bullbear.mjs, ONLY=${TICKERS.join(",")}, plain fetch to tipranks.com rejected:`);
+  console.log(`scrape-bullbear.mjs, ONLY=${TICKERS.join(",")}, plain fetch to the provider rejected:`);
   const work = mkdtempSync(join(tmpdir(), "bb-e2e-"));
   try {
     mkdirSync(join(work, "src/data"), { recursive: true });
     cpSync(join(ROOT, "src/data/stocks.json"), join(work, "src/data/stocks.json"));
     const pre = join(work, "no-plain.mjs");
     writeFileSync(pre, `const f = globalThis.fetch; globalThis.__plainBlocked = 0;
-globalThis.fetch = (u, o) => /tipranks\\.com/.test(String(u?.url ?? u)) ? (globalThis.__plainBlocked++, Promise.reject(new TypeError("e2e: plain fetch blocked"))) : f(u, o);
+globalThis.fetch = (u, o) => String(u?.url ?? u).startsWith(${JSON.stringify(SRC_BASE)}) ? (globalThis.__plainBlocked++, Promise.reject(new TypeError("e2e: plain fetch blocked"))) : f(u, o);
 process.on("exit", () => console.log("PLAIN_BLOCKED=" + globalThis.__plainBlocked));`);
     const run = spawnSync(process.execPath, ["--import", `file://${pre}`, join(ROOT, "ci/scrape-bullbear.mjs")], {
       cwd: work, encoding: "utf8", timeout: 15 * 60_000,

@@ -341,7 +341,7 @@ export function extractFigure(statement) {
 /** Straight from src/index.css's :root — ci/ has no CSS pipeline to read the tokens from at
  *  build time, so they are restated here literally, same reasoning as src/postArt.ts's own
  *  canvas palette. Up is good news (green), down is bad news (red); anything with no inherent
- *  direction of its own — a Smart Score, an analyst count, a price target, a number of days
+ *  direction of its own — a Pulse Score, an analyst count, a price target, a number of days
  *  held — is amber: present, worth noticing, but neither good nor bad by itself. */
 export const DIRECTION_COLOR = { up: "#17864f", down: "#c73a2b", neutral: "#b8860b" };
 

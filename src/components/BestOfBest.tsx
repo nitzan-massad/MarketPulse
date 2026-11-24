@@ -92,7 +92,7 @@ export function Card({
           </span>
         </div>
         <div className="bob-m">
-          <span className="bob-k">Smart Score</span>
+          <span className="bob-k">Pulse Score</span>
           <span className="bob-v">
             <Chip v={s.ss} />
           </span>
@@ -148,7 +148,7 @@ export default function BestOfBest({ onOpen, marks, onMark }: BestOfBestProps) {
           Best of the <span className="em">Best</span>
         </h2>
         <p className="bob-dek">
-          Strong Buy consensus · Smart Score 10 · AI Analyst in the top 10%
+          Strong Buy consensus · Pulse Score 10 · AI Outlook in the top 10%
           <span className="bob-thr"> (AI ≥ {aiThreshold})</span>
         </p>
         <div className="bob-counts">
@@ -157,7 +157,7 @@ export default function BestOfBest({ onOpen, marks, onMark }: BestOfBestProps) {
           </span>
           <span className="dot">·</span>
           <span>
-            <b>{alsoSs10.length}</b> more with a perfect Smart Score
+            <b>{alsoSs10.length}</b> more with a perfect Pulse Score
           </span>
         </div>
       </header>
@@ -167,7 +167,7 @@ export default function BestOfBest({ onOpen, marks, onMark }: BestOfBestProps) {
           <h2>
             <span className="bob-star" aria-hidden="true">★</span> Triple Crown
           </h2>
-          <p>Strong Buy · Smart Score 10 · AI Analyst top 10% — all three at once.</p>
+          <p>Strong Buy · Pulse Score 10 · AI Outlook top 10% — all three at once.</p>
         </div>
         {crown.length === 0 ? (
           <div className="bob-empty">No names currently clear all three bars.</div>
@@ -182,11 +182,11 @@ export default function BestOfBest({ onOpen, marks, onMark }: BestOfBestProps) {
 
       <section className="bob-section">
         <div className="bob-sechdr">
-          <h2>Smart Score 10 — also strong</h2>
-          <p>Perfect Smart Score, just below the AI Analyst top-10% cut.</p>
+          <h2>Pulse Score 10 — also strong</h2>
+          <p>Perfect Pulse Score, just below the AI Outlook top-10% cut.</p>
         </div>
         {alsoSs10.length === 0 ? (
-          <div className="bob-empty">Nothing else at a perfect Smart Score.</div>
+          <div className="bob-empty">Nothing else at a perfect Pulse Score.</div>
         ) : (
           <div className="bob-grid">
             {alsoSs10.map((s) => (

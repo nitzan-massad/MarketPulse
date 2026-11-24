@@ -1,8 +1,8 @@
-// E2E (local only, not in npm test): the app's Bulls Say / Bears Say panel renders files from the NEW
+// E2E (local only, not in npm test): the app's Upside / Risks panel renders files from the NEW
 // payload.json scraper exactly as well as the committed OLD-parser (HTML page) files.
 //
 //   node ci/e2e/bullbear-ui.mjs [AAPL,ONDS,TRNR,XELB]   (TRNR, XELB: micro-caps)
-//   env: CACHE_DIR  raw stock-aianalyst payloads, <T>.json (missing ones are fetched, >=1.5s apart, and saved)
+//   env: CACHE_DIR  raw analysis payloads, <T>.json (missing ones are fetched, >=1.5s apart, and saved)
 //        OLD_REF    git ref holding the old-parser files (default HEAD)
 //        PORT (4179)  SHOTS (screenshot dir, default $TMPDIR)  BUILD=0 reuse dist/
 //
@@ -11,7 +11,7 @@
 // 2. vite preview of dist/; Playwright serves /bullbear/<T>.json as the OLD or the NEW file, opens #<T>.
 // 3. Per variant: rendered bull/bear counts, titles and bodies === the file, no raw markup/entities,
 //    "· updated <asOf>" label. Old vs new: count + panel-height parity; title diffs classed as
-//    case-only (cosmetic) or content (TipRanks regenerated the thesis — data freshness, not render).
+//    case-only (cosmetic) or content (the provider regenerated the thesis — data freshness, not render).
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, cpSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -19,16 +19,21 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { extractJson } from "../bullbear-payload.mjs";
+import { srcUrl } from "../source.mjs";
 import { BROWSER_UA } from "../../worker/cnbc.js";
 
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const TICKERS = (process.argv[2] || "AAPL,ONDS,TRNR,XELB").split(",").map((t) => t.trim().toUpperCase());
-const CACHE = process.env.CACHE_DIR || join(tmpdir(), "aianalyst-cache");
+const CACHE = process.env.CACHE_DIR || join(tmpdir(), "outlook-cache");
 const OLD_REF = process.env.OLD_REF || "HEAD";
 const PORT = Number(process.env.PORT || 4179);
 const SHOTS = process.env.SHOTS || tmpdir();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const url = (t) => `https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`;
+const url = (t) => srcUrl("analysis", t);
+// srcUrl("analysis", t) as a regex source with the ticker captured, for fetch mocks in child processes.
+const [PAY_PRE, PAY_POST] = srcUrl("analysis", "\u0000").split("%00");
+const reEsc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const PAYLOAD_RE = `${reEsc(PAY_PRE)}([^/?]+)${reEsc(PAY_POST)}`;
 let failed = 0;
 const check = (ok, msg) => { if (!ok) failed++; console.log(`${ok ? "ok  " : "FAIL"} ${msg}`); };
 
@@ -47,7 +52,7 @@ const work = mkdtempSync(join(tmpdir(), "bb-e2e-"));
 mkdirSync(join(work, "src/data"), { recursive: true });
 mkdirSync(join(work, "public/bullbear"), { recursive: true });
 cpSync(join(ROOT, "src/data/stocks.json"), join(work, "src/data/stocks.json"));
-const shim = `const C=process.env.BB_CACHE,f=globalThis.fetch;globalThis.fetch=async(u,o)=>{const m=String(u).match(/tipranks\\.com\\/stocks\\/([^/]+)\\/stock-aianalyst\\/payload\\.json/);if(m){const {readFileSync}=await import("node:fs");return new Response(readFileSync(C+"/"+decodeURIComponent(m[1]).toUpperCase()+".json","utf8"),{status:200});}throw new Error("e2e: no network for "+u);};`;
+const shim = `const C=process.env.BB_CACHE,f=globalThis.fetch;globalThis.fetch=async(u,o)=>{const m=String(u).match(${new RegExp(PAYLOAD_RE)});if(m){const {readFileSync}=await import("node:fs");return new Response(readFileSync(C+"/"+decodeURIComponent(m[1]).toUpperCase()+".json","utf8"),{status:200});}throw new Error("e2e: no network for "+u);};`;
 const scr = spawnSync(process.execPath, ["--import", `data:text/javascript,${encodeURIComponent(shim)}`, join(ROOT, "ci/scrape-bullbear.mjs")], {
   cwd: work, encoding: "utf8",
   env: { ...process.env, ONLY: TICKERS.join(","), FLARESOLVERR_URL: "http://localhost:1/v1", BB_CACHE: CACHE },
@@ -90,7 +95,7 @@ async function render(t, variant, file) {
   await page.waitForTimeout(800); // let the animations settle before screenshots
   const out = { hdr: (await panel.locator(".mkm-bbhdr").innerText()).trim(), na: await panel.locator(".mkm-bbna").count(), errs };
   for (const side of ["bull", "bear"]) {
-    await panel.locator(".mkm-bbtabs button", { hasText: side === "bull" ? "Bulls Say" : "Bears Say" }).dispatchEvent("click"); // no hit-test: the open animation's scrim
+    await panel.locator(".mkm-bbtabs button", { hasText: side === "bull" ? "Upside" : "Risks" }).dispatchEvent("click"); // no hit-test: the open animation's scrim
     await panel.locator(`.mkm-bbtabs button.on.${side}`).waitFor();
     const pts = panel.locator(".mkm-bblist .mkm-bbpt");
     out[side] = { t: await pts.locator(".t").allInnerTexts(), b: await pts.locator(".b").allTextContents() };

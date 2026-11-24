@@ -749,7 +749,7 @@ thead th:hover .col-resize::after{opacity:.6}
 .filters .toolbar{margin-top:6px; background:transparent; border:0; padding:4px 0 0; border-radius:0}
 
 /* ============================================================
-   STOCK DETAIL MODAL (terminal) — ported from design/modals/v2/modal-4.html
+   STOCK DETAIL MODAL (terminal)
    All rules scoped under .mkm- so they never collide with the table.
    ============================================================ */
 .mkm-scrim{
@@ -1003,7 +1003,7 @@ thead th:hover .col-resize::after{opacity:.6}
   font-family:inherit; font-size:10.5px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--t-gold); transition:.15s}
 .mkm-more:hover{color:var(--gold-soft)}
 
-/* bulls say / bears say */
+/* upside / risks */
 .mkm-bb{padding:14px 18px 16px; border-bottom:1px solid var(--t-line-2)}
 .mkm-bbhdr{font-family:var(--t-head); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--t-muted); font-weight:600; margin-bottom:11px}
 .mkm-bbtabs{display:flex; gap:3px; background:var(--t-panel); border:1px solid var(--t-line); border-radius:999px; padding:3px; margin-bottom:13px}
@@ -1094,7 +1094,7 @@ thead th:hover .col-resize::after{opacity:.6}
   background:linear-gradient(90deg, var(--t-line-2) 0, #f6f8fb 40%, var(--t-line-2) 80%) 0 0/300% 100%}
 @keyframes mkm-shimmer{from{background-position:100% 0} to{background-position:-100% 0}}
 @media (prefers-reduced-motion:reduce){.mkm-matrix.pending .mkm-cell:not(.mkm-cell-live) .v::before{animation:none}}
-/* Mkt Cap is live (Finnhub), not a TipRanks ranking metric — keep it readable even when uncovered */
+/* Mkt Cap is live (Finnhub), not a ranking metric — keep it readable even when uncovered */
 .mkm-matrix.uncovered .mkm-cell.mkm-cell-live{background:var(--t-bg)}
 .mkm-matrix.uncovered .mkm-cell.mkm-cell-live .v{color:var(--t-ink)}
 .mkm-cell .k{font-family:var(--f-body); font-size:12px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--t-faint)}
@@ -1991,7 +1991,7 @@ body:has(.nb-scrim){overflow:hidden}
 .feed { list-style: none; margin: 0 auto; padding: 0; max-width: 560px; }
 
 /* One accent per hook kind, all seven (was nine — `trend` and `churn` were deleted outright:
-   a Smart Score change alone is not a post, see ci/hooks.mjs's own comment on the `movement`
+   a Pulse Score change alone is not a post, see ci/hooks.mjs's own comment on the `movement`
    rule). Six of the original nine used to fall through to the default and rendered an
    identical navy pill, which made most of the feed look like one kind of post. Every value is
    a token that already exists in :root — nothing new is invented here, and note --gold is navy

@@ -2,15 +2,15 @@
 // Run: node ci/test-forecast-html.mjs   (no network — everything is a committed fixture)
 //
 // FIXTURES
-//   adct-forecast.html / vtgn-forecast.html  real trimmed tipranks.com/stocks/<t>/forecast
+//   adct-forecast.html / vtgn-forecast.html  real trimmed provider /stocks/<t>/forecast
 //     responses. ADCT is the ticker that exposed the original bug: 4 analysts on the page,
-//     all 4 anonymized in the getData API, so we wrote [] and the modal claimed "No analyst
+//     all 4 anonymized in the old endpoint, so we wrote [] and the modal claimed "No analyst
 //     forecasts for this stock". VTGN is the ticker that exposed the revised-target bug.
 //   edge-*-forecast.html  SYNTHETIC: each row group is a byte-for-byte copy of ADCT's first
 //     row group with only the analyst slug/name, firm, price-target cell, rating, action,
 //     date and headline substituted (and the 10 repeated star glyphs trimmed to 2). Column
 //     order, nesting and the obfuscated per-build class hashes are unchanged, so they still
-//     exercise the real selector surface. We cannot fetch new real pages: tipranks.com 403s
+//     exercise the real selector surface. We cannot fetch new real pages: the provider 403s
 //     direct and FlareSolverr isn't available in CI.
 //
 // THE THREE BUGS THIS PARSER HAS SHIPPED, each with a named regression below:
@@ -292,7 +292,7 @@ assert.deepEqual(v.filter((r) => r.d === "2025-12-17").map((r) => r.n), ["Andrew
 }
 
 /* ================================================================ ROBUSTNESS
-   The whole justification for a regex parser over a DOM library is that a TipRanks markup
+   The whole justification for a regex parser over a DOM library is that a provider markup
    change must degrade to a STALE file, never a corrupt one. So: for every mutation of a
    real page, the result is either [] or a set of well-formed rows — never junk, never a
    throw. (scrape-forecasts.mjs only writes when the parse is non-empty, so [] leaves the
@@ -385,7 +385,7 @@ for (const name of [...REAL, ...SYNTH]) {
   total += got.length;
 }
 
-// TipRanks lowercased the position cell ("buy") on 2026-11-01 and every page row was dropped.
+// The provider lowercased the position cell ("buy") on 2026-11-01 and every page row was dropped.
 // Upper-case ALL page text so any case-sensitive match left in the parser fails here.
 {
   const lower = readFileSync(new URL("./fixtures/adct-forecast.html", import.meta.url), "utf8")
@@ -399,14 +399,14 @@ for (const name of [...REAL, ...SYNTH]) {
 for (const cf of [
   "<html><head><title>Just a moment...</title></head></html>",
   "<html><head><title>Attention Required! | Cloudflare</title></head></html>",
-  "<html><head><title>Access denied | tipranks.com used Cloudflare to restrict access</title></head></html>",
+  "<html><head><title>Access denied | provider.example used Cloudflare to restrict access</title></head></html>",
   '<html><body><div id="cf-error-details">Error 1015</div></body></html>',
   '<html><script src="/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1"></script></html>',
 ]) {
   assert.ok(isChallenge(cf), `Cloudflare page not detected: ${cf}`);
   assert.ok(!usablePage(cf, 0), "a Cloudflare page is never usable");
 }
-// ... while every real TipRanks page stays usable (a false positive would fail every fetch).
+// ... while every real provider page stays usable (a false positive would fail every fetch).
 for (const name of REAL) {
   assert.ok(!isChallenge(fx(name)), `real ${name} page flagged as Cloudflare`);
   assert.ok(usablePage(fx(name), 5), `real ${name} page judged unusable`);

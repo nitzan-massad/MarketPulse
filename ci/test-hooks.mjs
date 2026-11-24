@@ -41,8 +41,8 @@ assert.ok(MIN_WINDOW >= 2, "the window rules need a real series");
 {
   const hooks = detectHooks([[row({ t: "SPLIT", ss: 9, ai: 25, air: "Bearish" })]]);
   const c = hooks.filter((h) => h.kind === "contrarian");
-  assert.equal(c.length, 1, "Smart Score 9 against AI 25 is a contrarian hook");
-  assert.equal(c[0].facts.smartScore, 9, "facts carry the Smart Score");
+  assert.equal(c.length, 1, "Pulse Score 9 against AI 25 is a contrarian hook");
+  assert.equal(c[0].facts.pulseScore, 9, "facts carry the Pulse Score");
 }
 // --- (12) comparison framing: sectorMedianUpside, derived from THIS run's own rows -----------
 // Peer upsides below are deliberately kept UNDER 40 (the `surprise` firing threshold) unless
@@ -115,12 +115,12 @@ assert.ok(MIN_WINDOW >= 2, "the window rules need a real series");
     [row({ t: "MOVE", ss: 9, con: "StrongBuy", up: 40 })],
   ]).filter((h) => h.kind === "movement");
   assert.ok(hooks.length >= 1, "an upside jump plus a consensus flip is a movement hook");
-  assert.equal(hooks[0].facts.smartScoreFrom, 4, "a Smart Score change that DID happen still rides along in facts");
-  assert.equal(hooks[0].facts.smartScoreTo, 9, "facts carry the new Smart Score");
+  assert.equal(hooks[0].facts.pulseScoreFrom, 4, "a Pulse Score change that DID happen still rides along in facts");
+  assert.equal(hooks[0].facts.pulseScoreTo, 9, "facts carry the new Pulse Score");
 }
 
-// --- a Smart Score change ALONE is no longer a movement hook (the user's explicit call) -------
-// "A change in smart score is not something that's good enough for a post." Only a real
+// --- a Pulse Score change ALONE is no longer a movement hook (the user's explicit call) -------
+// "A change in pulse score is not something that's good enough for a post." Only a real
 // upside change or a consensus flip may trigger this hook now.
 {
   const hooks = detectHooks([
@@ -128,22 +128,22 @@ assert.ok(MIN_WINDOW >= 2, "the window rules need a real series");
     [row({ t: "SSONLY", ss: 9, con: "Hold", up: 22 })],
   ]).filter((h) => h.kind === "movement");
   assert.equal(hooks.length, 0,
-    "a 5-point Smart Score jump alone, with no real upside move or consensus flip, is not a movement hook");
+    "a 5-point Pulse Score jump alone, with no real upside move or consensus flip, is not a movement hook");
 }
 {
-  // The mirror case: Smart Score UNCHANGED between the two readings. The hook still fires (a
-  // real upside jump), but there is no Smart Score story here, so the facts omit it rather
-  // than restate "smartScoreFrom: 8, smartScoreTo: 8" as if something happened.
+  // The mirror case: Pulse Score UNCHANGED between the two readings. The hook still fires (a
+  // real upside jump), but there is no Pulse Score story here, so the facts omit it rather
+  // than restate "pulseScoreFrom: 8, pulseScoreTo: 8" as if something happened.
   const hooks = detectHooks([
     [row({ t: "SAMESS", ss: 8, up: 20 })],
     [row({ t: "SAMESS", ss: 8, up: 40 })],
   ]).filter((h) => h.kind === "movement");
   assert.ok(hooks.length >= 1, "the upside jump still fires a movement hook");
-  assert.equal("smartScoreFrom" in hooks[0].facts, false, "an unchanged Smart Score is omitted, not restated");
-  assert.equal("smartScoreTo" in hooks[0].facts, false, "an unchanged Smart Score is omitted, not restated");
+  assert.equal("pulseScoreFrom" in hooks[0].facts, false, "an unchanged Pulse Score is omitted, not restated");
+  assert.equal("pulseScoreTo" in hooks[0].facts, false, "an unchanged Pulse Score is omitted, not restated");
 }
 {
-  // A consensus flip alone (no real upside move, Smart Score unchanged) still fires — the
+  // A consensus flip alone (no real upside move, Pulse Score unchanged) still fires — the
   // task is explicit that consensus flips are still a good story.
   const hooks = detectHooks([
     [row({ t: "FLIPONLY", ss: 6, con: "Hold", up: 20 })],
@@ -156,29 +156,29 @@ assert.ok(MIN_WINDOW >= 2, "the window rules need a real series");
 assert.equal(detectHooks([[row({ t: "NEW" })]]).filter((h) => h.kind === "movement").length, 0,
   "with a window of one there are no movement hooks");
 {
-  // Movement hook from upside delta when one row has null Smart Score — must not coerce to 0
+  // Movement hook from upside delta when one row has null Pulse Score — must not coerce to 0
   const hooks = detectHooks([
     [row({ t: "NULLSS", ss: null, up: 20 })],
     [row({ t: "NULLSS", ss: null, up: 40 })],
   ]).filter((h) => h.kind === "movement");
-  assert.ok(hooks.length >= 1, "a 20-point upside jump fires a movement hook even with null Smart Score");
-  assert.equal("smartScoreFrom" in hooks[0].facts, false, "smartScoreFrom is omitted when ss is null");
-  assert.equal("smartScoreTo" in hooks[0].facts, false, "smartScoreTo is omitted when ss is null");
+  assert.ok(hooks.length >= 1, "a 20-point upside jump fires a movement hook even with null Pulse Score");
+  assert.equal("pulseScoreFrom" in hooks[0].facts, false, "pulseScoreFrom is omitted when ss is null");
+  assert.equal("pulseScoreTo" in hooks[0].facts, false, "pulseScoreTo is omitted when ss is null");
   assert.ok("upsideFrom" in hooks[0].facts && "upsideTo" in hooks[0].facts, "upside facts are still present");
 }
 {
-  // Movement hook with one null and one finite Smart Score — both keys must be absent
+  // Movement hook with one null and one finite Pulse Score — both keys must be absent
   const hooks = detectHooks([
     [row({ t: "MIXED", ss: 5, up: 20 })],
     [row({ t: "MIXED", ss: null, up: 40 })],
   ]).filter((h) => h.kind === "movement");
   assert.ok(hooks.length >= 1, "a upside jump fires a movement hook even when ss goes null");
-  assert.equal("smartScoreFrom" in hooks[0].facts, false, "smartScoreFrom is omitted when either is null");
-  assert.equal("smartScoreTo" in hooks[0].facts, false, "smartScoreTo is omitted when either is null");
+  assert.equal("pulseScoreFrom" in hooks[0].facts, false, "pulseScoreFrom is omitted when either is null");
+  assert.equal("pulseScoreTo" in hooks[0].facts, false, "pulseScoreTo is omitted when either is null");
 }
 
 // --- movement facts: no coercion, and an eligible baseline ----------------------
-// CLAUDE.md: an explicit null from TipRanks is data, not a gap. These facts go verbatim into
+// CLAUDE.md: an explicit null from the provider is data, not a gap. These facts go verbatim into
 // the writer prompt, so a coerced `upsideFrom: 0` or a stringified `consensusFrom: null` is a
 // false statement about a real company, not a cosmetic wart. 0 of 159 movement firings hit
 // this on the live data — it is prevention, which is exactly why it needs a test.
@@ -194,7 +194,7 @@ assert.equal(detectHooks([[row({ t: "NEW" })]]).filter((h) => h.kind === "moveme
     upsideFrom: 10, upsideTo: 40,
     consensusFrom: "Hold", consensusTo: "StrongBuy",
     price: 100, priceTarget: 140, analysts: 12, sector: "Technology",
-    smartScoreFrom: 4, smartScoreTo: 9,
+    pulseScoreFrom: 4, pulseScoreTo: 9,
   }, "present readings are written exactly as before");
 }
 {
@@ -275,17 +275,17 @@ assert.equal(detectHooks([[row({ t: "NEW" })]]).filter((h) => h.kind === "moveme
   assert.equal(fell.filter((h) => h.kind === "record").length, 0, "a falling series is not a record");
 }
 
-// --- trend and churn are DELETED, not just untested — a Smart Score change alone is not a
+// --- trend and churn are DELETED, not just untested — a Pulse Score change alone is not a
 // post (the user's explicit call), and neither kind had any other story to tell. This is a
 // removed FEATURE, so it gets a removal test, not merely an absence of one: even a window
 // shaped exactly like the old `trend`/`churn` fixtures must never again emit either kind.
 {
   const slide = detectHooks(win(30, (i) => row({ t: "SLIDE", ss: i < 15 ? 8 : 3 })));
   assert.equal(slide.filter((h) => h.kind === "trend").length, 0,
-    "a 5-point net Smart Score slide across the window no longer produces a trend hook — the kind is gone");
+    "a 5-point net Pulse Score slide across the window no longer produces a trend hook — the kind is gone");
   const jumpy = detectHooks(win(30, (i) => row({ t: "JUMPY", ss: [2, 5, 7, 9][i % 4] })));
   assert.equal(jumpy.filter((h) => h.kind === "churn").length, 0,
-    "four distinct Smart Scores across the window no longer produces a churn hook — the kind is gone");
+    "four distinct Pulse Scores across the window no longer produces a churn hook — the kind is gone");
   // Nothing in this file, or in ci/generate-posts.mjs's KIND_BRIEF, should ever emit either
   // kind name again, from any input.
   for (const h of [...slide, ...jumpy]) {
@@ -299,7 +299,7 @@ assert.equal(detectHooks([[row({ t: "NEW" })]]).filter((h) => h.kind === "moveme
   const hooks = detectHooks(win(30, () => row({ t: "ROCK", ss: 10, up: 32 })));
   const st = hooks.filter((h) => h.kind === "steady");
   assert.equal(st.length, 1, "an unbroken top score is a steady hook");
-  assert.equal(st[0].facts.smartScore, 10, "facts carry the score it held");
+  assert.equal(st[0].facts.pulseScore, 10, "facts carry the score it held");
   assert.equal(st[0].facts.snapshots, 30, "facts carry how long it held");
 }
 assert.equal(
@@ -342,9 +342,9 @@ assert.equal(
 }
 
 // --- movement outranks routine upside (Task 0, Finding 4) --------------------------
-// The original version of this fixture drove the movement magnitude with a Smart Score jump
-// alone — no longer possible now that a Smart Score change alone cannot even fire the hook
-// (see the "Smart Score change ALONE" test above). A real upside swing makes the same point:
+// The original version of this fixture drove the movement magnitude with a Pulse Score jump
+// alone — no longer possible now that a Pulse Score change alone cannot even fire the hook
+// (see the "Pulse Score change ALONE" test above). A real upside swing makes the same point:
 // the per-point coefficient on movement's own delta is still heavy enough to outrank a
 // routine static high-upside name.
 {
@@ -528,7 +528,7 @@ assert.equal(displayCompanyName("Class A"), "Class A", "same for a bare share-cl
 
 // ==================================== GENUINE CHANGE vs. STANDING STATE ====================
 // "Let the data decide, not the kind name alone" — a fact set with upsideFrom/upsideTo or
-// smartScoreFrom/smartScoreTo (or record's windowLow/windowHigh) is a genuine, measured change;
+// pulseScoreFrom/pulseScoreTo (or record's windowLow/windowHigh) is a genuine, measured change;
 // a bare `upside` is not, no matter how the kind is named. Fixtures below run REAL hooks through
 // detectHooks (not hand-rolled fact bags) so this is pinned against what ci/hooks.mjs actually
 // emits today, not a guess at its shape.
@@ -558,7 +558,7 @@ assert.equal(displayCompanyName("Class A"), "Class A", "same for a bare share-cl
   ]).filter((h) => h.kind === "movement");
   assert.equal(hasGenuineChange(hooks[0]), true, "a consensus flip alone still fires movement, still genuine");
   assert.equal(genuineChangeDirection(hooks[0]), "neutral",
-    "but with upside unchanged and no Smart Score pair, there is no direction to claim");
+    "but with upside unchanged and no Pulse Score pair, there is no direction to claim");
 }
 
 // --- record: a genuine change, direction is always up (it IS a new high, by construction) ---
@@ -613,15 +613,15 @@ assert.equal(displayCompanyName("Class A"), "Class A", "same for a bare share-cl
   assert.equal(hasGenuineChange(list), false, "list ranks standing upsides, it does not describe an event");
 }
 
-// --- a Smart Score pair alone is also a genuine change (movement's supporting fact) ---------
+// --- a Pulse Score pair alone is also a genuine change (movement's supporting fact) ---------
 {
-  const hook = { kind: "movement", facts: { smartScoreFrom: 4, smartScoreTo: 9, upsideFrom: 20, upsideTo: 21 } };
-  assert.equal(hasGenuineChange(hook), true, "a Smart Score before/after pair is a genuine change too");
+  const hook = { kind: "movement", facts: { pulseScoreFrom: 4, pulseScoreTo: 9, upsideFrom: 20, upsideTo: 21 } };
+  assert.equal(hasGenuineChange(hook), true, "a Pulse Score before/after pair is a genuine change too");
 }
 {
-  const hook = { kind: "movement", facts: { smartScoreFrom: 9, smartScoreTo: 4, upsideFrom: 20, upsideTo: 20 } };
-  // Upside unchanged, so the delta check falls through to Smart Score's own pair.
-  assert.equal(genuineChangeDirection(hook), "down", "falls through to the Smart Score pair when upside itself did not move");
+  const hook = { kind: "movement", facts: { pulseScoreFrom: 9, pulseScoreTo: 4, upsideFrom: 20, upsideTo: 20 } };
+  // Upside unchanged, so the delta check falls through to Pulse Score's own pair.
+  assert.equal(genuineChangeDirection(hook), "down", "falls through to the Pulse Score pair when upside itself did not move");
 }
 
 // --- defensive: missing/malformed input never throws, never claims a change -----------------

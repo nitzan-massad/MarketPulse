@@ -112,7 +112,7 @@ export function factNumbers(facts) {
  * THE TOLERANCE RULE — exactly three transforms of a sourced fact, nothing looser.
  *
  * The task this answers: "I am against fabrication but 143.14% could be 144%~ and so on" — raw
- * TipRanks precision (`143.6% upside dwarfs current 300.65 price`, `6.3 days`) reads as a
+ * provider precision (`143.6% upside dwarfs current 300.65 price`, `6.3 days`) reads as a
  * machine copying a spreadsheet cell, not a person stating a fact. A writer has to be free to
  * ROUND a real number without tripping the fabrication check.
  *
@@ -133,7 +133,7 @@ export function factNumbers(facts) {
  * scales with the fact's own SIZE, which is backwards for this data. 1% of 143.6 is 1.436 — wide
  * enough to ALSO verify 145 (145 is 0.97% above 143.6), which the task explicitly forbids ("It
  * must NOT verify … 145"). The same 1% window on a $300 price target would swallow a $3 error a
- * reader would actually notice, while being needlessly tight on a small number like a Smart
+ * reader would actually notice, while being needlessly tight on a small number like a Pulse
  * Score. A percentage-of-value tolerance is not one rule, it is a different rule at every
  * magnitude — the three fixed transforms above are the same rule everywhere, and exactly as
  * tight on 300.65 as they are on 6.3.
@@ -168,7 +168,7 @@ const vouchedBy = (n, vouched) => {
  *
  * A candidate number is accepted when it is in `hook.facts` (or is a legitimate rounding of one
  * — see `vouchedBy`). Two idioms are exempt because they state a SCALE, not a claim about the
- * company: "out of 10" / "1/10" (Smart Score is 1-10) and "out of 100" (AI Score is 0-100),
+ * company: "out of 10" / "1/10" (Pulse Score is 1-10) and "out of 100" (AI Score is 0-100),
  * which Task 0's best-scoring candidate uses; and a bare four-digit year. The exemption is
  * idiom-scoped on purpose — a bare "$100 target" on a $412 name is still caught.
  *
@@ -240,17 +240,17 @@ const FORECAST_KEY_RE = /target|score|upside|forecast|rating|consensus/i;
 /** Verbs that assert a stock's PRICE already moved. The task names five (soared, plunged,
  *  rocketed, crashed, jumped); a longer list of close synonyms is folded in too ("and the
  *  like") since a model told to avoid "jumped" reaches for "spiked" next — `plummeted` is a
- *  real example: a live generation run used it for a Smart Score drop ("Smart Score plummeted
+ *  real example: a live generation run used it for a Pulse Score drop ("Pulse Score plummeted
  *  from 9 to 5") before it was added here, the exact same category error as "IRD soared
  *  151.7%" with a different verb. `catapulted` is the same story again — a live run produced
- *  "Smart Score catapulted from 7 to 10 overnight" before it was added. Matched on the verb
+ *  "Pulse Score catapulted from 7 to 10 overnight" before it was added. Matched on the verb
  *  root so any tense/inflection trips it. `skyrocket` is deliberately NOT here — it is already
  *  a hard BANNED phrase above regardless of context, as generic AI-slop, not because of what
  *  it might be describing. */
 export const MOVEMENT_VERB_RE =
   /\b(soar(?:ed|s|ing)?|plunge(?:d|s|ing)?|plummet(?:ed|s|ing)?|rocket(?:ed|s|ing)?|catapult(?:ed|s|ing)?|crash(?:ed|es|ing)?|jump(?:ed|s|ing)?|surge(?:d|s|ing)?|spike(?:d|s|ing)?|tank(?:ed|s|ing)?|craters?(?:ed|ing)?|tumble(?:d|s|ing)?|nosedive[ds]?|nosediving|dove|dived|sank|skid(?:ded|s|ding)?)\b/gi;
 
-/** The OTHER half of that same live bug: "…overnight" for a Smart Score move whose real window
+/** The OTHER half of that same live bug: "…overnight" for a Pulse Score move whose real window
  *  was 6.3 days. Not a verb, so it does not fit `MOVEMENT_VERB_RE` — but it is the same category
  *  of lie ("this happened faster than the data shows") and gets the same decisive treatment, not
  *  a soft nudge. This pipeline's fastest comparison is one run to the last (`movement`, 5h
@@ -308,7 +308,7 @@ export const TIMEFRAME_BONUS = 6;
 /**
  * A movement verb (soared/plunged/rocketed/crashed/jumped/…) is a claim that something
  * happened to the stock's PRICE — a lie, not bold framing, when the number it sits next to is
- * actually a price TARGET, a Smart/AI SCORE, an upside FORECAST, or a consensus RATING, none of
+ * actually a price TARGET, a Pulse/AI SCORE, an upside FORECAST, or a consensus RATING, none of
  * which are a price that has moved (see the module header — this is the exact published bug,
  * "IRD soared 151.7% to $13.14", where 151.7% was upside-to-target, not a price move).
  *

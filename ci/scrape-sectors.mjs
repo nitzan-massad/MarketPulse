@@ -1,7 +1,7 @@
 // Refresh src/data/sectors.json — average trailing + forward P/E per sector, from
 // Finviz's sector groups table. One unauthenticated GET per run (~60KB), no key.
 // Finviz's sector names normalize onto the app's own vocab via keep.mjs's sectorName(),
-// so no mapping table is needed. TipRanks' "General" catch-all has no Finviz counterpart
+// so no mapping table is needed. The provider's "General" catch-all has no Finviz counterpart
 // and simply gets no entry — the UI renders "—".
 // ponytail: HTML scrape, not an API — columns are located via the header row rather than
 // fixed offsets, and a run that returns too few sectors is discarded rather than written.

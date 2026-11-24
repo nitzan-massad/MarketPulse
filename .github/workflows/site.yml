@@ -10,7 +10,7 @@ on:
         type: boolean
         default: false
       # The data-loss gate blocks the commit, and it compares against HEAD, so a legitimate loss
-      # (e.g. TipRanks withdrawing many Smart Scores at once) freezes the data and every later run
+      # (e.g. the provider withdrawing many Pulse Scores at once) freezes the data and every later run
       # sees the same loss plus more churn. This is the way out, for ONE run: the gate prints its
       # DATA LOSS lines and passes, the snapshot ships, and the Health gate still turns the run red.
       # Scheduled runs never set it. Runbook: ci/README.md -> Gates -> "Recovering from a data-loss freeze".
@@ -38,6 +38,10 @@ jobs:
     # a margin for the uncapped steps, so a hang in any scrape step can never kill the job before
     # "Commit refreshed data". ci/test-workflow-dry-run.mjs enforces that sum.
     timeout-minutes: 245
+    # Upstream endpoints + payload key names for the scrapers (ci/source.mjs); kept out of the repo.
+    env:
+      SRC_BASE: ${{ secrets.SRC_BASE }}
+      SRC_MAP: ${{ secrets.SRC_MAP }}
     services:
       flaresolverr:
         image: ghcr.io/flaresolverr/flaresolverr:latest
@@ -144,7 +148,7 @@ jobs:
       #     (≤10h) and fresh reviews land the same day. PARALLEL=2: bullbear's Chrome runs beside
       #     it, so 3 here made 4 Chromes on the 4-vCPU runner -> 175 FlareSolverr 60s timeouts
       #     (run 42022887893; ~28 median at 3 alone). Alone, 3 beat 2 (8.9 vs 12.5 s/ticker).
-      #   bullbear: Bulls Say / Bears Say (AI thesis) from the SSR tipranks.com/stocks/<t> page.
+      #   bullbear: Upside / Risks (AI thesis) from the provider's per-ticker analysis payload.
       #     LIMIT 200 (was 90 and always hit; ~4-7 min).
       #   pe: 5-year weekly P/E history per ticker for the stock modal's P/E chart. Inputs cached
       #     per ticker in ci/cache/pe/ (committed): split-only weekly closes from CNBC, refreshed

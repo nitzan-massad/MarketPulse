@@ -11,7 +11,7 @@
 //                                      and clears requests whose stock has since been dropped so
 //                                      the ticker can be requested again
 //   node ci/track-requests.mjs fetch   lite run only (track-requests.yml): tracked requests with
-//                                      no stocks.json row get one now (stock-aianalyst payload; a
+//                                      no stocks.json row get one now (analysis payload; a
 //                                      null row, or one with no name or price, is a failure). The
 //                                      fetched tickers go to $GITHUB_OUTPUT (`tickers`, the scrapers'
 //                                      ONLY) and the failed ones too (`failed`)
@@ -43,8 +43,9 @@
 import { createSign } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { mergeRow, rowFromAiAnalyst } from "./keep.mjs";
-import { getText, makeBreaker, health, stepDeadline } from "./tr-fetch.mjs";
+import { mergeRow, rowFromOutlook } from "./keep.mjs";
+import { getText, makeBreaker, health, stepDeadline } from "./src-fetch.mjs";
+import { srcUrl } from "./source.mjs";
 
 const DB = "https://marketpulse-df5d9-default-rtdb.europe-west1.firebasedatabase.app";
 // RTDB_URL + RTDB_TOKEN: point every mode at a Firebase emulator instead (local e2e only — CI never
@@ -210,8 +211,8 @@ function readJson(path, fallback) {
   try { return JSON.parse(readFileSync(path, "utf8")); } catch { return fallback; }
 }
 
-// Transport is ci/tr-fetch.mjs (shared with the other scrapers): a Cloudflare firewall block fails
-// at once instead of being retried. The aianalyst pull has a breaker: after 3 blocks the lite run stops
+// Transport is ci/src-fetch.mjs (shared with the other scrapers): a Cloudflare firewall block fails
+// at once instead of being retried. The analysis pull has a breaker: after 3 blocks the lite run stops
 // asking; the rest go to `failed` (err stamped by `fail`) and stay pending for the next run.
 const aiBreaker = makeBreaker();
 function parseJson(html) {
@@ -236,7 +237,7 @@ export async function fetchRows(want, { getRow, passed, breakerOpen }) {
   for (const t of want) {
     if (passed()) { failed.push(t); cut++; continue; }
     if (breakerOpen()) { breakerHit = true; failed.push(t); continue; }
-    try { got.push(await getRow(t)); } catch (e) { console.log(`  ${t}: aianalyst skip (${e.message})`); failed.push(t); }
+    try { got.push(await getRow(t)); } catch (e) { console.log(`  ${t}: analysis skip (${e.message})`); failed.push(t); }
   }
   if (cut) console.log(`  fetch deadline reached: ${cut} request(s) not attempted, marked failed (retried next run)`);
   return { got, failed, breakerHit };
@@ -400,12 +401,12 @@ async function main(mode) {
       passed: () => STEP.passed(),
       breakerOpen: () => aiBreaker.open(),
       getRow: async (t) => {
-        const row = mergeRow(undefined, rowFromAiAnalyst(await flareJson(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`, 3, aiBreaker, STEP.at), t));
+        const row = mergeRow(undefined, rowFromOutlook(await flareJson(srcUrl("analysis", t), 3, aiBreaker, STEP.at), t));
         if (!row?.n || row.px == null) throw new Error("no name or price in the payload");
         return row;
       },
     });
-    if (res.breakerHit) { health("breaker open: stock-aianalyst"); console.log("  aianalyst breaker open: the remaining requests are marked failed (err stamped, retried next run)"); }
+    if (res.breakerHit) { health("breaker open: analysis"); console.log("  analysis breaker open: the remaining requests are marked failed (err stamped, retried next run)"); }
     const failed = res.failed, got = [];
     for (const row of res.got) { stocks.push(row); seen[row.t] = seenFor(row, now); got.push(row.t); }
     if (got.length) {

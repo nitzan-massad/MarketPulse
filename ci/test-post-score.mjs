@@ -116,11 +116,11 @@ assert.ok(Number.isFinite(MIN_PUBLISHABLE), "there is a publish floor");
 // company is no longer scored either way, only a ticker still is, decisively.
 {
   const nflx = { kind: "movement", ticker: "NFLX", name: "Netflix" };
-  const byTicker = scorePost("NFLX: Smart Score 8 to 6, upside 28% to 34%.", { hook: nflx });
-  const byName = scorePost("Netflix: Smart Score 8 to 6, upside 28% to 34%.", { hook: nflx });
+  const byTicker = scorePost("NFLX: Pulse Score 8 to 6, upside 28% to 34%.", { hook: nflx });
+  const byName = scorePost("Netflix: Pulse Score 8 to 6, upside 28% to 34%.", { hook: nflx });
   // Same word/digit shape as byTicker, so the only thing distinguishing it is naming
   // neither: this isolates the naming rule's own effect.
-  const neither = scorePost("Smart Score 8 to 6, upside 28% to 34% overall.", { hook: nflx });
+  const neither = scorePost("Pulse Score 8 to 6, upside 28% to 34% overall.", { hook: nflx });
   assert.ok(byName.score > byTicker.score, "naming the company still beats naming the ticker");
   assert.ok(byTicker.reasons.some((r) => /names the ticker/i.test(r)), "the reason names the ticker penalty");
   // DECISIVE — a ticker mention has to sink the candidate outright (like fabrication).
@@ -302,15 +302,15 @@ assert.deepEqual(rankCandidates(undefined, ctx()), [], "an undefined candidate l
   assert.ok(mixed.score < MIN_PUBLISHABLE, "one invented number is enough to sink the candidate");
 }
 {
-  // `contrarian`: { smartScore, aiScore, aiRating, consensus, upside, price, analysts, bullish }.
+  // `contrarian`: { pulseScore, aiScore, aiRating, consensus, upside, price, analysts, bullish }.
   // These are Task 0's three good XPO candidates, verbatim. They must all still pass.
   const xpo = { kind: "contrarian", ticker: "XPO", name: "Xpo, Inc.",
-                facts: { smartScore: 1, aiScore: 65, aiRating: "Neutral", consensus: "StrongBuy",
+                facts: { pulseScore: 1, aiScore: 65, aiRating: "Neutral", consensus: "StrongBuy",
                          upside: 38.6, price: 174.25, analysts: 38, bullish: "ai" } };
   const task0 = [
-    "XPO: Smart Score 1 out of 10. AI model says 65 out of 100. Analyst consensus is Strong Buy. Three models, three answers, $174 stock.",
+    "XPO: Pulse Score 1 out of 10. AI model says 65 out of 100. Analyst consensus is Strong Buy. Three models, three answers, $174 stock.",
     "The quant model rates XPO a 1. The AI rates it 65. The analysts say Strong Buy with 38% upside. Somebody here is very wrong.",
-    "XPO has a Smart Score of 1 and a Strong Buy consensus at the same time. That combination shows up on maybe one name in four hundred.",
+    "XPO has a Pulse Score of 1 and a Strong Buy consensus at the same time. That combination shows up on maybe one name in four hundred.",
   ];
   for (const t of task0) {
     assert.deepEqual(unverifiedNumbers(t, xpo), [], `Task 0 good copy still verifies: ${t.slice(0, 40)}...`);
@@ -388,7 +388,7 @@ assert.deepEqual(rankCandidates(undefined, ctx()), [], "an undefined candidate l
   // down"), truncate also 6 since both land the same side of the half here. 7 is NOT a
   // legitimate rounding of 6.3 by any of the three transforms.
   const hook = { kind: "steady", ticker: "AAA", name: "Alpha Inc",
-                 facts: { smartScore: 10, snapshots: 30, days: 6.3, upside: 10, analysts: 5 } };
+                 facts: { pulseScore: 10, snapshots: 30, days: 6.3, upside: 10, analysts: 5 } };
   assert.deepEqual(unverifiedNumbers("Held Strong Buy for 6 days straight.", hook), [],
     "6.3 days rounds down (and half-up, they agree here) to 6");
   assert.deepEqual(unverifiedNumbers("Held Strong Buy for 7 days straight.", hook), ["7"],
@@ -429,39 +429,39 @@ assert.deepEqual(rankCandidates(undefined, ctx()), [], "an undefined candidate l
   assert.equal(pickBest(["Upside soared 151.7% to a $20 target."], { hook: ird }), null,
     "pickBest ships nothing rather than this");
 }
-// A handful of close synonyms ("and the like") are covered too, on a Smart Score number.
+// A handful of close synonyms ("and the like") are covered too, on a Pulse Score number.
 {
-  const hook = { kind: "movement", name: "Alpha Inc", facts: { smartScoreFrom: 4, smartScoreTo: 9 } };
+  const hook = { kind: "movement", name: "Alpha Inc", facts: { pulseScoreFrom: 4, pulseScoreTo: 9 } };
   for (const verb of ["plunged", "plummeted", "catapulted", "rocketed", "crashed", "jumped", "surged",
                        "spiked", "tumbled", "nosedived", "sank", "skidded"]) {
-    const text = `Smart Score ${verb} from 4 to 9.`;
-    assert.ok(misdescribedMovementVerbs(text, hook).length > 0, `"${verb}" on a Smart Score is flagged`);
+    const text = `Pulse Score ${verb} from 4 to 9.`;
+    assert.ok(misdescribedMovementVerbs(text, hook).length > 0, `"${verb}" on a Pulse Score is flagged`);
   }
 }
-// Regression: a live generation run actually produced this ("Smart Score plummeted from 9 to
+// Regression: a live generation run actually produced this ("Pulse Score plummeted from 9 to
 // 5 down.") before `plummeted` was added to MOVEMENT_VERB_RE — the same category error as the
 // original IRD bug, caught here so it can never silently regress again.
 {
   const cop = { kind: "movement", name: "Conocophillips", facts: {
-    smartScoreFrom: 9, smartScoreTo: 5, upsideFrom: 15, upsideTo: 18.2,
+    pulseScoreFrom: 9, pulseScoreTo: 5, upsideFrom: 15, upsideTo: 18.2,
     consensusFrom: "Hold", consensusTo: "StrongBuy", analysts: 17,
   } };
-  const text = "Smart Score plummeted from 9 to 5 down.";
+  const text = "Pulse Score plummeted from 9 to 5 down.";
   assert.deepEqual(misdescribedMovementVerbs(text, cop), ["plummeted"],
     "the exact live-output regression is caught");
   assert.ok(scorePost(text, { hook: cop }).score < MIN_PUBLISHABLE,
     "and it is rejected, not merely docked a few points");
 }
-// The SECOND live bug this same run produced: "Smart Score catapulted from 7 to 10 overnight."
-// — a Smart Score hook whose real window was 6.3 days, described as an overnight move by a
+// The SECOND live bug this same run produced: "Pulse Score catapulted from 7 to 10 overnight."
+// — a Pulse Score hook whose real window was 6.3 days, described as an overnight move by a
 // movement verb attached to a forecast number AND a timeframe the data never showed. Both
 // halves are wrong on their own and the candidate must fail on either alone, let alone both.
 {
   const hook = { kind: "steady", name: "Alpha Inc",
-                 facts: { smartScoreFrom: 7, smartScoreTo: 10, snapshots: 30, days: 6.3 } };
-  const text = "Smart Score catapulted from 7 to 10 overnight.";
+                 facts: { pulseScoreFrom: 7, pulseScoreTo: 10, snapshots: 30, days: 6.3 } };
+  const text = "Pulse Score catapulted from 7 to 10 overnight.";
   assert.deepEqual(misdescribedMovementVerbs(text, hook), ["catapulted"],
-    "catapulted on a Smart Score number is flagged");
+    "catapulted on a Pulse Score number is flagged");
   assert.deepEqual(misdescribedTimeframe(text), ["overnight"],
     "overnight is flagged regardless of the hook's facts");
   const r = scorePost(text, { hook });

@@ -9,14 +9,14 @@ export const VIEWS: Record<ViewId, View> = {
     tab: "Analyst Top Stocks", sub: "By price-target upside", sort: "up", dir: -1, hl: "up",
   },
   smart: {
-    title: 'Top <span class="em">Smart Score</span>',
-    dek: "Ranked by TipRanks' Smart Score — an 8-factor quant model blending analysts, hedge funds, insiders, news and technicals into a 1–10 score.",
-    tab: "Top Smart Score", sub: "By Smart Score 1–10", sort: "ss", dir: -1, hl: "ss",
+    title: 'Top <span class="em">Pulse Score</span>',
+    dek: "Ranked by Pulse Score — an 8-factor quant model blending analysts, hedge funds, insiders, news and technicals into a 1–10 score.",
+    tab: "Top Pulse Score", sub: "By Pulse Score 1–10", sort: "ss", dir: -1, hl: "ss",
   },
   ai: {
-    title: 'AI Analyst <span class="em">Top</span>',
-    dek: "Ranked by the TipRanks AI Analyst — a model scoring financials, earnings calls and momentum from 0–100, with its own rating and target.",
-    tab: "AI Analyst Top Stocks", sub: "By AI score 0–100", sort: "ai", dir: -1, hl: "ai",
+    title: 'AI Outlook <span class="em">Top</span>',
+    dek: "Ranked by the AI Outlook — a model scoring financials, earnings calls and momentum from 0–100, with its own rating and target.",
+    tab: "AI Outlook Top Stocks", sub: "By AI score 0–100", sort: "ai", dir: -1, hl: "ai",
   },
 };
 
@@ -28,7 +28,7 @@ export const COLS: Col[] = [
   { k: "con", l: "Consensus", cls: "l", sortable: true },
   { k: "pt", l: "Target", sortable: true },
   { k: "up", l: "Upside", sortable: true },
-  { k: "ss", l: "Smart", sortable: true },
+  { k: "ss", l: "Pulse", sortable: true },
   { k: "ai", l: "AI Score", cls: "l", sortable: true },
   { k: "sec", l: "Sector", cls: "sec l", sortable: true },
   { k: "mc", l: "Mkt cap", sortable: true },
@@ -120,19 +120,19 @@ export function passes(s: Stock, state: FilterState): boolean {
 // history, maintained by the refresh scripts. "New" = added within the window.
 export interface SeenEntry {
   d: string; // first-seen: ISO timestamp (or legacy "YYYY-MM-DD"), or "baseline" (present before tracking)
-  ss?: number | null; // Smart Score at first sighting (baseline for the Changes column)
+  ss?: number | null; // Pulse Score at first sighting (baseline for the Changes column)
   ai?: number | null; // AI score at first sighting
   con?: string | null; // consensus at first sighting
-  l?: string[]; // which ranking(s) it entered on: "u" upside, "s" smart score, "m" market cap
+  l?: string[]; // which ranking(s) it entered on: "u" upside, "s" Pulse Score, "m" market cap
   // Written by the refresh scripts on every run but previously undeclared — the same
   // "type lies about the data" class as `con: string` did. Declared so a reader can see
   // they exist; both are pipeline bookkeeping and nothing in the UI should render them.
   ls?: string; // last seen in the dynamic screener pull (ISO). FROZEN while a ticker is off-pull.
   ea?: string; // last enrich attempt (ISO) — drives the AI/chg refresh rotation, see ci/refresh-data-ci.mjs
-  ba?: string; // last off-pull backfill attempt (universe/aianalyst, ISO) — drives the keep-set rotation, same reason
+  ba?: string; // last off-pull backfill attempt (universe/outlook, ISO) — drives the keep-set rotation, same reason
 }
 // human labels for the entry lists (l)
-export const LIST_LABEL: Record<string, string> = { u: "Analyst", s: "Smart Score", a: "AI Top" };
+export const LIST_LABEL: Record<string, string> = { u: "Analyst", s: "Pulse Score", a: "AI Top" };
 const SEEN = seenData as Record<string, SeenEntry>;
 export const NEW_WINDOW_DAYS = 30;
 
@@ -159,7 +159,7 @@ export const agoLabel = (days: number, hours: number): string => {
 export const firstSeen = (t: string): SeenEntry | null => SEEN[t] ?? null;
 
 // A metric APPEARING or DISAPPEARING is a real change. The New Arrivals change row used to
-// require both sides non-null, so a stock losing its Smart Score / AI score showed nothing —
+// require both sides non-null, so a stock losing its Pulse Score / AI score showed nothing —
 // silently, exactly when it mattered. "—" marks the missing side and the direction is null,
 // because up/down against an absent value is meaningless. Two nulls, or an equal pair, is no
 // change. Guarded by src/metricChange.check.ts.
@@ -182,7 +182,7 @@ export function sortRows(rows: Stock[], sort: keyof Stock, dir: number): Stock[]
     // so a null rating can't throw or skew the ordering key.
     // It does NOT follow that an unrated row sorts last: `con` and the b/h/s
     // distribution are independent fields, so a row can have con: null with a real,
-    // non-zero mix (refresh-data-ci.mjs reads analystConsensus and distribution
+    // non-zero mix (refresh-data-ci.mjs reads the consensus label and distribution
     // separately; keep.mjs can miss CON_NAME while still copying nB/nH/nS). Such a
     // row sorts by its real mix and displays "—" — deliberate, since the analyst
     // counts are genuine data even when the label is missing. Don't "fix" this to
@@ -199,7 +199,7 @@ export function sortRows(rows: Stock[], sort: keyof Stock, dir: number): Stock[]
 }
 
 // A ticker with no snapshot row (off-universe search, or a watched stock CI hasn't backfilled
-// yet): the UI shows live price/chart and "—" for the TipRanks metrics.
+// yet): the UI shows live price/chart and "—" for the ranking metrics.
 export const stubStock = (t: string): Stock => ({
   t, n: "", sec: "", px: null, chg: null, pt: null, up: null, con: "",
   b: 0, h: 0, s: 0, ss: null, ai: null, air: null, aipt: null, mc: null, desc: null,

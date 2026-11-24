@@ -1,15 +1,15 @@
-// Row mappers + keep-last-known merge (ci/keep.mjs: rowFromScreener, rowFromAiAnalyst, mergeRow).
+// Row mappers + keep-last-known merge (ci/keep.mjs: rowFromScreener, rowFromOutlook, mergeRow).
 // Contract: `undefined` = "this source can't see the field -> keep prev", `null` = explicit empty.
 // No network; fixtures in ci/fixtures/ are trimmed real payloads (the fixture is the truth).
 // Run: node ci/test-row-mappers.mjs
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ROW_KEYS, rowFromScreener, rowFromAiAnalyst, mergeRow, refreshedRow } from "./keep.mjs";
+import { ROW_KEYS, rowFromScreener, rowFromOutlook, mergeRow, refreshedRow } from "./keep.mjs";
 
 const fx = (f) => JSON.parse(readFileSync(new URL("./fixtures/" + f, import.meta.url), "utf8"));
 const S = fx("screener-items.json");
-const aapl = fx("aianalyst-aapl.json");
-const nnnn = fx("aianalyst-nnnn.json");
+const aapl = fx("outlook-aapl.json");
+const nnnn = fx("outlook-nnnn.json");
 
 assert.equal(ROW_KEYS.length, 18);
 assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,mc,desc,ln".split(","));
@@ -37,10 +37,10 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   assert.equal(rowFromScreener(tid({ companyName: "Tencent Hldgs" }), { inPull: true }).ln, null, "no display name: n IS the legal name");
   assert.equal(rowFromScreener(tid({ companyDisplayName: "TSMC" }), { inPull: true }).ln, undefined, "legal name absent -> carry");
   assert.equal(rowFromScreener(tid({ companyDisplayName: "TSMC", companyName: "" }), { inPull: true }).ln, undefined, "empty legal name -> carry");
-  const ap = rowFromAiAnalyst({ models: { stocks: [{ _id: "GOOGL", company: { name: "Google", companyName: "Alphabet Inc Class A" } }] } }, "GOOGL");
-  console.log("M7 aianalyst GOOGL ->", JSON.stringify({ n: ap.n, ln: ap.ln }));
+  const ap = rowFromOutlook({ models: { stocks: [{ _id: "GOOGL", company: { name: "Google", companyName: "Alphabet Inc Class A" } }] } }, "GOOGL");
+  console.log("M7 outlook GOOGL ->", JSON.stringify({ n: ap.n, ln: ap.ln }));
   assert.deepEqual([ap.n, ap.ln], ["Google", "Alphabet Inc Class A"]);
-  assert.equal(rowFromAiAnalyst(aapl, "AAPL").ln, null, "AAPL fixture: Apple / Apple Inc -> null");
+  assert.equal(rowFromOutlook(aapl, "AAPL").ln, null, "AAPL fixture: Apple / Apple Inc -> null");
   assert.equal(mergeRow({ t: "TSM", ln: "Taiwan Semi" }, { t: "TSM" }).ln, "Taiwan Semi", "unknown ln carries");
   assert.equal(mergeRow({ t: "X" }, { t: "X" }).ln, null, "a pre-ln row merges to null, never undefined");
 }
@@ -56,7 +56,7 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   const r = rowFromScreener(S.nocov, { inPull: true });
   assert.deepEqual([r.con, r.b, r.h, r.s, r.pt, r.up], [null, 0, 0, 0, null, null]);
   const o = rowFromScreener(S.nocov, { inPull: false });
-  assert.deepEqual([o.con, o.b, o.h, o.s, o.pt, o.up], ["Neutral", 0, 0, 0, null, null]); // getData parity (D1): no coverage off-pull = Neutral 0/0/0
+  assert.deepEqual([o.con, o.b, o.h, o.s, o.pt, o.up], ["Neutral", 0, 0, 0, null, null]); // legacy-pull parity (D1): no coverage off-pull = Neutral 0/0/0
 }
 // Only best is null: in pull = no fallback (as today); off pull = all-analyst counts + target.
 {
@@ -67,16 +67,16 @@ assert.deepEqual([...ROW_KEYS], "t,n,sec,px,chg,pt,up,con,b,h,s,ss,ai,air,aipt,m
   assert.equal(r.pt, 88);
   assert.equal(r.up, 83.6);
 }
-// Owner decision 2026-11-19 (round 4): `aiAnalystData: null` is TipRanks' answer "no AI report" ->
+// Owner decision 2026-11-19 (round 4): `outlookData: null` is the provider's answer "no AI report" ->
 // the trio is written null ("—"), on both bases. Only an ABSENT key carries.
 for (const inPull of [true, false]) {
   const r = rowFromScreener(S.noai, { inPull });
-  console.log(`R4 screener aiAnalystData:null inPull=${inPull} -> ai/air/aipt =`, r.ai, r.air, r.aipt);
+  console.log(`R4 screener outlookData:null inPull=${inPull} -> ai/air/aipt =`, r.ai, r.air, r.aipt);
   assert.deepEqual([r.ai, r.air, r.aipt], [null, null, null], "explicit null -> null trio");
   const m = mergeRow({ ai: 70, air: "Neutral", aipt: 5 }, r);
   assert.deepEqual([m.ai, m.air, m.aipt], [null, null, null], "and it beats the stale prev trio");
   assert.equal(m.n, "Samsung Electronics Co. Ltd."); // no display name in this item -> legal fallback
-  const { aiAnalystData, ...absent } = S.noai;
+  const { outlookData, ...absent } = S.noai;
   const a = rowFromScreener(absent, { inPull });
   assert.deepEqual([a.ai, a.air, a.aipt], [undefined, undefined, undefined], "absent key -> carry");
   assert.deepEqual((({ ai, air, aipt }) => [ai, air, aipt])(mergeRow({ ai: 70, air: "Neutral", aipt: 5 }, a)), [70, "Neutral", 5]);
@@ -99,7 +99,7 @@ for (const inPull of [true, false]) {
   assert.equal(rowFromScreener(S.general, { inPull: true }).sec, undefined);
   assert.equal(mergeRow({ sec: "Technology" }, rowFromScreener(S.general, { inPull: true })).sec, "Technology");
 }
-// Explicit-null Smart Score is an answer and survives the merge.
+// Explicit-null Pulse Score is an answer and survives the merge.
 {
   const r = rowFromScreener(S.ssnull, { inPull: true });
   assert.equal(r.ss, null);
@@ -115,9 +115,9 @@ for (const inPull of [true, false]) {
   for (const k of ROW_KEYS.filter((k) => !["con", "b", "h", "s", "pt", "up"].includes(k))) assert.equal(ip[k], undefined, k);
 }
 
-// aianalyst AAPL: counts from analystRatings.all, target from best.
+// outlook AAPL: counts from analystRatings.all, target from best.
 {
-  const r = rowFromAiAnalyst(aapl, "AAPL");
+  const r = rowFromOutlook(aapl, "AAPL");
   assert.deepEqual([r.con, r.b, r.h, r.s], ["Buy", 15, 8, 6]);
   assert.equal(r.pt, 339.98);
   assert.equal(r.up, -3.4);
@@ -131,12 +131,12 @@ for (const inPull of [true, false]) {
   assert.equal(r.air, "Outperform");
   assert.equal(typeof r.aipt, "number");
 }
-// aianalyst NNNN: no analyst coverage, no AI report.
+// outlook NNNN: no analyst coverage, no AI report.
 {
-  const r = rowFromAiAnalyst(nnnn, "NNNN");
+  const r = rowFromOutlook(nnnn, "NNNN");
   assert.ok(r.n);
   assert.equal(r.px, 3.65);
-  assert.equal(r.con, "Neutral"); // getData parity (D1): no all-analyst coverage = Neutral 0/0/0
+  assert.equal(r.con, "Neutral"); // legacy-pull parity (D1): no all-analyst coverage = Neutral 0/0/0
   assert.equal(r.b + r.h + r.s, 0);
   assert.equal(r.pt, null);
   assert.equal(r.ai, undefined);
@@ -145,8 +145,8 @@ for (const inPull of [true, false]) {
 }
 // Wrong ticker -> null -> merge keeps prev.
 {
-  assert.equal(rowFromAiAnalyst(aapl, "MSFT"), null);
-  assert.equal(rowFromAiAnalyst({}, "AAPL"), null);
+  assert.equal(rowFromOutlook(aapl, "MSFT"), null);
+  assert.equal(rowFromOutlook({}, "AAPL"), null);
   assert.equal(mergeRow({ px: 1 }, null).px, 1);
   assert.equal(mergeRow(undefined, null), undefined);
 }
@@ -179,66 +179,66 @@ for (const inPull of [true, false]) {
   }
   const blankAi = (v) => ({ models: { stocks: [{ _id: "X", company: { companyName: v, name: v, description: v, sector: v }, prices: { daily: { priceUSD: v, gain: 0.01 } }, marketCap: { daily: { marketCap: v } } }] } });
   for (const v of [null, ""]) {
-    const r = rowFromAiAnalyst(blankAi(v), "X");
-    for (const k of STRICT) assert.equal(r[k], undefined, `aianalyst ${k}=${JSON.stringify(v)}`);
+    const r = rowFromOutlook(blankAi(v), "X");
+    for (const k of STRICT) assert.equal(r[k], undefined, `outlook ${k}=${JSON.stringify(v)}`);
     const m = mergeRow(prev, r);
-    for (const k of STRICT) assert.equal(m[k], prev[k], `aianalyst merge keeps ${k}`);
+    for (const k of STRICT) assert.equal(m[k], prev[k], `outlook merge keeps ${k}`);
   }
   // a real value still lands
   const real = rowFromScreener({ tradingInformationData: { ticker: "X", companyName: "New", lastClose: 2, marketCap: 3e6, description: "nd", sector: { name: "Energy" } } }, { inPull: true });
   assert.deepEqual([real.n, real.px, real.mc, real.desc, real.sec], ["New", 2, 3, "nd", "Energy"]);
 }
-// B3 — explicit null vs absent, field by field (CLAUDE.md: an explicit TipRanks null is data; only
+// B3 — explicit null vs absent, field by field (CLAUDE.md: an explicit provider null is data; only
 // an ABSENT key carries the previous value).
 {
   const prev = { t: "X", ss: 7, con: "Buy", b: 3, h: 1, s: 0, pt: 20, up: 10 };
   const ai = (s) => ({ models: { stocks: [{ _id: "X", company: { companyName: "X Corp" }, prices: { daily: { priceUSD: 5, gain: 0.01 } }, ...s }] } });
-  // smartScore
-  const ssNull = rowFromAiAnalyst(ai({ smartScore: null }), "X");
-  console.log("B3 aianalyst smartScore:null -> ss =", ssNull.ss, "| merged over ss 7 ->", mergeRow(prev, ssNull).ss);
-  assert.equal(ssNull.ss, null, "smartScore: null = no Smart Score -> ss null, not carry");
+  // stockScore
+  const ssNull = rowFromOutlook(ai({ stockScore: null }), "X");
+  console.log("B3 outlook stockScore:null -> ss =", ssNull.ss, "| merged over ss 7 ->", mergeRow(prev, ssNull).ss);
+  assert.equal(ssNull.ss, null, "stockScore: null = no Pulse Score -> ss null, not carry");
   assert.equal(mergeRow(prev, ssNull).ss, null, "and it beats the stale prev.ss");
-  assert.equal(rowFromAiAnalyst(ai({ smartScore: { value: null } }), "X").ss, null, "value: null -> null");
-  assert.equal(rowFromAiAnalyst(ai({}), "X").ss, undefined, "smartScore absent -> carry");
-  assert.equal(rowFromAiAnalyst(ai({ smartScore: { update: "2026-11-15" } }), "X").ss, undefined, "value key absent (reshaped) -> carry");
-  assert.equal(rowFromAiAnalyst(ai({ smartScore: { value: 9 } }), "X").ss, 9);
+  assert.equal(rowFromOutlook(ai({ stockScore: { value: null } }), "X").ss, null, "value: null -> null");
+  assert.equal(rowFromOutlook(ai({}), "X").ss, undefined, "stockScore absent -> carry");
+  assert.equal(rowFromOutlook(ai({ stockScore: { update: "2026-11-15" } }), "X").ss, undefined, "value key absent (reshaped) -> carry");
+  assert.equal(rowFromOutlook(ai({ stockScore: { value: 9 } }), "X").ss, 9);
   // analystRatings
-  const arNull = rowFromAiAnalyst(ai({ analystRatings: null }), "X");
-  assert.deepEqual([arNull.con, arNull.b, arNull.h, arNull.s, arNull.pt, arNull.up], ["Neutral", 0, 0, 0, null, null], "analystRatings: null = no coverage (D1 getData parity), not carry");
-  const arAbsent = rowFromAiAnalyst(ai({}), "X");
+  const arNull = rowFromOutlook(ai({ analystRatings: null }), "X");
+  assert.deepEqual([arNull.con, arNull.b, arNull.h, arNull.s, arNull.pt, arNull.up], ["Neutral", 0, 0, 0, null, null], "analystRatings: null = no coverage (D1 legacy-pull parity), not carry");
+  const arAbsent = rowFromOutlook(ai({}), "X");
   assert.deepEqual([arAbsent.con, arAbsent.b, arAbsent.pt, arAbsent.up], [undefined, undefined, undefined, undefined], "analystRatings absent -> carry");
-  const allAbsent = rowFromAiAnalyst(ai({ analystRatings: { best: { priceTarget: { value: 30, upside: 0.5 } } } }), "X");
+  const allAbsent = rowFromOutlook(ai({ analystRatings: { best: { priceTarget: { value: 30, upside: 0.5 } } } }), "X");
   assert.deepEqual([allAbsent.con, allAbsent.b, allAbsent.h, allAbsent.s], [undefined, undefined, undefined, undefined], "all absent (reshaped) -> counts carry, not 'no coverage'");
   assert.deepEqual([allAbsent.pt, allAbsent.up], [30, 50], "the best target still lands");
-  const bothAbsent = rowFromAiAnalyst(ai({ analystRatings: {} }), "X");
+  const bothAbsent = rowFromOutlook(ai({ analystRatings: {} }), "X");
   assert.deepEqual([bothAbsent.con, bothAbsent.pt, bothAbsent.up], [undefined, undefined, undefined], "best and all absent -> carry");
   // chg
-  assert.equal(rowFromAiAnalyst(ai({ prices: { daily: { priceUSD: 5, gain: null } } }), "X").chg, null, "gain: null -> null");
-  assert.equal(rowFromAiAnalyst(ai({ prices: { daily: { priceUSD: 5 } } }), "X").chg, undefined, "gain absent -> carry");
+  assert.equal(rowFromOutlook(ai({ prices: { daily: { priceUSD: 5, gain: null } } }), "X").chg, null, "gain: null -> null");
+  assert.equal(rowFromOutlook(ai({ prices: { daily: { priceUSD: 5 } } }), "X").chg, undefined, "gain absent -> carry");
   // R3: company.name (display) first, companyName only when name is absent/empty; neither -> carry
-  const nm = (c) => rowFromAiAnalyst(ai({ company: c }), "X").n;
+  const nm = (c) => rowFromOutlook(ai({ company: c }), "X").n;
   assert.equal(nm({ name: "IonQ", companyName: "Ionq, Inc." }), "IonQ");
   for (const v of [undefined, null, ""]) assert.equal(nm({ name: v, companyName: "Ionq, Inc." }), "Ionq, Inc.", `name ${JSON.stringify(v)} -> companyName`);
   assert.equal(nm({ name: null, companyName: null }), undefined, "neither -> carry");
   // AI trio (owner decision round 4): report: null -> null trio; report absent -> carry
-  const repNull = rowFromAiAnalyst(ai({ report: null }), "X");
-  console.log("R4 aianalyst report:null -> ai/air/aipt =", repNull.ai, repNull.air, repNull.aipt);
+  const repNull = rowFromOutlook(ai({ report: null }), "X");
+  console.log("R4 outlook report:null -> ai/air/aipt =", repNull.ai, repNull.air, repNull.aipt);
   assert.deepEqual([repNull.ai, repNull.air, repNull.aipt], [null, null, null], "report: null = no AI report -> null trio");
   assert.deepEqual((({ ai, air, aipt }) => [ai, air, aipt])(mergeRow({ ai: 70, air: "Neutral", aipt: 5 }, repNull)), [null, null, null]);
-  const repAbs = rowFromAiAnalyst(ai({}), "X");
+  const repAbs = rowFromOutlook(ai({}), "X");
   assert.deepEqual([repAbs.ai, repAbs.air, repAbs.aipt], [undefined, undefined, undefined], "report absent -> carry");
-  // a null-filled peer stub is not a row (else smartScore/analystRatings null would wipe ss/consensus)
-  assert.equal(rowFromAiAnalyst({ models: { stocks: [{ _id: "X", company: null, analystRatings: null, smartScore: null, prices: null, report: null, marketCap: null }] } }, "X"), null, "stub only -> no row -> prev kept");
+  // a null-filled peer stub is not a row (else stockScore/analystRatings null would wipe ss/consensus)
+  assert.equal(rowFromOutlook({ models: { stocks: [{ _id: "X", company: null, analystRatings: null, stockScore: null, prices: null, report: null, marketCap: null }] } }, "X"), null, "stub only -> no row -> prev kept");
 
-  // screener: tipRanksSmartScoreData
-  const sc = (e) => ({ tradingInformationData: { ticker: "X" }, tipRanksEssentialData: e });
+  // screener: scoreData
+  const sc = (e) => ({ tradingInformationData: { ticker: "X" }, essentialData: e });
   for (const inPull of [true, false]) {
-    const r = rowFromScreener(sc({ tipRanksSmartScoreData: null }), { inPull });
-    console.log(`B3 screener tipRanksSmartScoreData:null inPull=${inPull} -> ss =`, r.ss);
-    assert.equal(r.ss, null, "tipRanksSmartScoreData: null = no Smart Score (old in-pull wrote null)");
+    const r = rowFromScreener(sc({ scoreData: null }), { inPull });
+    console.log(`B3 screener scoreData:null inPull=${inPull} -> ss =`, r.ss);
+    assert.equal(r.ss, null, "scoreData: null = no Pulse Score (old in-pull wrote null)");
     assert.equal(rowFromScreener(sc({}), { inPull }).ss, undefined, "absent -> carry");
-    assert.equal(rowFromScreener(sc({ tipRanksSmartScoreData: {} }), { inPull }).ss, undefined, "score key absent (reshaped) -> carry");
-    assert.equal(rowFromScreener(sc({ tipRanksSmartScoreData: { tipRanksSmartScore: null } }), { inPull }).ss, null);
+    assert.equal(rowFromScreener(sc({ scoreData: {} }), { inPull }).ss, undefined, "score key absent (reshaped) -> carry");
+    assert.equal(rowFromScreener(sc({ scoreData: { score: null } }), { inPull }).ss, null);
     // chg
     assert.equal(rowFromScreener({ tradingInformationData: { ticker: "X", priceChangePct: null } }, { inPull }).chg, null);
     assert.equal(rowFromScreener({ tradingInformationData: { ticker: "X" } }, { inPull }).chg, undefined);
@@ -250,7 +250,7 @@ for (const inPull of [true, false]) {
 // null OR absent. Carrying prev there mixed in an off-pull row's all-analyst counts.
 {
   const prev = { t: "X", con: "StrongBuy", b: 30, h: 2, s: 0, pt: 99, up: 40 }; // all-analyst basis from an off-pull run
-  const item = (e) => ({ tradingInformationData: { ticker: "X" }, ...(e === "omit" ? {} : { tipRanksEssentialData: e }) });
+  const item = (e) => ({ tradingInformationData: { ticker: "X" }, ...(e === "omit" ? {} : { essentialData: e }) });
   const all = { analystsConsensusData: { analystConsensus: { name: "Buy" }, distribution: { buy: 9, hold: 1, sell: 0 } }, priceTargetData: { convertedPriceTarget: 50, upside: 0.2 } };
   for (const [label, e] of [["best keys absent", { ...all }], ["best keys null", { ...all, bestAnalystsConsensusData: null, bestPriceTargetData: null }], ["essential data absent", "omit"], ["essential data null", null]]) {
     const m = mergeRow(prev, rowFromScreener(item(e), { inPull: true }));
@@ -261,41 +261,41 @@ for (const inPull of [true, false]) {
   const off = mergeRow(prev, rowFromScreener(item({}), { inPull: false }));
   assert.deepEqual([off.con, off.b, off.pt], ["StrongBuy", 30, 99], "off-pull, keys absent -> carry");
 }
-// R1 (e2e) — VRCA: TipRanks sends the best-target OBJECT with a null value. Off-pull / aianalyst rows
+// R1 (e2e) — VRCA: the provider sends the best-target OBJECT with a null value. Off-pull / outlook rows
 // fall back to the all-analyst target (D1 "best falling back to all"); in-pull rows never fall back.
 {
   const e = { analystsConsensusData: { analystConsensus: { name: "Buy" }, distribution: { buy: 3, hold: 0, sell: 0 } },
     bestPriceTargetData: { convertedPriceTarget: null, upside: null }, priceTargetData: { convertedPriceTarget: 13.67, upside: 2.8418 } };
-  const item = { tradingInformationData: { ticker: "VRCA", lastClose: 3.56 }, tipRanksEssentialData: e };
+  const item = { tradingInformationData: { ticker: "VRCA", lastClose: 3.56 }, essentialData: e };
   const off = rowFromScreener(item, { inPull: false });
   console.log("R1 VRCA off-pull pt/up ->", off.pt, off.up);
   assert.deepEqual([off.pt, off.up], [13.67, 284.2], "off-pull: empty best target -> all-analyst target");
   const inp = rowFromScreener(item, { inPull: true });
   assert.deepEqual([inp.pt, inp.up], [null, null], "in-pull: no fallback (D1)");
   // both empty -> explicit null (data), not carry
-  const both = rowFromScreener({ ...item, tipRanksEssentialData: { ...e, priceTargetData: { convertedPriceTarget: null, upside: null } } }, { inPull: false });
+  const both = rowFromScreener({ ...item, essentialData: { ...e, priceTargetData: { convertedPriceTarget: null, upside: null } } }, { inPull: false });
   assert.deepEqual([both.pt, both.up], [null, null]);
   // best has a value -> best wins over all
-  const bw = rowFromScreener({ ...item, tipRanksEssentialData: { ...e, bestPriceTargetData: { convertedPriceTarget: 20, upside: 4.618 } } }, { inPull: false });
+  const bw = rowFromScreener({ ...item, essentialData: { ...e, bestPriceTargetData: { convertedPriceTarget: 20, upside: 4.618 } } }, { inPull: false });
   assert.deepEqual([bw.pt, bw.up], [20, 461.8]);
-  // aianalyst payload: analystRatings.best.priceTarget { value: null } -> all's target
-  const ap = (ar) => rowFromAiAnalyst({ models: { stocks: [{ _id: "VRCA", company: { name: "Vera" }, analystRatings: ar }] } }, "VRCA");
+  // outlook payload: analystRatings.best.priceTarget { value: null } -> all's target
+  const ap = (ar) => rowFromOutlook({ models: { stocks: [{ _id: "VRCA", company: { name: "Vera" }, analystRatings: ar }] } }, "VRCA");
   const a1 = ap({ best: { priceTarget: { value: null, upside: null } }, all: { enumId: 5, buy: 3, hold: 0, sell: 0, priceTarget: { value: 13.67, upside: 2.8418 } } });
-  console.log("R1 VRCA aianalyst pt/up ->", a1.pt, a1.up);
-  assert.deepEqual([a1.pt, a1.up], [13.67, 284.2], "aianalyst: empty best target -> all-analyst target");
+  console.log("R1 VRCA outlook pt/up ->", a1.pt, a1.up);
+  assert.deepEqual([a1.pt, a1.up], [13.67, 284.2], "outlook: empty best target -> all-analyst target");
   const a2 = ap({ best: { priceTarget: null }, all: { enumId: 5, buy: 3, hold: 0, sell: 0, priceTarget: { value: 13.67, upside: 2.8418 } } });
-  assert.deepEqual([a2.pt, a2.up], [13.67, 284.2], "aianalyst: best.priceTarget null -> all");
+  assert.deepEqual([a2.pt, a2.up], [13.67, 284.2], "outlook: best.priceTarget null -> all");
   const a3 = ap({ best: { priceTarget: { value: 20, upside: 4.618 } }, all: { enumId: 5, priceTarget: { value: 13.67, upside: 2.8418 } } });
-  assert.deepEqual([a3.pt, a3.up], [20, 461.8], "aianalyst: best wins when it has a value");
+  assert.deepEqual([a3.pt, a3.up], [20, 461.8], "outlook: best wins when it has a value");
 }
-// R4 (e2e) — ACH: the aianalyst payload omitted priceTarget.upside while pt and px were known; the old
-// getData mapper computed up = rnd((pt - px) / px * 100, 1) with px already rndPx'd (c242d0cc4 keep.mjs).
+// R4 (e2e) — ACH: the outlook payload omitted priceTarget.upside while pt and px were known; the old
+// legacy-pull mapper computed up = rnd((pt - px) / px * 100, 1) with px already rndPx'd (c242d0cc4 keep.mjs).
 {
-  const ap = (pt, daily) => rowFromAiAnalyst({ models: { stocks: [{ _id: "ACH", company: { name: "Aluminum Corp" },
+  const ap = (pt, daily) => rowFromOutlook({ models: { stocks: [{ _id: "ACH", company: { name: "Aluminum Corp" },
     analystRatings: { best: { priceTarget: pt }, all: { enumId: 5, buy: 1, hold: 0, sell: 0 } }, prices: { daily } }] } }, "ACH");
   const r = ap({ value: 0.25 }, { priceUSD: 0.13 });
   console.log("R4 ACH upside omitted -> pt/px/up", r.pt, r.px, r.up);
-  assert.deepEqual([r.pt, r.px, r.up], [0.25, 0.13, 92.3], "upside omitted, pt+px known -> computed like getData");
+  assert.deepEqual([r.pt, r.px, r.up], [0.25, 0.13, 92.3], "upside omitted, pt+px known -> computed like the legacy pull");
   assert.equal(ap({ value: 0.25, upside: 0.9 }, { priceUSD: 0.13 }).up, 90, "payload upside present -> payload's");
   assert.equal(ap({ value: 0.25, upside: null }, { priceUSD: 0.13 }).up, null, "explicit null upside = data");
 }
@@ -303,7 +303,7 @@ for (const inPull of [true, false]) {
 // null too — undefined carried prev's upside next to a "—" target.
 {
   const prev = { t: "X", pt: 20, up: 300, px: 5 };
-  const ap = (ar, daily = { priceUSD: 5 }) => rowFromAiAnalyst({ models: { stocks: [{ _id: "X", company: { name: "X Co" }, analystRatings: ar, prices: { daily } }] } }, "X");
+  const ap = (ar, daily = { priceUSD: 5 }) => rowFromOutlook({ models: { stocks: [{ _id: "X", company: { name: "X Co" }, analystRatings: ar, prices: { daily } }] } }, "X");
   for (const [label, ar] of [
     ["best value null, all has no priceTarget", { best: { priceTarget: { value: null } }, all: { enumId: 5, buy: 1, hold: 0, sell: 0 } }],
     ["best priceTarget null, all value null", { best: { priceTarget: null }, all: { enumId: 5, buy: 1, hold: 0, sell: 0, priceTarget: { value: null } } }],
@@ -314,7 +314,7 @@ for (const inPull of [true, false]) {
     console.log(`fix1 ${label} -> pt/up`, m.pt, m.up);
     assert.deepEqual([m.pt, m.up], [null, null], `${label}: target '—' never sits next to prev's upside`);
   }
-  // pt known, px unknown in this payload: up null (old getData: px null -> up null), never prev's
+  // pt known, px unknown in this payload: up null (old legacy pull: px null -> up null), never prev's
   // upside beside a new target. px itself still carries (STRICT field).
   for (const daily of [{}, null]) { // null, not undefined: undefined would hit ap()'s default px
     const m = mergeRow(prev, ap({ best: { priceTarget: { value: 30 } }, all: { enumId: 5, buy: 1, hold: 0, sell: 0 } }, daily));
@@ -327,18 +327,18 @@ for (const inPull of [true, false]) {
 }
 // M1: a backfill source with no row for the ticker is NOT a refresh. mergeRow(prev, null) returns prev
 // (truthy .t), so the refresh scripts counted "no row in payload" as fromPayload, hid real carries,
-// and the carried>30% health rule could never fire on a reshaped aianalyst payload.
+// and the carried>30% health rule could never fire on a reshaped outlook payload.
 {
   const prev = { t: "KPTI", n: "Karyopharm", px: 1 };
-  assert.equal(refreshedRow(prev, rowFromAiAnalyst({ models: { stocks: [] } }, "KPTI")), null, "ticker not in models.stocks -> null (carry)");
-  assert.equal(refreshedRow(prev, rowFromAiAnalyst({ models: {} }, "KPTI")), null, "reshaped models -> null (carry)");
+  assert.equal(refreshedRow(prev, rowFromOutlook({ models: { stocks: [] } }, "KPTI")), null, "ticker not in models.stocks -> null (carry)");
+  assert.equal(refreshedRow(prev, rowFromOutlook({ models: {} }, "KPTI")), null, "reshaped models -> null (carry)");
   assert.equal(refreshedRow(prev, null), null);
   assert.equal(refreshedRow(prev, rowFromScreener({}, { inPull: false })), null, "an item with no ticker is no row either");
   const r = refreshedRow(prev, { t: "KPTI", px: 2 });
   assert.deepEqual([r.t, r.n, r.px], ["KPTI", "Karyopharm", 2], "a real row merges over prev as before");
   for (const p of ["ci/refresh-data-ci.mjs", "scripts/refresh-data.mjs"]) {
     const src = readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
-    const raw = src.match(/mergeRow\([^;\n]*rowFrom(AiAnalyst|Screener)\([^;\n]*inPull: false|mergeRow\([^;\n]*rowFromAiAnalyst/g) || [];
+    const raw = src.match(/mergeRow\([^;\n]*rowFrom(Outlook|Screener)\([^;\n]*inPull: false|mergeRow\([^;\n]*rowFromOutlook/g) || [];
     console.log(`M1 ${p}: backfill rows via refreshedRow=${(src.match(/refreshedRow\(/g) || []).length}, raw mergeRow=${raw.length}`);
     assert.equal(raw.length, 0, `${p}: backfill rows must go through refreshedRow, not mergeRow`);
     assert((src.match(/refreshedRow\(/g) || []).length >= 2, `${p}: universe + payload paths use refreshedRow`);

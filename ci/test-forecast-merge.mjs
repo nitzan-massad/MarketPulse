@@ -155,7 +155,7 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   assert.ok(out.length > json.length, "and it is strictly more than the API alone gave us");
 }
 
-/* ------------------------------------- stock-forecast/payload.json -> Forecast[] */
+/* ------------------------------------------------- forecast payload -> Forecast[] */
 {
   // Shape verified on the live MA payload, 2026-11-07 (46 ratings, 91 experts).
   const fj = { models: {
@@ -163,7 +163,7 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
       { _id: "u1", name: "Owen Lau", firm: "Clear Street" },
       { _id: "u2", name: "Unknown Analyst", firm: "Deutsche Bank " },
       { _id: "u3", name: "Unknown Analyst", firm: "Argus" },
-      { _id: "ai", name: "OpenAI Financial - Credit Services", firm: "TipRanks - OpenAI" },
+      { _id: "ai", name: "OpenAI Financial - Credit Services", firm: "Provider - OpenAI" },
       { _id: "u4", name: "No Target", firm: "DZ BANK" },
     ],
     ratings: [
@@ -183,11 +183,11 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
     { n: "Unknown Analyst", f: "Argus", r: "Hold", pt: 600, opt: null, d: "2026-10-15", st: null },
   ], "named + unranked rows kept; AI, no-target, orphan and peer-ticker rows dropped; firm trimmed");
   assert.equal(forecastsFromPayload({}, "MA"), null, "reshaped payload -> null (caller falls back to the page)");
-  // AMD 2026-11-04: the payload's PROFILE firm is where the analyst works now. getData's per-rating
-  // firm used to override it; getData is retired, so the profile firm is the answer here (stored
+  // AMD 2026-11-04: the payload's PROFILE firm is where the analyst works now. The old endpoint's per-rating
+  // firm used to override it; that endpoint is retired, so the profile firm is the answer here (stored
   // ratings keep their firm via keepPrevRating). M10: the dead `data` argument is gone.
   const amd = { models: {
-    experts: [{ _id: "oc", name: "David O'Connor", firm: "Exane BNP Paribas" }, { _id: "ml", name: "Mark Lear", firm: "Piper Sandler" }, { _id: "zz", name: "Not In GetData", firm: "Profile Firm" }],
+    experts: [{ _id: "oc", name: "David O'Connor", firm: "Exane BNP Paribas" }, { _id: "ml", name: "Mark Lear", firm: "Piper Sandler" }, { _id: "zz", name: "Not In Legacy Pull", firm: "Profile Firm" }],
     ratings: [
       { object: { ticker: "AMD" }, expert: { uid: "oc" }, date: "2026-11-04T00:00:00.000Z", position: "buy", priceTarget: { value: 650 } },
       { object: { ticker: "AMD" }, expert: { uid: "ml" }, date: "2026-11-06T00:00:00.000Z", position: "buy", priceTarget: { value: 61 } },
@@ -196,7 +196,7 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   } };
   assert.deepEqual(forecastsFromPayload(amd, "AMD").map((r) => r.f), ["Exane BNP Paribas", "Piper Sandler", "Profile Firm"],
     "the payload profile firm, trimmed");
-  assert.equal(forecastsFromPayload.length, 2, "forecastsFromPayload(fj, ticker): no getData argument");
+  assert.equal(forecastsFromPayload.length, 2, "forecastsFromPayload(fj, ticker): no legacy-pull argument");
   assert.equal(forecastsFromPayload(null, "MA"), null);
   // two Unknown Analysts on one date are two ratings, not a duplicate
   assert.equal(mergeForecasts(rows, []).length, 3, "Unknown Analysts at different firms must not collapse");
@@ -208,7 +208,7 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
 /* ------------------------------------------------ FX-stable targets (review alerts) */
 {
   // SHOP: the payload converts at today's FX (128.9995), rounded to 2dp; old target as sent. FX
-  // stability now comes only from keepPrevRating below (getData's stable target is retired).
+  // stability now comes only from keepPrevRating below (the old endpoint's stable target is retired).
   const fj = { models: {
     experts: [{ _id: "dt", name: "Doug Taylor", firm: "Canaccord" }, { _id: "an", name: "Hidden One", firm: "RBC" }],
     ratings: [
@@ -320,7 +320,7 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   const g = carryPrevGuarded(keepPrevRating(src, prev), prev, { ok: true, now, hold });
   console.log("R2 WYNN rows ->", JSON.stringify(g.rows.map((f) => [f.n, f.r, f.pt, f.d])));
   assert.equal(g.widened, false);
-  assert.deepEqual(g.rows.find((f) => f.n === "John Staszak"), js, "stored row kept whole (getData kept it)");
+  assert.deepEqual(g.rows.find((f) => f.n === "John Staszak"), js, "stored row kept whole (the legacy pull kept it)");
   assert.deepEqual(g.rows.find((f) => f.n === "Chuck Cerankosky"), cc, "330-day stored row kept too");
   assert.equal(g.rows.find((f) => f.n === "Gone Analyst"), undefined, "absent analyst past 92 days: dropped as before (INTENDED)");
   assert.equal(g.rows.filter((f) => f.n === "John Staszak").length, 1);
@@ -375,7 +375,7 @@ const row = (n, d, pt, extra = {}) => ({ n, f: n + " & Co", st: null, r: "Buy", 
   assert.match(forecastsDegraded({ thrown: 4, unfetched: 6, targets: 90 }), /10\/90/);
 }
 
-/* ------------------------------- B1: one row per analyst across a firm change (old getData shape) */
+/* ------------------------------- B1: one row per analyst across a firm change (old legacy-pull shape) */
 {
   const now = Date.parse("2026-11-18T00:00:00Z");
   // Ives' 11-01 rating is stored under Yorkville; the payload's profile firm is now Wedbush and he

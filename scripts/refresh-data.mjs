@@ -1,21 +1,21 @@
-// Refreshes src/data/stocks.json + meta.json from TipRanks' screener API.
+// Refreshes src/data/stocks.json + meta.json from the data provider's screener API.
 // Runs a real (headless) Chromium so it passes Cloudflare's JS challenge, then
 // does the same in-page fetch the app's data was originally pulled with.
 import { chromium } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { UNIVERSE_URL, universeMap, universeItems, ambiguousCarried, planBackfill } from "../ci/backfill-plan.mjs";
-import { health } from "../ci/tr-fetch.mjs";
-import { computeKeep, rowFromScreener, rowFromAiAnalyst, mergeRow, refreshedRow, forecastFields, applyForecast, enrichQueue, nextLastSeen, KEEP_MAX_AGE_DAYS } from "../ci/keep.mjs";
+import { health } from "../ci/src-fetch.mjs";
+import { srcUrl } from "../ci/source.mjs";
+import { computeKeep, rowFromScreener, rowFromOutlook, mergeRow, refreshedRow, forecastFields, applyForecast, enrichQueue, nextLastSeen, KEEP_MAX_AGE_DAYS } from "../ci/keep.mjs";
 
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const API =
-  "https://www.tipranks.com/api/apps/stock/screener?country=us&method=screener&isPrimaryMarket=true&exchange=xnas&exchange=xnys&exchange=arcx&exchange=xase&exchange=bats&page=1&pageSize=120&sortDir=2";
+const API = srcUrl("screener");
 
 // runs inside the page (has Cloudflare clearance) — mirrors the original pull
 async function pull(page) {
   return page.evaluate(async (base) => {
-    const sorts = [5, 2, 3]; // upside, smart score, market cap
+    const sorts = [5, 2, 3]; // upside, Pulse Score, market cap
     const SORT_KEY = { 5: "u", 2: "s" }; // mkt cap (3) still fetched for the universe, not tagged
     const seen = new Set();
     const items = []; // raw screener items, first occurrence per ticker
@@ -53,12 +53,12 @@ async function fetchUniverse(page, want) {
     return { items: j.items.filter((it) => w.has(it?.tradingInformationData?.ticker)) };
   }, { url: UNIVERSE_URL, want }));
 }
-async function fetchAiAnalyst(page, tickers) {
+async function fetchOutlook(page, tickers) {
   return page.evaluate(async (ts) => {
     const out = [];
     for (const t of ts) {
       try {
-        const r = await fetch(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`, { headers: { accept: "application/json" } });
+        const r = await fetch(srcUrl("analysis", t), { headers: { accept: "application/json" } });
         out.push(await r.json());
       } catch { out.push(null); }
     }
@@ -70,7 +70,7 @@ async function fetchForecasts(page, tickers) {
     const out = [];
     for (const t of ts) {
       try {
-        const r = await fetch(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`, { headers: { accept: "application/json" } });
+        const r = await fetch(srcUrl("forecast", t), { headers: { accept: "application/json" } });
         out.push(await r.json());
       } catch { out.push(null); }
     }
@@ -88,7 +88,7 @@ const page = await ctx.newPage();
 let data = null;
 for (let attempt = 1; attempt <= 4 && !(data && data.items.length >= 50); attempt++) {
   try {
-    await page.goto("https://www.tipranks.com/screener/stocks", { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(srcUrl("screenerPage"), { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForTimeout(6000); // let the Cloudflare challenge clear
     if (/just a moment/i.test(await page.title())) await page.waitForTimeout(8000);
     data = await pull(page);
@@ -160,10 +160,10 @@ for (const t of fromUniverse) {
   if (row) { seen.set(t, row); fromUni++; toFetch.push(t); } else needPayload.push(t);
 }
 const payloadList = needPayload.slice(0, BACKFILL_LIMIT);
-const fetched = payloadList.length ? await fetchAiAnalyst(page, payloadList) : [];
+const fetched = payloadList.length ? await fetchOutlook(page, payloadList) : [];
 payloadList.forEach((t, i) => {
   toFetch.push(t); // attempt, not success — for the `ba` rotation stamp
-  const row = fetched[i] && refreshedRow(prevRows.get(t), rowFromAiAnalyst(fetched[i], t));
+  const row = fetched[i] && refreshedRow(prevRows.get(t), rowFromOutlook(fetched[i], t));
   if (row) { seen.set(t, row); refreshed++; } else carry(t);
 });
 for (const t of needPayload.slice(BACKFILL_LIMIT)) carry(t); // over cap — keep last-known row
@@ -178,7 +178,7 @@ console.log(`keep set: ${keep.size} (${fromUni + refreshed} refreshed, ${carried
 // own copy, diverged, and silently reproduced a bug CI had already fixed — it selected only
 // rows with a NULL ai/sec, so an off-pull ticker whose ai/air/aipt/chg were CARRIED from
 // the previous row was never eligible. Locally that meant UNP kept showing "Outperform"/74
-// for days after TipRanks downgraded it to Neutral/69. Only the Playwright fetch is local.
+// for days after the provider downgraded it to Neutral/69. Only the Playwright fetch is local.
 const aiFreshMs = (t) => Math.max(lsMs(t), Date.parse(prevSeen[t]?.ea || "") || 0);
 const { list: enrichList, cap: ENRICH_LIMIT } =
   enrichQueue(seen.entries(), { inPull, pinned, aiFreshMs, limit: process.env.ENRICH_LIMIT });

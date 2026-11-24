@@ -22,7 +22,7 @@ export interface Stock {
   h: number;
   /** Analyst sell count */
   s: number;
-  /** Smart score 1–10 or null */
+  /** Pulse Score 1–10 or null */
   ss: number | null;
   /** AI score 0–100 or null */
   ai: number | null;

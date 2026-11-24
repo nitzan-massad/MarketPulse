@@ -11,8 +11,7 @@ and no dependency was added.
 Open any file directly in a browser. Every file is **fully self-contained** — inline CSS, inline
 SVG, no build step, no CDN, and **no network fonts**. The house faces (Fraunces / Archivo /
 JetBrains Mono) are requested by name and fall back to local system stacks, so the pages render
-correctly even where those faces aren't installed. (This differs from `design/modals/`, which
-loads Google Fonts over a `<link>`.)
+correctly even where those faces aren't installed.
 
 **Resize your browser to 390px before judging anything.** All 30 pages are designed mobile-first,
 render the real bottom tab bar, and reserve `96px + env(safe-area-inset-bottom)` at the bottom.

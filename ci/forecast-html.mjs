@@ -1,14 +1,14 @@
 import { cleanName } from "./forecast-merge.mjs";
 
-// Parse analyst forecasts out of TipRanks' SSR forecast page.
+// Parse analyst forecasts out of the provider's SSR forecast page.
 //
-// Why this exists: the `getData` API paywall-anonymizes a fixed teaser window of rows —
+// Why this exists: the old endpoint paywall-anonymized a fixed teaser window of rows —
 // 6 AI-model rows plus up to 4 real brokers. An anonymized row keeps `firm`, `date`,
 // `ratingId` and `stars`, but has `name: null` and EVERY price-target field nulled, so
 // `toForecasts()` in scrape-forecasts.mjs drops it on the `!e.name` guard. On a large cap
 // that's noise (AAPL: 194 experts, 4 hidden). On a micro cap whose entire coverage is
 // 3-4 ratings the window swallows 100% of it and we write `[]` — which is why ~49 tickers
-// showed "No analyst forecasts" while tipranks.com plainly listed them. Relaxing the
+// showed "No analyst forecasts" while the provider's site plainly listed them. Relaxing the
 // guards recovers nothing: the targets are absent from the JSON. The SSR page has them.
 //
 // The payload self-reports the withholding via `expertRatingsFilteredCount`, which equals
@@ -16,7 +16,7 @@ import { cleanName } from "./forecast-merge.mjs";
 // gate for this fallback, so ~300 healthy tickers never pay the 260 KB page fetch.
 //
 // ponytail: regex over the stripped text, no cheerio. Anchored on the analyst-profile slug
-// and on column ORDER, never on class names — TipRanks ships obfuscated per-build hashes
+// and on column ORDER, never on class names — the provider ships obfuscated per-build hashes
 // (`Q9SxkXbq`). Guarded by ci/test-forecast-html.mjs against a real trimmed page. If the
 // markup moves, that test fails and this returns [] — a stale file, never a corrupt one.
 
@@ -25,7 +25,7 @@ import { cleanName } from "./forecast-merge.mjs";
 // fetches, 2/24 at 4; CI runs forecasts x2 beside bullbear on one instance). One parses to [], and
 // the merge then wrote the JSON rows alone — MA, DLR, DNLI missed every post-earnings rating on
 // 2026-11-07. Matched on markers every Cloudflare page carries, not only the "Just a moment" title.
-// NOT bare `cdn-cgi/challenge-platform`: every real TipRanks page loads its `.../scripts/jsd/main.js`
+// NOT bare `cdn-cgi/challenge-platform`: every real provider page loads its `.../scripts/jsd/main.js`
 // bot beacon, so that would reject every page; only interstitials load `.../challenge-platform/h/`.
 export const isChallenge = (html) => typeof html === "string"
   && /cdn-cgi\/challenge-platform\/h\/|_cf_chl_opt|cf-error-details|<title>[^<]*(Just a moment|Attention Required|Access denied|One moment, please|Please wait)/i.test(html);
@@ -85,7 +85,7 @@ export function parseForecastHtml(html) {
     const num = (s) => +s.slice(1).replace(/,/g, "");
     const pt = num(money[money.length - 1]);
     const opt = money.length > 1 ? num(money[0]) : null;
-    // TipRanks switched the cell to lowercase ("buy") on 2026-11-01 and every row was dropped.
+    // The provider switched the cell to lowercase ("buy") on 2026-11-01 and every row was dropped.
     // Every text match in this parser is case-insensitive for that reason; output stays "Buy".
     const r0 = before.find((s) => /^(buy|hold|sell)$/i.test(s));
     const r = r0 && r0[0].toUpperCase() + r0.slice(1).toLowerCase();

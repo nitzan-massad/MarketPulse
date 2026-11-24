@@ -35,7 +35,7 @@
 // text is being burned onto this image next (ci/post-compose.mjs), and a photo that already
 // contains stray rendered text or a logo would corrupt that.
 //
-// EVERY POST GETS A PHOTO, INCLUDING `General`. This used to skip Flux entirely for TipRanks'
+// EVERY POST GETS A PHOTO, INCLUDING `General`. This used to skip Flux entirely for the provider's
 // unclassified catch-all sector (~44 of 455 rows, including Alphabet) and render a
 // palette-driven abstract mark instead — the reasoning was that an unclassified bucket gives
 // nothing concrete to depict. The user rejected that outright: an abstract mark for a real,
@@ -55,12 +55,12 @@
 
 import { CF_DAILY_ALLOCATION_EXHAUSTED_CODE, isExhausted, markExhausted } from "./cf-budget.mjs";
 
-/** DETERMINISTIC FALLBACK ONLY, one concrete WORKER + scene per sector TipRanks/Finviz actually
+/** DETERMINISTIC FALLBACK ONLY, one concrete WORKER + scene per sector the data provider/Finviz actually
  *  emits (`src/data/stocks.json`'s `sec` values) — used when the per-company model call
  *  (ci/company-descriptor.mjs's `describeCompany`) fails or its scene fails validation. The
  *  PRIMARY scene for every company, `General` included, is now the model-written one — see the
  *  module header. `General`'s entry here is deliberately as generic as the fallback below (it
- *  is TipRanks' own unclassified bucket, not an industry, and this map is never asked to be
+ *  is the provider's own unclassified bucket, not an industry, and this map is never asked to be
  *  more than an honest last resort). Add a scene here and the fallback mapping is done — no
  *  seed, no draw function.
  *
@@ -149,7 +149,7 @@ export function scenePhrase(sector, seed) {
  *  role/action prose above: the descriptor is a caption, not a scene, and the two should be
  *  free to read well independently.
  *
- *  `General` deserved particular thought (per the brief): it is TipRanks' own unclassified
+ *  `General` deserved particular thought (per the brief): it is the provider's own unclassified
  *  bucket, not an industry, so "public markets" was actively the worst offender — it rendered
  *  under Alphabet, a company that is about as far from generic as this dataset gets. The fix
  *  isn't a punchier synonym for "unclassified", it's being honest about what usually lands in

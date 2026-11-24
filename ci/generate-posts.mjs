@@ -54,9 +54,9 @@ const NEURON_HISTORY = path.join(ROOT, "src", "data", "neuron-usage-history.json
  *  postable. Without it a kind falls through to "Report the fact.", which throws away the
  *  entire reason the rule fired: a `record` post that does not say "highest in the window"
  *  is just another upside number. One entry per kind ci/hooks.mjs can emit, all seven —
- *  ci/test-generate-posts.mjs fails if a kind is ever added without one. `trend` (net Smart
+ *  ci/test-generate-posts.mjs fails if a kind is ever added without one. `trend` (net Pulse
  *  Score drift) and `churn` (how many distinct scores) used to be here too; both were deleted
- *  from ci/hooks.mjs outright — a Smart Score change alone is not a post (see hooks.mjs's own
+ *  from ci/hooks.mjs outright — a Pulse Score change alone is not a post (see hooks.mjs's own
  *  comment on the `movement` rule for the reasoning), and neither kind had any other story to
  *  tell. `steady` survives: it is not about a change, it is about the absence of one. */
 export const KIND_BRIEF = {
@@ -78,8 +78,8 @@ export const KIND_BRIEF = {
 /**
  * HUMANISE FACT KEYS before they reach the prompt. Without this, `hook.facts` renders as
  * `- key: value` lines with the literal JS field name as the key — one published post read
- * "Alphabet Inc. smartScore: 10, unchanged for 30 snapshots." because the model copied the raw
- * key `smartScore` verbatim. This is the fix, and it belongs HERE, at the prompt boundary, not
+ * "Alphabet Inc. pulseScore: 10, unchanged for 30 snapshots." because the model copied the raw
+ * key `pulseScore` verbatim. This is the fix, and it belongs HERE, at the prompt boundary, not
  * in ci/hooks.mjs: `supportLine`-era consumers and ci/test-hooks.mjs depend on the current
  * field names, so those never change — only what the writer model is SHOWN does. Every key any
  * of the seven hook kinds emits (ci/hooks.mjs) is covered; an unmapped key (a future field, or a
@@ -94,7 +94,7 @@ const FACT_LABELS = {
   consensus: "Analyst consensus",
   analysts: "Analysts covering",
   sector: "Sector",
-  smartScore: "Smart Score",
+  pulseScore: "Pulse Score",
   aiScore: "AI Score",
   aiRating: "AI rating",
   bullish: "More bullish side",
@@ -102,8 +102,8 @@ const FACT_LABELS = {
   upsideTo: "Upside now",
   consensusFrom: "Consensus before",
   consensusTo: "Consensus now",
-  smartScoreFrom: "Smart Score before",
-  smartScoreTo: "Smart Score now",
+  pulseScoreFrom: "Pulse Score before",
+  pulseScoreTo: "Pulse Score now",
   windowLow: "Lowest in the window",
   windowHigh: "Highest in the window",
   snapshots: "Snapshots in the window",
@@ -170,7 +170,7 @@ export function describeTimeframeBand(days) {
 /** The phrase to hand the writer model for a hook's `Timeframe` fact — `null` for a standing
  *  state (surprise/contrarian/steady/newcomer/list), which must never be given one at all: see
  *  `hasGenuineChange`'s own comment in ci/hooks.mjs for why a bare current figure ("steady"'s
- *  Smart Score, "newcomer"'s first-seen date) is a data-availability fact or an absence of
+ *  Pulse Score, "newcomer"'s first-seen date) is a data-availability fact or an absence of
  *  change, never a dated event. A genuine change with no numeric `days` (`movement`, see the
  *  band comment above) always reads "today" — a fixed, always-true fallback, not a guess. */
 export function genuineChangeTimeframe(hook) {
@@ -197,7 +197,7 @@ export function buildPrompt(hook, exemplars = []) {
     "- STATE THE TIMEFRAME ON A GENUINE CHANGE. When the facts include a \"Timeframe\" line, this is a real, measured move (or a new high), not a standing forecast — the headline number AND that timeframe word (\"today\", \"this week\", \"in three weeks\") are both REQUIRED, worked into the statement so it reads as something that just happened. Everything else — the analyst count, the earlier (\"from\"/\"before\") figure, a sector comparison — is discretionary: include whichever of those read best, in whatever order, as long as the whole thing fits inside the 10-word cap.",
     "- NEVER INVENT A TIMEFRAME. When the facts do NOT include a \"Timeframe\" line, never write \"today\", \"this week\", \"in N days\", or any other day/week/month phrase for these numbers — most figures here are a standing analyst forecast, not something that just happened, and giving one a \"when\" states an event that never occurred.",
     "- COMPARE, DON'T JUST STATE, WHEN YOU CAN. If you are given the sector's typical (median) number alongside the name's own, prefer the comparison (\"more than double its sector's median\") over the bare figure — a comparison gives the reader something to agree or disagree with. Only compare when you are actually given both numbers; never invent a sector average you were not handed.",
-    "- Never use a verb that claims a stock's PRICE moved (soared, plunged, plummeted, rocketed, crashed, jumped, surged, spiked, tanked, tumbled, nosedived, or the like) unless the number attached to it is an actual past price change. A price target, a Smart Score, an AI score, or an analyst upside is a forecast, a score, or a rating — not something that has already happened to the stock. Describe it as what it is (a target, a score, a call), never as a move.",
+    "- Never use a verb that claims a stock's PRICE moved (soared, plunged, plummeted, rocketed, crashed, jumped, surged, spiked, tanked, tumbled, nosedived, or the like) unless the number attached to it is an actual past price change. A price target, a Pulse Score, an AI score, or an analyst upside is a forecast, a score, or a rating — not something that has already happened to the stock. Describe it as what it is (a target, a score, a call), never as a move.",
     "- No hashtags beyond one. No emoji. At most one exclamation mark, ideally zero.",
     "- Never give advice, never say buy or sell, never predict. Report what the data says.",
     "- No disclaimer, no 'not financial advice' line — the app adds that itself.",

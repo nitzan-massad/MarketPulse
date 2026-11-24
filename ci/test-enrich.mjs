@@ -1,8 +1,8 @@
 // Self-check for the AI-enrich queue (ci/keep.mjs `enrichQueue`/`applyForecast`, driven by
 // ci/refresh-data-ci.mjs and scripts/refresh-data.mjs). The bug this guards
-// against: rows that fall out of a run's screener pull are rebuilt by the (since retired) getData
-// mapper, which carried ai/air/aipt from the previous row (getData has no
-// AI-analyst fields at all). Enrich was the only thing that could re-check them, but it
+// against: rows that fall out of a run's screener pull are rebuilt by the (since retired) legacy-pull
+// mapper, which carried ai/air/aipt from the previous row (the old endpoint has no
+// AI-outlook fields at all). Enrich was the only thing that could re-check them, but it
 // selected on "needs a null filled", and a carried row's trio is non-null — so it was
 // permanently ineligible (70 of 73 off-pull rows on 2026-08-03) and fillNulls could not
 // have corrected it anyway. UNP served "Outperform" for ~10 days / ~46 runs after its

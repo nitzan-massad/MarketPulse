@@ -106,7 +106,7 @@ function joinSentence(parts: (string | null)[]): string {
  *
  * A hook only describes a genuine, MEASURED change when its facts carry a real before/after pair
  * for the same metric — `upsideFrom`/`upsideTo` (movement), `windowLow`/`windowHigh` (record),
- * or `smartScoreFrom`/`smartScoreTo`. A bare current figure (`upside`, `smartScore`,
+ * or `pulseScoreFrom`/`pulseScoreTo`. A bare current figure (`upside`, `pulseScore`,
  * `leaderUpside`, …) — surprise/contrarian/steady/newcomer/list — is a STANDING state: most
  * numbers in this feed are analyst upside-to-target, a forecast, never something that already
  * happened to the stock (a published post once read "IRD soared 151.7%" for exactly this kind of
@@ -116,7 +116,7 @@ export function hasGenuineChange(facts: Facts): boolean {
   const f = facts ?? {};
   return (
     (num(f.upsideFrom) !== null && num(f.upsideTo) !== null) ||
-    (num(f.smartScoreFrom) !== null && num(f.smartScoreTo) !== null) ||
+    (num(f.pulseScoreFrom) !== null && num(f.pulseScoreTo) !== null) ||
     (num(f.windowLow) !== null && num(f.windowHigh) !== null)
   );
 }
@@ -146,14 +146,14 @@ function surpriseLine(post: Post): string {
  *  disagreement, not a change in either model's own rating: no "when", neutral figures. */
 function contrarianLine(post: Post): string {
   const f = post.facts;
-  const ss = num(f.smartScore), ai = num(f.aiScore), air = str(f.aiRating), bullish = str(f.bullish);
+  const ss = num(f.pulseScore), ai = num(f.aiScore), air = str(f.aiRating), bullish = str(f.bullish);
   const con = str(f.consensus), up = num(f.upside), price = num(f.price), an = num(f.analysts);
   const parts: (string | null)[] = [];
   if (ss !== null && ai !== null) {
     const lean = bullish === "quant" ? "the quant model is the more bullish of the two"
       : bullish === "ai" ? "the AI model is the more bullish of the two"
       : "the two models split";
-    parts.push(`Smart Score ${ss}/10 against an AI score of ${ai}/100${air ? ` (${air})` : ""} — ${lean}`);
+    parts.push(`Pulse Score ${ss}/10 against an AI score of ${ai}/100${air ? ` (${air})` : ""} — ${lean}`);
   }
   if (con !== null) parts.push(`Street consensus ${consLabel(con)}`);
   if (up !== null) parts.push(`${pct(up)} upside`);
@@ -169,7 +169,7 @@ function movementLine(post: Post): string {
   const f = post.facts;
   const upFrom = num(f.upsideFrom), upTo = num(f.upsideTo);
   const conFrom = str(f.consensusFrom), conTo = str(f.consensusTo);
-  const ssFrom = num(f.smartScoreFrom), ssTo = num(f.smartScoreTo);
+  const ssFrom = num(f.pulseScoreFrom), ssTo = num(f.pulseScoreTo);
   const price = num(f.price), pt = num(f.priceTarget), an = num(f.analysts);
   // GATED ON THE SHARED PREDICATE, not just this kind's name — "since the last update" only
   // ever appears when `hasGenuineChange` actually confirms a real before/after pair is present
@@ -182,7 +182,7 @@ function movementLine(post: Post): string {
   }
   if (conFrom !== null && conTo !== null) parts.push(`consensus flipped from ${consLabel(conFrom)} to ${consLabel(conTo)}`);
   else if (conTo !== null) parts.push(`consensus is now ${consLabel(conTo)}`);
-  if (ssFrom !== null && ssTo !== null) parts.push(`Smart Score ${ssFrom} → ${ssTo}`);
+  if (ssFrom !== null && ssTo !== null) parts.push(`Pulse Score ${ssFrom} → ${ssTo}`);
   const priceBits: string[] = [];
   if (price !== null) priceBits.push(`priced at ${money(price)}`);
   if (pt !== null) priceBits.push(`against a ${money(pt)} target`);
@@ -224,11 +224,11 @@ function recordLine(post: Post): string {
  *  its figures. */
 function steadyLine(post: Post): string {
   const f = post.facts;
-  const ss = num(f.smartScore), days = num(f.days), snaps = num(f.snapshots);
+  const ss = num(f.pulseScore), days = num(f.days), snaps = num(f.snapshots);
   const up = num(f.upside), con = str(f.consensus), an = num(f.analysts);
   const parts: (string | null)[] = [];
-  if (ss !== null && days !== null) parts.push(`Smart Score has held at ${ss}/10 for ${plural(days, "day")} straight`);
-  else if (ss !== null && snaps !== null) parts.push(`Smart Score has held at ${ss}/10 across ${plural(snaps, "snapshot")}`);
+  if (ss !== null && days !== null) parts.push(`Pulse Score has held at ${ss}/10 for ${plural(days, "day")} straight`);
+  else if (ss !== null && snaps !== null) parts.push(`Pulse Score has held at ${ss}/10 across ${plural(snaps, "snapshot")}`);
   const rest: string[] = [];
   if (up !== null) rest.push(`${pct(up)} upside`);
   if (con !== null) rest.push(`${consLabel(con)} consensus`);
@@ -243,7 +243,7 @@ function steadyLine(post: Post): string {
 function newcomerLine(post: Post): string {
   const f = post.facts;
   const days = num(f.days), seenIn = num(f.seenIn), windowSnaps = num(f.windowSnapshots);
-  const up = num(f.upside), con = str(f.consensus), an = num(f.analysts), ss = num(f.smartScore);
+  const up = num(f.upside), con = str(f.consensus), an = num(f.analysts), ss = num(f.pulseScore);
   const parts: (string | null)[] = [];
   if (days !== null) parts.push(`First tracked on the board ${plural(days, "day")} ago`);
   else if (seenIn !== null && windowSnaps !== null) parts.push(`New to the board — present for ${seenIn} of the last ${windowSnaps} snapshots`);
@@ -251,7 +251,7 @@ function newcomerLine(post: Post): string {
   if (up !== null) rest.push(`currently ${pct(up)} upside`);
   if (con !== null) rest.push(`${consLabel(con)} consensus`);
   if (an !== null) rest.push(`across ${plural(an, "analyst")}`);
-  if (ss !== null) rest.push(`Smart Score ${ss}`);
+  if (ss !== null) rest.push(`Pulse Score ${ss}`);
   if (rest.length) parts.push(rest.join(", "));
   return joinSentence(parts);
 }
@@ -274,11 +274,11 @@ function listLine(post: Post): string {
  *  name — the exact bug that made the old `supportLine` worth replacing. */
 function genericLine(post: Post): string {
   const f = post.facts;
-  const ssFrom = num(f.smartScoreFrom), ssTo = num(f.smartScoreTo);
+  const ssFrom = num(f.pulseScoreFrom), ssTo = num(f.pulseScoreTo);
   const upFrom = num(f.upsideFrom), upTo = num(f.upsideTo), up = num(f.upside), pt = num(f.priceTarget);
   const an = num(f.analysts);
   const parts: (string | null)[] = [];
-  if (ssFrom !== null && ssTo !== null) parts.push(`Smart Score ${ssFrom} → ${ssTo}`);
+  if (ssFrom !== null && ssTo !== null) parts.push(`Pulse Score ${ssFrom} → ${ssTo}`);
   if (upFrom !== null && upTo !== null) parts.push(`upside ${pct(upFrom)} → ${pct(upTo)}`);
   else if (up !== null) parts.push(pt !== null ? `${pct(up)} upside to a ${money(pt)} target` : `${pct(up)} upside`);
   if (an !== null) parts.push(`${plural(an, "analyst")} covering it`);

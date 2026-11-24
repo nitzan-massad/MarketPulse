@@ -2,22 +2,23 @@
 // ci/test-forecast-merge.mjs can exercise it directly instead of mirroring it (which is what
 // ci/test-forecast-gate.mjs had to do for the old inline gate).
 //
-// Today the JSON side is the per-ticker stock-forecast payload (forecastsFromPayload below), and the
-// SSR page tops it up where the payload withholds rows (hiddenAnalysts / topUpRows). getData was
+// Today the JSON side is the per-ticker forecast payload (forecastsFromPayload below), and the
+// SSR page tops it up where the payload withholds rows (hiddenAnalysts / topUpRows). The old endpoint was
 // retired 2026-11-17 (Cloudflare-blocked); nothing here reads it any more.
 //
-// History (pre-2026-11-18, when the JSON side was getData): getData paywall-anonymized a teaser
+// History (pre-2026-11-18, when the JSON side was the old endpoint): it paywall-anonymized a teaser
 // window of the FRESHEST ratings (firm/date/rating/stars kept, name and targets nulled), so
 // toForecasts() dropped them, and the page was only a fallback when nothing survived at all. BIOA
 // was the shape of that bug: 9 real ratings, 2 survived, 7 invisible next to "n=9". The union
 // below was built for it, and it still serves the payload + page merge.
 //
-// Measured over all 418 tickers (Phase 0 of PLAN-ssr-merge.md, 2026-08-22, getData era):
+// Measured over all 418 tickers (2026-08-22, old-endpoint era; ci/README.md → Analyst forecasts → "Dormant page path"):
 //   rows 3976 -> 5669 (+42.6%)      85% of tickers gain rows
 //   83% get FRESHER data            median +16 days, worst +349 (ANVS, stuck on 2025-09-03)
 //   0 tickers lose rows   0 malformed rows   0 target conflicts where both sources have it
 
 import { countRows, FORECAST_MIN_ROWS, FORECAST_SHRINK } from "./data-loss.mjs";
+import { isProviderAiFirm } from "./source.mjs";
 
 /**
  * Identity of a rating across the two sources. Analyst + date: both sources name the analyst
@@ -28,13 +29,13 @@ import { countRows, FORECAST_MIN_ROWS, FORECAST_SHRINK } from "./data-loss.mjs";
  * accepted for the STAR join in forecast-html.mjs `withStars`, where the cost is a wrong star
  * count; here it would drop a whole rating).
  */
-// TipRanks pads some names with invisible bidi/zero-width marks ("Daniel Zhu\u200f"), which
+// The provider pads some names with invisible bidi/zero-width marks ("Daniel Zhu\u200f"), which
 // String#trim() keeps — so the same analyst keyed two ways and missed the star/dedupe joins.
 // ZWNJ/ZWJ (U+200C/D) are left alone: they are real spelling in Persian/Indic names.
 // Keep in step with src/reviewAlerts.ts MARKS.
 export const cleanName = (s) => (typeof s === "string" ? s.replace(/[\u200b\u200e\u200f\u202a-\u202e\u2060\u2066-\u2069\u061c\ufeff]/g, "").trim() : "");
 export const analystKey = (f) => cleanName(f.n).toLowerCase();
-// TipRanks names every unranked analyst "Unknown Analyst", so for them the firm is the identity —
+// The provider names every unranked analyst "Unknown Analyst", so for them the firm is the identity —
 // two of them on one date (different firms) are two ratings, not a duplicate.
 const UNKNOWN = "unknown analyst";
 const firmKey = (f) => cleanName(f.f).toLowerCase();
@@ -43,7 +44,7 @@ export const mergeKey = (f) => `${analystKey(f)}|${f.d || ""}${analystKey(f) ===
 /**
  * Union of the SSR rows and the JSON rows, newest first.
  *
- * Precedence, per PLAN-ssr-merge.md:
+ * Precedence (ci/README.md → Analyst forecasts → "Dormant page path"):
  *   pt, opt, n, f, d, r  -> SSR. It is the rendered truth, and the JSON copy of these is
  *                           nulled for exactly the anonymized rows this path exists to recover.
  *   st (stars)           -> JSON. SSR does not render them. `withStars` already joins most of
@@ -52,7 +53,7 @@ export const mergeKey = (f) => `${analystKey(f)}|${f.d || ""}${analystKey(f) ===
  *
  * ADDITIVE PER ANALYST, and that is load-bearing: a truncated FlareSolverr read parses to a valid
  * PREFIX, so under union it can only shrink the GAIN, never lose a row. That property is why
- * PLAN-ssr-merge.md's row-count guardrail was dropped rather than fixed — see the note in
+ * the original merge plan's row-count guardrail was dropped rather than fixed — see the note in
  * ci/README.md. Verified across 418 tickers: 0 lost a row.
  */
 export function mergeForecasts(ssr, json) {
@@ -94,20 +95,20 @@ export function mergeForecasts(ssr, json) {
 const POSITION = { buy: "Buy", hold: "Hold", sell: "Sell" };
 
 /**
- * Every rating in TipRanks' consensus window, NAMED, from /stocks/<t>/stock-forecast/payload.json
+ * Every rating in the provider's consensus window, NAMED, from the per-ticker forecast payload
  * (`models.ratings[]` joined to `models.experts[]` on expert.uid/id = _id or uid). It is not cut at
  * ~15 rows like the SSR page — on 2026-11-07 MA had 46 ratings here, including Clear Street (below
  * row 15 on the page) and Deutsche Bank's "Unknown Analyst" row. Returns null when the payload is
  * not this shape, so the caller falls back to the page.
  *
- * Dropped: TipRanks' own AI models (firm "TipRanks - OpenAI" etc.), ratings without a target (a
+ * Dropped: the provider's own AI models (isProviderAiFirm, e.g. "Provider - OpenAI"), ratings without a target (a
  * Forecast needs one), a rating whose expert is missing. `priceTarget` is the USD-converted value.
  *
  * FIRM: the payload's firm sits on the expert PROFILE (where the analyst works now), not on the
  * rating (AMD 2026-11-04 David O'Connor read "Exane BNP Paribas" here, "Piper Sandler" on the page).
  * TARGET: non-USD targets are converted at TODAY's FX, so they wobble run to run. Both are settled
- * downstream: keepPrevRating keeps a stored rating's firm and target. (Until 2026-11-18 a getData
- * argument overrode both; it was retired with getData.)
+ * downstream: keepPrevRating keeps a stored rating's firm and target. (Until 2026-11-18 an old-endpoint
+ * argument overrode both; it was retired with that endpoint.)
  */
 export function forecastsFromPayload(fj, ticker) {
   const m = fj?.models;
@@ -122,7 +123,7 @@ export function forecastsFromPayload(fj, ticker) {
     const e = experts.get(r?.expert?.uid ?? r?.expert?.id);
     const n = cleanName(e?.name);
     const f = typeof e?.firm === "string" ? e.firm.trim() : "";
-    if (!n || !f || /^TipRanks\b/i.test(f)) continue;
+    if (!n || !f || isProviderAiFirm(f)) continue;
     const pt = Number(r.priceTarget?.value);
     if (!Number.isFinite(pt) || pt <= 0) continue;
     const d = String(r.date || "").slice(0, 10);
@@ -130,7 +131,7 @@ export function forecastsFromPayload(fj, ticker) {
     // TARGETS wobble with FX (SHOP Doug Taylor 128.9995 one day) and src/reviewAlerts.ts keys a
     // review on n|f|d|r|pt, so keepPrevRating (below) pins a stored rating's target.
     const opt = Number(r.oldPriceTarget);
-    // STARS: TipRanks' own CSV formula, round(5 * rank.rank, 1). The `analyst|<n>` record (rating.expert.id)
+    // STARS: the provider's own CSV formula, round(5 * rank.rank, 1). The `analyst|<n>` record (rating.expert.id)
     // is the live one; the sha record (expert.uid) is an older snapshot, kept as the fallback.
     const rk = experts.get(r?.expert?.id)?.rank?.rank ?? e?.rank?.rank;
     const st = Number.isFinite(rk) ? Math.round(5 * rk * 10) / 10 : null;
@@ -164,7 +165,7 @@ export function keepPrevRating(rows, prev) {
 // One analyst's identity for every per-analyst join (dedup, carry, stars, top-up): the name, or the
 // firm for "Unknown Analyst". NOT name+firm: keepPrevRating keeps a stored rating's firm while the
 // analyst's newer rating carries the new one, and a firm-keyed dedup then listed him twice
-// (getData kept one firm per expert, so one row per analyst).
+// (the old endpoint kept one firm per expert, so one row per analyst).
 const who = (f) => (analystKey(f) === UNKNOWN ? `${UNKNOWN}|${firmKey(f)}` : analystKey(f));
 
 /** One row per analyst (who(): name; Unknown Analyst = per firm): the newest. Product choice
@@ -227,7 +228,7 @@ function hiddenEntries(fj, ticker, fileRows) {
     const e = experts.get(r?.expert?.uid ?? r?.expert?.id);
     const n = cleanName(e?.name), f = typeof e?.firm === "string" ? e.firm.trim() : "";
     const d = String(r?.date || "").slice(0, 10);
-    if (!n || !f || /^TipRanks\b/i.test(f) || !/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    if (!n || !f || isProviderAiFirm(f) || !/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
     const k = who({ n, f });
     if ((latest.get(k)?.d ?? "") < d) latest.set(k, { n, d, pt: Number(r.priceTarget?.value) });
   }
@@ -242,7 +243,7 @@ export const hiddenTargets = (fj, ticker, fileRows) => hiddenEntries(fj, ticker,
 export const hiddenTargetKeys = (fj, ticker, fileRows) => hiddenEntries(fj, ticker, fileRows).map((x) => x.key);
 /** hiddenTargets as who() keys, for carryPrevGuarded's `hold`: these analysts re-rated with a target
  *  the payload withholds, so forecastsFromPayload drops their newest rating and — unless the page
- *  renders it — they look absent. Their stored row is the only target we have for them (getData kept
+ *  renders it — they look absent. Their stored row is the only target we have for them (the old endpoint kept
  *  it), so it is carried at any age instead of aging out of the 92-day window (e2e R2). */
 export const hiddenAnalysts = (fj, ticker, fileRows) => hiddenEntries(fj, ticker, fileRows).map((x) => x.who);
 

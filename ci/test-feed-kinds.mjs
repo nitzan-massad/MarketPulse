@@ -5,7 +5,7 @@
 // own and inherited the default navy pill, so `record`, `trend`, `steady`, `churn`, `newcomer`
 // and `list` were visually indistinguishable in the feed. Nothing could catch that: hooks.mjs
 // does not know about CSS, and index.css does not know about hooks.mjs. (`trend`/`churn` were
-// later deleted outright — a Smart Score change alone is not a post — leaving seven kinds.)
+// later deleted outright — a Pulse Score change alone is not a post — leaving seven kinds.)
 //
 // KIND_BRIEF is the registry — ci/test-generate-posts.mjs already pins it to the kinds
 // ci/hooks.mjs emits, so this check reads the list from there rather than restating it.

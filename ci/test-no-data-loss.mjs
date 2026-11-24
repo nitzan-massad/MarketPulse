@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { lossReport, loadSnapshot, countRows, gateVerdict } from "./data-loss.mjs";
-import { health } from "./tr-fetch.mjs";
+import { health } from "./src-fetch.mjs";
 
 const row = (t, o = {}) => ({ t, n: t + " Inc", sec: "Tech", px: 10, pt: 12, up: 5, con: "Buy", ss: 5, ai: 70, air: "Outperform", aipt: 15, mc: 100, desc: "d", ...o });
 const base = () => ({ prevRows: [row("A"), row("B")], nextRows: [row("A"), row("B")], prevSeen: { A: { d: "2026-01-01" } }, nextSeen: { A: { d: "2026-01-01" } }, prevFc: { A: 10 }, nextFc: { A: 10 } });
@@ -28,7 +28,7 @@ bad("16 pt nulls", { prevRows: manyPrev(), nextRows: many("pt", 16) }, /16 rows 
 bad("11 ss nulls", { prevRows: manyPrev(), nextRows: many("ss", 11) }, /11 rows lost ss/);
 bad("6 con nulls", { prevRows: manyPrev(), nextRows: many("con", 6) }, /6 rows lost con/);
 // AI trio (round 4 fix 1): an explicit null AI block now writes null instead of carrying, so a
-// screener-wide `aiAnalystData: null` would wipe every in-pull trio. Replay max 0/run -> limit 10.
+// screener-wide `outlookData: null` would wipe every in-pull trio. Replay max 0/run -> limit 10.
 ok("10 ai nulls", { prevRows: manyPrev(), nextRows: many("ai", 10) });
 bad("11 ai nulls", { prevRows: manyPrev(), nextRows: many("ai", 11) }, /11 rows lost ai/);
 ok("10 air nulls", { prevRows: manyPrev(), nextRows: many("air", 10) });
@@ -48,13 +48,13 @@ ok("forecast 4 -> 1 (below min rows)", { prevFc: { A: 4 }, nextFc: { A: 1 } });
 // forecast row counting: AI-model rows and rows >365d old do not count (fixed "now", deterministic)
 const NOW = Date.parse("2026-11-18");
 const human = (n, d = "2026-11-01") => Array.from({ length: n }, (_, i) => ({ n: "H" + i, f: "Firm" + i, d }));
-const ai = (n) => Array.from({ length: n }, (_, i) => ({ n: "AI" + i, f: "TipRanks - Model" + i, d: "2026-11-01" }));
+const ai = (n) => Array.from({ length: n }, (_, i) => ({ n: "AI" + i, f: "Provider - Model" + i, d: "2026-11-01" }));
 const old = (n) => human(n, "2025-11-01");
 const fc = (rows) => ({ A: countRows(rows, NOW) });
 ok("10 -> 7 where 3 dropped are AI rows", { prevFc: fc([...human(7), ...ai(3)]), nextFc: fc(human(7)) });
 ok("10 -> 7 where 3 dropped are >365d old", { prevFc: fc([...human(7), ...old(3)]), nextFc: fc(human(7)) });
 bad("10 -> 7 recent human rows still a violation", { prevFc: fc(human(10)), nextFc: fc(human(7)) }, /shrank 10 -> 7/);
-assert.equal(countRows([{ f: "tipranks - X", d: "2026-11-01" }, { f: "Y" }, { f: "Z", d: "2025-11-17" }, { f: "W", d: "2025-11-19" }], NOW), 2); // no date counts; 365d boundary
+assert.equal(countRows([{ f: "provider - X", d: "2026-11-01" }, { f: "Y" }, { f: "Z", d: "2025-11-17" }, { f: "W", d: "2025-11-19" }], NOW), 2); // no date counts; 365d boundary
 // accept_data_loss (site.yml workflow_dispatch input -> ACCEPT_DATA_LOSS=1, one run only): the
 // owner's escape hatch from a self-reinforcing freeze. A clean report never needs it; an accepted
 // one ships but leaves a health line (the run still goes red); only the exact string "1" accepts.

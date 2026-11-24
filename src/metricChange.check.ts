@@ -3,7 +3,7 @@
 //
 // The bug this guards: changesFor used to require BOTH sides non-null
 // (`fs.ss != null && s.ss != null`), so a metric appearing or DISAPPEARING produced no
-// change row at all. A stock losing its Smart Score or analyst coverage showed nothing —
+// change row at all. A stock losing its Pulse Score or analyst coverage showed nothing —
 // silently, exactly when it mattered. Against today's data that hid 9 real changes
 // (7 vanished: SNTI ALGS DARE ACTU KYNB KBSX BEAT; 2 appeared: CALC DFNS).
 //
@@ -58,8 +58,8 @@ eq("7 → undefined behaves as vanished", metricChange(7, undefined), { o: "7", 
 }
 
 // ---- the real cases this unhid, from committed data ------------------------
-eq("BEAT Smart Score 9 → null", metricChange(9, null), { o: "9", n: "—", dir: null });
-eq("CALC Smart Score null → 4", metricChange(null, 4), { o: "—", n: "4", dir: null });
+eq("BEAT Pulse Score 9 → null", metricChange(9, null), { o: "9", n: "—", dir: null });
+eq("CALC Pulse Score null → 4", metricChange(null, 4), { o: "—", n: "4", dir: null });
 
 if (failed) throw new Error(`${failed} metricChange check(s) failed`);
 console.log("\nall metricChange checks passed");

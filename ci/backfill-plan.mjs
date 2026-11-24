@@ -1,7 +1,9 @@
 // Backfill planning for kept tickers that fell out of the 3 sorted screener pulls.
 // The full-universe screener call (~14k items, every listed ticker) serves most of them in one
-// request; only tickers it lacks need a per-ticker stock-aianalyst payload.
-export const UNIVERSE_URL = "https://www.tipranks.com/api/apps/stock/screener?country=us&method=screener&page=1&pageSize=20000&sortDir=2";
+// request; only tickers it lacks need a per-ticker analysis payload.
+import { srcUrl } from "./source.mjs";
+
+export const UNIVERSE_URL = srcUrl("universe");
 
 // Company names for the duplicate-ticker tie-break (and keep.mjs legalName): case, punctuation and legal suffixes differ
 // between the screener ("Aluminum Corp. of China Ltd") and the stored row (from either source).
@@ -48,7 +50,7 @@ export function universeItems(body) {
   return items;
 }
 
-/** Cheap `ok` predicate for the universe fetch (ci/tr-fetch.mjs getText): looks like JSON (or a
+/** Cheap `ok` predicate for the universe fetch (ci/src-fetch.mjs getText): looks like JSON (or a
  *  FlareSolverr <pre> wrapper) and names `items`. Without it a plain 200 maintenance/error page that
  *  isChallenge misses was returned as is, the parse threw, and FlareSolverr was never tried. Not a
  *  full parse: the body is ~77 MB. */

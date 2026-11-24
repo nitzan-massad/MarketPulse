@@ -276,7 +276,7 @@ const modelReply = (descriptor, scene) => `DESCRIPTOR: ${descriptor}\nSCENE: ${s
   assert.equal(d.scene, sectorScenePhrase("General"), "no provider at all still falls back cleanly (scene)");
 }
 {
-  // The specific case the whole task is about: Alphabet's TipRanks sector is General — the
+  // The specific case the whole task is about: Alphabet's provider sector is General — the
   // unclassified bucket — so the FALLBACK still reads "too big to label" / the generic sector
   // scene (unchanged, still correct as a rare-failure fallback), but a WORKING model call must
   // land on something about the real business, never repeat the sector-bucket joke, and its

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { extractJson, parseBullBearPayload } from "../bullbear-payload.mjs";
 
-const fixture = JSON.parse(readFileSync(new URL("../fixtures/aianalyst-aapl-keypoints.json", import.meta.url), "utf8"));
+const fixture = JSON.parse(readFileSync(new URL("../fixtures/outlook-aapl-keypoints.json", import.meta.url), "utf8"));
 let bugs = 0;
 const check = (kind, name, fn) => {
   try { fn(); console.log(`ok    ${name}`); }

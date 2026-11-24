@@ -12,7 +12,7 @@ export function trackStateOf(val: { tracked?: unknown; err?: unknown } | null | 
 }
 
 /** A row with nothing from the analysts: no price target, no AI score, and no consensus (null, or
- *  the no-coverage "Neutral" with 0 buy/hold/sell that the aianalyst mapper writes). */
+ *  the no-coverage "Neutral" with 0 buy/hold/sell that the outlook mapper writes). */
 export function noAnalystCoverage(s: { con?: string | null; pt?: number | null; ai?: number | null; b?: number | null; h?: number | null; s?: number | null }): boolean {
   return s.pt == null && s.ai == null && (s.con == null || ((s.b ?? 0) + (s.h ?? 0) + (s.s ?? 0) === 0));
 }

@@ -43,7 +43,7 @@
       "upside": 46.2,
       "consensus": "StrongBuy",
       "analysts": 7,
-      "smartScore": 9
+      "pulseScore": 9
     },
     "descriptor": "AI Research Lab"
   },
@@ -113,7 +113,7 @@
       "duplicate of a recent post (40% word overlap)"
     ],
     "facts": {
-      "smartScore": 1,
+      "pulseScore": 1,
       "aiScore": 64,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -133,7 +133,7 @@
     "ticker": "AMZN",
     "name": "Amazon",
     "sector": "ConsumerCyclical",
-    "text": "10 Smart Score for 62 days straight.",
+    "text": "10 Pulse Score for 62 days straight.",
     "score": 56,
     "reasons": [
       "4 digits of concrete detail",
@@ -141,7 +141,7 @@
       "AMZN appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "snapshots": 241,
       "days": 62.4,
       "upside": 33.5,
@@ -248,8 +248,8 @@
       "priceTarget": 25.05,
       "analysts": 11,
       "sector": "Financial",
-      "smartScoreFrom": 4,
-      "smartScoreTo": 2
+      "pulseScoreFrom": 4,
+      "pulseScoreTo": 2
     },
     "descriptor": "Bitcoin Mining Operator",
     "image": "WULF-2026-11-21T10-31-09-245Z.jpg",
@@ -270,7 +270,7 @@
       "AMZN appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "snapshots": 241,
       "days": 62,
       "upside": 27.6,
@@ -304,7 +304,7 @@
       "upside": 11.7,
       "consensus": "StrongBuy",
       "analysts": 13,
-      "smartScore": 9
+      "pulseScore": 9
     },
     "descriptor": "Laboratory Equipment",
     "image": "TMO-2026-11-20T20-32-28-483Z.jpg",
@@ -347,7 +347,7 @@
       "ORLY appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 1,
+      "pulseScore": 1,
       "aiScore": 73,
       "aiRating": "Outperform",
       "consensus": "StrongBuy",
@@ -465,7 +465,7 @@
       "upside": 43.4,
       "consensus": "StrongBuy",
       "analysts": 9,
-      "smartScore": 10
+      "pulseScore": 10
     },
     "descriptor": "Semiconductor Manufacturer",
     "image": "TSM-2026-11-15T23-15-28-950Z.jpg",
@@ -486,7 +486,7 @@
       "duplicate of a recent post (50% word overlap)"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 80,
       "aiRating": "Outperform",
       "consensus": "Buy",
@@ -531,7 +531,7 @@
     "ticker": "ORLY",
     "name": "O'Reilly Auto",
     "sector": "ConsumerCyclical",
-    "text": "~18% upside, AI says Outperform, Smart Score says 2.",
+    "text": "~18% upside, AI says Outperform, Pulse Score says 2.",
     "score": 54,
     "reasons": [
       "3 digits of concrete detail",
@@ -539,7 +539,7 @@
       "ORLY appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 73,
       "aiRating": "Outperform",
       "consensus": "StrongBuy",
@@ -590,7 +590,7 @@
     "ticker": "MSFT",
     "name": "Microsoft",
     "sector": "Technology",
-    "text": "9 Smart Score held for 58 days.",
+    "text": "9 Pulse Score held for 58 days.",
     "score": 54,
     "reasons": [
       "3 digits of concrete detail",
@@ -598,7 +598,7 @@
       "MSFT appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 9,
+      "pulseScore": 9,
       "snapshots": 241,
       "days": 57.5,
       "upside": 22.1,
@@ -715,7 +715,7 @@
       "upside": 44.2,
       "consensus": "StrongBuy",
       "analysts": 9,
-      "smartScore": 10
+      "pulseScore": 10
     },
     "descriptor": "Semiconductor Manufacturer",
     "image": "TSM-2026-11-12T01-42-14-006Z.jpg",
@@ -763,7 +763,7 @@
       "ORLY appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 1,
+      "pulseScore": 1,
       "aiScore": 73,
       "aiRating": "Outperform",
       "consensus": "StrongBuy",
@@ -816,7 +816,7 @@
       "length in band"
     ],
     "facts": {
-      "smartScore": 1,
+      "pulseScore": 1,
       "aiScore": 73,
       "aiRating": "Outperform",
       "consensus": "StrongBuy",
@@ -906,7 +906,7 @@
       "upside": 25.7,
       "consensus": "Buy",
       "analysts": 16,
-      "smartScore": 5
+      "pulseScore": 5
     },
     "descriptor": "Global Investment Bank",
     "image": "GS-2026-11-09T08-03-40-258Z.jpg",
@@ -949,7 +949,7 @@
     "ticker": "SNPS",
     "name": "Synopsys",
     "sector": "Technology",
-    "text": "31% upside, AI and Smart Scores clash.",
+    "text": "31% upside, AI and Pulse Scores clash.",
     "score": 52,
     "reasons": [
       "2 digits of concrete detail",
@@ -957,7 +957,7 @@
       "SNPS appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 68,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -991,7 +991,7 @@
       "upside": 10.3,
       "consensus": "StrongBuy",
       "analysts": 15,
-      "smartScore": 7
+      "pulseScore": 7
     },
     "descriptor": "Industrial Gas Producer",
     "image": "LIN-2026-11-08T00-41-01-786Z.jpg",
@@ -1013,7 +1013,7 @@
       "length in band"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 68,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -1131,7 +1131,7 @@
       "upside": 10.1,
       "consensus": "StrongBuy",
       "analysts": 37,
-      "smartScore": 8
+      "pulseScore": 8
     },
     "descriptor": "Cloud Cybersecurity",
     "image": "CRWD-2026-11-06T05-11-29-728Z.jpg",
@@ -1144,7 +1144,7 @@
     "ticker": "DELL",
     "name": "Dell Technologies",
     "sector": "Technology",
-    "text": "61% upside, AI trumps low Smart Score.",
+    "text": "61% upside, AI trumps low Pulse Score.",
     "score": 52,
     "reasons": [
       "2 digits of concrete detail",
@@ -1152,7 +1152,7 @@
       "DELL appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 63,
       "aiRating": "Neutral",
       "consensus": "Buy",
@@ -1284,7 +1284,7 @@
       "BA appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "aiScore": 54,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -1365,7 +1365,7 @@
       "duplicate of a recent post (40% word overlap)"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "snapshots": 145,
       "days": 30.2,
       "upside": 37.2,
@@ -1413,7 +1413,7 @@
     "ticker": "DELL",
     "name": "Dell Technologies",
     "sector": "Technology",
-    "text": "21 analysts agree, but AI score dwarfs Smart Score.",
+    "text": "21 analysts agree, but AI score dwarfs Pulse Score.",
     "score": 52,
     "reasons": [
       "2 digits of concrete detail",
@@ -1421,7 +1421,7 @@
       "DELL appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 73,
       "aiRating": "Outperform",
       "consensus": "Buy",
@@ -1523,7 +1523,7 @@
     "ticker": "MSFT",
     "name": "Microsoft",
     "sector": "General",
-    "text": "10 Smart Score for 30 days straight.",
+    "text": "10 Pulse Score for 30 days straight.",
     "score": 56,
     "reasons": [
       "4 digits of concrete detail",
@@ -1531,7 +1531,7 @@
       "MSFT appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "snapshots": 145,
       "days": 30.2,
       "upside": 22.8,
@@ -1582,7 +1582,7 @@
       "length in band"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "aiScore": 54,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -1692,8 +1692,8 @@
       "priceTarget": 350.59,
       "analysts": 15,
       "sector": "Healthcare",
-      "smartScoreFrom": 9,
-      "smartScoreTo": 8
+      "pulseScoreFrom": 9,
+      "pulseScoreTo": 8
     },
     "descriptor": "RNA Therapy Developer",
     "image": "ALNY-2026-10-30T12-14-52-017Z.jpg",
@@ -1805,8 +1805,8 @@
       "priceTarget": 742.17,
       "analysts": 12,
       "sector": "Healthcare",
-      "smartScoreFrom": 6,
-      "smartScoreTo": 5
+      "pulseScoreFrom": 6,
+      "pulseScoreTo": 5
     },
     "descriptor": "Brain Disorder Therapies",
     "image": "PRAX-2026-10-29T13-44-37-145Z.jpg",
@@ -1833,7 +1833,7 @@
       "upside": 20.6,
       "consensus": "Buy",
       "analysts": 17,
-      "smartScore": 6
+      "pulseScore": 6
     },
     "descriptor": "Global Investment Bank",
     "image": "GS-2026-10-29T03-36-54-491Z.jpg",
@@ -1860,7 +1860,7 @@
       "upside": 29.1,
       "consensus": "StrongBuy",
       "analysts": 9,
-      "smartScore": 10
+      "pulseScore": 10
     },
     "descriptor": "Semiconductor Manufacturer",
     "image": "TSM-2026-10-29T00-29-13-374Z.jpg",
@@ -1932,14 +1932,14 @@
     "ticker": "CMG",
     "name": "Chipotle Mexican Grill",
     "sector": "ConsumerCyclical",
-    "text": "~44% upside, AI says Outperform, Smart Score says 2.",
+    "text": "~44% upside, AI says Outperform, Pulse Score says 2.",
     "score": 66,
     "reasons": [
       "3 digits of concrete detail",
       "length in band"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 73,
       "aiRating": "Outperform",
       "consensus": "StrongBuy",
@@ -1995,7 +1995,7 @@
       "upside": 0.1,
       "consensus": "StrongBuy",
       "analysts": 35,
-      "smartScore": 8
+      "pulseScore": 8
     },
     "descriptor": "Cloud Cybersecurity",
     "image": "CRWD-2026-10-27T20-36-18-340Z.jpg",
@@ -2022,7 +2022,7 @@
       "upside": 0.1,
       "consensus": "StrongBuy",
       "analysts": 35,
-      "smartScore": 8
+      "pulseScore": 8
     },
     "descriptor": "Cloud Cybersecurity",
     "image": "CRWD-2026-10-27T10-49-56-431Z.jpg",
@@ -2118,7 +2118,7 @@
     "ticker": "GOOGL",
     "name": "Alphabet Inc. Class A",
     "sector": "CommunicationServices",
-    "text": "9 Smart Score, unchanged for 30 days.",
+    "text": "9 Pulse Score, unchanged for 30 days.",
     "score": 54,
     "reasons": [
       "3 digits of concrete detail",
@@ -2126,7 +2126,7 @@
       "GOOGL appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 9,
+      "pulseScore": 9,
       "snapshots": 145,
       "days": 30.2,
       "upside": 33.7,
@@ -2178,7 +2178,7 @@
       "duplicate of a recent post (43% word overlap)"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "aiScore": 49,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -2215,8 +2215,8 @@
       "priceTarget": 31.5,
       "analysts": 15,
       "sector": "Financial",
-      "smartScoreFrom": 8,
-      "smartScoreTo": 7
+      "pulseScoreFrom": 8,
+      "pulseScoreTo": 7
     },
     "descriptor": "Bitcoin Mining"
   },
@@ -2296,7 +2296,7 @@
       "upside": 4.4,
       "consensus": "StrongBuy",
       "analysts": 17,
-      "smartScore": 10
+      "pulseScore": 10
     },
     "descriptor": "Laboratory Equipment Maker",
     "image": "TMO-2026-10-22T23-20-58-088Z.jpg",
@@ -2371,7 +2371,7 @@
       "DELL appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 1,
+      "pulseScore": 1,
       "aiScore": 73,
       "aiRating": "Outperform",
       "consensus": "Buy",
@@ -2429,7 +2429,7 @@
       "DELL appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 1,
+      "pulseScore": 1,
       "aiScore": 73,
       "aiRating": "Outperform",
       "consensus": "Buy",
@@ -2544,7 +2544,7 @@
       "duplicate of a recent post (40% word overlap)"
     ],
     "facts": {
-      "smartScore": 9,
+      "pulseScore": 9,
       "snapshots": 145,
       "days": 30.2,
       "upside": 15.2,
@@ -2578,7 +2578,7 @@
       "upside": 39.8,
       "consensus": "StrongBuy",
       "analysts": 8,
-      "smartScore": 10
+      "pulseScore": 10
     },
     "descriptor": "Semiconductor Manufacturer",
     "image": "TSM-2026-10-18T18-03-52-407Z.jpg",
@@ -2591,7 +2591,7 @@
     "ticker": "DELL",
     "name": "Dell Technologies",
     "sector": "Technology",
-    "text": "32% upside, AI and Smart Scores clash.",
+    "text": "32% upside, AI and Pulse Scores clash.",
     "score": 52,
     "reasons": [
       "2 digits of concrete detail",
@@ -2599,7 +2599,7 @@
       "DELL appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 1,
+      "pulseScore": 1,
       "aiScore": 73,
       "aiRating": "Outperform",
       "consensus": "Buy",
@@ -2619,7 +2619,7 @@
     "ticker": "DELL",
     "name": "Dell Technologies",
     "sector": "Technology",
-    "text": "1 vs 73, AI outshines Smart Score.",
+    "text": "1 vs 73, AI outshines Pulse Score.",
     "score": 54,
     "reasons": [
       "3 digits of concrete detail",
@@ -2627,7 +2627,7 @@
       "DELL appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 1,
+      "pulseScore": 1,
       "aiScore": 73,
       "aiRating": "Outperform",
       "consensus": "Buy",
@@ -2659,7 +2659,7 @@
       "upside": 6.5,
       "consensus": "Buy",
       "analysts": 17,
-      "smartScore": 7
+      "pulseScore": 7
     },
     "descriptor": "Cloud Software Developer"
   },
@@ -2687,8 +2687,8 @@
       "priceTarget": 35.63,
       "analysts": 12,
       "sector": "Healthcare",
-      "smartScoreFrom": 9,
-      "smartScoreTo": 8
+      "pulseScoreFrom": 9,
+      "pulseScoreTo": 8
     },
     "descriptor": "Biopharmaceutical Developer",
     "image": "CGEM-2026-10-17T13-57-52-593Z.jpg",
@@ -2773,8 +2773,8 @@
       "priceTarget": 37.5,
       "analysts": 4,
       "sector": "RealEstate",
-      "smartScoreFrom": 4,
-      "smartScoreTo": 6
+      "pulseScoreFrom": 4,
+      "pulseScoreTo": 6
     },
     "descriptor": "Real Estate Brokerage",
     "image": "REAX-2026-10-16T15-01-04-687Z.jpg",
@@ -2801,7 +2801,7 @@
       "upside": 31.2,
       "consensus": "StrongBuy",
       "analysts": 9,
-      "smartScore": 10
+      "pulseScore": 10
     },
     "descriptor": "Semiconductor Manufacturer",
     "image": "TSM-2026-10-16T09-36-30-934Z.jpg",
@@ -2914,14 +2914,14 @@
     "ticker": "GOOGL",
     "name": "Alphabet Inc. Class A",
     "sector": "CommunicationServices",
-    "text": "9 Smart Score for 30 days straight.",
+    "text": "9 Pulse Score for 30 days straight.",
     "score": 66,
     "reasons": [
       "3 digits of concrete detail",
       "length in band"
     ],
     "facts": {
-      "smartScore": 9,
+      "pulseScore": 9,
       "snapshots": 145,
       "days": 30.2,
       "upside": 21.1,
@@ -2969,7 +2969,7 @@
       "BA appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "aiScore": 49,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -3033,8 +3033,8 @@
       "priceTarget": 600.79,
       "analysts": 21,
       "sector": "Technology",
-      "smartScoreFrom": 5,
-      "smartScoreTo": 4
+      "pulseScoreFrom": 5,
+      "pulseScoreTo": 4
     },
     "descriptor": "Computer Hardware Manufacturer",
     "image": "DELL-2026-10-14T10-04-52-818Z.jpg",
@@ -3102,7 +3102,7 @@
       "length in band"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 76,
       "aiRating": "Outperform",
       "consensus": "Buy",
@@ -3210,7 +3210,7 @@
       "ORLY appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 69,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -3238,7 +3238,7 @@
       "BA appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "aiScore": 49,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -3266,7 +3266,7 @@
       "duplicate of a recent post (40% word overlap)"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "snapshots": 145,
       "days": 30.2,
       "upside": 32.7,
@@ -3311,7 +3311,7 @@
     "ticker": "TMUS",
     "name": "T Mobile US",
     "sector": "CommunicationServices",
-    "text": "~34% upside, AI says Outperform, Smart Score says 2.",
+    "text": "~34% upside, AI says Outperform, Pulse Score says 2.",
     "score": 54,
     "reasons": [
       "3 digits of concrete detail",
@@ -3319,7 +3319,7 @@
       "TMUS appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 74,
       "aiRating": "Outperform",
       "consensus": "StrongBuy",
@@ -3346,7 +3346,7 @@
       "length in band"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 74,
       "aiRating": "Outperform",
       "consensus": "StrongBuy",
@@ -3380,7 +3380,7 @@
       "upside": 19.7,
       "consensus": "StrongBuy",
       "analysts": 8,
-      "smartScore": 10
+      "pulseScore": 10
     },
     "descriptor": "Semiconductor Manufacturer",
     "image": "TSM-2026-10-09T20-04-19-034Z.jpg",
@@ -3409,8 +3409,8 @@
       "priceTarget": 1207.93,
       "analysts": 14,
       "sector": "Healthcare",
-      "smartScoreFrom": 8,
-      "smartScoreTo": 7
+      "pulseScoreFrom": 8,
+      "pulseScoreTo": 7
     },
     "descriptor": "Autoimmune Therapies",
     "image": "ARGX-2026-10-09T11-46-14-400Z.jpg",
@@ -3482,7 +3482,7 @@
       "length in band"
     ],
     "facts": {
-      "smartScore": 1,
+      "pulseScore": 1,
       "aiScore": 69,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -3516,7 +3516,7 @@
       "upside": 15.2,
       "consensus": "Buy",
       "analysts": 19,
-      "smartScore": 6
+      "pulseScore": 6
     },
     "descriptor": "Cloud Software Developer",
     "image": "IBM-2026-10-08T03-49-53-341Z.jpg",
@@ -3529,14 +3529,14 @@
     "ticker": "TSM",
     "name": "TSMC",
     "sector": "Technology",
-    "text": "10 Smart Score held for 2 days.",
+    "text": "10 Pulse Score held for 2 days.",
     "score": 66,
     "reasons": [
       "3 digits of concrete detail",
       "length in band"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "snapshots": 10,
       "days": 2.1,
       "upside": 13.7,
@@ -3620,7 +3620,7 @@
       "PCOR appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 1,
+      "pulseScore": 1,
       "aiScore": 66,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -3807,7 +3807,7 @@
       "duplicate of a recent post (50% word overlap)"
     ],
     "facts": {
-      "smartScore": 1,
+      "pulseScore": 1,
       "aiScore": 66,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -3870,7 +3870,7 @@
       "upside": 0.2,
       "consensus": "Buy",
       "analysts": 27,
-      "smartScore": 6
+      "pulseScore": 6
     },
     "descriptor": "Cloud Security Provider",
     "image": "NET-2026-10-03T18-56-31-219Z.jpg",
@@ -3953,7 +3953,7 @@
       "upside": 32.7,
       "consensus": "StrongBuy",
       "analysts": 15,
-      "smartScore": 9
+      "pulseScore": 9
     },
     "descriptor": "Oilfield Equipment",
     "image": "BKR-2026-10-02T23-36-33-770Z.jpg",
@@ -3974,7 +3974,7 @@
       "MU appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "snapshots": 145,
       "days": 30.2,
       "upside": 44.4,
@@ -4062,7 +4062,7 @@
       "upside": 16.5,
       "consensus": "Buy",
       "analysts": 21,
-      "smartScore": 6
+      "pulseScore": 6
     },
     "descriptor": "Rail Cargo Transport",
     "image": "CSX-2026-10-02T00-13-03-125Z.jpg",
@@ -4082,7 +4082,7 @@
       "length in band"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "aiScore": 54,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -4217,7 +4217,7 @@
       "duplicate of a recent post (38% word overlap)"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 73,
       "aiRating": "Outperform",
       "consensus": "StrongBuy",
@@ -4250,7 +4250,7 @@
       "upside": 15.9,
       "consensus": "Buy",
       "analysts": 21,
-      "smartScore": 6
+      "pulseScore": 6
     },
     "descriptor": "Rail Cargo Transport",
     "image": "CSX-2026-09-30T03-02-14-985Z.jpg",
@@ -4290,7 +4290,7 @@
     "ticker": "GOOGL",
     "name": "Alphabet Inc. Class A",
     "sector": "General",
-    "text": "9 Smart Score, 30 days straight unchanged.",
+    "text": "9 Pulse Score, 30 days straight unchanged.",
     "score": 54,
     "reasons": [
       "3 digits of concrete detail",
@@ -4298,7 +4298,7 @@
       "GOOGL appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 9,
+      "pulseScore": 9,
       "snapshots": 145,
       "days": 30.2,
       "upside": 25.3,
@@ -4331,8 +4331,8 @@
       "priceTarget": 480.83,
       "analysts": 25,
       "sector": "Technology",
-      "smartScoreFrom": 8,
-      "smartScoreTo": 6
+      "pulseScoreFrom": 8,
+      "pulseScoreTo": 6
     },
     "descriptor": "Database Platform Provider",
     "image": "MDB-2026-09-29T11-08-34-199Z.jpg",
@@ -4381,7 +4381,7 @@
       "length in band"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "aiScore": 49,
       "aiRating": "Neutral",
       "consensus": "StrongBuy",
@@ -4466,7 +4466,7 @@
       "upside": 0.2,
       "consensus": "Buy",
       "analysts": 27,
-      "smartScore": 6
+      "pulseScore": 6
     },
     "descriptor": "Cloud Security Provider",
     "image": "NET-2026-09-27T22-49-33-719Z.jpg",
@@ -4545,7 +4545,7 @@
       "GOOGL appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "snapshots": 145,
       "days": 30.2,
       "upside": 24.9,
@@ -4599,7 +4599,7 @@
       "upside": 0.2,
       "consensus": "Buy",
       "analysts": 27,
-      "smartScore": 6
+      "pulseScore": 6
     },
     "descriptor": "building what's next",
     "image": "NET-2026-09-26T18-18-51-703Z.jpg",
@@ -4641,7 +4641,7 @@
     "ticker": "SCHW",
     "name": "Charles Schwab",
     "sector": "Financial",
-    "text": "17 analysts agree, AI score trumps Smart Score.",
+    "text": "17 analysts agree, AI score trumps Pulse Score.",
     "score": 52,
     "reasons": [
       "2 digits of concrete detail",
@@ -4649,7 +4649,7 @@
       "SCHW appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 75,
       "aiRating": "Outperform",
       "consensus": "StrongBuy",
@@ -4728,7 +4728,7 @@
       "GOOGL appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "snapshots": 145,
       "days": 30.2,
       "upside": 25.4,
@@ -4782,7 +4782,7 @@
       "SCHW appeared in a recent post"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 75,
       "aiRating": "Outperform",
       "consensus": "StrongBuy",
@@ -4860,7 +4860,7 @@
       "length in band"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "snapshots": 145,
       "days": 30.2,
       "upside": 45.5,
@@ -4906,14 +4906,14 @@
     "ticker": "SCHW",
     "name": "Charles Schwab",
     "sector": "Financial",
-    "text": "AI Score at 75. Smart Score not impressed.",
+    "text": "AI Score at 75. Pulse Score not impressed.",
     "score": 64,
     "reasons": [
       "2 digits of concrete detail",
       "length in band"
     ],
     "facts": {
-      "smartScore": 2,
+      "pulseScore": 2,
       "aiScore": 75,
       "aiRating": "Outperform",
       "consensus": "StrongBuy",
@@ -4982,7 +4982,7 @@
       "length in band"
     ],
     "facts": {
-      "smartScore": 10,
+      "pulseScore": 10,
       "snapshots": 31,
       "days": 6.5,
       "upside": 22.3,
@@ -4998,15 +4998,15 @@
     "ticker": "AMAT",
     "name": "Applied Materials, Inc.",
     "sector": "Technology",
-    "text": "Smart Score catapulted from 7 to 10 overnight.",
+    "text": "Pulse Score catapulted from 7 to 10 overnight.",
     "score": 66,
     "reasons": [
       "3 digits of concrete detail",
       "length in band"
     ],
     "facts": {
-      "smartScoreFrom": 7,
-      "smartScoreTo": 10,
+      "pulseScoreFrom": 7,
+      "pulseScoreTo": 10,
       "direction": "up",
       "snapshots": 31,
       "days": 6.5,

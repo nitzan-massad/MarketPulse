@@ -4,6 +4,7 @@
 // ci/replay-data-loss.mjs (the dev tool that tuned LIMITS on git history).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { isProviderAiFirm } from "./source.mjs";
 
 // Fields that may never go from a value back to null — one row is already a violation.
 export const STRICT = Object.freeze(["n", "px", "mc", "desc", "sec"]);
@@ -15,7 +16,7 @@ export const STRICT = Object.freeze(["n", "px", "mc", "desc", "sec"]);
 //   pt 8, up 8, con 1, ss 5   -> limits are roughly 2x headroom over that (con/ss kept tighter
 //   because their observed churn is tiny, so a bigger jump there is a real signal).
 // ai/air/aipt (2026-11-19): the mappers now write an explicit-null AI block as null instead of
-// carrying it, so one screener response with `aiAnalystData: null` everywhere would wipe every
+// carrying it, so one screener response with null outlook data everywhere would wipe every
 // in-pull trio. Observed max value -> null per run: ai 0, air 0, aipt 0 (60 and 300 data-commit
 // pairs). 10 allows a few genuine report withdrawals; a wipe of the ~120-row pull trips it.
 export const LIMITS = Object.freeze({ pt: 15, up: 15, con: 5, ss: 10, ai: 10, air: 10, aipt: 10 });
@@ -23,13 +24,13 @@ export const LIMITS = Object.freeze({ pt: 15, up: 15, con: 5, ss: 10, ai: 10, ai
 export const FORECAST_SHRINK = 0.2; // a file may lose at most 20% of its rows...
 export const FORECAST_MIN_ROWS = 5; // ...once it has at least this many
 
-export const FORECAST_MAX_AGE_DAYS = 365; // older rows age out of TipRanks' window: churn, not loss
+export const FORECAST_MAX_AGE_DAYS = 365; // older rows age out of the provider's window: churn, not loss
 
-/** Rows that count toward the shrink rule: human analysts (firm not "TipRanks - <AI model>",
- *  same test as ci/forecast-merge.mjs) rated within 365 days of `now` (ms; pure arg). */
+/** Rows that count toward the shrink rule: human analysts (firm not the provider's own AI model,
+ *  isProviderAiFirm, same test as ci/forecast-merge.mjs) rated within 365 days of `now` (ms; pure arg). */
 export function countRows(rows, now) {
   const cutoff = now - FORECAST_MAX_AGE_DAYS * 864e5;
-  return rows.filter((r) => !/^TipRanks\b/i.test(r?.f || "") && !(Date.parse(r?.d) < cutoff)).length;
+  return rows.filter((r) => !isProviderAiFirm(r?.f) && !(Date.parse(r?.d) < cutoff)).length;
 }
 
 const has = (v) => v !== null && v !== undefined;

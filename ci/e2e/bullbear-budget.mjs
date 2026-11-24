@@ -1,19 +1,22 @@
-// E2E: does the bulls/bears switch to stock-aianalyst/payload.json (commit dfc2000d6) still fit the
+// E2E: does the bulls/bears switch to the per-ticker analysis payload (commit dfc2000d6) still fit the
 // CI budget? Measures plain-fetch latency, bytes, JSON.parse time and heap on N real tickers, then
 // extrapolates to site.yml's worst case (LIMIT=200 + near-earnings) beside forecasts on one
 // FlareSolverr, and checks the workflow wiring (timeouts, continue-on-error, Health gate strings).
-//   node ci/e2e/bullbear-budget.mjs            (N=20 tickers, ~45s, 20 TipRanks requests)
+//   node ci/e2e/bullbear-budget.mjs            (N=20 tickers, ~45s, 20 provider requests)
 //   N=5 node ci/e2e/bullbear-budget.mjs        CACHE_ONLY=1 -> no network (parse/heap only)
 // Read-only on the repo: bodies go to the shared scratch cache, never to public/ or src/data/.
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { BROWSER_UA } from "../../worker/cnbc.js";
 import { extractJson, parseBullBearPayload } from "../bullbear-payload.mjs";
+import { srcUrl } from "../source.mjs";
 import { nearEarningsNow } from "../scrape-earnings.mjs";
-import { FLARE_TIMEOUT_MS } from "../tr-fetch.mjs";
+import { FLARE_TIMEOUT_MS } from "../src-fetch.mjs";
 
-const CACHE = process.env.CACHE_DIR || "/private/tmp/claude-501/-Users-nitzanmassad-Desktop-Nitzan/dfa54ae0-71e5-4ed3-b0b5-d9cf9c9f36b6/scratchpad/aianalyst-cache";
+const CACHE = process.env.CACHE_DIR || join(tmpdir(), "outlook-cache");
 const N = Math.min(Number(process.env.N || 20), 25); // owner's home IP: hard cap 25 requests
 const CACHE_ONLY = process.env.CACHE_ONLY === "1";
 // Large caps + micro-caps (the old HTML page had NO section for the latter: run 45017341260 "25 failed").
@@ -54,7 +57,7 @@ check("track-requests lite run: bullbear step continue-on-error, job timeout 10"
   assert.match(track, /node ci\/scrape-bullbear\.mjs &/);
   assert.match(track, /timeout-minutes:\s*10/);
 });
-if (/bullbear:.*SSR tipranks\.com\/stocks\/<t> page/.test(site)) console.log("  NOTE site.yml comment still says bullbear reads the SSR /stocks/<t> page (stale doc)");
+if (/bullbear:.*SSR .*\/stocks\/<t> page/.test(site)) console.log("  NOTE site.yml comment still says bullbear reads the SSR /stocks/<t> page (stale doc)");
 
 // ---- 2. measure ----
 console.log(`\nmeasure (${CACHE_ONLY ? "cache only" : `${TICKERS.length} fresh plain fetches, 1.5s apart`}):`);
@@ -67,7 +70,7 @@ for (const [i, t] of TICKERS.entries()) {
     if (i) await sleep(1500);
     const t0 = performance.now();
     try {
-      const r = await fetch(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`,
+      const r = await fetch(srcUrl("analysis", t),
         { headers: { "user-agent": BROWSER_UA }, signal: AbortSignal.timeout(30_000) });
       body = await r.text(); status = r.status;
     } catch (e) { body = ""; status = e.name; }

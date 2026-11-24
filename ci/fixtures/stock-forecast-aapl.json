@@ -1,5 +1,5 @@
 {
- "_note": "Trimmed from AAPL stock-forecast/payload.json (2026-11-18). Martin Yang priceTarget (null upstream) set to 250 so the row survives the mapper.",
+ "_note": "Trimmed from the AAPL forecast payload (2026-11-18). Martin Yang priceTarget (null upstream) set to 250 so the row survives the mapper.",
  "models": {
   "experts": [
    {

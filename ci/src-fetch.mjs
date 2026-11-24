@@ -1,4 +1,4 @@
-// Shared fetch for the TipRanks/Finviz scrapers: plain fetch first, FlareSolverr on a
+// Shared fetch for the provider/Finviz scrapers: plain fetch first, FlareSolverr on a
 // challenge/403, and FAIL FAST on a Cloudflare *firewall* block.
 //
 // Why: a firewall block ("Sorry, you have been blocked", error 1020) is a verdict on the runner's

@@ -1,7 +1,7 @@
-// Parse TipRanks' "Bulls Say, Bears Say" thesis out of /stocks/<t>/stock-aianalyst/payload.json.
+// Parse the provider's Upside/Risks thesis out of the per-ticker analysis payload.
 //
-// Why JSON: since 2026-11-22 Cloudflare hard-blocks GitHub runner IPs on the HTML /stocks/<t> page
-// (the previous source), while payload.json still passes. The same points live at
+// Why JSON: since 2026-11-22 Cloudflare hard-blocks GitHub runner IPs on the HTML stock page
+// (the previous source), while the JSON payload still passes. The same points live at
 // models.stocks_extra[_id === T].aiAnalysis.keyPoints[] as {sentiment, title, description}.
 //
 // Missing JSON / no stocks_extra list -> THROWS (challenge page, error body, reshape = failure).

@@ -12,3 +12,7 @@ preview-images/
 .wrangler/
 .firebase/
 public/forecasts/*.tmp
+
+# local tooling / build state
+.claude/
+tsconfig.tsbuildinfo

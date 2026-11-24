@@ -1,4 +1,4 @@
-// Backfill/refresh public/forecasts/<T>.json from TipRanks' stock-forecast payload.json (getData is
+// Backfill/refresh public/forecasts/<T>.json from the provider's per-ticker forecast payload (the old endpoint is
 // Cloudflare-blocked since 2026-11; the HTML /forecast page fallback since 2026-11-22 — neither is
 // fetched any more; a failed payload carries last run's rows). Strictly additive + per-ticker failure-tolerant: a bad ticker
 // is skipped, never fatal, so this can't break the main refresh. Fills tickers that are MISSING a
@@ -13,7 +13,8 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { carryPrevGuarded, carryStars, forecastsDegraded, forecastsFromPayload, hiddenAnalysts, payloadOk, keepPrevRating } from "./forecast-merge.mjs";
 import { nearEarningsNow } from "./scrape-earnings.mjs";
-import { getText, makeBreaker, health } from "./tr-fetch.mjs";
+import { getText, makeBreaker, health } from "./src-fetch.mjs";
+import { srcUrl } from "./source.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
 const LIMIT = Number(process.env.LIMIT || 90);
@@ -21,11 +22,11 @@ const STALE_DAYS = Number(process.env.STALE_DAYS || 3);
 const ALL = process.env.ALL === "1";
 const ONLY = process.env.ONLY ? process.env.ONLY.split(",") : null; // just these tickers (ci/track-requests)
 // Overridable so a live run can be pointed at a throwaway directory to verify the merge
-// against real TipRanks pages without touching the committed files. CI never sets it.
+// against real upstream pages without touching the committed files. CI never sets it.
 const OUT = process.env.OUT || "public/forecasts";
 const ASOF = `${OUT}/_asOf.json`; // { ticker: ISO } — build-reviews-recent skips it (not an array)
 
-// Transport is ci/tr-fetch.mjs: plain fetch, FlareSolverr on a challenge/403, and a Cloudflare
+// Transport is ci/src-fetch.mjs: plain fetch, FlareSolverr on a challenge/403, and a Cloudflare
 // firewall block throws BlockedError at once (never retried). One breaker per endpoint: after 3
 // blocks in a row the endpoint is skipped for the rest of the run.
 // A Cloudflare page is always retried like an error (getText); `ok` adds a per-URL check (e.g. "is JSON").
@@ -33,7 +34,7 @@ const ASOF = `${OUT}/_asOf.json`; // { ticker: ISO } — build-reviews-recent sk
 // `{}`, which read as "no experts" and shrank MA to its page rows in the E2E fault run.
 // ponytail: 2 tries per URL, not 6 x (up to 60s) — a payload failure falls back to last run's rows.
 // The HTML /forecast page fallback was dropped 2026-11-22: Cloudflare hard-blocks runner IPs on it,
-// and the targets it was fetched for are null in TipRanks' own data too (it gained rows for ~1 ticker
+// and the targets it was fetched for are null in the provider's own data too (it gained rows for ~1 ticker
 // per 8 runs). ci/forecast-html.mjs + the page helpers in forecast-merge.mjs stay, unused, for a revival.
 const payloadBreaker = makeBreaker();
 const tripped = new Set();
@@ -78,7 +79,7 @@ console.log(`forecasts backfill: ${targets.length} ticker(s), ${hot.length} near
 const now = new Date().toISOString();
 let written = 0, empty = 0, fail = 0, payloadFails = 0, carried = 0, widened = 0, unfetched = 0;
 // ponytail: a fixed pool of PARALLEL workers over one shared FlareSolverr; each request is a
-// headless Chrome, so the ceiling is runner CPU, not TipRanks: 3 on the 4-vCPU runner
+// headless Chrome, so the ceiling is runner CPU, not upstream: 3 on the 4-vCPU runner
 // (90 tickers: P1 973s, P3 655s, P10 1378s). More needs more cores or more FlareSolverr instances.
 const queue = [...targets];
 // ponytail: _asOf is flushed every 20 stamps and on SIGTERM/SIGINT, atomically (tmp + rename), so a
@@ -92,14 +93,13 @@ async function scrape(t) {
   try {
     let prev = null;
     try { prev = JSON.parse(readFileSync(`${OUT}/${t}.json`, "utf8")); } catch { /* first fetch */ }
-    const slug = encodeURIComponent(t.toLowerCase());
     // 1. payload.json names every rating in the consensus window, with the analyst's stars (rank).
     let fj = null, src = null;
     if (!skipOpen("payload.json", payloadBreaker)) {
       try {
         const breaker = payloadBreaker;
         const okPayload = (h) => { try { return forecastsFromPayload(extractJson(h), t) !== null; } catch { return false; } };
-        fj = extractJson(await getText(`https://www.tipranks.com/stocks/${slug}/stock-forecast/payload.json`, { flareUrl: FS_URL, tries: 2, plain: true, ok: okPayload, breaker }));
+        fj = extractJson(await getText(srcUrl("forecast", t), { flareUrl: FS_URL, tries: 2, plain: true, ok: okPayload, breaker }));
         src = forecastsFromPayload(fj, t);
       } catch { src = null; }
     }
@@ -127,7 +127,7 @@ async function scrape(t) {
       console.log(`  ${t}: ${fc.length} ✓ (${source})${back ? ` (+${back} carried)` : ""}`);
     }
     else { empty++; console.log(`  ${t}: none`); }
-    // ponytail: stamp on empty too, so a ticker TipRanks genuinely has no experts for
+    // ponytail: stamp on empty too, so a ticker the provider genuinely has no experts for
     // rotates out instead of hogging a LIMIT slot every run. It still gets retried each
     // STALE_DAYS. A ticker whose payload failed is NOT stamped — retried next run.
     if (fresh) asOf[t] = now;
@@ -141,7 +141,7 @@ await Promise.all(Array.from({ length: PARALLEL }, async () => {
   while (queue.length) await scrape(queue.shift());
 }));
 saveAsOf();
-// tripwire: payload.json failing a lot = TipRanks moved or blocked it; those tickers serve last run's rows
+// tripwire: payload.json failing a lot = the provider moved or blocked it; those tickers serve last run's rows
 if (payloadFails) console.log(`${payloadFails > 10 ? "::warning::" : ""}forecasts: payload.json failed for ${payloadFails} ticker(s)`);
 // thrown + both-sources-failed: either way the ticker got nothing new this run
 const degraded = forecastsDegraded({ thrown: fail, unfetched, targets: targets.length });

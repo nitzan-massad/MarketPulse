@@ -1,4 +1,4 @@
-// E2E coverage check for the bulls/bears source switch (dfc2000d6): HTML /stocks/<t> -> stock-aianalyst/payload.json.
+// E2E coverage check for the bulls/bears source switch (dfc2000d6): HTML /stocks/<t> -> the per-ticker analysis payload.
 // Question: does the JSON source give a thesis for at least as many tickers as the HTML page did?
 //
 // OLD outcome per ticker (frozen here, from evidence of the HTML-parser era 2026-11-05..11-22):
@@ -11,11 +11,13 @@
 //
 // Run: node ci/e2e/bullbear-coverage.mjs        (CACHE_DIR=<dir> to reuse/write raw payloads; OFFLINE=1 = cache only)
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { extractJson, parseBullBearPayload } from "../bullbear-payload.mjs";
+import { srcUrl } from "../source.mjs";
 
-const CACHE = process.env.CACHE_DIR ||
-  "/private/tmp/claude-501/-Users-nitzanmassad-Desktop-Nitzan/dfa54ae0-71e5-4ed3-b0b5-d9cf9c9f36b6/scratchpad/aianalyst-cache";
+const CACHE = process.env.CACHE_DIR || join(tmpdir(), "outlook-cache");
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36";
 const SAMPLE = {
   LOG_FILLED: "ADI ADSK ALAR BLRX BZAI COSM DELL GDEV IVA SMTC ZEPP",
@@ -32,7 +34,7 @@ async function payload(t) {
   const wait = lastNet + 1500 - Date.now(); // polite: sequential, >=1.5s apart
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   lastNet = Date.now();
-  const res = await fetch(`https://www.tipranks.com/stocks/${encodeURIComponent(t.toLowerCase())}/stock-aianalyst/payload.json`,
+  const res = await fetch(srcUrl("analysis", t),
     { headers: { "user-agent": UA, accept: "application/json" } });
   const body = await res.text();
   if (!res.ok) throw new Error(`HTTP ${res.status}`);

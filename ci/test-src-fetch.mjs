@@ -1,9 +1,9 @@
-// Self-check for ci/tr-fetch.mjs. Run: node ci/test-tr-fetch.mjs  (no network: fetch is stubbed)
+// Self-check for ci/src-fetch.mjs. Run: node ci/test-src-fetch.mjs  (no network: fetch is stubbed)
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BlockedError, FLARE_TIMEOUT_MS, getText, health, isBlocked, makeBreaker, stepDeadline } from "./tr-fetch.mjs";
+import { BlockedError, FLARE_TIMEOUT_MS, getText, health, isBlocked, makeBreaker, stepDeadline } from "./src-fetch.mjs";
 
 const BLOCK_MSG = "Error solving the challenge. Cloudflare has blocked this request. Probably your IP is banned for this site";
 assert.equal(isBlocked(BLOCK_MSG), true);
@@ -179,4 +179,4 @@ assert.equal(readFileSync(join(dir, "health"), "utf8"), "a\n");
 delete process.env.RUNNER_TEMP;
 health("ignored"); // no-op without RUNNER_TEMP
 if (prev) process.env.RUNNER_TEMP = prev;
-console.log("tr-fetch: all checks passed");
+console.log("src-fetch: all checks passed");

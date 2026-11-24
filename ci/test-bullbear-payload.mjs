@@ -1,10 +1,10 @@
-// Self-check for the Bulls Say / Bears Say payload parser (ci/bullbear-payload.mjs).
-// Run: node ci/test-bullbear-payload.mjs   (no network; fixture = real trimmed AAPL stock-aianalyst payload)
+// Self-check for the Upside / Risks payload parser (ci/bullbear-payload.mjs).
+// Run: node ci/test-bullbear-payload.mjs   (no network; fixture = real trimmed AAPL analysis payload)
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { extractJson, parseBullBearPayload } from "./bullbear-payload.mjs";
 
-const raw = readFileSync(new URL("./fixtures/aianalyst-aapl-keypoints.json", import.meta.url), "utf8");
+const raw = readFileSync(new URL("./fixtures/outlook-aapl-keypoints.json", import.meta.url), "utf8");
 const j = JSON.parse(raw);
 
 // 1. real payload: 3 + 3, picks the AAPL entry (not the first one), case-insensitive ticker

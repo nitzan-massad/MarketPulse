@@ -1,5 +1,5 @@
 // Offline e2e: runs the REAL ci/scrape-bullbear.mjs (as a child process, temp cwd) against a mocked
-// network — plain tipranks.com GET and FlareSolverr POST — once per failure-mode scenario, and runs
+// network — plain provider GET and FlareSolverr POST — once per failure-mode scenario, and runs
 // the PRE-switch HTML scraper (git archive dfc2000d6^) through the same scenarios to prove the
 // payload.json version is no less strict. No real network, no repo writes.
 //   node ci/e2e/bullbear-failures.mjs        (exit 1 on any degradation)
@@ -21,7 +21,7 @@ import { appendFileSync } from "node:fs";
 const M = JSON.parse(process.env.MOCK), LOG = process.env.MOCK_LOG;
 const realST = globalThis.setTimeout; // retry sleeps (sleepMs) -> ~instant
 globalThis.setTimeout = (f, ms, ...a) => realST(f, Math.min(ms ?? 0, 5), ...a);
-const tick = (u) => (u.match(/tipranks\\.com\\/stocks\\/([^/?]+)/) || [])[1]?.toUpperCase();
+const tick = (u) => (u.match(/\\/stocks\\/([^/?]+)/) || [])[1]?.toUpperCase(); // old page and new payload URLs both carry /stocks/<t>
 globalThis.fetch = async (url, opts = {}) => {
   url = String(url);
   if (opts.method === "POST" && url === process.env.FLARESOLVERR_URL) {
@@ -43,7 +43,10 @@ const FS_BLOCKED = { status: "error", message: "Error solving the challenge. Clo
 const flareOk = (response) => ({ status: "ok", solution: { status: 200, response } });
 const json = (t, kp) => JSON.stringify({ models: { stocks_extra: [{ _id: "ZZZ" }, { _id: t, ...(kp && { aiAnalysis: { keyPoints: kp } }) }] } });
 const KP = [{ sentiment: "bullish", title: "Moat", description: "Strong <b>moat</b> & brand." }, { sentiment: "bearish", title: "Risk", description: "Valuation \"rich\"." }];
-const html = (pts) => `<html><body><section><h2>Bulls Say, Bears Say</h2><h3><span>Bulls Say</span></h3>${pts ? "<h4>Moat</h4><p>Strong moat.</p>" : ""}<h3><span>Bears Say</span></h3>${pts ? "<h4>Risk</h4><p>Rich.</p>" : ""}</section></body></html>`;
+// The old HTML parser's section headings, read from its own archived source (set below) so this
+// file does not hard-code the upstream wording.
+const HEAD = { all: "", bull: "", bear: "" };
+const html = (pts) => `<html><body><section><h2>${HEAD.all}</h2><h3><span>${HEAD.bull}</span></h3>${pts ? "<h4>Moat</h4><p>Strong moat.</p>" : ""}<h3><span>${HEAD.bear}</span></h3>${pts ? "<h4>Risk</h4><p>Rich.</p>" : ""}</section></body></html>`;
 const ERR = '{"data":null,"error":"not found"}';
 const BODY = {
   new: { good: (t) => json(t, KP), empty: (t) => json(t, null), reshaped: (t) => JSON.stringify({ models: { stocks: [{ _id: t, aiAnalysis: { keyPoints: KP } }] } }),
@@ -65,6 +68,9 @@ const ROOTS = { new: REPO };
 try {
   ROOTS.old = join(TMP, "old"); mkdirSync(ROOTS.old);
   execFileSync("sh", ["-c", `git -C "${REPO}" archive "${OLD_REV}" ci worker | tar -x -C "${ROOTS.old}"`]);
+  const parser = readFileSync(join(ROOTS.old, "ci/bullbear-html.mjs"), "utf8");
+  HEAD.all = parser.match(/indexOf\("([^"]+)<\/h2>"\)/)[1];
+  [, HEAD.bull, HEAD.bear] = parser.match(/col\("([^"]+)", "([^"]+)"\)/);
 } catch (e) { delete ROOTS.old; console.log(`(old version unavailable: ${e.message.split("\n")[0]}; NEW only)`); }
 
 let n = 0;

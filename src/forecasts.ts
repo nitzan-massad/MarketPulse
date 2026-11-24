@@ -1,4 +1,4 @@
-// Analyst forecasts — per-ticker snapshot from TipRanks' stock-forecast payload + forecast page (ci/scrape-forecasts.mjs)
+// Analyst forecasts — per-ticker snapshot from the provider's forecast payload + forecast page (ci/scrape-forecasts.mjs)
 // (name, firm, star rating, price target, prior target, position, date), baked into
 // public/forecasts/. Lazy-fetched by the modal; also polled fresh by the review detector.
 // A tracked-only ticker (not bundled yet) reads its payload from RTDB trackedRows instead.
@@ -6,7 +6,7 @@ import { trackedPayload } from "./stocks";
 export interface Forecast {
   n: string | null; // analyst name
   f: string | null; // firm
-  st: number | null; // TipRanks star rating 0–5
+  st: number | null; // analyst star rating 0–5
   r: string | null; // position: Buy / Hold / Sell
   pt: number; // price target
   opt: number | null; // prior target (shows "old → new")

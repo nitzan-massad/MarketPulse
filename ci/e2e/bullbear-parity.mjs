@@ -3,18 +3,21 @@
 //
 // Baseline = public/bullbear/<T>.json as of BASE (default dfc2000d6^, the last old-parser commit), so later
 // scrapes by the new parser can't make this pass trivially. Per point: exact | norm (equal after case/space/
-// quote folding) | changed. A changed ticker is "updated" (TipRanks re-generated the AI thesis since asOf:
+// quote folding) | changed. A changed ticker is "updated" (the provider re-generated the AI thesis since asOf:
 // same counts, full-length well-formed rewrites) unless it shows a parser-LOSS signature: fewer points, a
 // body that is a truncated piece of the old one / much shorter, a missing thesis, or HTML residue -> exit 1.
 // (No live-HTML arbiter: Cloudflare 403s the /stocks/<t> page from this Mac too, 2026-11-23.)
 import assert from "node:assert/strict";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { extractJson, parseBullBearPayload } from "../bullbear-payload.mjs";
+import { srcUrl } from "../source.mjs";
 import { BROWSER_UA } from "../../worker/cnbc.js";
 
 const BASE = process.env.BASE || "dfc2000d6^";
-const CACHE = process.env.CACHE_DIR || "/private/tmp/claude-501/-Users-nitzanmassad-Desktop-Nitzan/dfa54ae0-71e5-4ed3-b0b5-d9cf9c9f36b6/scratchpad/aianalyst-cache";
+const CACHE = process.env.CACHE_DIR || join(tmpdir(), "outlook-cache");
 const MAX_REQ = Number(process.env.MAX_REQ || 40);
 // 10 mega caps, 10 mid caps, 10 micro caps (by mc in src/data/stocks.json, all asOf 2026-11-20/21 at BASE)
 const TICKERS = (process.env.TICKERS || "AAPL,MSFT,NVDA,GOOGL,AMZN,AVGO,TSM,META,LLY,WMT," +
@@ -50,7 +53,7 @@ for (const t of TICKERS) {
   let old;
   try { old = JSON.parse(git("show", `${BASE}:public/bullbear/${t}.json`)); } catch { rows.push([t, "no-baseline"]); continue; }
   let nu;
-  try { nu = parseBullBearPayload(extractJson(await cached(`${t}.json`, `https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`)), t); }
+  try { nu = parseBullBearPayload(extractJson(await cached(`${t}.json`, srcUrl("analysis", t))), t); }
   catch (e) { rows.push([t, `fetch-fail (${e.message})`]); bad.push(`${t}: payload unusable: ${e.message}`); continue; }
 
   for (const p of [...nu.bull, ...nu.bear]) if (residue(p) || !p.t || !p.b) bad.push(`${t}: dirty point "${p.t}"`);

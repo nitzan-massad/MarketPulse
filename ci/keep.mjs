@@ -6,12 +6,13 @@
 //      (src/data/keepalive.json, written from RTDB by ci/track-requests.mjs), or
 //   3. seen in the dynamic list, or requested via "Track this stock" (src/data/tracked.json),
 //      within the last KEEP_MAX_AGE_DAYS.
-// Kept-but-missing tickers are backfilled from the per-ticker stock-aianalyst payload
-// (rowFromAiAnalyst below), merged over the ticker's last-known row (mergeRow) so the fields
-// that payload can't see (e.g. daily change) carry over instead of going blank. The old getData
-// feed was retired 2026-11-17 (Cloudflare-blocked).
+// Kept-but-missing tickers are backfilled from the per-ticker analysis payload
+// (rowFromOutlook below), merged over the ticker's last-known row (mergeRow) so the fields
+// that payload can't see (e.g. daily change) carry over instead of going blank. The old endpoint
+// was retired 2026-11-17 (Cloudflare-blocked).
 import assert from "node:assert";
 import { normName } from "./backfill-plan.mjs";
+import { src } from "./source.mjs";
 
 export const KEEP_MAX_AGE_DAYS = 365;
 export const VIEW_KEEP_DAYS = 180;
@@ -84,7 +85,7 @@ export const sectorName = (slug) => (slug ? SEC_BY_NORM[String(slug).toLowerCase
 // AI rating slug ("outperform") → app's "Outperform"/"Neutral"/"Underperform" (capitalize first)
 // Title-case each WORD, not just character 0: a multi-word ratingId like "strong_buy" used
 // to ship "Strong_buy" — a value in neither the app's AI-rating vocabulary nor a valid
-// display string. TipRanks only emits outperform/neutral/underperform today, so this is
+// display string. The provider only emits outperform/neutral/underperform today, so this is
 // insurance against a vocabulary change, not a live bug.
 export const airName = (slug) => {
   if (!slug) return null;
@@ -111,16 +112,16 @@ const EMPTY_CONSENSUS = { con: null, b: 0, h: 0, s: 0 };
 // company name once case, punctuation and legal suffixes are ignored ("Apple" / "Apple Inc.") -> null.
 const legalName = (legal, n) => { const l = known(legal); return l === undefined ? undefined : normName(l) === normName(n) ? null : l; };
 // DELIBERATE exception to "con: null = no coverage" (CLAUDE.md -> Non-obvious rules; owner ruling,
-// plan Global Constraints). getData parity (decision D1, "keep today's behaviour exactly"): the
-// retired rowFromGetData wrote con "Neutral", b/h/s 0 for a ticker with no all-analyst coverage
-// (23 such rows at T0). The off-pull paths (universe screener rows, aianalyst payloads) replace
-// getData, so they do the same; the in-pull path keeps EMPTY_CONSENSUS (con null). pt/up stay null
+// plan Global Constraints). Legacy-pull parity (decision D1, "keep today's behaviour exactly"): the
+// retired legacy row mapper wrote con "Neutral", b/h/s 0 for a ticker with no all-analyst coverage
+// (23 such rows at T0). The off-pull paths (universe screener rows, analysis payloads) replace
+// the legacy pull, so they do the same; the in-pull path keeps EMPTY_CONSENSUS (con null). pt/up stay null
 // either way. The UI's noAnalystCoverage (src/trackState.ts) recognises both shapes. Do not "fix"
 // this to EMPTY_CONSENSUS without the owner.
-const NO_COVERAGE_GETDATA = { con: "Neutral", b: 0, h: 0, s: 0 };
+const NO_COVERAGE_ROW = { con: "Neutral", b: 0, h: 0, s: 0 };
 
 // D1 "best target, falling back to all" for non-in-pull rows. The fallback keys on the target VALUE,
-// not the object: TipRanks sends `bestPriceTargetData: {convertedPriceTarget: null, upside: null}`
+// not the object: the provider sends a best-target object whose `convertedPriceTarget` and `upside` are both null
 // (VRCA, e2e R1), which `??` on the object never fell through. Neither has a value -> the best object
 // as before (explicit null = no target; both absent = undefined = carry).
 const bestElseAll = (best, all, key) => (best?.[key] != null ? best : all?.[key] != null ? all : best ?? all);
@@ -130,8 +131,8 @@ const bestElseAll = (best, all, key) => (best?.[key] != null ? best : all?.[key]
 // con/b/h/s from ALL analysts, pt/up from the best target falling back to all.
 export function rowFromScreener(item, { inPull }) {
   const t = item?.tradingInformationData ?? undefined;
-  const e = item?.tipRanksEssentialData ?? undefined;
-  const ai = item?.aiAnalystData; // null stays null (no AI report), absent stays undefined (carry)
+  const e = item?.[src("essential")] ?? undefined;
+  const ai = item?.[src("outlook")]; // null stays null (no AI report), absent stays undefined (carry)
   let cons, ptd;
   if (inPull) {
     // In-pull never carries: prev may hold an off-pull run's ALL-analyst counts/target, and mixing
@@ -144,10 +145,10 @@ export function rowFromScreener(item, { inPull }) {
     ptd = bestElseAll(e.bestPriceTargetData, e.priceTargetData, "convertedPriceTarget");
   }
   const d = cons?.distribution || {};
-  const consRow = cons === undefined ? {} : cons === null ? (inPull ? EMPTY_CONSENSUS : NO_COVERAGE_GETDATA)
+  const consRow = cons === undefined ? {} : cons === null ? (inPull ? EMPTY_CONSENSUS : NO_COVERAGE_ROW)
     : { con: cons.analystConsensus?.name || null, b: d.buy || 0, h: d.hold || 0, s: d.sell || 0 };
-  const ssd = e?.tipRanksSmartScoreData;
-  // display name ("IonQ", "TSMC"), as getData had; the legal companyName only when it is absent/empty (R3)
+  const ssd = e?.[src("scoreData")];
+  // display name ("IonQ", "TSMC"), as the legacy pull had; the legal companyName only when it is absent/empty (R3)
   const n = known(t?.companyDisplayName) ?? known(t?.companyName);
   return {
     t: t?.ticker,
@@ -158,10 +159,10 @@ export function rowFromScreener(item, { inPull }) {
     pt: unk(ptd, (p) => rndPx(p?.convertedPriceTarget)),
     up: unk(ptd, (p) => (p?.upside != null ? rnd(p.upside * 100, 1) : null)),
     con: consRow.con, b: consRow.b, h: consRow.h, s: consRow.s,
-    // explicit null object = "no Smart Score" (the old in-pull mapper wrote null); a missing object
+    // explicit null object = "no Pulse Score" (the old in-pull mapper wrote null); a missing object
     // or score key = reshaped -> carry
-    ss: ssd === null ? null : ssd === undefined || typeof ssd !== "object" || !("tipRanksSmartScore" in ssd) ? undefined : ssd.tipRanksSmartScore ?? null,
-    // aiAnalystData: null = TipRanks' "no AI report" -> null trio ("—"); absent key -> carry (owner, 2026-11-19)
+    ss: ssd === null ? null : ssd === undefined || typeof ssd !== "object" || !(src("score") in ssd) ? undefined : ssd[src("score")] ?? null,
+    // outlook data: null = the provider's "no AI report" -> null trio ("—"); absent key -> carry (owner, 2026-11-19)
     ai: unk(ai, (a) => (a === null ? null : rnd(a.overallScore, 1))),
     air: unk(ai, (a) => (a === null ? null : (typeof a.overallRating === "object" ? a.overallRating?.name : a.overallRating) ?? null)),
     aipt: unk(ai, (a) => (a === null ? null : rndPx(a.priceTarget))),
@@ -171,14 +172,14 @@ export function rowFromScreener(item, { inPull }) {
   };
 }
 
-// Per-ticker stock-aianalyst payload (www.tipranks.com/stocks/<t>/stock-aianalyst/payload.json)
-// -> row, or null when the bundle has no row for `ticker`. Same D1 basis as getData had:
+// Per-ticker analysis payload (srcUrl("analysis", t))
+// -> row, or null when the bundle has no row for `ticker`. Same D1 basis as the legacy pull had:
 // counts from ALL analysts, target from best falling back to all.
-export function rowFromAiAnalyst(fj, ticker) {
+export function rowFromOutlook(fj, ticker) {
   const list = fj?.models?.stocks;
   const matches = ticker && Array.isArray(list) ? list.filter((x) => x && x._id === ticker) : [];
   const s = matches.find((x) => x.company || x.analystRatings || x.prices) ?? null; // skip null-filled peer stubs
-  // A stub alone is not a row: its smartScore/analystRatings nulls are the stub's, not TipRanks'
+  // A stub alone is not a row: its score/analystRatings nulls are the stub's, not the provider's
   // answer for this ticker, and below they would be read as "no score" / "no coverage".
   if (!s) return null;
   const c = s.company;
@@ -188,17 +189,17 @@ export function rowFromAiAnalyst(fj, ticker) {
   //   target: best, else all; both keys absent -> carry.
   const ar = s.analystRatings;
   let consRow = {}, ptd;
-  if (ar === null) { consRow = NO_COVERAGE_GETDATA; ptd = null; }
+  if (ar === null) { consRow = NO_COVERAGE_ROW; ptd = null; }
   else if (ar) {
     const all = ar.all;
-    consRow = all ? { con: CON_NAME[all.enumId] ?? null, b: all.buy || 0, h: all.hold || 0, s: all.sell || 0 } : all === null ? NO_COVERAGE_GETDATA : {};
+    consRow = all ? { con: CON_NAME[all.enumId] ?? null, b: all.buy || 0, h: all.hold || 0, s: all.sell || 0 } : all === null ? NO_COVERAGE_ROW : {};
     ptd = ar.best === undefined && all === undefined ? undefined : bestElseAll(ar.best?.priceTarget, all?.priceTarget, "value") ?? null;
   }
-  const sm = s.smartScore;
+  const sm = s[src("stockScore")];
   const rep = s.report;
   const sec = c ? sectorName(c.sector) : null;
   const mcap = s.marketCap?.daily?.marketCap;
-  // company.name is the display name (equals getData's n 195/195, e2e R3); companyName is legal
+  // company.name is the display name (equals the legacy pull's n 195/195, e2e R3); companyName is legal
   const n = known(c?.name) ?? known(c?.companyName);
   return {
     t: ticker,
@@ -209,7 +210,7 @@ export function rowFromAiAnalyst(fj, ticker) {
     pt: unk(ptd, (p) => rndPx(p?.value)),
     up: unk(ptd, (p) => upFrom(p, known(daily?.priceUSD))),
     con: consRow.con, b: consRow.b, h: consRow.h, s: consRow.s,
-    // smartScore null = "no Smart Score" -> null ("—"); object without `value` = reshaped -> carry
+    // score null = "no Pulse Score" -> null ("—"); object without `value` = reshaped -> carry
     ss: sm === null ? null : sm === undefined || typeof sm !== "object" || !("value" in sm) ? undefined : sm.value ?? null,
     // report: null = no AI report -> null trio; absent -> carry (owner, 2026-11-19)
     ai: rep === null ? null : rep ? rnd(rep.score, 1) : undefined,
@@ -221,12 +222,12 @@ export function rowFromAiAnalyst(fj, ticker) {
   };
 }
 
-// aianalyst upside. The payload sometimes omits `priceTarget.upside` (ACH, e2e R4); getData's mapper
+// Analysis-payload upside. The payload sometimes omits `priceTarget.upside` (ACH, e2e R4); the legacy mapper
 // always computed it, so do the same from pt and px: rnd((pt - px) / px * 100, 1) with px rndPx'd
-// first and pt raw, exactly as c242d0cc4 rowFromGetData. An explicit null upside is data (null).
+// first and pt raw, exactly as the c242d0cc4 legacy mapper. An explicit null upside is data (null).
 // Never undefined once a target object is here: `pt` is always written from it (null when it has no
 // value), and a carried upside next to a "—" or a new target is wrong. So no target -> null, and a
-// target with no px in this payload -> null, as getData wrote (`pt != null && px ? … : null`).
+// target with no px in this payload -> null, as the legacy pull wrote (`pt != null && px ? … : null`).
 function upFrom(p, px) {
   if (p == null) return null;
   if (typeof p !== "object") return null; // reshaped: pt is written null from it, so up matches
@@ -248,14 +249,14 @@ export function mergeRow(prev, next) {
   return row;
 }
 
-// A BACKFILL row (universe item / aianalyst payload) for a kept off-pull ticker, or null when the
+// A BACKFILL row (universe item / analysis payload) for a kept off-pull ticker, or null when the
 // source had no row for it (ticker not in models.stocks, a reshaped payload, an item with no ticker).
 // Not mergeRow: mergeRow(prev, null) returns prev, so "no row" read as a successful refresh and the
 // carried>30% health rule never saw a reshaped payload. null -> the caller carries and counts it.
 export const refreshedRow = (prev, mapped) => (mapped?.t ? mergeRow(prev, mapped) : null);
 
-// Fields from the per-ticker stock-forecast payload (www.tipranks.com/stocks/<t>/
-// stock-forecast/payload.json) — this is the ONLY per-ticker source for the AI-analyst
+// Fields from the per-ticker forecast payload (srcUrl("forecast", t))
+// — this is the ONLY per-ticker source for the AI Outlook
 // score/rating/target and sector name (the screener exposes neither). Select the requested
 // ticker by `_id` (peers in the bundle are stubs). Returns nulls for fields it lacks
 // (ss/mc) so fillNulls leaves those alone.
@@ -286,7 +287,7 @@ export function forecastFields(fj, ticker) {
     con: best.enumId != null ? CON_NAME[best.enumId] ?? null : null,
     b: best.buy, h: best.hold, s: best.sell,
     // `ai` is 0–100 on BOTH sources — do NOT rescale. report.score verified live at
-    // TER 71 / AAPL 75 / NVDA 79, the same scale as the screener's aiAnalystData.overallScore
+    // TER 71 / AAPL 75 / NVDA 79, the same scale as the screener's outlook overallScore
     // (refresh-data-ci.mjs, live spread 39–85). See the aiScaleError guard below.
     ai: rnd(rep.score, 1),
     air: airName(rep.ratingId),
@@ -380,7 +381,7 @@ export function applyForecast(row, f) {
 }
 
 // --- AI-score scale guard -----------------------------------------------------
-// `ai` is written by two independent paths (the screener's `aiAnalystData.overallScore` and
+// `ai` is written by two independent paths (the screener's outlook `overallScore` and
 // `forecastFields`' `report.score`) and both are 0–100. One small number in isolation is
 // indistinguishable from a genuinely low score, so this checks the MIXTURE instead:
 //   1. some values ≤ FLOOR while others are > FLOOR → two scales in one column;
@@ -402,7 +403,7 @@ export function aiScaleError(rows, floor = AI_SCALE_FLOOR) {
   if (total >= AI_SCALE_MIN_SAMPLE && scored.length < total * 0.5) {
     return `ai is missing on ${total - scored.length}/${total} row(s) — only ${scored.length} `
       + `scored. Normal is nearly all rows; an emptied column means the AI source or its `
-      + `mapping broke, not that TipRanks stopped scoring.`;
+      + `mapping broke, not that the provider stopped scoring.`;
   }
   if (!scored.length) return null;
   const low = scored.filter((r) => Number(r.ai) <= floor);

@@ -102,7 +102,7 @@ const GOOD = [
     "const PARALLEL = Math.max(1, ",
   ]) assert.ok(src.includes(line), `PIPELINE MOVED: scrape-forecasts.mjs no longer has \`${line}\` — update runTicker() in this file`);
   const code = src.replace(/^\s*\/\/.*$/gm, "");
-  assert.ok(!/getData/.test(code), "getData is Cloudflare-blocked: the scraper must not fetch it");
+  assert.ok(!/\/api\/stocks\/get/i.test(code), "the old endpoint is Cloudflare-blocked: the scraper must not fetch it");
   assert.ok(!/\/forecast[`'"]/.test(code) && !/forecast-html/.test(code), "the HTML /forecast page is Cloudflare-blocked on runners: the scraper must not fetch it");
   assert.ok(!/^\s*import\s.*scrape-forecasts/m.test(readFileSync(new URL("./test-forecast-gate.mjs", import.meta.url), "utf8")),
     "this test must never import scrape-forecasts.mjs — its module body runs a live scrape");

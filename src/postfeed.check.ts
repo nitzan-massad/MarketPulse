@@ -62,14 +62,14 @@ eq("movement's upsideFrom/upsideTo is a genuine change",
   hasGenuineChange({ upsideFrom: 10, upsideTo: 40, price: 100, analysts: 12 }), true);
 eq("record's windowLow/windowHigh is a genuine change",
   hasGenuineChange({ upside: 80, windowLow: 60, windowHigh: 80, snapshots: 30, days: 6.3 }), true);
-eq("a Smart Score before/after pair alone is a genuine change",
-  hasGenuineChange({ smartScoreFrom: 4, smartScoreTo: 9 }), true);
+eq("a Pulse Score before/after pair alone is a genuine change",
+  hasGenuineChange({ pulseScoreFrom: 4, pulseScoreTo: 9 }), true);
 eq("surprise's bare upside is NOT a genuine change (a standing forecast)",
   hasGenuineChange({ upside: 42, price: 100, priceTarget: 142, analysts: 18, sector: "Technology" }), false);
-eq("contrarian's bare smartScore/aiScore is NOT a genuine change (two models, one moment)",
-  hasGenuineChange({ smartScore: 9, aiScore: 25, aiRating: "Bearish", bullish: "quant" }), false);
-eq("steady's bare smartScore is NOT a genuine change (it fires on the ABSENCE of one)",
-  hasGenuineChange({ smartScore: 10, snapshots: 30, days: 6.3, upside: 32 }), false);
+eq("contrarian's bare pulseScore/aiScore is NOT a genuine change (two models, one moment)",
+  hasGenuineChange({ pulseScore: 9, aiScore: 25, aiRating: "Bearish", bullish: "quant" }), false);
+eq("steady's bare pulseScore is NOT a genuine change (it fires on the ABSENCE of one)",
+  hasGenuineChange({ pulseScore: 10, snapshots: 30, days: 6.3, upside: 32 }), false);
 eq("newcomer's bare upside is NOT a genuine change (no prior reading to compare against)",
   hasGenuineChange({ seenIn: 10, windowSnapshots: 30, days: 2.1, upside: 70 }), false);
 eq("list's leaderUpside is NOT a genuine change (a ranking of standing figures)",
@@ -84,12 +84,12 @@ const mkPost = (kind: string, facts: PFacts, sector = "Technology", name = "Alph
 
 const KIND_FIXTURES: [string, PFacts][] = [
   ["surprise", { upside: 42, price: 148, priceTarget: 210, consensus: "StrongBuy", analysts: 38, sector: "Technology" }],
-  ["contrarian", { smartScore: 9, aiScore: 25, aiRating: "Bearish", consensus: "Hold", upside: 20, price: 90, analysts: 10, bullish: "quant" }],
+  ["contrarian", { pulseScore: 9, aiScore: 25, aiRating: "Bearish", consensus: "Hold", upside: 20, price: 90, analysts: 10, bullish: "quant" }],
   ["movement", { upsideFrom: 10, upsideTo: 40, consensusFrom: "Hold", consensusTo: "StrongBuy",
-                 price: 100, priceTarget: 140, analysts: 12, sector: "Technology", smartScoreFrom: 4, smartScoreTo: 9 }],
+                 price: 100, priceTarget: 140, analysts: 12, sector: "Technology", pulseScoreFrom: 4, pulseScoreTo: 9 }],
   ["record", { upside: 80, windowLow: 60, windowHigh: 80, snapshots: 30, days: 6.3, price: 210, priceTarget: 260, analysts: 15 }],
-  ["steady", { smartScore: 10, snapshots: 30, days: 6.3, upside: 32, consensus: "StrongBuy", analysts: 20 }],
-  ["newcomer", { seenIn: 10, windowSnapshots: 30, days: 2.1, upside: 70, consensus: "Buy", analysts: 8, smartScore: 8 }],
+  ["steady", { pulseScore: 10, snapshots: 30, days: 6.3, upside: 32, consensus: "StrongBuy", analysts: 20 }],
+  ["newcomer", { seenIn: 10, windowSnapshots: 30, days: 2.1, upside: 70, consensus: "Buy", analysts: 8, pulseScore: 8 }],
   ["list", { members: "Alpha Inc (40% to $10), Beta Co (35% to $20)", count: 2, leader: "Alpha Inc", leaderUpside: 40 }],
 ];
 

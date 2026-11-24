@@ -75,7 +75,7 @@ assert.throws(() => imageDimensions(Buffer.from("not an image, just text")),
   // this size) so this exercises ordinary multi-word wrapping, not the lone-overlong-word trap
   // covered separately below.
   const opts = { fontFamily: "Inter", fontWeight: "700", fontSize: 48, maxWidth: 400, maxLines: 6 };
-  const text = "Conocophillips smart score dropped from nine to five today";
+  const text = "Conocophillips pulse score dropped from nine to five today";
   const r = wrapText(text, opts);
   assert.ok(r.lines.length > 1, "a long sentence at a narrow width wraps onto multiple lines");
   assert.equal(r.lines.join(" "), text, "every word survives, in order, none dropped or duplicated");
@@ -112,7 +112,7 @@ assert.throws(() => imageDimensions(Buffer.from("not an image, just text")),
 {
   // A long headline at a narrow width must shrink, and never below minSize.
   const fit = fitText(
-    "International Consolidated Diversified Holdings posted its highest smart score reading ever",
+    "International Consolidated Diversified Holdings posted its highest pulse score reading ever",
     { fontFamily: "Inter", fontWeight: "700", maxWidth: 260, maxLines: 3, startSize: 60, minSize: 24, step: 4 },
   );
   assert.ok(fit.fontSize < 60, "the font actually shrank from the starting size");
@@ -166,7 +166,7 @@ assert.throws(() => imageDimensions(Buffer.from("not an image, just text")),
   const photo = solidPhoto(1024, 1024, "#f4f6f8");
   const out = composePost({
     photo, companyName: "Conocophillips", sector: "Energy",
-    statement: "Conocophillips smart score dropped from 9 to 5.",
+    statement: "Conocophillips pulse score dropped from 9 to 5.",
   });
   assert.ok(Buffer.isBuffer(out.jpeg), "returns a JPEG buffer");
   assert.equal(out.jpeg[0], 0xff, "the buffer is actually a JPEG (SOI marker byte 1)");
@@ -197,7 +197,7 @@ assert.throws(() => imageDimensions(Buffer.from("not an image, just text")),
     photo,
     companyName: "International Consolidated Diversified Holdings Group",
     sector: "BasicMaterials",
-    statement: "International Consolidated Diversified Holdings posted its highest smart score reading of the entire window.",
+    statement: "International Consolidated Diversified Holdings posted its highest pulse score reading of the entire window.",
   });
   assert.ok(out.layout.nameLines <= 2, "even a very long company name stays within 2 lines");
   assert.ok(out.layout.statementLines <= 4, "even a long statement stays within 4 lines");
@@ -216,7 +216,7 @@ assert.throws(() => imageDimensions(Buffer.from("not an image, just text")),
   // A busy (high-variance) photo must not throw either.
   const photo = noisyPhoto(1024, 1024);
   const out = composePost({ photo, companyName: "Astera Labs", sector: "Technology",
-                             statement: "Astera Labs upside halved. Smart Score doubled." });
+                             statement: "Astera Labs upside halved. Pulse Score doubled." });
   assert.ok(Buffer.isBuffer(out.jpeg) && out.jpeg.length > 0, "a busy photo still composes successfully");
 }
 {
@@ -260,7 +260,7 @@ assert.throws(() => imageDimensions(Buffer.from("not an image, just text")),
   for (const hex of Object.values(DIRECTION_COLOR)) assert.ok(/^#[0-9a-f]{6}$/i.test(hex), `${hex} is a real hex colour`);
 
   assert.equal(detectDirection("42% upside on 25 analysts."), "up", "\"upside\" reads as up");
-  assert.equal(detectDirection("Smart Score dropped from 9 to 5."), "down", "\"dropped\" reads as down");
+  assert.equal(detectDirection("Pulse Score dropped from 9 to 5."), "down", "\"dropped\" reads as down");
   assert.equal(detectDirection("Held Strong Buy for 6 days straight."), "neutral",
     "no directional vocabulary at all reads as neutral");
   assert.equal(detectDirection("Down 12% from the sector median."), "down", "\"down\" itself reads as down");

@@ -3,15 +3,15 @@
 // page body. We request the screener API through it and parse the JSON out.
 // (Local manual refresh uses scripts/refresh-data.mjs with Playwright instead.)
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { computeKeep, forecastFields, applyForecast, enrichQueue, nextLastSeen, rowFromScreener, rowFromAiAnalyst, mergeRow, refreshedRow, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
+import { computeKeep, forecastFields, applyForecast, enrichQueue, nextLastSeen, rowFromScreener, rowFromOutlook, mergeRow, refreshedRow, ENRICH_MAX, ENRICH_TARGET_RUNS, KEEP_MAX_AGE_DAYS } from "./keep.mjs";
 import { UNIVERSE_URL, universeMap, universeItems, universeOk, itemsFor, ambiguousCarried, planBackfill } from "./backfill-plan.mjs";
-import { getText, makeBreaker, health, stepDeadline } from "./tr-fetch.mjs";
+import { getText, makeBreaker, health, stepDeadline } from "./src-fetch.mjs";
+import { srcUrl } from "./source.mjs";
 
 const FS_URL = process.env.FLARESOLVERR_URL || "http://localhost:8191/v1";
-const API =
-  "https://www.tipranks.com/api/apps/stock/screener?country=us&method=screener&isPrimaryMarket=true&exchange=xnas&exchange=xnys&exchange=arcx&exchange=xase&exchange=bats&page=1&pageSize=120&sortDir=2";
+const API = srcUrl("screener");
 
-// Transport lives in ci/tr-fetch.mjs: plain fetch, FlareSolverr on a challenge, and a Cloudflare
+// Transport lives in ci/src-fetch.mjs: plain fetch, FlareSolverr on a challenge, and a Cloudflare
 // firewall block fails at once (BlockedError) instead of being retried. One breaker per endpoint;
 // retries here also absorb FlareSolverr's ~30-60s cold start.
 // ONE step-wide deadline, counted from script start: the payload backfill and the enrich loop both
@@ -44,7 +44,7 @@ function extractJson(html) {
 const prevRows = new Map();
 try { for (const r of JSON.parse(readFileSync("src/data/stocks.json", "utf8"))) prevRows.set(r.t, r); } catch { /* first run */ }
 const seen = new Map();
-const SORT_KEY = { 5: "u", 2: "s" }; // upside / smart score (sortBy 3 = mkt cap still fetched for the universe, but not tagged as a list)
+const SORT_KEY = { 5: "u", 2: "s" }; // upside / Pulse Score (sortBy 3 = mkt cap still fetched for the universe, but not tagged as a list)
 const membership = {}; // ticker -> Set of ranking(s) it appears in
 let total = null;
 for (const sb of [5, 2, 3]) {
@@ -52,7 +52,6 @@ for (const sb of [5, 2, 3]) {
   if (total == null) total = j.totalCount ?? null;
   for (const it of j.items || []) {
     const t = it.tradingInformationData || {};
-    const e = it.tipRanksEssentialData || {};
     if (t.ticker && SORT_KEY[sb]) (membership[t.ticker] ??= new Set()).add(SORT_KEY[sb]);
     if (seen.has(t.ticker)) continue;
     // every row goes through the shared mappers: undefined fields keep the last-known value
@@ -69,7 +68,7 @@ const inPull = new Set(seen.keys()); // tickers the dynamic screener returned TH
 
 // --- keep set: pinned + non-expired previously-seen tickers, refreshed even when
 // they fall out of the top-120 sorts. Missing ones are backfilled from the universe screener
-// pull, else the per-ticker stock-aianalyst payload (capped, least-recently-tried first); the
+// pull, else the per-ticker analysis payload (capped, least-recently-tried first); the
 // rest carry their last-known row. See ci/keep.mjs and ci/backfill-plan.mjs.
 let pinned = [];
 try { pinned = JSON.parse(readFileSync("src/data/pinned.json", "utf8")); } catch { /* none */ }
@@ -94,7 +93,7 @@ const baMs = (t) => Date.parse(prevSeen[t]?.ba || "") || lsMs(t);
 const missing = [...keep].filter((t) => !inPull.has(t)).sort((a, b) => baMs(a) - baMs(b));
 const backfillTried = new Set();
 // Off-pull rows come from the full-universe screener call (one request, ~14k items) where
-// possible; only tickers it lacks need a per-ticker stock-aianalyst payload. The raw response
+// possible; only tickers it lacks need a per-ticker analysis payload. The raw response
 // is ~77 MB: parse once, keep only the missing tickers' items (itemsFor), then only the map.
 let universe = new Map(), universeTotal = 0;
 let skipped = []; // ambiguous duplicates among `missing`: a health line only if they end up carried (below)
@@ -127,15 +126,15 @@ for (const t of needPayload) {
   if (!STEP.passed() && fromPayload < BACKFILL_LIMIT && !aiBreaker.open()) {
     backfillTried.add(t); // attempt, not success — a permanently-dead ticker must not camp at the head
     try {
-      const body = await getText(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-aianalyst/payload.json`, { flareUrl: FS_URL, tries: 3, ok: parses, breaker: aiBreaker, deadline: STEP.at });
+      const body = await getText(srcUrl("analysis", t), { flareUrl: FS_URL, tries: 3, ok: parses, breaker: aiBreaker, deadline: STEP.at });
       // refreshedRow, not mergeRow: no row for t in the payload (KPTI every run, or a reshape) is a
       // carry, counted below, never a refresh — or the carried>30% rule could never fire
-      const row = refreshedRow(prev, rowFromAiAnalyst(extractJson(body), t));
+      const row = refreshedRow(prev, rowFromOutlook(extractJson(body), t));
       if (row) { seen.set(t, row); fromPayload++; continue; }
-      console.log(`  keep ${t}: no row for it in the aianalyst payload`);
-    } catch (e) { console.log(`  keep ${t}: aianalyst skip (${e.message})`); }
+      console.log(`  keep ${t}: no row for it in the analysis payload`);
+    } catch (e) { console.log(`  keep ${t}: analysis skip (${e.message})`); }
   } else if (STEP.passed()) backfillCut++;
-  else if (aiBreaker.open() && !aiBreaker.reported) { aiBreaker.reported = true; health("breaker open: stock-aianalyst"); console.log("  aianalyst breaker open: skipping the rest, carrying last-known rows"); }
+  else if (aiBreaker.open() && !aiBreaker.reported) { aiBreaker.reported = true; health("breaker open: analysis"); console.log("  analysis breaker open: skipping the rest, carrying last-known rows"); }
   if (prev?.t) { seen.set(t, prev); carried++; carriedSet.add(t); } // past the deadline/cap, fetch failed or no row — keep last-known row
 }
 // log above, health only here: an ambiguous duplicate the payload covered is fine every run
@@ -163,7 +162,7 @@ if (needPayload.length > BACKFILL_LIMIT * 0.8) {
 // downgrade that stayed visible for 46 runs, the 0-100 scale this overwrite depends on, the
 // queue rotation and its cost bound): ci/README.md → Enrich.
 // When this row's AI trio was last known-good: in the pull (the screener ships
-// aiAnalystData) or enriched. Reuses lsMs so there is one age concept, not two.
+// the outlook block) or enriched. Reuses lsMs so there is one age concept, not two.
 const aiFreshMs = (t) => Math.max(lsMs(t), Date.parse(prevSeen[t]?.ea || "") || 0);
 // Selection, the cap and the payload-application rules all live in ci/keep.mjs so this
 // script and scripts/refresh-data.mjs cannot drift apart again. Only the fetch is local.
@@ -182,7 +181,7 @@ for (const t of enrichList) {
   }
   enrichTried.add(t); // stamp the attempt, not the success: a ticker with no forecast payload must not block the queue head forever
   try {
-    const f = forecastFields(extractJson(await flareGet(`https://www.tipranks.com/stocks/${t.toLowerCase()}/stock-forecast/payload.json`, payloadBreaker)), t);
+    const f = forecastFields(extractJson(await flareGet(srcUrl("forecast", t), payloadBreaker)), t);
     // #9 — an empty result was a SILENT no-op that still counted as enriched and still
     // stamped `ea`, so the row rotated to the back with no signal and could never re-queue
     // as prio-1. Usually a bundle/_id mismatch, i.e. our bug, not missing data.
