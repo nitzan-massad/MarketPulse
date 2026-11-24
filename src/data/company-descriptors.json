@@ -348,5 +348,10 @@
     "name": "Anthropic PBC",
     "descriptor": "AI Research Lab",
     "scene": "tweaking code on a hardware prototype with soldering iron and circuit boards nearby"
+  },
+  "NVDA": {
+    "name": "Nvidia",
+    "descriptor": "Graphics Processor",
+    "scene": "inspecting motherboard circuitry with a soldering iron and magnifying glass"
   }
 }

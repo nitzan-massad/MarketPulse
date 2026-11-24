@@ -1,5 +1,36 @@
 [
   {
+    "id": "NVDA-2026-11-24T13:39:47.127Z",
+    "ts": "2026-11-24T13:39:47.127Z",
+    "kind": "movement",
+    "ticker": "NVDA",
+    "name": "Nvidia",
+    "sector": "Technology",
+    "text": "85 to 42% upside today, 38 analysts.",
+    "score": 38,
+    "reasons": [
+      "6 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "duplicate of a recent post (50% word overlap)"
+    ],
+    "facts": {
+      "upsideFrom": 85.7,
+      "upsideTo": 41.9,
+      "consensusFrom": "Buy",
+      "consensusTo": "StrongBuy",
+      "price": 165.05,
+      "priceTarget": 234.17,
+      "analysts": 38,
+      "sector": "Technology"
+    },
+    "descriptor": "Graphics Processor",
+    "image": "NVDA-2026-11-24T13-39-47-127Z.jpg",
+    "imageSource": "wikimedia",
+    "imageLicense": "CC BY 2.0",
+    "imageAttribution": "Will Buckner — Wikimedia Commons (CC BY 2.0)"
+  },
+  {
     "id": "VERA-2026-11-24T02:19:51.419Z",
     "ts": "2026-11-24T02:19:51.419Z",
     "kind": "list",
