@@ -1,5 +1,28 @@
 [
   {
+    "id": "VERA-2026-11-24T02:19:51.419Z",
+    "ts": "2026-11-24T02:19:51.419Z",
+    "kind": "list",
+    "ticker": "VERA",
+    "name": "Vera Therapeutics",
+    "sector": "Healthcare",
+    "text": "190% upside leads the list of 5 names.",
+    "score": 68,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "members": "Vera Therapeutics (189.5% to $73.67), Larimar Therapeutics (186.6% to $9), Capricor Therapeutics (186.6% to $21.75), Rigetti Computing (182.8% to $20.25), Hut 8 (182.5% to $129.8)",
+      "count": 5,
+      "leader": "Vera Therapeutics",
+      "leaderUpside": 189.5
+    },
+    "descriptor": "Immunology Treatments",
+    "image": "VERA-2026-11-24T02-19-51-419Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "ANT-2026-11-23T11:45:23.110Z",
     "ts": "2026-11-23T11:45:23.110Z",
     "kind": "newcomer",
