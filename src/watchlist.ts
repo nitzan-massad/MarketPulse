@@ -385,9 +385,9 @@ export function useWatchlist(): WatchlistApi {
         return;
       }
       const fb = f ?? (await fbP); // clicked before the SDK landed: wait for it
-      if (!fb) return;
+      if (!fb) throw new Error("sign-in unavailable: Firebase did not load");
       const def = AUTH_PROVIDERS.find((p) => p.id === providerId);
-      if (!def) return;
+      if (!def) throw new Error(`unknown sign-in provider: ${providerId}`);
       const res = await fb.signInWithPopup(fb.auth, def.make(fb), fb.browserPopupRedirectResolver);
       // apply a thumb pressed while signed out (write against the resolved uid so
       // it doesn't race the auth-state / marks subscription)

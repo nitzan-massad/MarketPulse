@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { haptic } from "./haptics";
 import { buildShareUrl, copyText, pickBurst, type BurstId, type ShareTarget } from "./share";
 
 /**
@@ -35,9 +36,12 @@ export function useShare(target: ShareTarget, resetKey?: unknown): Share {
   const url = buildShareUrl(target, location.origin, import.meta.env.BASE_URL);
 
   const onShare = useCallback(() => {
+    // Buzz on the press itself: iOS only taps inside the gesture, i.e. before any await.
+    haptic("success");
     void (async () => {
       const ok = await copyText(url);
       setCopyFailed(!ok);
+      if (!ok) haptic("warning"); // Android only; the fail sheet tells iPhone users
       // Never play a success animation over a clipboard that did not take.
       if (!ok) return;
       const next = pickBurst(lastBurst.current);

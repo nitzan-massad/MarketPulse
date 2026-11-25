@@ -1,3 +1,4 @@
+import { haptic } from "../haptics";
 import { consLabel } from "../lib";
 import MultiSelect from "./MultiSelect";
 import type { MarkFilter } from "../App";
@@ -61,6 +62,7 @@ export default function Toolbar({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              haptic("medium");
               onReset();
             }}
           >

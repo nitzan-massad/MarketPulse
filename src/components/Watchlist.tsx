@@ -1,3 +1,4 @@
+import { haptic } from "../haptics";
 import type { User } from "firebase/auth";
 import { useMemo, useRef, useState } from "react";
 import { useStocks } from "../stocks";
@@ -73,6 +74,7 @@ function useRowDrag(count: number, onReorder: (from: number, to: number) => void
       /* capture unavailable — the drag still works, it just ends if the pointer leaves */
     }
     startY.current = e.clientY;
+    haptic("light");
     put({ from, to: from, dy: 0 });
   };
   const onPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -83,7 +85,10 @@ function useRowDrag(count: number, onReorder: (from: number, to: number) => void
   const onPointerUp = () => {
     const d = dragRef.current;
     put(null);
-    if (d && d.to !== d.from) onReorder(d.from, d.to);
+    if (d && d.to !== d.from) {
+      haptic("medium");
+      onReorder(d.from, d.to);
+    }
   };
   // Arrow keys on the grip do the same job for anyone not using a pointer. Rows are keyed
   // by ticker, so the DOM node — and the focus on this grip — travels with the row.

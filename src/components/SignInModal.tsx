@@ -1,3 +1,4 @@
+import { haptic } from "../haptics";
 import { useEffect, useState } from "react";
 import CloseButton from "./CloseButton";
 import type { User } from "firebase/auth";
@@ -60,9 +61,12 @@ export default function SignInModal({ user, signIn, signOut, onClose }: SignInMo
     setErr("");
     try {
       await signIn(id);
+      haptic("success");
       onClose();
     } catch (e) {
-      setErr(friendlyError(e));
+      const msg = friendlyError(e);
+      if (msg) haptic("warning"); // closing the popup yourself is not a failure
+      setErr(msg);
     } finally {
       setBusy(null);
     }
@@ -86,7 +90,7 @@ export default function SignInModal({ user, signIn, signOut, onClose }: SignInMo
               Synced as <b>{user.email ?? user.displayName ?? "your account"}</b>. Your watchlist
               follows you across devices.
             </p>
-            <button className="si-out" type="button" onClick={() => { signOut(); onClose(); }}>
+            <button className="si-out" type="button" onClick={() => { haptic("medium"); signOut(); onClose(); }}>
               Sign out
             </button>
           </>

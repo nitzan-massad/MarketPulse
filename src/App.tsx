@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { haptic } from "./haptics";
 import BestOfBest from "./components/BestOfBest";
 import NewArrivals from "./components/NewArrivals";
 import Masthead from "./components/Masthead";
@@ -183,6 +184,7 @@ export default function App() {
       setSignInOpen(true);
       return;
     }
+    haptic(watchlist.includes(ticker) ? "medium" : "success");
     toggleTrack(ticker);
   }
 
@@ -195,6 +197,7 @@ export default function App() {
       setSignInOpen(true);
       return;
     }
+    haptic("success");
     track("request_track", { ticker });
     requestTracking(ticker, user);
     setConfirmTicker(ticker);
@@ -217,6 +220,7 @@ export default function App() {
       setSignInOpen(true);
       return;
     }
+    haptic(marks[ticker]?.v === v ? "light" : "success");
     track(marks[ticker]?.v === v ? "unmark" : "mark", { ticker, v });
     toggleMark(ticker, v);
   }

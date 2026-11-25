@@ -1,3 +1,4 @@
+import { haptic } from "../haptics";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from "react";
 import { alertView } from "../alertEngine";
 import type { Notification } from "../useNotifications";
@@ -142,6 +143,7 @@ export default function NotificationBell({
   // "Clear all": rows sweep out first, then the store is cleared
   const [clearing, setClearing] = useState(false);
   function clearAll() {
+    haptic("warning");
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return onClearAll();
     setClearing(true);
     setTimeout(() => {

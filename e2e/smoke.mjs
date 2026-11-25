@@ -423,6 +423,166 @@ try {
     }
   });
 
+  // ---- haptics: each chosen button vibrates with its pattern (Android path), the LIVE badge
+  // and a signed-out press do not, and with no vibrate API (iPhone) a hidden switch is toggled.
+  // Patterns mirror src/haptics.ts PATTERNS.
+  const H = { light: 10, medium: 20, success: [12, 60, 12], warning: [30, 50, 30] };
+  const NOTIF = { id: "e2e-n1", type: "price", ticker: WL, dir: "up", since: 6, at: Date.now(), read: false };
+  async function hapticsPage({ ios = false, seedNotif = false } = {}) {
+    const p = await context.newPage();
+    await p.addInitScript(({ ios, seedNotif, notif }) => {
+      window.__vib = [];
+      if (ios) delete Navigator.prototype.vibrate;
+      else navigator.vibrate = (pat) => (window.__vib.push(pat), true);
+      if (seedNotif) localStorage.setItem("mp_notifs", JSON.stringify([notif]));
+    }, { ios, seedNotif, notif: NOTIF });
+    p.on("pageerror", (e) => consoleErrors.push(`pageerror (haptics): ${e.message}`));
+    await p.goto(BASE + "/", { waitUntil: "load" });
+    await p.locator("tbody#body tr.row-open").first().waitFor({ timeout: 15000 });
+    return p;
+  }
+  const vib = (p) => p.evaluate(() => { const v = window.__vib; window.__vib = []; return v; });
+  const star = (p, t, on) => p.locator(`tbody#body button.wl-star[aria-label="${on ? `Remove ${t} from` : `Add ${t} to`} watchlist"]`);
+
+  await step("haptics: table star add = success, remove = medium", async () => {
+    const p = await hapticsPage();
+    try {
+      await star(p, WL, false).click();
+      await star(p, WL, true).waitFor();
+      assert.deepEqual(await vib(p), [H.success]);
+      await star(p, WL, true).click();
+      await star(p, WL, false).waitFor();
+      assert.deepEqual(await vib(p), [H.medium]);
+    } finally { await p.close(); }
+  });
+
+  await step("haptics: thumb set = success, clear = light", async () => {
+    const p = await hapticsPage();
+    try {
+      const up = p.locator("tbody#body tr.row-open").first().locator("button.tmk-b.up");
+      await up.click();
+      await p.waitForFunction(() => document.querySelector("tbody#body tr.row-open button.tmk-b.up")?.getAttribute("aria-pressed") === "true");
+      assert.deepEqual(await vib(p), [H.success]);
+      await up.click();
+      await p.waitForFunction(() => document.querySelector("tbody#body tr.row-open button.tmk-b.up")?.getAttribute("aria-pressed") === "false");
+      assert.deepEqual(await vib(p), [H.light]);
+    } finally { await p.close(); }
+  });
+
+  await step("haptics: Reset filters = medium; LIVE badge = none", async () => {
+    const p = await hapticsPage();
+    try {
+      const d = p.locator("details.filters");
+      if (!(await d.evaluate((el) => el.open))) await d.locator("summary .filters-title").click();
+      await p.locator('#cap button[data-c="10000"]').click();
+      assert.deepEqual(await vib(p), [], "a plain filter press must not vibrate");
+      await p.locator("button.filter-reset").click();
+      assert.deepEqual(await vib(p), [H.medium]);
+      await p.locator("button.livebadge").click();
+      await p.locator("button.livebadge").click();
+      assert.deepEqual(await vib(p), [], "LIVE badge was excluded");
+    } finally { await p.close(); }
+  });
+
+  await step("haptics: watchlist drag = light pick-up + medium drop; remove star = medium", async () => {
+    const p = await hapticsPage();
+    try {
+      const rows = p.locator("tbody#body tr.row-open");
+      const t1 = (await rows.nth(0).locator(".sym").textContent()).trim();
+      const t2 = (await rows.nth(1).locator(".sym").textContent()).trim();
+      await star(p, t1, false).click();
+      await star(p, t2, false).click();
+      await vib(p);
+      await p.locator("nav.nav-bottom button.nav-tab", { hasText: "Watchlist" }).click();
+      const wrows = p.locator(".wl-table tbody tr");
+      await wrows.nth(1).waitFor();
+      const before = await p.evaluate(() => localStorage.getItem("mp_watchlist"));
+      const g = await wrows.nth(0).locator("button.wl-grip").boundingBox();
+      const r2 = await wrows.nth(1).boundingBox();
+      await p.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+      await p.mouse.down();
+      await p.mouse.move(g.x + g.width / 2, r2.y + r2.height - 2, { steps: 8 });
+      await p.mouse.up();
+      await p.waitForFunction((b) => localStorage.getItem("mp_watchlist") !== b, before, { timeout: 3000 });
+      assert.deepEqual(await vib(p), [H.light, H.medium]);
+      // a grab that goes nowhere: pick-up only, no drop buzz
+      await p.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+      await p.mouse.down();
+      await p.mouse.up();
+      assert.deepEqual(await vib(p), [H.light]);
+      await wrows.nth(0).locator("button.wl-star").click();
+      assert.deepEqual(await vib(p), [H.medium]);
+    } finally { await p.close(); }
+  });
+
+  await step("haptics: Share = success; Get analyst data = success", async () => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: ORIGIN });
+    const p = await hapticsPage();
+    try {
+      await p.evaluate((t) => { location.hash = t; }, RICH.t);
+      await p.locator(".mkm-modal #mkm-sym").first().waitFor({ timeout: 10000 });
+      await vib(p);
+      await p.locator(".mkm-modal button.mp-share").first().click();
+      await p.waitForTimeout(300);
+      assert.deepEqual(await vib(p), [H.success]);
+      // "Get analyst data" needs a live price for the off-universe stock (offline it reads
+      // "No data"), so this page alone answers the Worker's /quotes for it.
+      await p.route(/\/quotes\?symbols=/, (r) =>
+        r.fulfill({
+          contentType: "application/json",
+          headers: { "access-control-allow-origin": "*" },
+          body: JSON.stringify({ quotes: { [OFF]: { px: 5, chg: 0.1, pct: 2, pc: 4.9, day: null, o: null, h: null, l: null, ext: null, name: OFF, mc: null, hi52: null, lo52: null, pe: null, fpe: null } } }),
+        }),
+      );
+      await p.evaluate((t) => { location.hash = t; }, OFF);
+      await p.locator(".mkm-modal button.mkm-trackreq").first().waitFor({ timeout: 10000 });
+      await vib(p);
+      await p.locator(".mkm-modal button.mkm-trackreq").first().click();
+      assert.deepEqual(await vib(p), [H.success]);
+    } finally { await p.close(); }
+  });
+
+  await step("haptics: Clear all notifications = warning", async () => {
+    const p = await hapticsPage({ seedNotif: true });
+    try {
+      await p.locator("button.nb-bell").click();
+      await p.locator("button.nb-clear").click();
+      assert.deepEqual(await vib(p), [H.warning]);
+    } finally { await p.close(); }
+  });
+
+  await step("haptics: sign out = medium, signed-out star = none, sign in = success", async () => {
+    const p = await hapticsPage();
+    try {
+      await p.locator("button.acctchip").click();
+      await p.locator("button.si-out").click();
+      assert.deepEqual(await vib(p), [H.medium]);
+      await star(p, WL, false).click(); // signed out: opens sign-in instead of starring
+      await p.locator("button.si-prov").first().waitFor();
+      assert.deepEqual(await vib(p), [], "signed-out star must not vibrate");
+      await p.locator("button.si-prov").first().click();
+      await p.locator("button.acctchip").waitFor();
+      assert.deepEqual(await vib(p), [H.success]);
+    } finally { await p.close(); }
+  });
+
+  await step("haptics: no vibrate API (iPhone) toggles one hidden switch per press", async () => {
+    const p = await hapticsPage({ ios: true });
+    try {
+      assert.equal(await p.evaluate(() => typeof navigator.vibrate), "undefined");
+      await star(p, WL, false).click();
+      await star(p, WL, true).waitFor();
+      const sw = p.locator('label[aria-hidden="true"] > input[type="checkbox"][switch]');
+      assert.equal(await sw.count(), 1, "hidden switch not attached");
+      assert.equal(await sw.isVisible(), false, "switch must stay hidden");
+      assert.equal(await sw.isChecked(), true, "first press should toggle it on");
+      await star(p, WL, true).click();
+      await star(p, WL, false).waitFor();
+      assert.equal(await sw.count(), 1, "switch must be reused, not re-created");
+      assert.equal(await sw.isChecked(), false, "second press should toggle it off");
+    } finally { await p.close(); }
+  });
+
   await step("no console errors", async () => {
     assert.deepEqual(consoleErrors, []);
   });
