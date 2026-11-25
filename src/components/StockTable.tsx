@@ -1,4 +1,5 @@
 import { useState } from "react";
+import TapSwitch from "./TapSwitch";
 import { COLS, consClass, consLabel, fmtMc, fmtPx, isNew } from "../lib";
 import type { Stock } from "../types";
 import type { Mark, MarkEntry } from "../watchlist";
@@ -201,6 +202,7 @@ export default function StockTable({ rows, sort, dir, hl, onSort, live = {}, tic
                             }}
                           >
                             {watchlist.includes(s.t) ? "★" : "☆"}
+                            <TapSwitch />
                           </button>
                           <button
                             className={`sym ${marks[s.t]?.v === "up" ? "mk-up" : marks[s.t]?.v === "down" ? "mk-down" : ""}`}

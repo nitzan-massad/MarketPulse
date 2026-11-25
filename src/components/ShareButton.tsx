@@ -1,3 +1,4 @@
+import TapSwitch from "./TapSwitch";
 // The share control, reusable by any modal or panel. Pair it with useShare().
 //
 // Styling lives on `.mp-share`, deliberately NOT `.mkm-` — that prefix is documented in
@@ -31,6 +32,7 @@ export default function ShareButton({ what, onShare, className }: ShareButtonPro
     >
       <ShareIcon />
       <span>Share</span>
+      <TapSwitch />
     </button>
   );
 }

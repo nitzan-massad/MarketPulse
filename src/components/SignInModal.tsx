@@ -1,4 +1,5 @@
 import { haptic } from "../haptics";
+import TapSwitch from "./TapSwitch";
 import { useEffect, useState } from "react";
 import CloseButton from "./CloseButton";
 import type { User } from "firebase/auth";
@@ -92,6 +93,7 @@ export default function SignInModal({ user, signIn, signOut, onClose }: SignInMo
             </p>
             <button className="si-out" type="button" onClick={() => { haptic("medium"); signOut(); onClose(); }}>
               Sign out
+              <TapSwitch />
             </button>
           </>
         ) : (
@@ -111,6 +113,7 @@ export default function SignInModal({ user, signIn, signOut, onClose }: SignInMo
                     {ICONS[p.id] ?? <span className="si-mono">{p.label.slice(0, 1).toUpperCase()}</span>}
                   </span>
                   {busy === p.id ? "Signing in…" : `Continue with ${p.label}`}
+                  <TapSwitch />
                 </button>
               ))}
             </div>

@@ -1,4 +1,5 @@
 import { haptic } from "../haptics";
+import TapSwitch from "./TapSwitch";
 import type { User } from "firebase/auth";
 import { useMemo, useRef, useState } from "react";
 import { useStocks } from "../stocks";
@@ -233,6 +234,7 @@ export default function Watchlist({
                       }}
                     >
                       ★
+                      <TapSwitch />
                     </button>
                   </td>
                   <td className="tk">

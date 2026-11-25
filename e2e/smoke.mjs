@@ -428,11 +428,22 @@ try {
   // Patterns mirror src/haptics.ts PATTERNS.
   const H = { light: 10, medium: 20, success: [12, 60, 12], warning: [30, 50, 30] };
   const NOTIF = { id: "e2e-n1", type: "price", ticker: WL, dir: "up", since: 6, at: Date.now(), read: false };
+  const hitsSwitch = (loc) =>
+    loc.evaluate((b) => {
+      const r = b.getBoundingClientRect();
+      return document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.className === "tap-sw";
+    });
   async function hapticsPage({ ios = false, seedNotif = false } = {}) {
     const p = await context.newPage();
     await p.addInitScript(({ ios, seedNotif, notif }) => {
       window.__vib = [];
-      if (ios) delete Navigator.prototype.vibrate;
+      if (ios) {
+        delete Navigator.prototype.vibrate;
+        const mm = window.matchMedia.bind(window);
+        window.matchMedia = (q) => (q === "(pointer: coarse)" ? { ...mm(q), matches: true, media: q } : mm(q));
+        window.__copies = 0;
+        Object.defineProperty(navigator, "clipboard", { value: { writeText: async () => { window.__copies++; } }, configurable: true });
+      }
       else navigator.vibrate = (pat) => (window.__vib.push(pat), true);
       if (seedNotif) localStorage.setItem("mp_notifs", JSON.stringify([notif]));
     }, { ios, seedNotif, notif: NOTIF });
@@ -566,20 +577,106 @@ try {
     } finally { await p.close(); }
   });
 
-  await step("haptics: no vibrate API (iPhone) toggles one hidden switch per press", async () => {
-    const p = await hapticsPage({ ios: true });
+  await step("haptics: Android renders no on-screen switch", async () => {
+    const p = await hapticsPage();
+    try {
+      assert.equal(await p.locator(".tap-sw").count(), 0);
+    } finally { await p.close(); }
+  });
+
+  // iPhone (no vibrate API): since iOS 26.5 only a real finger on a native switch taps, so the
+  // chosen buttons carry an invisible switch overlay. The tap must land on it, toggle it, and
+  // the button's own action must still run exactly once — also when the button unmounts.
+  await step("haptics: iPhone switch overlay takes the tap; each button acts once", async () => {
+    const p = await hapticsPage({ ios: true, seedNotif: true });
     try {
       assert.equal(await p.evaluate(() => typeof navigator.vibrate), "undefined");
+      const sw = star(p, WL, false).locator("> input.tap-sw[switch]");
+      assert.equal(await sw.count(), 1, "table star has no switch overlay");
+      assert.equal(await sw.getAttribute("aria-hidden"), "true");
+      assert.ok(await hitsSwitch(star(p, WL, false)), "a tap on the star must land on the switch");
       await star(p, WL, false).click();
       await star(p, WL, true).waitFor();
-      const sw = p.locator('label[aria-hidden="true"] > input[type="checkbox"][switch]');
-      assert.equal(await sw.count(), 1, "hidden switch not attached");
-      assert.equal(await sw.isVisible(), false, "switch must stay hidden");
-      assert.equal(await sw.isChecked(), true, "first press should toggle it on");
-      await star(p, WL, true).click();
-      await star(p, WL, false).waitFor();
-      assert.equal(await sw.count(), 1, "switch must be reused, not re-created");
-      assert.equal(await sw.isChecked(), false, "second press should toggle it off");
+      assert.deepEqual(JSON.parse(await p.evaluate(() => localStorage.getItem("mp_watchlist"))), [WL], "star toggled more than once");
+      assert.equal(await star(p, WL, true).locator("> input.tap-sw").isChecked(), true, "switch not toggled by the tap");
+      assert.deepEqual(await vib(p), [], "no vibrate calls on iPhone");
+
+      // thumbs: one press = one mark (a double fire would set and clear it)
+      const up = p.locator("tbody#body tr.row-open").first().locator("button.tmk-b.up");
+      assert.ok(await hitsSwitch(up), "thumb tap misses the switch");
+      await up.click();
+      await p.waitForFunction(() => document.querySelector("tbody#body tr.row-open button.tmk-b.up")?.getAttribute("aria-pressed") === "true");
+
+      // Reset sits inside <summary> and unmounts on its own click: resets once, panel stays open
+      const d = p.locator("details.filters");
+      if (!(await d.evaluate((el) => el.open))) await d.locator("summary .filters-title").click();
+      await p.locator('#cap button[data-c="10000"]').click();
+      const narrowed = await p.locator("tbody#body tr.row-open").count();
+      assert.ok(await hitsSwitch(p.locator("button.filter-reset")), "Reset tap misses the switch");
+      await p.locator("button.filter-reset").click();
+      await p.locator("button.filter-reset").waitFor({ state: "detached" });
+      assert.equal(await d.evaluate((el) => el.open), true, "Reset folded the filters panel");
+      assert.ok((await p.locator("tbody#body tr.row-open").count()) > narrowed, "Reset did not clear the cap filter");
+
+      // Watchlist remove star unmounts its row: exactly one ticker leaves
+      const t2 = (await p.locator("tbody#body tr.row-open").nth(1).locator(".sym").textContent()).trim();
+      await star(p, t2, false).click();
+      await p.locator("nav.nav-bottom button.nav-tab", { hasText: "Watchlist" }).click();
+      const wrow = p.locator(".wl-table tbody tr", { hasText: WL });
+      await wrow.waitFor();
+      const rm = wrow.locator("button.wl-star");
+      assert.ok(await hitsSwitch(rm), "Watchlist remove-star tap misses the switch");
+      await rm.click();
+      await wrow.waitFor({ state: "detached" });
+      assert.deepEqual(JSON.parse(await p.evaluate(() => localStorage.getItem("mp_watchlist"))), [t2]);
+
+      // Clear all: one tap clears; while it sweeps (disabled) the switch takes no taps
+      await p.locator("button.nb-bell").click();
+      const clear = p.locator("button.nb-clear");
+      assert.ok(await hitsSwitch(clear), "Clear all tap misses the switch");
+      await clear.click();
+      assert.equal(await clear.locator("> .tap-sw").evaluate((el) => getComputedStyle(el).pointerEvents), "none", "disabled button's switch still live");
+      await p.locator(".nb-row").first().waitFor({ state: "detached", timeout: 3000 });
+      assert.deepEqual(JSON.parse(await p.evaluate(() => localStorage.getItem("mp_notifs") || "[]")), [], "notifications not cleared");
+      await p.locator("button.nb-x").click();
+
+      // stock card: star + Share act once
+      await p.evaluate((t) => { location.hash = t; }, RICH.t);
+      await p.locator(".mkm-modal #mkm-sym").first().waitFor({ timeout: 10000 });
+      // the carousel keeps the neighbour cards mounted off-screen: pick this stock's card
+      const card = p.locator(".mkm-modal", { has: p.locator("#mkm-sym", { hasText: new RegExp(`^${RICH.t}$`) }) });
+      const mstar = card.locator("button.mkm-star");
+      assert.ok(await hitsSwitch(mstar), "stock-card star tap misses the switch");
+      await mstar.click();
+      await card.locator("button.mkm-star.on").waitFor();
+      const share = card.locator("button.mp-share");
+      assert.ok(await hitsSwitch(share), "Share tap misses the switch");
+      await share.click();
+      await p.waitForTimeout(300);
+      assert.equal(await p.evaluate(() => window.__copies), 1, "Share copied more or less than once");
+      await p.keyboard.press("Escape");
+
+      // sign out, then a sign-in provider button: each lands on its switch and acts once
+      await p.locator("button.acctchip").click();
+      const out = p.locator("button.si-out");
+      assert.ok(await hitsSwitch(out), "Sign out tap misses the switch");
+      await out.click();
+      await p.locator("button.acctbtn").waitFor();
+      await p.locator("button.acctbtn").click();
+      const prov = p.locator("button.si-prov").first();
+      assert.ok(await hitsSwitch(prov), "sign-in button tap misses the switch");
+      await prov.click();
+      await p.locator("button.acctchip").waitFor();
+    } finally { await p.close(); }
+  });
+
+  await step("haptics: desktop without vibrate (fine pointer) gets no overlay", async () => {
+    const p = await context.newPage();
+    await p.addInitScript(() => { delete Navigator.prototype.vibrate; });
+    try {
+      await p.goto(BASE + "/", { waitUntil: "load" });
+      await p.locator("tbody#body tr.row-open").first().waitFor({ timeout: 15000 });
+      assert.equal(await p.locator(".tap-sw").count(), 0);
     } finally { await p.close(); }
   });
 

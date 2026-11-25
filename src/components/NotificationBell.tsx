@@ -1,4 +1,5 @@
 import { haptic } from "../haptics";
+import TapSwitch from "./TapSwitch";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type TouchEvent } from "react";
 import { alertView } from "../alertEngine";
 import type { Notification } from "../useNotifications";
@@ -317,6 +318,7 @@ export default function NotificationBell({
                 <button className="nb-clear" type="button" onClick={clearAll} disabled={clearing}>
                   {TrashIcon}
                   Clear all notifications
+                  <TapSwitch />
                 </button>
               </div>
             </>

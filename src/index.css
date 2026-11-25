@@ -2110,3 +2110,10 @@ body:has(.nb-scrim){overflow:hidden}
 /* the chart scales down ~2x on a phone, so its labels are drawn bigger to land near 10px */
 @media(max-width:640px){.mkm-pe-kv{grid-template-columns:repeat(2,1fr)} .mkm-pe-ax{font-size:18px} .mkm-pe-yr{font-size:17px} .mkm-pe-losst{font-size:16px} .mkm-pe-hight{font-size:16px}}
 .sr-only{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap}
+
+/* iPhone haptics (TapSwitch): an invisible native switch over the button takes the real tap */
+:where(button):has(> .tap-sw){position:relative}
+.tap-sw{position:absolute; inset:0; width:100%; height:100%; margin:0; padding:0; border:0;
+  -webkit-appearance:switch; appearance:auto; opacity:0; cursor:inherit;
+  touch-action:pan-x pan-y} /* a swipe or scroll that starts on it still moves the page */
+button:disabled > .tap-sw{pointer-events:none} /* no tap for a press that does nothing */

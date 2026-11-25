@@ -1,4 +1,5 @@
 import { haptic } from "../haptics";
+import TapSwitch from "./TapSwitch";
 import { consLabel } from "../lib";
 import MultiSelect from "./MultiSelect";
 import type { MarkFilter } from "../App";
@@ -67,6 +68,7 @@ export default function Toolbar({
             }}
           >
             ↺ Reset
+            <TapSwitch />
           </button>
         )}
       </summary>

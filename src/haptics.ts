@@ -1,13 +1,13 @@
 // Haptic feedback on a button press, on both phones.
 //
-// Android: navigator.vibrate with a pattern per kind.
-// iPhone: Safari has no vibrate API, but since iOS 18 toggling a native
-// <input type="checkbox" switch> plays the system tap. We keep one hidden switch and
-// click its label. iOS has a single strength, so every kind is the same light tap there.
+// Android: haptic() calls navigator.vibrate with a pattern per kind.
+// iPhone: Safari has no vibrate API. iOS 18+ taps when a native <input type="checkbox" switch>
+// is toggled, but since iOS 26.5 only by a real finger (a scripted label.click() is silent).
+// So the chosen buttons carry <TapSwitch/>: an invisible switch laid over the button that the
+// finger actually hits. needsTapSwitch() says when to render it.
 //
-// ponytail: the iOS tap only fires inside a user gesture, so call this before any await.
-// The sign-in result arrives after the popup, so it is silent on iPhone (Android buzzes);
-// older iOS gets nothing. Upgrade path is a native wrapper.
+// ponytail: iPhone gets one light tap per press, whatever the kind, and nothing for
+// non-tap moments (drag pick-up/drop, the sign-in result). Upgrade path is a native wrapper.
 
 export type Haptic = "light" | "medium" | "success" | "warning";
 
@@ -18,27 +18,21 @@ export const PATTERNS: Record<Haptic, number | number[]> = {
   warning: [30, 50, 30],
 };
 
-let iosSwitch: HTMLLabelElement | null = null;
+const canVibrate = (): boolean =>
+  typeof navigator !== "undefined" && typeof navigator.vibrate === "function";
+
+/** Touch screen with no vibrate API (iPhone Safari): the tap has to come from an on-screen
+ *  switch. Desktop Safari/Firefox also lack vibrate, but have no haptics to gain. */
+export const needsTapSwitch = (): boolean =>
+  typeof navigator !== "undefined" &&
+  !canVibrate() &&
+  typeof matchMedia === "function" &&
+  matchMedia("(pointer: coarse)").matches;
 
 export function haptic(kind: Haptic = "light"): void {
+  if (!canVibrate()) return;
   try {
-    if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
-      navigator.vibrate(PATTERNS[kind]);
-      return;
-    }
-    if (typeof document === "undefined") return;
-    if (!iosSwitch) {
-      iosSwitch = document.createElement("label");
-      iosSwitch.setAttribute("aria-hidden", "true");
-      iosSwitch.style.display = "none";
-      const input = document.createElement("input");
-      input.type = "checkbox";
-      input.tabIndex = -1;
-      input.setAttribute("switch", "");
-      iosSwitch.appendChild(input);
-      document.body.appendChild(iosSwitch);
-    }
-    iosSwitch.click();
+    navigator.vibrate(PATTERNS[kind]);
   } catch {
     // haptics are a nicety; never let one break the action it decorates
   }

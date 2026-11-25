@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import TapSwitch from "./TapSwitch";
 import { createPortal } from "react-dom";
 import type { Mark, MarkEntry } from "../watchlist";
 import { DATE_LOCALE } from "../lib";
@@ -165,6 +166,7 @@ export default function ThumbMark({ mark, onMark, both }: Props) {
           onClick={(e) => press(which, e)}
         >
           {icon}
+          <TapSwitch />
         </button>
         <i className={`tmk-d ${which}`}>{v === which && mark ? fmtMarkDate(mark.d) : ""}</i>
       </span>

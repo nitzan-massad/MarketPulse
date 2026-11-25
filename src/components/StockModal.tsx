@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import TapSwitch from "./TapSwitch";
 import { createPortal } from "react-dom";
 import { easternNow, type EasternNow, fmtMin, marketOpen, nearestIndex, sessionSlice } from "../chartSession";
 import { fetchForecasts, type Forecast } from "../forecasts";
@@ -1093,6 +1094,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
               onClick={onToggleTrack}
             >
               {tracked ? "★" : "☆"}
+              <TapSwitch />
             </button>
           )}
           {!chromeOff && <ThumbMark mark={mark} onMark={onMark} both />}
@@ -1161,6 +1163,7 @@ function StockCard({ stock, onClose, tracked, onToggleTrack, covered = true, use
               {onRequestTrack && trackReq === "none" && (
                 <button type="button" className="mkm-trackreq" onClick={onRequestTrack}>
                   Get analyst data
+                  <TapSwitch />
                 </button>
               )}
             </div>
