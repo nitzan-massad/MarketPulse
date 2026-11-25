@@ -353,5 +353,10 @@
     "name": "Nvidia",
     "descriptor": "Graphics Processor",
     "scene": "inspecting motherboard circuitry with a soldering iron and magnifying glass"
+  },
+  "OVV": {
+    "name": "Ovintiv",
+    "descriptor": "Oil and Gas Producer",
+    "scene": "inspecting pipeline valves in a snowy field"
   }
 }

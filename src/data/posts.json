@@ -1,5 +1,32 @@
 [
   {
+    "id": "OVV-2026-11-25T00:02:14.246Z",
+    "ts": "2026-11-25T00:02:14.246Z",
+    "kind": "record",
+    "ticker": "OVV",
+    "name": "Ovintiv",
+    "sector": "Energy",
+    "text": "~36% upside, this month's high.",
+    "score": 36,
+    "reasons": [
+      "2 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "duplicate of a recent post (43% word overlap)"
+    ],
+    "facts": {
+      "upside": 36.1,
+      "windowLow": 6.1,
+      "windowHigh": 36.1,
+      "snapshots": 241,
+      "days": 62.9,
+      "price": 59.59,
+      "priceTarget": 81.08,
+      "analysts": 13
+    },
+    "descriptor": "Oil and Gas Producer"
+  },
+  {
     "id": "NVDA-2026-11-24T13:39:47.127Z",
     "ts": "2026-11-24T13:39:47.127Z",
     "kind": "movement",
