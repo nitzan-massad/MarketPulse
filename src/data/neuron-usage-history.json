@@ -1,51 +1,5 @@
 [
   {
-    "ts": "2026-09-30T11:02:54.350Z",
-    "date": "2026-09-30",
-    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-    "calls": {
-      "writer": 20,
-      "descriptor": 1,
-      "image": 1
-    },
-    "measuredNeurons": 665.04,
-    "estimatedNeurons": 57.6,
-    "totalNeurons": 722.64,
-    "publishedCount": 1,
-    "stageMs": {
-      "writer": 13937,
-      "descriptor": 755,
-      "image": 1917,
-      "wikimedia": 0
-    },
-    "candidates": {
-      "generated": 20,
-      "used": 1,
-      "outscored": 1,
-      "rejected": 18
-    },
-    "rejectionReasons": {
-      "duplicate of a recent post": 12,
-      "banned movement verb": 1,
-      "fabricated number": 3,
-      "over the 8-word cap": 2
-    },
-    "hookOutcomes": {
-      "list": {
-        "attempted": 1,
-        "published": 0
-      },
-      "record": {
-        "attempted": 2,
-        "published": 0
-      },
-      "contrarian": {
-        "attempted": 1,
-        "published": 1
-      }
-    }
-  },
-  {
     "ts": "2026-09-30T19:56:08.213Z",
     "date": "2026-09-30",
     "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
@@ -9465,6 +9419,45 @@
     "hookOutcomes": {
       "surprise": {
         "attempted": 1,
+        "published": 1
+      }
+    }
+  },
+  {
+    "ts": "2026-11-25T19:24:39.218Z",
+    "date": "2026-11-25",
+    "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "calls": {
+      "writer": 15,
+      "descriptor": 1,
+      "image": 1
+    },
+    "measuredNeurons": 647.31,
+    "estimatedNeurons": 57.6,
+    "totalNeurons": 704.91,
+    "publishedCount": 1,
+    "stageMs": {
+      "writer": 4731,
+      "descriptor": 961,
+      "image": 2584,
+      "wikimedia": 0
+    },
+    "candidates": {
+      "generated": 15,
+      "used": 1,
+      "outscored": 0,
+      "rejected": 14
+    },
+    "rejectionReasons": {
+      "duplicate of a recent post": 14
+    },
+    "hookOutcomes": {
+      "record": {
+        "attempted": 1,
+        "published": 0
+      },
+      "steady": {
+        "attempted": 2,
         "published": 1
       }
     }

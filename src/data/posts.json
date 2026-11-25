@@ -1,5 +1,31 @@
 [
   {
+    "id": "LLY-2026-11-25T19:24:35.425Z",
+    "ts": "2026-11-25T19:24:35.425Z",
+    "kind": "steady",
+    "ticker": "LLY",
+    "name": "Eli Lilly & Co",
+    "sector": "Healthcare",
+    "text": "7.8% upside held for 63 days.",
+    "score": 36,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band",
+      "duplicate of a recent post (40% word overlap)"
+    ],
+    "facts": {
+      "pulseScore": 10,
+      "snapshots": 241,
+      "days": 63.3,
+      "upside": 7.8,
+      "consensus": "StrongBuy",
+      "analysts": 21
+    },
+    "descriptor": "Diabetes Medicine Developer",
+    "image": "LLY-2026-11-25T19-24-35-425Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "MU-2026-11-25T08:44:36.588Z",
     "ts": "2026-11-25T08:44:36.588Z",
     "kind": "surprise",

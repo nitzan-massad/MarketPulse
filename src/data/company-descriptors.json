@@ -358,5 +358,10 @@
     "name": "Ovintiv",
     "descriptor": "Oil and Gas Producer",
     "scene": "inspecting pipeline valves in a snowy field"
+  },
+  "LLY": {
+    "name": "Eli Lilly",
+    "descriptor": "Diabetes Medicine Developer",
+    "scene": "researcher carefully filling insulin vials on a laboratory bench"
   }
 }
