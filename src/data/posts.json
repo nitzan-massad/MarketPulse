@@ -1,5 +1,28 @@
 [
   {
+    "id": "LRMR-2026-11-26T03:43:23.452Z",
+    "ts": "2026-11-26T03:43:23.452Z",
+    "kind": "list",
+    "ticker": "LRMR",
+    "name": "Larimar Therapeutics",
+    "sector": "Healthcare",
+    "text": "178% upside, tops the list of 5.",
+    "score": 68,
+    "reasons": [
+      "4 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "members": "Larimar Therapeutics (177.8% to $9), Rapport Therapeutics (176.8% to $70), Intuitive Machines (171.6% to $24.25), Hut 8 (169.5% to $130), New Era Energy & Digital (167.6% to $11)",
+      "count": 5,
+      "leader": "Larimar Therapeutics",
+      "leaderUpside": 177.8
+    },
+    "descriptor": "Rare Disease Therapies",
+    "image": "LRMR-2026-11-26T03-43-23-452Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "LLY-2026-11-25T19:24:35.425Z",
     "ts": "2026-11-25T19:24:35.425Z",
     "kind": "steady",

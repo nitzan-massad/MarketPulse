@@ -363,5 +363,10 @@
     "name": "Eli Lilly",
     "descriptor": "Diabetes Medicine Developer",
     "scene": "researcher carefully filling insulin vials on a laboratory bench"
+  },
+  "LRMR": {
+    "name": "Larimar Therapeutics",
+    "descriptor": "Rare Disease Therapies",
+    "scene": "technician carefully pipetting samples into microplates for cell culture experiments"
   }
 }
