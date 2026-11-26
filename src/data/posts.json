@@ -1,5 +1,35 @@
 [
   {
+    "id": "SPCX-2026-11-26T17:07:22.724Z",
+    "ts": "2026-11-26T17:07:22.724Z",
+    "kind": "movement",
+    "ticker": "SPCX",
+    "name": "SpaceX",
+    "sector": "Industrials",
+    "text": "125% upside, down from 125 today, 23 analysts.",
+    "score": 30,
+    "reasons": [
+      "8 digits of concrete detail",
+      "states a timeframe for the genuine change",
+      "length in band",
+      "SPCX appeared in a recent post",
+      "duplicate of a recent post (50% word overlap)"
+    ],
+    "facts": {
+      "upsideFrom": 124.9,
+      "upsideTo": 125.2,
+      "consensusFrom": "StrongBuy",
+      "consensusTo": "Buy",
+      "price": 127.44,
+      "priceTarget": 287,
+      "analysts": 23,
+      "sector": "Industrials"
+    },
+    "descriptor": "Spacecraft Manufacturer",
+    "image": "SPCX-2026-11-26T17-07-22-724Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "LRMR-2026-11-26T03:43:23.452Z",
     "ts": "2026-11-26T03:43:23.452Z",
     "kind": "list",

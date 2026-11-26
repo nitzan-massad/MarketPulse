@@ -1,12 +1,12 @@
 {
- "score": 15.2,
+ "score": 15,
  "rating": "extreme fear",
- "asOf": "2026-11-25T23:59:57",
+ "asOf": "2026-11-26T01:59:59",
  "previous": {
-  "close": 17.4,
-  "week": 29.9,
-  "month": 16.7,
-  "year": 15
+  "close": 15.2,
+  "week": 15.9,
+  "month": 29.8,
+  "year": 17.7
  },
  "components": [
   {
@@ -18,13 +18,13 @@
   {
    "key": "stock_price_strength",
    "label": "Stock price strength",
-   "score": 27.2,
+   "score": 25.6,
    "rating": "fear"
   },
   {
    "key": "stock_price_breadth",
    "label": "Stock price breadth",
-   "score": 17.2,
+   "score": 21.4,
    "rating": "extreme fear"
   },
   {
@@ -1051,7 +1051,11 @@
   },
   {
    "d": "2026-11-25",
-   "v": 15.2
+   "v": 15.6
+  },
+  {
+   "d": "2026-11-26",
+   "v": 15
   }
  ]
 }
