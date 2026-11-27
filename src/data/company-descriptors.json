@@ -373,5 +373,10 @@
     "name": "Nebius",
     "descriptor": "AI Cloud Infrastructure",
     "scene": "tuning a rack of GPU servers in a data centre hallway"
+  },
+  "GH": {
+    "name": "Guardant Health",
+    "descriptor": "Liquid Biopsy Tests",
+    "scene": "carefully pipetting samples into a laboratory microplate under a fume hood"
   }
 }
