@@ -1,5 +1,31 @@
 [
   {
+    "id": "NBIS-2026-11-27T01:56:01.308Z",
+    "ts": "2026-11-27T01:56:01.308Z",
+    "kind": "surprise",
+    "ticker": "NBIS",
+    "name": "Nebius Group",
+    "sector": "CommunicationServices",
+    "text": "~170% upside, dwarfs sector's 23%.",
+    "score": 70,
+    "reasons": [
+      "5 digits of concrete detail",
+      "length in band"
+    ],
+    "facts": {
+      "upside": 170,
+      "price": 84.99,
+      "priceTarget": 229.5,
+      "consensus": "Buy",
+      "analysts": 12,
+      "sector": "CommunicationServices",
+      "sectorMedianUpside": 22.9
+    },
+    "descriptor": "AI Cloud Infrastructure",
+    "image": "NBIS-2026-11-27T01-56-01-308Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "SPCX-2026-11-26T17:07:22.724Z",
     "ts": "2026-11-26T17:07:22.724Z",
     "kind": "movement",

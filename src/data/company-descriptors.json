@@ -368,5 +368,10 @@
     "name": "Larimar Therapeutics",
     "descriptor": "Rare Disease Therapies",
     "scene": "technician carefully pipetting samples into microplates for cell culture experiments"
+  },
+  "NBIS": {
+    "name": "Nebius",
+    "descriptor": "AI Cloud Infrastructure",
+    "scene": "tuning a rack of GPU servers in a data centre hallway"
   }
 }
