@@ -1,5 +1,33 @@
 [
   {
+    "id": "GH-2026-11-28T07:57:55.432Z",
+    "ts": "2026-11-28T07:57:55.432Z",
+    "kind": "contrarian",
+    "ticker": "GH",
+    "name": "Guardant Health",
+    "sector": "Healthcare",
+    "text": "29% upside, quant and AI disagree.",
+    "score": 52,
+    "reasons": [
+      "2 digits of concrete detail",
+      "length in band",
+      "GH appeared in a recent post"
+    ],
+    "facts": {
+      "pulseScore": 10,
+      "aiScore": 47,
+      "aiRating": "Neutral",
+      "consensus": "StrongBuy",
+      "upside": 29.6,
+      "price": 156.04,
+      "analysts": 16,
+      "bullish": "quant"
+    },
+    "descriptor": "Liquid Biopsy Tests",
+    "image": "GH-2026-11-28T07-57-55-432Z.jpg",
+    "imageSource": "flux"
+  },
+  {
     "id": "GH-2026-11-27T23:37:27.146Z",
     "ts": "2026-11-27T23:37:27.146Z",
     "kind": "contrarian",
